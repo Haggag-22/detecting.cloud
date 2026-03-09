@@ -25,6 +25,12 @@ import {
   Bug,
   Route,
   Network as NetworkIcon,
+  KeyRound,
+  TrendingUp,
+  Server,
+  Wifi,
+  Database,
+  ShieldOff,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { attackPaths, attackObjectiveLabels, type AttackObjective } from "@/data/attackPaths";
