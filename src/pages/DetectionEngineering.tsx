@@ -24,11 +24,58 @@ const formatLabels: Record<string, string> = {
   cloudwatch: "CloudWatch Insights",
 };
 
+// Lightweight syntax highlighting for YAML and SPL
+function highlightCode(code: string, format: string): React.ReactNode {
+  if (format === "sigma") {
+    // Highlight YAML keys and values
+    return code.split("\n").map((line, i) => {
+      const highlighted = line
+        .replace(/^(\s*)([\w-]+)(:)/gm, "$1<k>$2</k>$3")
+        .replace(/'([^']+)'/g, "<s>'$1'</s>");
+      return (
+        <span key={i}>
+          <span dangerouslySetInnerHTML={{ __html: highlighted.replace(/<k>/g, '<span class="text-primary">').replace(/<\/k>/g, '</span>').replace(/<s>/g, '<span class="text-emerald-400">').replace(/<\/s>/g, '</span>') }} />
+          {"\n"}
+        </span>
+      );
+    });
+  }
+  if (format === "splunk") {
+    const highlighted = code
+      .replace(/\b(index|sourcetype|where|table|stats|sort|like|OR|AND|NOT|IN|by|as)\b/gi, '<span class="text-primary">$1</span>')
+      .replace(/\|/g, '<span class="text-accent">|</span>');
+    return <span dangerouslySetInnerHTML={{ __html: highlighted }} />;
+  }
+  if (format === "cloudtrail") {
+    const highlighted = code
+      .replace(/\b(SELECT|FROM|WHERE|AND|OR|ORDER BY|GROUP BY|HAVING|IN|LIKE|NOT|DESC|ASC|COUNT|SUM)\b/gi, '<span class="text-primary">$1</span>');
+    return <span dangerouslySetInnerHTML={{ __html: highlighted }} />;
+  }
+  if (format === "cloudwatch") {
+    const highlighted = code
+      .replace(/\b(fields|filter|sort|stats|count|like|in|by|desc|asc|not)\b/gi, '<span class="text-primary">$1</span>')
+      .replace(/\|/g, '<span class="text-accent">|</span>');
+    return <span dangerouslySetInnerHTML={{ __html: highlighted }} />;
+  }
+  return code;
+}
+
+function downloadFile(content: string, filename: string) {
+  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 const DetectionEngineeringPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const ruleParam = searchParams.get("rule");
   const serviceParam = searchParams.get("service");
-  const [search, setSearch] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const { toast } = useToast();
 
   const detectionsByService = getDetectionsByService();
   const services = Object.keys(detectionsByService);
