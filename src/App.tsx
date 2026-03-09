@@ -31,6 +31,7 @@ const App = () => (
           <Route path="/detection-engineering" element={<DetectionEngineering />} />
           
           <Route path="/attack-graph" element={<AttackGraph />} />
+          <Route path="/coverage" element={<Coverage />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

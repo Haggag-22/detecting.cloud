@@ -11,6 +11,7 @@ const navLinks = [
   { label: "Research", to: "/research" },
   { label: "Attack Paths", to: "/attack-paths" },
   { label: "Attack Graph", to: "/attack-graph" },
+  { label: "Coverage", to: "/coverage" },
   { label: "Detection Engineering", to: "/detection-engineering" },
   { label: "About", to: "/about" },
 ];
