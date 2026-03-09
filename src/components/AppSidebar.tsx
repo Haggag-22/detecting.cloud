@@ -182,6 +182,15 @@ function buildSections(): SidebarSection[] {
       ],
     },
     {
+      key: "attack-graph",
+      label: "Attack Graph",
+      icon: Network,
+      to: "/attack-graph",
+      children: [
+        { key: "graph-full", label: "Full Graph", icon: Network, to: "/attack-graph" },
+      ],
+    },
+    {
       key: "resources",
       label: "Resources",
       icon: ExternalLink,
