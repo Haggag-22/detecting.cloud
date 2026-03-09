@@ -207,7 +207,7 @@ const DetectionEngineeringPage = () => {
                       </Badge>
                       <span className="font-medium text-sm">{ap.title}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">{ap.overview.substring(0, 120)}…</p>
+                    <p className="text-xs text-muted-foreground">{ap.description.substring(0, 120)}…</p>
                   </Link>
                 ))}
               </div>

@@ -16,7 +16,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
 
   const allItems = [
     ...researchPosts.map((p) => ({ title: p.title, description: p.preview, url: `/research/${p.slug}`, type: "Research" })),
-    ...attackPaths.map((a) => ({ title: a.title, description: a.overview, url: `/attack-paths/${a.slug}`, type: "Attack Path" })),
+    ...attackPaths.map((a) => ({ title: a.title, description: a.description, url: `/attack-paths?technique=${a.slug}`, type: "Attack Path" })),
   ];
 
   const filtered = query.length > 1
