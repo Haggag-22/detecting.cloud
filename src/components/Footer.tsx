@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
-import { Shield, Github, Twitter } from "lucide-react";
+import { Github, Twitter } from "lucide-react";
+import logoImg from "@/assets/logo.jpeg";
 
 export function Footer() {
   return (
