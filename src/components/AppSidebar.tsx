@@ -213,7 +213,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="overflow-y-auto">
+      <SidebarContent className="overflow-y-auto will-change-scroll" style={{ overscrollBehavior: 'contain' }}>
         {search.trim() && (
           <div className="px-2 pb-2">
             {searchResults.length === 0 ? (
