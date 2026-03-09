@@ -201,7 +201,7 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
-      <SidebarHeader className="p-3 space-y-3">
+      <SidebarHeader className="p-3 space-y-3 pt-[4.5rem]">
         <Link to="/" className="flex items-center gap-2 font-display font-bold text-sm">
           <img src={logoImg} alt="Logo" className="h-5 w-5 rounded shrink-0" />
           <span className="truncate">
