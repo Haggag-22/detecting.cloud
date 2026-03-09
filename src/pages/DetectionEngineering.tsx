@@ -35,19 +35,29 @@ const DetectionEngineeringPage = () => {
   const selectedDetection = ruleParam ? detections.find((d) => d.id === ruleParam) : null;
 
   // Filter detections
-  const filteredByService = serviceParam
-    ? detections.filter((d) => d.awsService === serviceParam || d.relatedServices.includes(serviceParam))
+  // Primary rules for the selected service
+  const primaryRules = serviceParam
+    ? detections.filter((d) => d.awsService === serviceParam)
     : detections;
 
-  const filtered = filteredByService.filter((d) => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return (
-      d.title.toLowerCase().includes(s) ||
-      d.description.toLowerCase().includes(s) ||
-      d.tags.some((t) => t.toLowerCase().includes(s))
-    );
-  });
+  // Related rules (where service appears in relatedServices but not primary)
+  const relatedRules = serviceParam
+    ? detections.filter((d) => d.awsService !== serviceParam && d.relatedServices.includes(serviceParam))
+    : [];
+
+  const filterBySearch = (list: typeof detections) =>
+    list.filter((d) => {
+      if (!search) return true;
+      const s = search.toLowerCase();
+      return (
+        d.title.toLowerCase().includes(s) ||
+        d.description.toLowerCase().includes(s) ||
+        d.tags.some((t) => t.toLowerCase().includes(s))
+      );
+    });
+
+  const filtered = filterBySearch(primaryRules);
+  const filteredRelated = filterBySearch(relatedRules);
 
   if (selectedDetection) {
     const ServiceIcon = getAwsServiceIcon(selectedDetection.awsService);
