@@ -15,13 +15,13 @@ const severityColor = {
 };
 
 const categoryColor: Record<string, string> = {
-  "initial-access": "bg-orange-500/15 text-orange-400",
-  "credential-access": "bg-red-500/15 text-red-400",
-  "privilege-escalation": "bg-destructive/15 text-destructive",
-  "persistence": "bg-purple-500/15 text-purple-400",
-  "lateral-movement": "bg-accent/15 text-accent",
-  "exfiltration": "bg-primary/15 text-primary",
-  "defense-evasion": "bg-emerald-500/15 text-emerald-400",
+  "initial-access": "bg-muted text-muted-foreground",
+  "credential-access": "bg-purple-500/15 text-purple-400",
+  "privilege-escalation": "bg-red-500/15 text-red-400",
+  "persistence": "bg-orange-500/15 text-orange-400",
+  "lateral-movement": "bg-blue-500/15 text-blue-400",
+  "exfiltration": "bg-emerald-500/15 text-emerald-400",
+  "defense-evasion": "bg-muted text-muted-foreground",
 };
 
 const AttackPathsPage = () => {
