@@ -57,21 +57,17 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div
+        className="min-h-screen flex w-full"
+        style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
+      >
+        <AppSidebar />
+        {/* Resize handle */}
         <div
-          style={{ width: sidebarWidth, minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH }}
-          className="relative shrink-0"
+          onMouseDown={handleMouseDown}
+          className="relative shrink-0 w-1.5 cursor-col-resize z-30 group hover:bg-primary/20 transition-colors"
         >
-          <div className="h-full" style={{ width: sidebarWidth }}>
-            <AppSidebar />
-          </div>
-          {/* Resize handle */}
-          <div
-            onMouseDown={handleMouseDown}
-            className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize z-30 group hover:bg-primary/20 transition-colors"
-          >
-            <div className="w-px h-full bg-border group-hover:bg-primary/50 transition-colors mx-auto" />
-          </div>
+          <div className="w-px h-full bg-border group-hover:bg-primary/50 transition-colors mx-auto" />
         </div>
         <div className="flex-1 flex flex-col min-w-0">
           <Navbar showSidebarTrigger />
