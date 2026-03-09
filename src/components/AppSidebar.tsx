@@ -224,7 +224,7 @@ export function AppSidebar() {
 
   const allSearchItems: { label: string; to: string; type: string }[] = [];
   attackPaths.forEach((ap) => allSearchItems.push({ label: ap.title, to: `/attack-paths?technique=${ap.slug}`, type: "Attack Path" }));
-  techniques.forEach((t) => allSearchItems.push({ label: t.name, to: `/attack-paths?technique=${t.id}`, type: "Technique" }));
+  techniques.forEach((t) => allSearchItems.push({ label: t.name, to: `/attack-paths/technique/${t.id}`, type: "Technique" }));
   detections.forEach((d) => allSearchItems.push({ label: d.title, to: `/detection-engineering?rule=${d.id}`, type: "Detection" }));
   researchPosts.forEach((p) => allSearchItems.push({ label: p.title, to: `/research/${p.slug}`, type: "Research" }));
 
