@@ -102,7 +102,7 @@ function buildSections(): SidebarSection[] {
       label: ap.title.length > 35 ? ap.title.substring(0, 35) + "…" : ap.title,
       icon: Route,
       iconColorClass: objectiveColors[ap.objective],
-      to: `/attack-paths?technique=${ap.slug}`,
+      to: `/attack-paths/technique/${ap.slug}`,
     })),
   ];
 
@@ -127,7 +127,7 @@ function buildSections(): SidebarSection[] {
       iconColorClass: colorClass,
       children: catTechs.map((t) => ({
         label: t.name.length > 35 ? t.name.substring(0, 35) + "…" : t.name,
-        to: `/attack-paths?technique=${t.id}`,
+        to: `/attack-paths/technique/${t.id}`,
         dotColorClass: colorClass,
       })),
     };
@@ -224,7 +224,7 @@ export function AppSidebar() {
 
   const allSearchItems: { label: string; to: string; type: string }[] = [];
   attackPaths.forEach((ap) => allSearchItems.push({ label: ap.title, to: `/attack-paths?technique=${ap.slug}`, type: "Attack Path" }));
-  techniques.forEach((t) => allSearchItems.push({ label: t.name, to: `/attack-paths?technique=${t.id}`, type: "Technique" }));
+  techniques.forEach((t) => allSearchItems.push({ label: t.name, to: `/attack-paths/technique/${t.id}`, type: "Technique" }));
   detections.forEach((d) => allSearchItems.push({ label: d.title, to: `/detection-engineering?rule=${d.id}`, type: "Detection" }));
   researchPosts.forEach((p) => allSearchItems.push({ label: p.title, to: `/research/${p.slug}`, type: "Research" }));
 

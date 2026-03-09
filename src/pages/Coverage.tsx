@@ -122,7 +122,7 @@ const CoveragePage = () => {
               return (
                 <Link
                   key={tech.id}
-                  to={`/attack-paths?technique=${tech.id}`}
+                  to={`/attack-paths/technique/${tech.id}`}
                   className="grid grid-cols-[1fr_140px_120px_100px_100px] gap-0 px-4 py-3 hover:bg-muted/50 transition-colors items-center"
                 >
                   <span className="font-medium text-sm text-foreground">{tech.name}</span>

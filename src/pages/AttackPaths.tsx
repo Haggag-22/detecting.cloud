@@ -8,7 +8,7 @@ import {
   ChevronRight, AlertTriangle, Shield, Search, Link as LinkIcon, Network, Crosshair, ArrowLeft,
   KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff,
 } from "lucide-react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link, Navigate } from "react-router-dom";
 import { AttackFlowChain } from "@/components/AttackFlowChain";
 import { LucideIcon } from "lucide-react";
 
@@ -52,140 +52,9 @@ const AttackPathsPage = () => {
   const [searchParams] = useSearchParams();
   const techniqueParam = searchParams.get("technique");
 
-  // ─── Technique Detail View ───
-  // If the "technique" param is a technique ID (tech-*), show technique detail
-  const activeTechnique = techniqueParam?.startsWith("tech-")
-    ? getTechniqueById(techniqueParam)
-    : null;
-
-  if (activeTechnique) {
-    const usedInPaths = getAttackPathsForTechnique(activeTechnique.id);
-    const relatedDetections = detections.filter((d) => activeTechnique.detectionIds.includes(d.id));
-
-    return (
-      <Layout>
-        <div className="container py-12 max-w-4xl">
-          {/* Breadcrumb */}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
-            <Link to="/attack-paths" className="hover:text-foreground transition-colors">
-              Attack Paths
-            </Link>
-            <ChevronRight className="h-3.5 w-3.5" />
-            <span className="text-foreground">{activeTechnique.name}</span>
-          </div>
-
-          <div className="space-y-6">
-            <div>
-              <div className="flex flex-wrap gap-2 mb-3">
-                {(() => {
-                  const CatIcon = categoryIcon[activeTechnique.category];
-                  return (
-                    <Badge className={`text-xs border-0 uppercase tracking-wide flex items-center gap-1 ${categoryColor[activeTechnique.category] || "bg-muted text-muted-foreground"}`}>
-                      {CatIcon && <CatIcon className={`h-3 w-3 ${categoryIconColor[activeTechnique.category] || ""}`} />}
-                      {activeTechnique.category.replace(/-/g, " ")}
-                    </Badge>
-                  );
-                })()}
-                {activeTechnique.services.map((svc) => (
-                  <Badge key={svc} variant="outline" className="text-xs border-border text-muted-foreground">
-                    {svc}
-                  </Badge>
-                ))}
-              </div>
-              <h1 className="font-display text-3xl font-bold mb-3">{activeTechnique.name}</h1>
-              <p className="text-muted-foreground mb-4">{activeTechnique.description}</p>
-              <Link
-                to={`/attack-graph?technique=${activeTechnique.id}`}
-                className="inline-flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/20 transition-colors"
-              >
-                <Network className="h-4 w-4" />
-                View in Attack Graph
-              </Link>
-            </div>
-
-            {/* Required Permissions */}
-            {activeTechnique.permissions.length > 0 && (
-              <div>
-                <h3 className="font-semibold mb-3">Required Permissions</h3>
-                <div className="flex flex-wrap gap-2">
-                  {activeTechnique.permissions.map((p) => (
-                    <code key={p} className="px-2 py-1 rounded bg-muted text-xs font-mono text-primary">
-                      {p}
-                    </code>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Mitigations */}
-            <div>
-              <h3 className="flex items-center gap-2 font-semibold mb-3">
-                <Shield className="h-4 w-4 text-green-400" /> Mitigations
-              </h3>
-              <ul className="space-y-1.5">
-                {activeTechnique.mitigations.map((m, i) => (
-                  <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                    <span className="text-green-400 mt-0.5">•</span> {m}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            {/* Related Detection Rules */}
-            {relatedDetections.length > 0 && (
-              <div className="border-t border-border pt-6">
-                <h3 className="flex items-center gap-2 font-semibold mb-4">
-                  <LinkIcon className="h-4 w-4 text-accent" /> Detection Rules
-                </h3>
-                <div className="space-y-3">
-                  {relatedDetections.map((det) => (
-                    <Link
-                      key={det.id}
-                      to={`/detection-engineering?rule=${det.id}`}
-                      className="block rounded-lg border border-border/50 bg-card p-4 hover:border-primary/30 transition-colors"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline" className="text-xs border-border text-muted-foreground">
-                          {det.awsService}
-                        </Badge>
-                        <span className="font-medium text-sm">{det.title}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">{det.description}</p>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Used in Attack Paths */}
-            {usedInPaths.length > 0 && (
-              <div className="border-t border-border pt-6">
-                <h3 className="flex items-center gap-2 font-semibold mb-4">
-                  <Crosshair className="h-4 w-4 text-destructive" /> Used in Attack Paths
-                </h3>
-                <div className="space-y-3">
-                  {usedInPaths.map((ap) => (
-                    <Link
-                      key={ap.slug}
-                      to={`/attack-paths?technique=${ap.slug}`}
-                      className="block rounded-lg border border-border/50 bg-card p-4 hover:border-primary/30 transition-colors"
-                    >
-                      <div className="flex items-center gap-2 mb-1">
-                        <Badge className={`text-xs border-0 ${severityColor[ap.severity]}`}>
-                          {ap.severity}
-                        </Badge>
-                        <span className="font-medium text-sm">{ap.title}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground">{ap.description}</p>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </Layout>
-    );
+  // Redirect old technique URLs to the new dedicated route
+  if (techniqueParam?.startsWith("tech-")) {
+    return <Navigate to={`/attack-paths/technique/${techniqueParam}`} replace />;
   }
 
   // ─── Attack Path Detail View ───
@@ -316,7 +185,7 @@ const AttackPathsPage = () => {
                     return (
                     <Link
                       key={tech.id}
-                      to={`/attack-paths?technique=${tech.id}`}
+                      to={`/attack-paths/technique/${tech.id}`}
                       className="rounded-lg border border-border/50 bg-card p-4 hover:border-primary/30 transition-colors group"
                     >
                       <div className="flex items-center gap-2 mb-1">
