@@ -52,7 +52,7 @@ export function Navbar({ showSidebarTrigger = false }: { showSidebarTrigger?: bo
             <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} className="text-muted-foreground hover:text-foreground">
               <Search className="h-4 w-4" />
             </Button>
-            <a href="https://github.com" target="_blank" rel="noopener noreferrer">
+            <a href="https://github.com/Haggag-22/detecting.cloud" target="_blank" rel="noopener noreferrer">
               <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
                 <Github className="h-4 w-4" />
               </Button>
