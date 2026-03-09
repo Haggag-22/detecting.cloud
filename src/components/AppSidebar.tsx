@@ -129,19 +129,11 @@ function buildSections(): SidebarSection[] {
 
   return [
     {
-      key: "research",
-      label: "Research",
-      icon: FileText,
-      to: "/research",
-      children: [
-        { key: "res-all", label: "All Articles", icon: FileText, to: "/research" },
-        ...researchPosts.slice(0, 6).map((p) => ({
-          key: `res-${p.slug}`,
-          label: p.title.length > 35 ? p.title.substring(0, 35) + "…" : p.title,
-          icon: BookOpen,
-          to: `/research/${p.slug}`,
-        })),
-      ],
+      key: "attack-paths",
+      label: "Attack Paths",
+      icon: Crosshair,
+      to: "/attack-paths",
+      children: attackPathChildren,
     },
     {
       key: "attack-paths",
