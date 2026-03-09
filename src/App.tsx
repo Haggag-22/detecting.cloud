@@ -28,6 +28,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/research" element={<Research />} />
           <Route path="/research/:slug" element={<Article />} />
+          <Route path="/attack-paths/technique/:id" element={<TechniqueDetail />} />
           <Route path="/attack-paths" element={<AttackPaths />} />
           <Route path="/detection-engineering" element={<DetectionEngineering />} />
           
