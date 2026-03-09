@@ -1,21 +1,35 @@
 // Attack Paths — chains of reusable technique nodes.
 // Each attack path represents a realistic attacker progression through AWS services.
 
+import type { TechniqueCategory } from "./techniques";
+
 export interface AttackPathStep {
   techniqueId: string;
   /** Optional context describing how this technique is used in this specific chain */
   context?: string;
 }
 
+export type AttackObjective = "credential-access" | "privilege-escalation" | "persistence" | "lateral-movement" | "exfiltration";
+
 export interface AttackPath {
   slug: string;
   title: string;
   description: string;
   severity: "Critical" | "High" | "Medium";
+  /** Primary attacker objective — determines the color accent */
+  objective: AttackObjective;
   tags: string[];
   /** Ordered chain of technique steps */
   steps: AttackPathStep[];
 }
+
+export const attackObjectiveLabels: Record<AttackObjective, string> = {
+  "credential-access": "Credential Access",
+  "privilege-escalation": "Privilege Escalation",
+  "persistence": "Persistence",
+  "lateral-movement": "Lateral Movement",
+  "exfiltration": "Data Exfiltration",
+};
 
 export const attackPaths: AttackPath[] = [
   {
@@ -24,6 +38,7 @@ export const attackPaths: AttackPath[] = [
     description:
       "An attacker gains code execution on an EC2 instance, steals IAM credentials via the Instance Metadata Service, assumes a cross-account role, and exfiltrates sensitive data from S3.",
     severity: "Critical",
+    objective: "exfiltration",
     tags: ["EC2", "IAM", "STS", "S3", "IMDS", "Data Exfiltration"],
     steps: [
       { techniqueId: "tech-imds-credential-theft", context: "Gain initial credentials by querying the EC2 metadata endpoint" },
@@ -37,6 +52,7 @@ export const attackPaths: AttackPath[] = [
     description:
       "An attacker with iam:PassRole and lambda:CreateFunction creates a Lambda function with an admin role, executes code to create backdoor credentials, and establishes persistent access.",
     severity: "Critical",
+    objective: "privilege-escalation",
     tags: ["IAM", "Lambda", "PassRole", "Privilege Escalation", "Persistence"],
     steps: [
       { techniqueId: "tech-passrole-abuse", context: "Pass an administrative role to a new Lambda function" },
@@ -51,6 +67,7 @@ export const attackPaths: AttackPath[] = [
     description:
       "An attacker exploits iam:CreatePolicyVersion to grant themselves admin access, then uses the elevated permissions to assume sensitive roles across the organization.",
     severity: "Critical",
+    objective: "privilege-escalation",
     tags: ["IAM", "STS", "Policy", "Privilege Escalation", "Cross-Account"],
     steps: [
       { techniqueId: "tech-create-policy-version", context: "Create a new policy version with Action:* Resource:*" },
@@ -64,6 +81,7 @@ export const attackPaths: AttackPath[] = [
     description:
       "An attacker creates a Lambda function with elevated permissions, configures automated triggers, and disables CloudTrail to cover their tracks.",
     severity: "High",
+    objective: "persistence",
     tags: ["Lambda", "IAM", "CloudTrail", "Persistence", "Defense Evasion"],
     steps: [
       { techniqueId: "tech-passrole-abuse", context: "Pass a privileged role to the backdoor Lambda function" },
@@ -78,6 +96,7 @@ export const attackPaths: AttackPath[] = [
     description:
       "An attacker creates a backdoor IAM user, generates long-lived access keys, modifies S3 bucket policies to allow cross-account access, and exfiltrates data.",
     severity: "High",
+    objective: "exfiltration",
     tags: ["IAM", "S3", "Persistence", "Data Exfiltration"],
     steps: [
       { techniqueId: "tech-iam-user-creation", context: "Create a hidden IAM user with administrative inline policy" },
@@ -92,6 +111,7 @@ export const attackPaths: AttackPath[] = [
     description:
       "An attacker compromises an EC2 instance, steals IMDS credentials, escalates via PassRole to Lambda, and uses the Lambda role to exfiltrate data.",
     severity: "High",
+    objective: "lateral-movement",
     tags: ["EC2", "IAM", "Lambda", "S3", "Lateral Movement"],
     steps: [
       { techniqueId: "tech-imds-credential-theft", context: "Steal IAM credentials from the compromised EC2 instance" },

@@ -17,23 +17,17 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
-  KeyRound,
-  TrendingUp,
-  Server,
-  Network as NetworkIcon,
-  Database,
   Search,
   Crosshair,
   ShieldCheck,
-  FileText,
   ChevronRight,
-  BookOpen,
   ExternalLink,
   Bug,
   Route,
+  Network as NetworkIcon,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { attackPaths } from "@/data/attackPaths";
+import { attackPaths, attackObjectiveLabels, type AttackObjective } from "@/data/attackPaths";
 import { techniques, techniqueCategories, type TechniqueCategory } from "@/data/techniques";
 import { detections, getDetectionsByService } from "@/data/detections";
 import { researchPosts } from "@/data/research";
@@ -55,11 +49,30 @@ function persistState(state: Record<string, boolean>) {
   sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
+// ─── Category color system ───
+// Only the icon/dot gets this color, not the entire row
+const objectiveColors: Record<AttackObjective, string> = {
+  "credential-access": "text-purple-400",
+  "privilege-escalation": "text-red-400",
+  "persistence": "text-orange-400",
+  "lateral-movement": "text-blue-400",
+  "exfiltration": "text-emerald-400",
+};
+
+const techniqueCategoryColors: Record<string, string> = {
+  "initial-access": "text-muted-foreground",
+  "credential-access": "text-purple-400",
+  "privilege-escalation": "text-red-400",
+  "persistence": "text-orange-400",
+  "lateral-movement": "text-blue-400",
+  "exfiltration": "text-emerald-400",
+  "defense-evasion": "text-muted-foreground",
+};
+
 interface SidebarSection {
   key: string;
   label: string;
   icon?: LucideIcon;
-  customIcon?: React.ReactNode;
   to?: string;
   children?: SidebarChild[];
 }
@@ -68,48 +81,42 @@ interface SidebarChild {
   key: string;
   label: string;
   icon?: LucideIcon;
+  iconColorClass?: string;
   customIcon?: React.ReactNode;
   to?: string;
-  children?: { label: string; to: string }[];
+  children?: { label: string; to: string; dotColorClass?: string }[];
 }
 
-const categoryIcons: Record<string, LucideIcon> = {
-  "credential-access": KeyRound,
-  "privilege-escalation": TrendingUp,
-  "persistence": Server,
-  "lateral-movement": NetworkIcon,
-  "exfiltration": Database,
-  "defense-evasion": ShieldCheck,
-  "initial-access": Crosshair,
-};
-
 function buildSections(): SidebarSection[] {
-  // Attack Paths — show chains
+  // Attack Paths — single list with category color accents
   const attackPathChildren: SidebarChild[] = [
     { key: "ap-all", label: "All Attack Paths", icon: Crosshair, to: "/attack-paths" },
     ...attackPaths.map((ap) => ({
       key: `ap-${ap.slug}`,
       label: ap.title.length > 35 ? ap.title.substring(0, 35) + "…" : ap.title,
       icon: Route,
+      iconColorClass: objectiveColors[ap.objective],
       to: `/attack-paths?technique=${ap.slug}`,
     })),
   ];
 
-  // Technique Library — grouped by category
+  // Technique Library — grouped by category with color accents
   const techniqueChildren: SidebarChild[] = (Object.keys(techniqueCategories) as TechniqueCategory[]).map((catKey) => {
     const catTechs = techniques.filter((t) => t.category === catKey);
+    const colorClass = techniqueCategoryColors[catKey] || "text-muted-foreground";
     return {
       key: `tech-cat-${catKey}`,
       label: techniqueCategories[catKey].label,
-      icon: categoryIcons[catKey] || Crosshair,
+      iconColorClass: colorClass,
       children: catTechs.map((t) => ({
         label: t.name.length > 35 ? t.name.substring(0, 35) + "…" : t.name,
         to: `/attack-paths?technique=${t.id}`,
+        dotColorClass: colorClass,
       })),
     };
   }).filter((c) => c.children.length > 0);
 
-  // Build Detection Engineering by AWS service
+  // Detection Engineering by AWS service
   const detectionsByService = getDetectionsByService();
   const detectionServiceChildren: SidebarChild[] = [
     { key: "det-all", label: "All Detections", icon: ShieldCheck, to: "/detection-engineering" },
@@ -136,13 +143,6 @@ function buildSections(): SidebarSection[] {
       children: attackPathChildren,
     },
     {
-      key: "attack-paths",
-      label: "Attack Paths",
-      icon: Crosshair,
-      to: "/attack-paths",
-      children: attackPathChildren,
-    },
-    {
       key: "techniques",
       label: "Techniques",
       icon: Route,
@@ -161,9 +161,6 @@ function buildSections(): SidebarSection[] {
       label: "Attack Graph",
       icon: NetworkIcon,
       to: "/attack-graph",
-      children: [
-        { key: "graph-full", label: "Full Graph", icon: NetworkIcon, to: "/attack-graph" },
-      ],
     },
     {
       key: "resources",
@@ -249,64 +246,88 @@ export function AppSidebar() {
         )}
 
         {!search.trim() &&
-          sections.map((section) => (
-            <div key={section.key} className="px-2 py-0.5">
-              <Collapsible
-                open={expanded[section.key] ?? false}
-                onOpenChange={() => toggleSection(section.key)}
-              >
-                <SidebarMenu>
-                  <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuButton
-                        tooltip={section.label}
+          sections.map((section) => {
+            // Simple link section (no children)
+            if (!section.children) {
+              return (
+                <div key={section.key} className="px-2 py-0.5">
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <SidebarMenuButton asChild tooltip={section.label}
                         className="font-medium text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground"
                       >
-                        {section.icon && <section.icon className="h-4 w-4" />}
-                        <span className="flex-1">{section.label}</span>
-                        <ChevronRight
-                          className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                            expanded[section.key] ? "rotate-90" : ""
-                          }`}
-                        />
+                        <Link to={section.to || "#"}>
+                          {section.icon && <section.icon className="h-4 w-4" />}
+                          <span className="flex-1">{section.label}</span>
+                        </Link>
                       </SidebarMenuButton>
-                    </CollapsibleTrigger>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </div>
+              );
+            }
 
-                    <CollapsibleContent>
-                      {section.children && (
-                        <SidebarMenuSub>
-                          {section.children.map((child) =>
-                            child.children && child.children.length > 0 ? (
-                              <NestedCollapsible
-                                key={child.key}
-                                item={child}
-                                currentPath={currentPath}
-                                expanded={expanded}
-                                toggleSection={toggleSection}
-                              />
-                            ) : (
-                              <SidebarMenuSubItem key={child.key}>
-                                <SidebarMenuSubButton
-                                  asChild
-                                  isActive={child.to === currentPath}
-                                  size="sm"
-                                >
-                                  <Link to={child.to || "#"}>
-                                    {child.customIcon || (child.icon && <child.icon className="h-3.5 w-3.5" />)}
-                                    <span>{child.label}</span>
-                                  </Link>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            )
-                          )}
-                        </SidebarMenuSub>
-                      )}
-                    </CollapsibleContent>
-                  </SidebarMenuItem>
-                </SidebarMenu>
-              </Collapsible>
-            </div>
-          ))}
+            return (
+              <div key={section.key} className="px-2 py-0.5">
+                <Collapsible
+                  open={expanded[section.key] ?? false}
+                  onOpenChange={() => toggleSection(section.key)}
+                >
+                  <SidebarMenu>
+                    <SidebarMenuItem>
+                      <CollapsibleTrigger asChild>
+                        <SidebarMenuButton
+                          tooltip={section.label}
+                          className="font-medium text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                        >
+                          {section.icon && <section.icon className="h-4 w-4" />}
+                          <span className="flex-1">{section.label}</span>
+                          <ChevronRight
+                            className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                              expanded[section.key] ? "rotate-90" : ""
+                            }`}
+                          />
+                        </SidebarMenuButton>
+                      </CollapsibleTrigger>
+
+                      <CollapsibleContent>
+                        {section.children && (
+                          <SidebarMenuSub>
+                            {section.children.map((child) =>
+                              child.children && child.children.length > 0 ? (
+                                <NestedCollapsible
+                                  key={child.key}
+                                  item={child}
+                                  currentPath={currentPath}
+                                  expanded={expanded}
+                                  toggleSection={toggleSection}
+                                />
+                              ) : (
+                                <SidebarMenuSubItem key={child.key}>
+                                  <SidebarMenuSubButton
+                                    asChild
+                                    isActive={child.to === currentPath}
+                                    size="sm"
+                                  >
+                                    <Link to={child.to || "#"}>
+                                      {child.customIcon || (child.icon && (
+                                        <child.icon className={`h-3.5 w-3.5 ${child.iconColorClass || ""}`} />
+                                      ))}
+                                      <span>{child.label}</span>
+                                    </Link>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              )
+                            )}
+                          </SidebarMenuSub>
+                        )}
+                      </CollapsibleContent>
+                    </SidebarMenuItem>
+                  </SidebarMenu>
+                </Collapsible>
+              </div>
+            );
+          })}
       </SidebarContent>
     </Sidebar>
   );
@@ -331,7 +352,9 @@ function NestedCollapsible({
       >
         <CollapsibleTrigger asChild>
           <SidebarMenuSubButton size="sm" className="cursor-pointer">
-            {item.customIcon || (item.icon && <item.icon className="h-3.5 w-3.5" />)}
+            {item.customIcon || (
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.iconColorClass ? item.iconColorClass.replace("text-", "bg-") : "bg-muted-foreground"}`} />
+            )}
             <span className="flex-1">{item.label}</span>
             <ChevronRight
               className={`h-3 w-3 transition-transform duration-200 ${
@@ -342,15 +365,18 @@ function NestedCollapsible({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <SidebarMenuSub>
-            {item.children?.map((technique) => (
-              <SidebarMenuSubItem key={technique.to}>
+            {item.children?.map((child) => (
+              <SidebarMenuSubItem key={child.to}>
                 <SidebarMenuSubButton
                   asChild
-                  isActive={currentPath === technique.to}
+                  isActive={currentPath === child.to}
                   size="sm"
                 >
-                  <Link to={technique.to}>
-                    <span className="truncate">{technique.label}</span>
+                  <Link to={child.to}>
+                    {child.dotColorClass && (
+                      <span className={`w-1 h-1 rounded-full shrink-0 ${child.dotColorClass.replace("text-", "bg-")}`} />
+                    )}
+                    <span className="truncate">{child.label}</span>
                   </Link>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
