@@ -32,10 +32,10 @@ const categoryIconColor: Record<string, string> = {
   "defense-evasion": "text-muted-foreground",
 };
 
-const severityColor = {
-  Critical: "bg-destructive/10 text-destructive",
-  High: "bg-primary/10 text-primary",
-  Medium: "bg-accent/10 text-accent",
+const severityColor: Record<string, string> = {
+  Critical: "bg-severity-critical/15 text-severity-critical",
+  High: "bg-severity-high/15 text-severity-high",
+  Medium: "bg-severity-medium/15 text-severity-medium",
 };
 
 const categoryColor: Record<string, string> = {
