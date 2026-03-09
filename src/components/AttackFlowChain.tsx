@@ -63,11 +63,17 @@ export function AttackFlowChain({ steps, compact = false }: AttackFlowChainProps
                 <span className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors">
                   {step.technique.shortName}
                 </span>
-                <Badge
-                  className={`text-[10px] border px-1.5 py-0 ${categoryColor[step.technique.category] || "bg-muted text-muted-foreground border-border"}`}
-                >
-                  {step.technique.category.replace(/-/g, " ").toUpperCase()}
-                </Badge>
+                {(() => {
+                  const CatIcon = catIcon[step.technique.category];
+                  return (
+                    <Badge
+                      className={`text-[10px] border px-1.5 py-0 uppercase tracking-wide flex items-center gap-1 ${categoryColor[step.technique.category] || "bg-muted text-muted-foreground border-border"}`}
+                    >
+                      {CatIcon && <CatIcon className={`h-3 w-3 ${catIconColor[step.technique.category] || "text-muted-foreground"}`} />}
+                      {step.technique.category.replace(/-/g, " ").toUpperCase()}
+                    </Badge>
+                  );
+                })()}
               </div>
               {!compact && step.context && (
                 <p className="text-xs text-muted-foreground leading-relaxed">{step.context}</p>
