@@ -28,7 +28,7 @@ export function Navbar({ showSidebarTrigger = false }: { showSidebarTrigger?: bo
           <div className="flex items-center gap-2">
             {showSidebarTrigger && <SidebarTrigger className="text-muted-foreground hover:text-foreground" />}
             <Link to="/" className="flex items-center gap-2 font-display font-bold text-lg">
-              <Shield className="h-5 w-5 text-primary" />
+              <img src={logoImg} alt="Detecting.Cloud logo" className="h-6 w-6 rounded" />
               <span>Detecting<span className="text-primary">.Cloud</span></span>
             </Link>
           </div>
