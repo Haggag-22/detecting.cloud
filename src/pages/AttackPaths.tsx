@@ -4,9 +4,33 @@ import { attackPaths, getAttackPathsForTechnique } from "@/data/attackPaths";
 import { techniques, getTechniqueById, techniqueCategories, type TechniqueCategory } from "@/data/techniques";
 import { detections } from "@/data/detections";
 import { Badge } from "@/components/ui/badge";
-import { ChevronRight, AlertTriangle, Shield, Search, Link as LinkIcon, Network, Crosshair, ArrowLeft } from "lucide-react";
+import {
+  ChevronRight, AlertTriangle, Shield, Search, Link as LinkIcon, Network, Crosshair, ArrowLeft,
+  KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff,
+} from "lucide-react";
 import { useSearchParams, Link } from "react-router-dom";
 import { AttackFlowChain } from "@/components/AttackFlowChain";
+import { LucideIcon } from "lucide-react";
+
+const categoryIcon: Record<string, LucideIcon> = {
+  "initial-access": Crosshair,
+  "credential-access": KeyRound,
+  "privilege-escalation": TrendingUp,
+  "persistence": Server,
+  "lateral-movement": Wifi,
+  "exfiltration": Database,
+  "defense-evasion": ShieldOff,
+};
+
+const categoryIconColor: Record<string, string> = {
+  "initial-access": "text-muted-foreground",
+  "credential-access": "text-purple-400",
+  "privilege-escalation": "text-red-400",
+  "persistence": "text-orange-400",
+  "lateral-movement": "text-blue-400",
+  "exfiltration": "text-emerald-400",
+  "defense-evasion": "text-muted-foreground",
+};
 
 const severityColor = {
   Critical: "bg-destructive/10 text-destructive",
