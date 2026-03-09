@@ -30,7 +30,7 @@ export function Footer() {
               <li><Link to="/research" className="hover:text-foreground transition-colors">Research</Link></li>
               <li><Link to="/attack-paths" className="hover:text-foreground transition-colors">Attack Paths</Link></li>
               <li><Link to="/detection-engineering" className="hover:text-foreground transition-colors">Detection Engineering</Link></li>
-              <li><Link to="/labs" className="hover:text-foreground transition-colors">Labs</Link></li>
+              <li><Link to="/attack-graph" className="hover:text-foreground transition-colors">Attack Graph</Link></li>
             </ul>
           </div>
           <div>

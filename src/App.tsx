@@ -27,7 +27,7 @@ const App = () => (
           <Route path="/research/:slug" element={<Article />} />
           <Route path="/attack-paths" element={<AttackPaths />} />
           <Route path="/detection-engineering" element={<DetectionEngineering />} />
-          <Route path="/labs" element={<Labs />} />
+          
           <Route path="/attack-graph" element={<AttackGraph />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<NotFound />} />
