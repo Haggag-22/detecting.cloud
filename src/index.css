@@ -49,8 +49,20 @@
     --glow-primary: 210 79% 46%;
     --glow-accent: 210 79% 46%;
     --surface-elevated: 213 30% 10%;
-    --gradient-start: 43 96% 56%;
-    --gradient-end: 210 79% 46%;
+    --gradient-start: 210 79% 46%;
+    --gradient-end: 199 89% 48%;
+
+    /* Severity tokens */
+    --severity-critical: 0 84% 60%;
+    --severity-high: 25 95% 53%;
+    --severity-medium: 45 93% 47%;
+
+    /* Category tokens */
+    --cat-credential: 270 70% 65%;
+    --cat-privesc: 0 84% 60%;
+    --cat-persistence: 25 95% 53%;
+    --cat-lateral: 210 79% 46%;
+    --cat-exfiltration: 160 84% 39%;
   }
 }
 

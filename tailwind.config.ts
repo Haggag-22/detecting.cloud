@@ -66,6 +66,18 @@ export default {
           primary: "hsl(var(--glow-primary))",
           accent: "hsl(var(--glow-accent))",
         },
+        severity: {
+          critical: "hsl(var(--severity-critical))",
+          high: "hsl(var(--severity-high))",
+          medium: "hsl(var(--severity-medium))",
+        },
+        cat: {
+          credential: "hsl(var(--cat-credential))",
+          privesc: "hsl(var(--cat-privesc))",
+          persistence: "hsl(var(--cat-persistence))",
+          lateral: "hsl(var(--cat-lateral))",
+          exfiltration: "hsl(var(--cat-exfiltration))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
