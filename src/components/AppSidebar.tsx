@@ -106,13 +106,24 @@ function buildSections(): SidebarSection[] {
     })),
   ];
 
-  // Technique Library — grouped by category with color accents
+  // Technique Library — grouped by category with icons and color accents
+  const techniqueCategoryIcons: Record<string, LucideIcon> = {
+    "initial-access": Crosshair,
+    "credential-access": KeyRound,
+    "privilege-escalation": TrendingUp,
+    "persistence": Server,
+    "lateral-movement": Wifi,
+    "exfiltration": Database,
+    "defense-evasion": ShieldOff,
+  };
+
   const techniqueChildren: SidebarChild[] = (Object.keys(techniqueCategories) as TechniqueCategory[]).map((catKey) => {
     const catTechs = techniques.filter((t) => t.category === catKey);
     const colorClass = techniqueCategoryColors[catKey] || "text-muted-foreground";
     return {
       key: `tech-cat-${catKey}`,
       label: techniqueCategories[catKey].label,
+      icon: techniqueCategoryIcons[catKey] || Crosshair,
       iconColorClass: colorClass,
       children: catTechs.map((t) => ({
         label: t.name.length > 35 ? t.name.substring(0, 35) + "…" : t.name,
