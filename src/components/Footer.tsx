@@ -9,7 +9,7 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="md:col-span-2">
             <Link to="/" className="flex items-center gap-2 font-display font-bold text-lg mb-3">
-              <Shield className="h-5 w-5 text-primary" />
+              <img src={logoImg} alt="Detecting.Cloud logo" className="h-8 w-8 rounded" />
               <span>Detecting<span className="text-primary">.Cloud</span></span>
             </Link>
             <p className="text-sm text-muted-foreground max-w-sm">
