@@ -135,13 +135,36 @@ const DetectionEngineeringPage = () => {
             <span className="text-foreground">{selectedDetection.title}</span>
           </div>
 
-          {/* Header */}
+          {/* Header + Export Buttons */}
           <div className="flex items-start gap-4 mb-8">
             {ServiceIcon && <ServiceIcon size={40} />}
-            <div>
+            <div className="flex-1">
               <h1 className="font-display text-2xl font-bold mb-2">{selectedDetection.title}</h1>
               <p className="text-muted-foreground">{selectedDetection.description}</p>
             </div>
+          </div>
+
+          {/* Export & Share Bar */}
+          <div className="flex flex-wrap gap-2 mb-8">
+            {selectedDetection.rules.sigma && (
+              <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10"
+                onClick={() => downloadFile(selectedDetection.rules.sigma!, `${selectedDetection.id}.yml`)}>
+                <Download className="h-3.5 w-3.5 mr-1.5" /> Download .yml
+              </Button>
+            )}
+            {selectedDetection.rules.splunk && (
+              <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10"
+                onClick={() => downloadFile(selectedDetection.rules.splunk!, `${selectedDetection.id}.spl`)}>
+                <Download className="h-3.5 w-3.5 mr-1.5" /> Download .spl
+              </Button>
+            )}
+            <Button variant="outline" size="sm" className="border-accent/30 text-accent hover:bg-accent/10"
+              onClick={() => {
+                navigator.clipboard.writeText(window.location.href);
+                toast({ title: "Link copied", description: "Detection rule link copied to clipboard." });
+              }}>
+              <Share2 className="h-3.5 w-3.5 mr-1.5" /> Copy Link
+            </Button>
           </div>
 
           {/* Metadata */}
@@ -177,11 +200,8 @@ const DetectionEngineeringPage = () => {
                 {selectedDetection.relatedServices.map((svc) => {
                   const SvcIcon = getAwsServiceIcon(svc);
                   return (
-                    <Link
-                      key={svc}
-                      to={`/detection-engineering?service=${svc}`}
-                      className="flex items-center gap-2 rounded-lg border border-border/50 bg-card px-3 py-2 hover:border-primary/30 transition-colors"
-                    >
+                    <Link key={svc} to={`/detection-engineering?service=${svc}`}
+                      className="flex items-center gap-2 rounded-lg border border-border/50 bg-card px-3 py-2 hover:border-primary/30 transition-colors">
                       {SvcIcon && <SvcIcon size={16} />}
                       <span className="text-sm font-medium">{svc}</span>
                     </Link>
@@ -200,7 +220,7 @@ const DetectionEngineeringPage = () => {
             ))}
           </div>
 
-          {/* Rule Formats Tabs */}
+          {/* Rule Formats Tabs with Copy & Syntax Highlighting */}
           <div className="mb-8">
             <h2 className="font-display text-lg font-semibold mb-4">Detection Rules</h2>
             <Tabs defaultValue={availableFormats[0]?.[0] || "sigma"}>
@@ -216,9 +236,17 @@ const DetectionEngineeringPage = () => {
                   <div className="rounded-lg border border-border overflow-hidden">
                     <div className="px-4 py-2 bg-muted text-xs text-muted-foreground font-mono border-b border-border flex items-center justify-between">
                       <span>{formatLabels[key]}</span>
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => {
+                          navigator.clipboard.writeText(value as string);
+                          setCopiedId(key);
+                          setTimeout(() => setCopiedId(null), 2000);
+                        }}>
+                        {copiedId === key ? <><Check className="h-3 w-3 mr-1" /> Copied</> : <><Copy className="h-3 w-3 mr-1" /> Copy</>}
+                      </Button>
                     </div>
                     <pre className="p-4 overflow-x-auto bg-muted/30 text-sm font-mono leading-relaxed">
-                      <code>{value}</code>
+                      <code>{highlightCode(value as string, key)}</code>
                     </pre>
                   </div>
                 </TabsContent>
