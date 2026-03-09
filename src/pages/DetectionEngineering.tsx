@@ -36,7 +36,7 @@ const DetectionEngineeringPage = () => {
 
   // Filter detections
   const filteredByService = serviceParam
-    ? detections.filter((d) => d.awsService === serviceParam)
+    ? detections.filter((d) => d.awsService === serviceParam || d.relatedServices.includes(serviceParam))
     : detections;
 
   const filtered = filteredByService.filter((d) => {
