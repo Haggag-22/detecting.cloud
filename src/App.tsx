@@ -12,6 +12,7 @@ import DetectionEngineering from "./pages/DetectionEngineering";
 import About from "./pages/About";
 import AttackGraph from "./pages/AttackGraph";
 import NotFound from "./pages/NotFound";
+import { AiAssistant } from "./components/AiAssistant";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,7 @@ const App = () => (
           <Route path="/about" element={<About />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        <AiAssistant />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
