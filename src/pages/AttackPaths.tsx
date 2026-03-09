@@ -335,7 +335,8 @@ const AttackPathsPage = () => {
                         ))}
                       </div>
                     </Link>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             );
