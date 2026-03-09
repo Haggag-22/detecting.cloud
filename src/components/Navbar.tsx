@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Search, Github, Twitter, Menu, X, Shield } from "lucide-react";
+import { Search, Github, Twitter, Menu, X } from "lucide-react";
+import logoImg from "@/assets/logo.jpeg";
 import { Button } from "@/components/ui/button";
 import { SearchDialog } from "@/components/SearchDialog";
 import { SidebarTrigger } from "@/components/ui/sidebar";
