@@ -1,46 +1,200 @@
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
-import { detections } from "@/data/detections";
+import { detections, getDetectionsByService } from "@/data/detections";
 import { attackPaths } from "@/data/attackPaths";
 import { Badge } from "@/components/ui/badge";
-import { Search, Link as LinkIcon } from "lucide-react";
+import { Search, Link as LinkIcon, ChevronRight } from "lucide-react";
 import { useSearchParams, Link } from "react-router-dom";
+import { getAwsServiceIcon } from "@/components/AwsIcons";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
-const typeColors: Record<string, string> = {
-  Sigma: "bg-accent/10 text-accent",
-  CloudTrail: "bg-primary/10 text-primary",
-  Splunk: "bg-green-500/10 text-green-400",
-  SIEM: "bg-primary/10 text-primary",
+const severityColors: Record<string, string> = {
+  Critical: "bg-destructive/10 text-destructive",
+  High: "bg-primary/10 text-primary",
+  Medium: "bg-accent/10 text-accent",
+  Low: "bg-muted text-muted-foreground",
+};
+
+const formatLabels: Record<string, string> = {
+  sigma: "Sigma Rule",
+  splunk: "Splunk Query",
+  cloudtrail: "CloudTrail Athena",
+  cloudwatch: "CloudWatch Insights",
 };
 
 const DetectionEngineeringPage = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const ruleParam = searchParams.get("rule");
+  const serviceParam = searchParams.get("service");
   const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState<string | null>(null);
 
-  const filtered = detections.filter((d) => {
-    const matchesSearch =
-      !search ||
-      d.title.toLowerCase().includes(search.toLowerCase()) ||
-      d.description.toLowerCase().includes(search.toLowerCase());
-    const matchesType = !typeFilter || d.type === typeFilter;
-    return matchesSearch && matchesType;
+  const detectionsByService = getDetectionsByService();
+  const services = Object.keys(detectionsByService);
+
+  // If a specific rule is selected, show detailed view
+  const selectedDetection = ruleParam ? detections.find((d) => d.id === ruleParam) : null;
+
+  // Filter detections
+  const filteredByService = serviceParam
+    ? detections.filter((d) => d.awsService === serviceParam)
+    : detections;
+
+  const filtered = filteredByService.filter((d) => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return (
+      d.title.toLowerCase().includes(s) ||
+      d.description.toLowerCase().includes(s) ||
+      d.tags.some((t) => t.toLowerCase().includes(s))
+    );
   });
 
-  const types = Array.from(new Set(detections.map((d) => d.type)));
+  if (selectedDetection) {
+    const ServiceIcon = getAwsServiceIcon(selectedDetection.awsService);
+    const relatedAttacks = attackPaths.filter((ap) =>
+      selectedDetection.relatedAttackSlugs.includes(ap.slug)
+    );
+    const availableFormats = Object.entries(selectedDetection.rules).filter(([, v]) => !!v);
 
-  // Highlight specific rule if linked from attack path
-  const highlightedRule = ruleParam;
+    return (
+      <Layout>
+        <div className="container py-12 max-w-4xl">
+          {/* Breadcrumb */}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
+            <Link to="/detection-engineering" className="hover:text-foreground transition-colors">
+              Detection Engineering
+            </Link>
+            <ChevronRight className="h-3.5 w-3.5" />
+            <Link
+              to={`/detection-engineering?service=${selectedDetection.awsService}`}
+              className="hover:text-foreground transition-colors"
+            >
+              {selectedDetection.awsService}
+            </Link>
+            <ChevronRight className="h-3.5 w-3.5" />
+            <span className="text-foreground">{selectedDetection.title}</span>
+          </div>
+
+          {/* Header */}
+          <div className="flex items-start gap-4 mb-8">
+            {ServiceIcon && <ServiceIcon size={40} />}
+            <div>
+              <h1 className="font-display text-2xl font-bold mb-2">{selectedDetection.title}</h1>
+              <p className="text-muted-foreground">{selectedDetection.description}</p>
+            </div>
+          </div>
+
+          {/* Metadata */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="rounded-lg border border-border/50 bg-card p-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">AWS Service</p>
+              <div className="flex items-center gap-2">
+                {ServiceIcon && <ServiceIcon size={16} />}
+                <span className="font-medium text-sm">{selectedDetection.awsService}</span>
+              </div>
+            </div>
+            <div className="rounded-lg border border-border/50 bg-card p-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Severity</p>
+              <Badge className={`text-xs border-0 ${severityColors[selectedDetection.severity]}`}>
+                {selectedDetection.severity}
+              </Badge>
+            </div>
+            <div className="rounded-lg border border-border/50 bg-card p-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Log Sources</p>
+              <p className="text-sm font-medium">{selectedDetection.logSources.join(", ")}</p>
+            </div>
+            <div className="rounded-lg border border-border/50 bg-card p-4">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Rule Formats</p>
+              <p className="text-sm font-medium">{availableFormats.length} formats</p>
+            </div>
+          </div>
+
+          {/* Tags */}
+          <div className="flex flex-wrap gap-1.5 mb-8">
+            {selectedDetection.tags.map((tag) => (
+              <Badge key={tag} variant="outline" className="text-xs border-border/70 text-muted-foreground">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+
+          {/* Rule Formats Tabs */}
+          <div className="mb-8">
+            <h2 className="font-display text-lg font-semibold mb-4">Detection Rules</h2>
+            <Tabs defaultValue={availableFormats[0]?.[0] || "sigma"}>
+              <TabsList className="bg-muted border border-border/50">
+                {availableFormats.map(([key]) => (
+                  <TabsTrigger key={key} value={key} className="text-xs">
+                    {formatLabels[key] || key}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+              {availableFormats.map(([key, value]) => (
+                <TabsContent key={key} value={key}>
+                  <div className="rounded-lg border border-border overflow-hidden">
+                    <div className="px-4 py-2 bg-muted text-xs text-muted-foreground font-mono border-b border-border flex items-center justify-between">
+                      <span>{formatLabels[key]}</span>
+                    </div>
+                    <pre className="p-4 overflow-x-auto bg-muted/30 text-sm font-mono leading-relaxed">
+                      <code>{value}</code>
+                    </pre>
+                  </div>
+                </TabsContent>
+              ))}
+            </Tabs>
+          </div>
+
+          {/* False Positives */}
+          <div className="mb-8">
+            <h2 className="font-display text-lg font-semibold mb-3">False Positives</h2>
+            <ul className="space-y-2">
+              {selectedDetection.falsePositives.map((fp, i) => (
+                <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                  <span className="text-primary mt-0.5">•</span> {fp}
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Related Attack Techniques */}
+          {relatedAttacks.length > 0 && (
+            <div className="border-t border-border pt-6">
+              <h2 className="flex items-center gap-2 font-display text-lg font-semibold mb-4">
+                <LinkIcon className="h-4 w-4 text-accent" /> Detects Attack Techniques
+              </h2>
+              <div className="space-y-3">
+                {relatedAttacks.map((ap) => (
+                  <Link
+                    key={ap.slug}
+                    to={`/attack-paths?technique=${ap.slug}`}
+                    className="block rounded-lg border border-border/50 bg-card p-4 hover:border-primary/30 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Badge className={`text-xs border-0 ${severityColors[ap.severity]}`}>
+                        {ap.severity}
+                      </Badge>
+                      <span className="font-medium text-sm">{ap.title}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{ap.overview.substring(0, 120)}…</p>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
       <div className="container py-12">
         <h1 className="font-display text-3xl font-bold mb-2">Detection Engineering</h1>
         <p className="text-muted-foreground mb-8">
-          Curated detection rules and queries for cloud security monitoring.
+          Cloud security detection rules organized by AWS service.
         </p>
 
+        {/* Search & Service Filter */}
         <div className="flex flex-col sm:flex-row gap-3 mb-8">
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -53,128 +207,107 @@ const DetectionEngineeringPage = () => {
           </div>
           <div className="flex gap-2 flex-wrap">
             <Badge
-              variant={!typeFilter ? "default" : "outline"}
+              variant={!serviceParam ? "default" : "outline"}
               className={`cursor-pointer ${
-                !typeFilter ? "bg-primary text-primary-foreground" : "border-border text-muted-foreground"
+                !serviceParam ? "bg-primary text-primary-foreground" : "border-border text-muted-foreground"
               }`}
-              onClick={() => setTypeFilter(null)}
+              onClick={() => setSearchParams({})}
             >
-              All
+              All Services
             </Badge>
-            {types.map((type) => (
-              <Badge
-                key={type}
-                variant={typeFilter === type ? "default" : "outline"}
-                className={`cursor-pointer ${
-                  typeFilter === type
-                    ? "bg-primary text-primary-foreground"
-                    : "border-border text-muted-foreground"
-                }`}
-                onClick={() => setTypeFilter(type)}
-              >
-                {type}
-              </Badge>
-            ))}
+            {services.map((service) => {
+              const Icon = getAwsServiceIcon(service);
+              return (
+                <Badge
+                  key={service}
+                  variant={serviceParam === service ? "default" : "outline"}
+                  className={`cursor-pointer flex items-center gap-1.5 ${
+                    serviceParam === service
+                      ? "bg-primary text-primary-foreground"
+                      : "border-border text-muted-foreground"
+                  }`}
+                  onClick={() => setSearchParams({ service })}
+                >
+                  {Icon && <Icon size={14} />}
+                  {service}
+                </Badge>
+              );
+            })}
           </div>
         </div>
 
-        <div className="space-y-4">
-          {filtered.map((det) => {
-            // Get related attack paths for this detection
-            const relatedAttacks = attackPaths.filter((ap) =>
-              det.relatedAttackSlugs.includes(ap.slug)
-            );
+        {/* Rules grouped by service */}
+        {serviceParam ? (
+          <div className="space-y-3">
+            {filtered.map((det) => (
+              <DetectionCard key={det.id} detection={det} />
+            ))}
+            {filtered.length === 0 && (
+              <p className="text-muted-foreground text-sm py-8 text-center">No detections found.</p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-10">
+            {services.map((service) => {
+              const serviceRules = (detectionsByService[service] || []).filter((d) => {
+                if (!search) return true;
+                const s = search.toLowerCase();
+                return d.title.toLowerCase().includes(s) || d.description.toLowerCase().includes(s);
+              });
+              if (serviceRules.length === 0) return null;
 
-            return (
-              <div
-                key={det.id}
-                id={det.id}
-                className={`rounded-lg border bg-card p-6 transition-colors ${
-                  highlightedRule === det.id
-                    ? "border-primary/50 bg-primary/5"
-                    : "border-border/50"
-                }`}
-              >
-                <div className="flex items-center gap-2 mb-3">
-                  <Badge className={`text-xs border-0 ${typeColors[det.type]}`}>{det.type}</Badge>
-                  <h3 className="font-semibold">{det.title}</h3>
-                </div>
-                <p className="text-sm text-muted-foreground mb-3">{det.description}</p>
-
-                {/* Tags */}
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  {det.tags.map((tag) => (
-                    <Badge key={tag} variant="outline" className="text-xs border-border/70 text-muted-foreground">
-                      {tag}
+              const ServiceIcon = getAwsServiceIcon(service);
+              return (
+                <div key={service}>
+                  <div className="flex items-center gap-3 mb-4">
+                    {ServiceIcon && <ServiceIcon size={28} />}
+                    <h2 className="font-display text-xl font-bold">{service}</h2>
+                    <Badge variant="outline" className="text-xs border-border text-muted-foreground">
+                      {serviceRules.length} rules
                     </Badge>
-                  ))}
-                </div>
-
-                <div className="rounded-lg border border-border overflow-hidden mb-4">
-                  <div className="px-4 py-1.5 bg-muted text-xs text-muted-foreground font-mono border-b border-border">
-                    Detection Query
                   </div>
-                  <pre className="p-4 overflow-x-auto bg-muted/50 text-sm font-mono leading-relaxed">
-                    <code>{det.query}</code>
-                  </pre>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <h4 className="font-medium text-xs text-muted-foreground uppercase tracking-wider mb-2">
-                      Log Sources
-                    </h4>
-                    <div className="flex flex-wrap gap-1.5">
-                      {det.logSources.map((ls) => (
-                        <Badge key={ls} variant="outline" className="text-xs border-border text-muted-foreground">
-                          {ls}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h4 className="font-medium text-xs text-muted-foreground uppercase tracking-wider mb-2">
-                      False Positives
-                    </h4>
-                    <ul className="space-y-1">
-                      {det.falsePositives.map((fp, i) => (
-                        <li key={i} className="text-xs text-muted-foreground">
-                          • {fp}
-                        </li>
-                      ))}
-                    </ul>
+                  <div className="space-y-3">
+                    {serviceRules.map((det) => (
+                      <DetectionCard key={det.id} detection={det} />
+                    ))}
                   </div>
                 </div>
-
-                {/* Related Attack Techniques */}
-                {relatedAttacks.length > 0 && (
-                  <div className="border-t border-border mt-4 pt-4">
-                    <h4 className="flex items-center gap-2 font-medium text-xs text-muted-foreground uppercase tracking-wider mb-3">
-                      <LinkIcon className="h-3.5 w-3.5 text-accent" /> Detects Attack Techniques
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {relatedAttacks.map((ap) => (
-                        <Link
-                          key={ap.slug}
-                          to={`/attack-paths?technique=${ap.slug}`}
-                          className="inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-muted/30 px-3 py-1.5 text-xs hover:border-primary/30 transition-colors"
-                        >
-                          <span className="font-medium">{ap.title}</span>
-                          <Badge className={`text-[10px] border-0 ${typeColors[det.type] || "bg-muted text-muted-foreground"}`}>
-                            {ap.severity}
-                          </Badge>
-                        </Link>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </Layout>
   );
 };
+
+function DetectionCard({ detection: det }: { detection: typeof detections[0] }) {
+  const ServiceIcon = getAwsServiceIcon(det.awsService);
+  const formatCount = Object.values(det.rules).filter(Boolean).length;
+
+  return (
+    <Link
+      to={`/detection-engineering?rule=${det.id}`}
+      className="block rounded-lg border border-border/50 bg-card p-5 hover:border-primary/30 transition-colors"
+    >
+      <div className="flex items-center gap-3 mb-2">
+        {ServiceIcon && <ServiceIcon size={20} />}
+        <h3 className="font-semibold text-sm">{det.title}</h3>
+        <Badge className={`text-xs border-0 ml-auto ${severityColors[det.severity]}`}>
+          {det.severity}
+        </Badge>
+      </div>
+      <p className="text-xs text-muted-foreground mb-3">{det.description}</p>
+      <div className="flex items-center gap-2 flex-wrap">
+        {det.tags.slice(0, 4).map((tag) => (
+          <Badge key={tag} variant="outline" className="text-[10px] border-border/70 text-muted-foreground">
+            {tag}
+          </Badge>
+        ))}
+        <span className="text-[10px] text-muted-foreground ml-auto">{formatCount} rule formats</span>
+      </div>
+    </Link>
+  );
+}
 
 export default DetectionEngineeringPage;

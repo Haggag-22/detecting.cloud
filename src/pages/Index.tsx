@@ -5,14 +5,14 @@ import { TopicCard } from "@/components/TopicCard";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Shield, Search, Crosshair, FlaskConical, KeyRound, TrendingUp, Server, Network, Database, ShieldCheck } from "lucide-react";
+import { Search, Crosshair, KeyRound, TrendingUp, Server, Network, Database, ShieldCheck } from "lucide-react";
 import { researchPosts } from "@/data/research";
 
 const features = [
   { icon: Search, title: "Cloud Attack Research", description: "In-depth analysis of real-world cloud attack techniques targeting AWS infrastructure." },
   { icon: ShieldCheck, title: "Detection Engineering", description: "Practical detection rules and queries for identifying cloud threats in your environment." },
   { icon: Crosshair, title: "Adversary Simulation", description: "Simulated attack scenarios to validate your detection and response capabilities." },
-  { icon: FlaskConical, title: "Security Labs", description: "Hands-on labs for learning cloud security techniques in safe environments." },
+  { icon: Network, title: "Attack Graph", description: "Interactive visual map of cloud attack chains and detection relationships." },
 ];
 
 const topics = [
@@ -21,7 +21,7 @@ const topics = [
   { icon: Server, title: "AWS Persistence", to: "/research" },
   { icon: Network, title: "Cloud Lateral Movement", to: "/research" },
   { icon: Database, title: "Cloud Data Exfiltration", to: "/research" },
-  { icon: Shield, title: "Detection Engineering", to: "/detection-engineering" },
+  { icon: ShieldCheck, title: "Detection Engineering", to: "/detection-engineering" },
 ];
 
 const Index = () => {
