@@ -3,7 +3,7 @@ import { Layout } from "@/components/Layout";
 import { attackPaths, attackPathCategories } from "@/data/attackPaths";
 import { detections } from "@/data/detections";
 import { Badge } from "@/components/ui/badge";
-import { ChevronRight, AlertTriangle, Shield, Search, Link as LinkIcon } from "lucide-react";
+import { ChevronRight, AlertTriangle, Shield, Search, Link as LinkIcon, Network } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSearchParams, Link } from "react-router-dom";
 
