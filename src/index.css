@@ -6,51 +6,51 @@
 
 @layer base {
   :root {
-    --background: 222 47% 6%;
+    --background: 213 35% 7%;
     --foreground: 210 40% 94%;
 
-    --card: 222 44% 8%;
+    --card: 213 32% 9%;
     --card-foreground: 210 40% 94%;
 
-    --popover: 222 44% 8%;
+    --popover: 213 32% 9%;
     --popover-foreground: 210 40% 94%;
 
-    --primary: 199 89% 48%;
-    --primary-foreground: 222 47% 6%;
+    --primary: 43 96% 56%;
+    --primary-foreground: 213 35% 7%;
 
-    --secondary: 222 30% 14%;
+    --secondary: 213 28% 14%;
     --secondary-foreground: 210 40% 94%;
 
-    --muted: 222 30% 12%;
+    --muted: 213 28% 12%;
     --muted-foreground: 215 20% 55%;
 
-    --accent: 250 70% 60%;
+    --accent: 210 79% 46%;
     --accent-foreground: 210 40% 98%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 222 20% 16%;
-    --input: 222 20% 16%;
-    --ring: 199 89% 48%;
+    --border: 213 20% 16%;
+    --input: 213 20% 16%;
+    --ring: 43 96% 56%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 222 44% 7%;
+    --sidebar-background: 213 32% 7%;
     --sidebar-foreground: 210 40% 94%;
-    --sidebar-primary: 199 89% 48%;
-    --sidebar-primary-foreground: 222 47% 6%;
-    --sidebar-accent: 222 30% 14%;
+    --sidebar-primary: 43 96% 56%;
+    --sidebar-primary-foreground: 213 35% 7%;
+    --sidebar-accent: 213 28% 14%;
     --sidebar-accent-foreground: 210 40% 94%;
-    --sidebar-border: 222 20% 16%;
-    --sidebar-ring: 199 89% 48%;
+    --sidebar-border: 213 20% 16%;
+    --sidebar-ring: 43 96% 56%;
 
     /* Custom tokens */
-    --glow-primary: 199 89% 48%;
-    --glow-accent: 250 70% 60%;
-    --surface-elevated: 222 40% 10%;
-    --gradient-start: 199 89% 48%;
-    --gradient-end: 250 70% 60%;
+    --glow-primary: 43 96% 56%;
+    --glow-accent: 210 79% 46%;
+    --surface-elevated: 213 30% 10%;
+    --gradient-start: 43 96% 56%;
+    --gradient-end: 210 79% 46%;
   }
 }
 
