@@ -52,6 +52,11 @@ const AttackPathsPage = () => {
   const [searchParams] = useSearchParams();
   const techniqueParam = searchParams.get("technique");
 
+  // Redirect old technique URLs to the new dedicated route
+  if (techniqueParam?.startsWith("tech-")) {
+    return <Navigate to={`/attack-paths/technique/${techniqueParam}`} replace />;
+  }
+
   // ─── Attack Path Detail View ───
   const activeAttackPath = techniqueParam
     ? attackPaths.find((a) => a.slug === techniqueParam)
