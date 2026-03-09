@@ -85,7 +85,7 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent>
         {sections.map((section) => (
-          <SidebarGroup key={section.label} defaultOpen>
+          <SidebarGroup key={section.label}>
             <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground">
               {section.label}
             </SidebarGroupLabel>
