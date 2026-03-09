@@ -1,17 +1,36 @@
 import { getTechniqueById, type Technique } from "@/data/techniques";
 import { Badge } from "@/components/ui/badge";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff, Crosshair } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { AttackPathStep } from "@/data/attackPaths";
+import { LucideIcon } from "lucide-react";
+
+const catIcon: Record<string, LucideIcon> = {
+  "initial-access": Crosshair,
+  "credential-access": KeyRound,
+  "privilege-escalation": TrendingUp,
+  "persistence": Server,
+  "lateral-movement": Wifi,
+  "exfiltration": Database,
+  "defense-evasion": ShieldOff,
+};
+
+const catIconColor: Record<string, string> = {
+  "credential-access": "text-purple-400",
+  "privilege-escalation": "text-red-400",
+  "persistence": "text-orange-400",
+  "lateral-movement": "text-blue-400",
+  "exfiltration": "text-emerald-400",
+};
 
 const categoryColor: Record<string, string> = {
-  "initial-access": "bg-orange-500/15 text-orange-400 border-orange-500/30",
-  "credential-access": "bg-red-500/15 text-red-400 border-red-500/30",
-  "privilege-escalation": "bg-destructive/15 text-destructive border-destructive/30",
-  "persistence": "bg-purple-500/15 text-purple-400 border-purple-500/30",
-  "lateral-movement": "bg-accent/15 text-accent border-accent/30",
-  "exfiltration": "bg-primary/15 text-primary border-primary/30",
-  "defense-evasion": "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  "initial-access": "bg-muted text-muted-foreground border-border",
+  "credential-access": "bg-purple-500/15 text-purple-400 border-purple-500/30",
+  "privilege-escalation": "bg-red-500/15 text-red-400 border-red-500/30",
+  "persistence": "bg-orange-500/15 text-orange-400 border-orange-500/30",
+  "lateral-movement": "bg-blue-500/15 text-blue-400 border-blue-500/30",
+  "exfiltration": "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
+  "defense-evasion": "bg-muted text-muted-foreground border-border",
 };
 
 interface AttackFlowChainProps {
@@ -44,11 +63,17 @@ export function AttackFlowChain({ steps, compact = false }: AttackFlowChainProps
                 <span className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors">
                   {step.technique.shortName}
                 </span>
-                <Badge
-                  className={`text-[10px] border px-1.5 py-0 ${categoryColor[step.technique.category] || "bg-muted text-muted-foreground border-border"}`}
-                >
-                  {step.technique.category.replace(/-/g, " ")}
-                </Badge>
+                {(() => {
+                  const CatIcon = catIcon[step.technique.category];
+                  return (
+                    <Badge
+                      className={`text-[10px] border px-1.5 py-0 uppercase tracking-wide flex items-center gap-1 ${categoryColor[step.technique.category] || "bg-muted text-muted-foreground border-border"}`}
+                    >
+                      {CatIcon && <CatIcon className={`h-3 w-3 ${catIconColor[step.technique.category] || "text-muted-foreground"}`} />}
+                      {step.technique.category.replace(/-/g, " ").toUpperCase()}
+                    </Badge>
+                  );
+                })()}
               </div>
               {!compact && step.context && (
                 <p className="text-xs text-muted-foreground leading-relaxed">{step.context}</p>

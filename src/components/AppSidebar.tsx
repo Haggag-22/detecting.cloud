@@ -25,6 +25,12 @@ import {
   Bug,
   Route,
   Network as NetworkIcon,
+  KeyRound,
+  TrendingUp,
+  Server,
+  Wifi,
+  Database,
+  ShieldOff,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { attackPaths, attackObjectiveLabels, type AttackObjective } from "@/data/attackPaths";
@@ -100,13 +106,24 @@ function buildSections(): SidebarSection[] {
     })),
   ];
 
-  // Technique Library — grouped by category with color accents
+  // Technique Library — grouped by category with icons and color accents
+  const techniqueCategoryIcons: Record<string, LucideIcon> = {
+    "initial-access": Crosshair,
+    "credential-access": KeyRound,
+    "privilege-escalation": TrendingUp,
+    "persistence": Server,
+    "lateral-movement": Wifi,
+    "exfiltration": Database,
+    "defense-evasion": ShieldOff,
+  };
+
   const techniqueChildren: SidebarChild[] = (Object.keys(techniqueCategories) as TechniqueCategory[]).map((catKey) => {
     const catTechs = techniques.filter((t) => t.category === catKey);
     const colorClass = techniqueCategoryColors[catKey] || "text-muted-foreground";
     return {
       key: `tech-cat-${catKey}`,
       label: techniqueCategories[catKey].label,
+      icon: techniqueCategoryIcons[catKey] || Crosshair,
       iconColorClass: colorClass,
       children: catTechs.map((t) => ({
         label: t.name.length > 35 ? t.name.substring(0, 35) + "…" : t.name,
@@ -352,9 +369,11 @@ function NestedCollapsible({
       >
         <CollapsibleTrigger asChild>
           <SidebarMenuSubButton size="sm" className="cursor-pointer">
-            {item.customIcon || (
+            {item.customIcon || (item.icon ? (
+              <item.icon className={`h-3.5 w-3.5 shrink-0 ${item.iconColorClass || ""}`} />
+            ) : (
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.iconColorClass ? item.iconColorClass.replace("text-", "bg-") : "bg-muted-foreground"}`} />
-            )}
+            ))}
             <span className="flex-1">{item.label}</span>
             <ChevronRight
               className={`h-3 w-3 transition-transform duration-200 ${
