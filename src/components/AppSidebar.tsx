@@ -369,9 +369,11 @@ function NestedCollapsible({
       >
         <CollapsibleTrigger asChild>
           <SidebarMenuSubButton size="sm" className="cursor-pointer">
-            {item.customIcon || (
+            {item.customIcon || (item.icon ? (
+              <item.icon className={`h-3.5 w-3.5 shrink-0 ${item.iconColorClass || ""}`} />
+            ) : (
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.iconColorClass ? item.iconColorClass.replace("text-", "bg-") : "bg-muted-foreground"}`} />
-            )}
+            ))}
             <span className="flex-1">{item.label}</span>
             <ChevronRight
               className={`h-3 w-3 transition-transform duration-200 ${
