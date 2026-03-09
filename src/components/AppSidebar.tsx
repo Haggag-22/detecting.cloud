@@ -30,14 +30,15 @@ import {
   BookOpen,
   ExternalLink,
   Bug,
+  Route,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { attackPaths, attackPathCategories } from "@/data/attackPaths";
+import { attackPaths } from "@/data/attackPaths";
+import { techniques, techniqueCategories, type TechniqueCategory } from "@/data/techniques";
 import { detections, getDetectionsByService } from "@/data/detections";
 import { researchPosts } from "@/data/research";
 import { LucideIcon } from "lucide-react";
 import { getAwsServiceIcon } from "@/components/AwsIcons";
-
 
 const STORAGE_KEY = "sidebar-expanded";
 
@@ -73,25 +74,40 @@ interface SidebarChild {
 }
 
 const categoryIcons: Record<string, LucideIcon> = {
-  "iam-abuse": KeyRound,
+  "credential-access": KeyRound,
   "privilege-escalation": TrendingUp,
   "persistence": Server,
   "lateral-movement": NetworkIcon,
-  "data-exfiltration": Database,
+  "exfiltration": Database,
+  "defense-evasion": ShieldCheck,
+  "initial-access": Crosshair,
 };
 
 function buildSections(): SidebarSection[] {
-  const attackCategories = Object.entries(attackPathCategories).map(([catKey, catMeta]) => {
-    const techniques = attackPaths
-      .filter((ap) => ap.category === catKey)
-      .map((ap) => ({ label: ap.title, to: `/attack-paths?technique=${ap.slug}` }));
+  // Attack Paths — show chains
+  const attackPathChildren: SidebarChild[] = [
+    { key: "ap-all", label: "All Attack Paths", icon: Crosshair, to: "/attack-paths" },
+    ...attackPaths.map((ap) => ({
+      key: `ap-${ap.slug}`,
+      label: ap.title.length > 35 ? ap.title.substring(0, 35) + "…" : ap.title,
+      icon: Route,
+      to: `/attack-paths?technique=${ap.slug}`,
+    })),
+  ];
+
+  // Technique Library — grouped by category
+  const techniqueChildren: SidebarChild[] = (Object.keys(techniqueCategories) as TechniqueCategory[]).map((catKey) => {
+    const catTechs = techniques.filter((t) => t.category === catKey);
     return {
-      key: `ap-${catKey}`,
-      label: catMeta.label,
+      key: `tech-cat-${catKey}`,
+      label: techniqueCategories[catKey].label,
       icon: categoryIcons[catKey] || Crosshair,
-      children: techniques.length > 0 ? techniques : undefined,
+      children: catTechs.map((t) => ({
+        label: t.name.length > 35 ? t.name.substring(0, 35) + "…" : t.name,
+        to: `/attack-paths?technique=${t.id}`,
+      })),
     };
-  });
+  }).filter((c) => c.children.length > 0);
 
   // Build Detection Engineering by AWS service
   const detectionsByService = getDetectionsByService();
@@ -132,10 +148,14 @@ function buildSections(): SidebarSection[] {
       label: "Attack Paths",
       icon: Crosshair,
       to: "/attack-paths",
-      children: [
-        { key: "ap-all", label: "All Attack Paths", icon: Crosshair, to: "/attack-paths" },
-        ...attackCategories,
-      ],
+      children: attackPathChildren,
+    },
+    {
+      key: "techniques",
+      label: "Techniques",
+      icon: Route,
+      to: "/attack-paths",
+      children: techniqueChildren,
     },
     {
       key: "detections",
@@ -192,6 +212,7 @@ export function AppSidebar() {
 
   const allSearchItems: { label: string; to: string; type: string }[] = [];
   attackPaths.forEach((ap) => allSearchItems.push({ label: ap.title, to: `/attack-paths?technique=${ap.slug}`, type: "Attack Path" }));
+  techniques.forEach((t) => allSearchItems.push({ label: t.name, to: `/attack-paths?technique=${t.id}`, type: "Technique" }));
   detections.forEach((d) => allSearchItems.push({ label: d.title, to: `/detection-engineering?rule=${d.id}`, type: "Detection" }));
   researchPosts.forEach((p) => allSearchItems.push({ label: p.title, to: `/research/${p.slug}`, type: "Research" }));
 

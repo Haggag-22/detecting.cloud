@@ -1,279 +1,114 @@
+// Attack Paths — chains of reusable technique nodes.
+// Each attack path represents a realistic attacker progression through AWS services.
+
+export interface AttackPathStep {
+  techniqueId: string;
+  /** Optional context describing how this technique is used in this specific chain */
+  context?: string;
+}
+
 export interface AttackPath {
   slug: string;
   title: string;
-  overview: string;
+  description: string;
   severity: "Critical" | "High" | "Medium";
-  category: "iam-abuse" | "privilege-escalation" | "persistence" | "lateral-movement" | "data-exfiltration";
   tags: string[];
-  difficulty: "Beginner" | "Intermediate" | "Advanced";
-  provider: "AWS" | "Azure" | "GCP";
-  steps: string[];
-  permissions: string[];
-  detectionOpportunities: string[];
-  mitigations: string[];
-  relatedDetectionIds: string[];
+  /** Ordered chain of technique steps */
+  steps: AttackPathStep[];
 }
 
 export const attackPaths: AttackPath[] = [
   {
-    slug: "aws-passrole-abuse",
-    title: "AWS PassRole Abuse",
-    overview: "Exploit iam:PassRole to escalate privileges by passing high-privilege roles to AWS services like Lambda, EC2, or Glue.",
+    slug: "ec2-imds-to-s3-exfiltration",
+    title: "EC2 IMDS to S3 Exfiltration",
+    description:
+      "An attacker gains code execution on an EC2 instance, steals IAM credentials via the Instance Metadata Service, assumes a cross-account role, and exfiltrates sensitive data from S3.",
     severity: "Critical",
-    category: "iam-abuse",
-    tags: ["AWS", "IAM", "PassRole", "Privilege Escalation"],
-    difficulty: "Intermediate",
-    provider: "AWS",
+    tags: ["EC2", "IAM", "STS", "S3", "IMDS", "Data Exfiltration"],
     steps: [
-      "Enumerate available IAM roles with elevated permissions",
-      "Identify services the attacker has CreateFunction or RunInstances access to",
-      "Pass the high-privilege role to the target service using iam:PassRole",
-      "Execute code through the service using the escalated role",
-      "Perform privileged actions (e.g., create admin user, exfiltrate data)",
+      { techniqueId: "tech-imds-credential-theft", context: "Gain initial credentials by querying the EC2 metadata endpoint" },
+      { techniqueId: "tech-assumerole-abuse", context: "Use stolen credentials to assume a role with S3 access" },
+      { techniqueId: "tech-s3-data-download", context: "Exfiltrate sensitive objects from target S3 buckets" },
     ],
-    permissions: ["iam:PassRole", "lambda:CreateFunction", "lambda:InvokeFunction"],
-    detectionOpportunities: [
-      "Monitor CloudTrail for PassRole events targeting sensitive roles",
-      "Alert on new Lambda functions with administrative roles",
-      "Correlate service creation with subsequent privileged API calls",
-    ],
-    mitigations: [
-      "Restrict PassRole to specific role ARNs via resource conditions",
-      "Implement permission boundaries on all roles",
-      "Use SCPs to limit which roles can be passed",
-    ],
-    relatedDetectionIds: ["det-001"],
   },
   {
-    slug: "assumerole-abuse",
-    title: "AssumeRole Abuse",
-    overview: "Abuse overly permissive trust policies to assume roles across accounts or within the same account for privilege escalation.",
-    severity: "High",
-    category: "iam-abuse",
-    tags: ["AWS", "IAM", "AssumeRole", "Cross-Account"],
-    difficulty: "Intermediate",
-    provider: "AWS",
-    steps: [
-      "Enumerate roles with permissive trust policies",
-      "Identify roles that allow assumption from your principal",
-      "Call sts:AssumeRole to obtain temporary credentials",
-      "Use the assumed role's permissions for lateral movement or escalation",
-    ],
-    permissions: ["sts:AssumeRole"],
-    detectionOpportunities: [
-      "Monitor for AssumeRole events from unusual principals",
-      "Track cross-account role assumption patterns",
-      "Alert on role assumption chains",
-    ],
-    mitigations: [
-      "Use strict trust policy conditions (e.g., ExternalId, MFA)",
-      "Limit which principals can assume sensitive roles",
-      "Audit trust policies regularly",
-    ],
-    relatedDetectionIds: ["det-004"],
-  },
-  {
-    slug: "create-policy-version-abuse",
-    title: "CreatePolicyVersion Abuse",
-    overview: "Exploit iam:CreatePolicyVersion to overwrite an existing managed policy with a more permissive version, granting admin access.",
+    slug: "passrole-lambda-escalation",
+    title: "PassRole Lambda Privilege Escalation",
+    description:
+      "An attacker with iam:PassRole and lambda:CreateFunction creates a Lambda function with an admin role, executes code to create backdoor credentials, and establishes persistent access.",
     severity: "Critical",
-    category: "iam-abuse",
-    tags: ["AWS", "IAM", "Policy", "Privilege Escalation"],
-    difficulty: "Advanced",
-    provider: "AWS",
+    tags: ["IAM", "Lambda", "PassRole", "Privilege Escalation", "Persistence"],
     steps: [
-      "Identify a managed policy attached to your user or role",
-      "Create a new policy version with elevated permissions (e.g., *:*)",
-      "Set the new version as the default",
-      "Exercise the newly granted permissions",
+      { techniqueId: "tech-passrole-abuse", context: "Pass an administrative role to a new Lambda function" },
+      { techniqueId: "tech-lambda-code-execution", context: "Deploy and invoke the Lambda function with admin privileges" },
+      { techniqueId: "tech-iam-user-creation", context: "Create a backdoor IAM user with admin inline policy" },
+      { techniqueId: "tech-access-key-creation", context: "Generate access keys for persistent programmatic access" },
     ],
-    permissions: ["iam:CreatePolicyVersion"],
-    detectionOpportunities: [
-      "Monitor for CreatePolicyVersion API calls",
-      "Alert when a policy version grants Action: * or Resource: *",
-      "Track policy version changes on sensitive policies",
-    ],
-    mitigations: [
-      "Restrict iam:CreatePolicyVersion to trusted administrators",
-      "Use SCPs to prevent policy modification",
-      "Enable AWS Config rules for policy compliance",
-    ],
-    relatedDetectionIds: ["det-004"],
   },
   {
-    slug: "iam-privilege-escalation",
-    title: "IAM Privilege Escalation",
-    overview: "Chain IAM misconfigurations to escalate from a low-privilege user to administrator access.",
+    slug: "iam-policy-escalation-chain",
+    title: "IAM Policy Escalation Chain",
+    description:
+      "An attacker exploits iam:CreatePolicyVersion to grant themselves admin access, then uses the elevated permissions to assume sensitive roles across the organization.",
     severity: "Critical",
-    category: "privilege-escalation",
-    tags: ["AWS", "IAM", "Privilege Escalation", "Misconfiguration"],
-    difficulty: "Intermediate",
-    provider: "AWS",
+    tags: ["IAM", "STS", "Policy", "Privilege Escalation", "Cross-Account"],
     steps: [
-      "Enumerate IAM policies attached to the current principal",
-      "Identify misconfigured policies (e.g., iam:AttachUserPolicy, iam:CreatePolicyVersion)",
-      "Exploit the misconfiguration to grant higher privileges",
-      "Verify escalated access by calling privileged APIs",
+      { techniqueId: "tech-create-policy-version", context: "Create a new policy version with Action:* Resource:*" },
+      { techniqueId: "tech-attach-user-policy", context: "Ensure the escalated policy is attached and set as default" },
+      { techniqueId: "tech-assumerole-abuse", context: "Assume cross-account roles using newly granted permissions" },
     ],
-    permissions: ["iam:AttachUserPolicy", "iam:CreatePolicyVersion", "iam:PutUserPolicy"],
-    detectionOpportunities: [
-      "Monitor for IAM policy attachment events",
-      "Alert on new policy version creation",
-      "Track inline policy changes",
-    ],
-    mitigations: [
-      "Follow least-privilege principles for IAM policies",
-      "Use AWS Access Analyzer to identify overly permissive policies",
-      "Implement permission boundaries",
-    ],
-    relatedDetectionIds: ["det-001", "det-004"],
   },
   {
-    slug: "lambda-privilege-escalation",
-    title: "Lambda Privilege Escalation",
-    overview: "Use Lambda function creation combined with PassRole to execute code with elevated IAM permissions.",
+    slug: "lambda-persistence-backdoor",
+    title: "Lambda Persistence Backdoor",
+    description:
+      "An attacker creates a Lambda function with elevated permissions, configures automated triggers, and disables CloudTrail to cover their tracks.",
     severity: "High",
-    category: "privilege-escalation",
-    tags: ["AWS", "Lambda", "Privilege Escalation", "Serverless"],
-    difficulty: "Intermediate",
-    provider: "AWS",
+    tags: ["Lambda", "IAM", "CloudTrail", "Persistence", "Defense Evasion"],
     steps: [
-      "Identify a high-privilege execution role for Lambda",
-      "Create a Lambda function and pass the high-privilege role",
-      "Deploy code that performs privileged actions",
-      "Invoke the function to execute with escalated permissions",
+      { techniqueId: "tech-passrole-abuse", context: "Pass a privileged role to the backdoor Lambda function" },
+      { techniqueId: "tech-lambda-code-execution", context: "Deploy malicious code that executes on every trigger" },
+      { techniqueId: "tech-lambda-event-trigger", context: "Configure CloudWatch Events or S3 triggers for automatic execution" },
+      { techniqueId: "tech-cloudtrail-disable", context: "Disable CloudTrail logging to evade detection" },
     ],
-    permissions: ["lambda:CreateFunction", "iam:PassRole", "lambda:InvokeFunction"],
-    detectionOpportunities: [
-      "Alert on Lambda function creation with administrative roles",
-      "Monitor for PassRole to Lambda service principal",
-      "Track Lambda invocations making privileged API calls",
-    ],
-    mitigations: [
-      "Restrict Lambda execution roles via permission boundaries",
-      "Limit PassRole to specific Lambda role ARNs",
-      "Audit Lambda functions and their associated roles",
-    ],
-    relatedDetectionIds: ["det-001", "det-005"],
   },
   {
-    slug: "ec2-metadata-abuse",
-    title: "EC2 Metadata Abuse",
-    overview: "Access the EC2 instance metadata service (IMDS) to steal IAM role credentials attached to the instance.",
+    slug: "iam-backdoor-exfiltration",
+    title: "IAM Backdoor & Data Exfiltration",
+    description:
+      "An attacker creates a backdoor IAM user, generates long-lived access keys, modifies S3 bucket policies to allow cross-account access, and exfiltrates data.",
     severity: "High",
-    category: "privilege-escalation",
-    tags: ["AWS", "EC2", "IMDS", "Credential Theft"],
-    difficulty: "Beginner",
-    provider: "AWS",
+    tags: ["IAM", "S3", "Persistence", "Data Exfiltration"],
     steps: [
-      "Gain code execution on an EC2 instance (e.g., via SSRF or RCE)",
-      "Query the instance metadata service at 169.254.169.254",
-      "Retrieve temporary IAM credentials from the metadata endpoint",
-      "Use credentials to make authenticated AWS API calls",
+      { techniqueId: "tech-iam-user-creation", context: "Create a hidden IAM user with administrative inline policy" },
+      { techniqueId: "tech-access-key-creation", context: "Generate access keys for the backdoor user" },
+      { techniqueId: "tech-s3-bucket-policy-mod", context: "Modify bucket policies to allow cross-account access" },
+      { techniqueId: "tech-s3-data-download", context: "Download sensitive data using the backdoor credentials" },
     ],
-    permissions: [],
-    detectionOpportunities: [
-      "Monitor for IMDSv1 usage and enforce IMDSv2",
-      "Track credential usage from unexpected source IPs",
-      "Alert on API calls from EC2 instances to unusual services",
-    ],
-    mitigations: [
-      "Enforce IMDSv2 (require token-based access)",
-      "Apply least-privilege IAM roles to EC2 instances",
-      "Use VPC endpoints to restrict metadata access",
-    ],
-    relatedDetectionIds: [],
   },
   {
-    slug: "lambda-persistence",
-    title: "Lambda Persistence",
-    overview: "Establish persistent access by deploying backdoor Lambda functions triggered by CloudWatch events or S3 uploads.",
+    slug: "ec2-lateral-movement",
+    title: "EC2 Lateral Movement & Escalation",
+    description:
+      "An attacker compromises an EC2 instance, steals IMDS credentials, escalates via PassRole to Lambda, and uses the Lambda role to exfiltrate data.",
     severity: "High",
-    category: "persistence",
-    tags: ["AWS", "Lambda", "Persistence", "Serverless", "Backdoor"],
-    difficulty: "Advanced",
-    provider: "AWS",
+    tags: ["EC2", "IAM", "Lambda", "S3", "Lateral Movement"],
     steps: [
-      "Create a Lambda function with malicious code",
-      "Attach an execution role with necessary permissions",
-      "Create an event source mapping or CloudWatch rule as a trigger",
-      "The function executes automatically on trigger events",
+      { techniqueId: "tech-imds-credential-theft", context: "Steal IAM credentials from the compromised EC2 instance" },
+      { techniqueId: "tech-passrole-abuse", context: "Use stolen credentials to pass a higher-privilege role" },
+      { techniqueId: "tech-lambda-code-execution", context: "Execute code via Lambda with the escalated role" },
+      { techniqueId: "tech-s3-data-download", context: "Use Lambda's permissions to exfiltrate S3 data" },
     ],
-    permissions: ["lambda:CreateFunction", "iam:PassRole", "events:PutRule", "events:PutTargets"],
-    detectionOpportunities: [
-      "Monitor new Lambda function creation",
-      "Track CloudWatch Events rule changes",
-      "Alert on Lambda functions making external network calls",
-    ],
-    mitigations: [
-      "Restrict Lambda creation to specific roles",
-      "Use VPC-attached Lambda functions",
-      "Audit event source mappings regularly",
-    ],
-    relatedDetectionIds: ["det-005"],
-  },
-  {
-    slug: "iam-backdoor-policies",
-    title: "IAM Backdoor Policies",
-    overview: "Create hidden IAM users, access keys, or inline policies that provide persistent access even after the original compromise is remediated.",
-    severity: "Critical",
-    category: "persistence",
-    tags: ["AWS", "IAM", "Persistence", "Backdoor", "Access Keys"],
-    difficulty: "Intermediate",
-    provider: "AWS",
-    steps: [
-      "Create a new IAM user with a non-obvious name",
-      "Attach an administrative inline policy",
-      "Generate access keys for programmatic access",
-      "Store credentials externally for persistent re-entry",
-    ],
-    permissions: ["iam:CreateUser", "iam:PutUserPolicy", "iam:CreateAccessKey"],
-    detectionOpportunities: [
-      "Monitor for new IAM user creation",
-      "Alert on inline policy attachments",
-      "Track access key creation events",
-    ],
-    mitigations: [
-      "Use SCPs to restrict IAM user creation",
-      "Audit IAM users and access keys regularly",
-      "Implement alerting on any IAM changes",
-    ],
-    relatedDetectionIds: ["det-004"],
-  },
-  {
-    slug: "s3-data-exfiltration",
-    title: "S3 Data Exfiltration",
-    overview: "Exfiltrate sensitive data from S3 buckets using compromised credentials, cross-account replication, or pre-signed URLs.",
-    severity: "High",
-    category: "data-exfiltration",
-    tags: ["AWS", "S3", "Data Exfiltration", "Cloud Storage"],
-    difficulty: "Beginner",
-    provider: "AWS",
-    steps: [
-      "Enumerate accessible S3 buckets",
-      "Identify buckets containing sensitive data",
-      "Download data directly or configure cross-account replication",
-      "Use pre-signed URLs for stealthy exfiltration",
-    ],
-    permissions: ["s3:GetObject", "s3:ListBucket", "s3:PutBucketReplication"],
-    detectionOpportunities: [
-      "Monitor for unusual GetObject volume",
-      "Alert on bucket policy or replication configuration changes",
-      "Track S3 access from unusual source IPs or user agents",
-    ],
-    mitigations: [
-      "Enable S3 data event logging in CloudTrail",
-      "Use VPC endpoints to restrict S3 access paths",
-      "Implement S3 Block Public Access at the account level",
-    ],
-    relatedDetectionIds: ["det-003"],
   },
 ];
 
-export const attackPathCategories = {
-  "iam-abuse": { label: "IAM Abuse", description: "Abuse of identity and access management" },
-  "privilege-escalation": { label: "Privilege Escalation", description: "Techniques to gain higher privileges" },
-  "persistence": { label: "Persistence", description: "Techniques to maintain long-term access" },
-  "lateral-movement": { label: "Lateral Movement", description: "Moving across cloud accounts and services" },
-  "data-exfiltration": { label: "Data Exfiltration", description: "Stealing data from cloud resources" },
-} as const;
+// ─── Lookup helpers ───
+
+export function getAttackPathBySlug(slug: string): AttackPath | undefined {
+  return attackPaths.find((ap) => ap.slug === slug);
+}
+
+/** Get all attack paths that include a given technique */
+export function getAttackPathsForTechnique(techniqueId: string): AttackPath[] {
+  return attackPaths.filter((ap) => ap.steps.some((s) => s.techniqueId === techniqueId));
+}
