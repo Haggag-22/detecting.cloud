@@ -10,6 +10,7 @@ import AttackPaths from "./pages/AttackPaths";
 import DetectionEngineering from "./pages/DetectionEngineering";
 import Labs from "./pages/Labs";
 import About from "./pages/About";
+import AttackGraph from "./pages/AttackGraph";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/attack-paths" element={<AttackPaths />} />
           <Route path="/detection-engineering" element={<DetectionEngineering />} />
           <Route path="/labs" element={<Labs />} />
+          <Route path="/attack-graph" element={<AttackGraph />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

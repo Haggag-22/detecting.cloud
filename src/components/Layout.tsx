@@ -4,7 +4,7 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { useLocation } from "react-router-dom";
 
-const pagesWithSidebar = ["/research", "/attack-paths", "/detection-engineering", "/labs"];
+const pagesWithSidebar = ["/research", "/attack-paths", "/detection-engineering", "/labs", "/attack-graph"];
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
