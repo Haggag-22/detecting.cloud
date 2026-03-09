@@ -62,13 +62,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         style={{ "--sidebar-width": `${sidebarWidth}px` } as React.CSSProperties}
       >
         <AppSidebar />
-        {/* Resize handle */}
+        {/* Resize handle - invisible but draggable */}
         <div
           onMouseDown={handleMouseDown}
-          className="relative shrink-0 w-1.5 cursor-col-resize z-30 group hover:bg-primary/20 transition-colors"
-        >
-          <div className="w-px h-full bg-border group-hover:bg-primary/50 transition-colors mx-auto" />
-        </div>
+          className="relative shrink-0 w-1 cursor-col-resize z-30 hover:bg-primary/30 transition-colors"
+        />
         <div className="flex-1 flex flex-col min-w-0">
           <Navbar showSidebarTrigger />
           <main className="flex-1 pt-16">{children}</main>
