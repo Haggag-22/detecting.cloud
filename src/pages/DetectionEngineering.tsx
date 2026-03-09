@@ -277,6 +277,23 @@ const DetectionEngineeringPage = () => {
             {filtered.length === 0 && (
               <p className="text-muted-foreground text-sm py-8 text-center">No detections found.</p>
             )}
+
+            {/* Related rules from other primary services */}
+            {filteredRelated.length > 0 && (
+              <div className="mt-10 pt-6 border-t border-border">
+                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-4">
+                  Related Detection Rules
+                </h2>
+                <p className="text-xs text-muted-foreground mb-4">
+                  These rules belong to other services but involve {serviceParam} in the attack chain.
+                </p>
+                <div className="space-y-3">
+                  {filteredRelated.map((det) => (
+                    <DetectionCard key={det.id} detection={det} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-10">
