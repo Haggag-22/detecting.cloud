@@ -77,9 +77,15 @@ const AttackPathsPage = () => {
           <div className="space-y-6">
             <div>
               <div className="flex flex-wrap gap-2 mb-3">
-                <Badge className={`text-xs border-0 uppercase tracking-wide ${categoryColor[activeTechnique.category] || "bg-muted text-muted-foreground"}`}>
-                  {activeTechnique.category.replace(/-/g, " ")}
-                </Badge>
+                {(() => {
+                  const CatIcon = categoryIcon[activeTechnique.category];
+                  return (
+                    <Badge className={`text-xs border-0 uppercase tracking-wide flex items-center gap-1 ${categoryColor[activeTechnique.category] || "bg-muted text-muted-foreground"}`}>
+                      {CatIcon && <CatIcon className={`h-3 w-3 ${categoryIconColor[activeTechnique.category] || ""}`} />}
+                      {activeTechnique.category.replace(/-/g, " ")}
+                    </Badge>
+                  );
+                })()}
                 {activeTechnique.services.map((svc) => (
                   <Badge key={svc} variant="outline" className="text-xs border-border text-muted-foreground">
                     {svc}
