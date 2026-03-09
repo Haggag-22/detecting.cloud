@@ -75,6 +75,7 @@ const DetectionEngineeringPage = () => {
   const ruleParam = searchParams.get("rule");
   const serviceParam = searchParams.get("service");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
   const { toast } = useToast();
 
   const detectionsByService = getDetectionsByService();
