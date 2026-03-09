@@ -37,7 +37,7 @@ import { detections, getDetectionsByService } from "@/data/detections";
 import { researchPosts } from "@/data/research";
 import { LucideIcon } from "lucide-react";
 import { getAwsServiceIcon } from "@/components/AwsIcons";
-import logoImg from "@/assets/logo.jpeg";
+
 
 const STORAGE_KEY = "sidebar-expanded";
 
@@ -202,12 +202,6 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader className="p-3 space-y-3 pt-[4.5rem]">
-        <Link to="/" className="flex items-center gap-2 font-display font-bold text-sm">
-          <img src={logoImg} alt="Logo" className="h-5 w-5 rounded shrink-0" />
-          <span className="truncate">
-            Detecting<span className="text-primary">.Cloud</span>
-          </span>
-        </Link>
         <div className="relative group-data-[collapsible=icon]:hidden">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <SidebarInput
@@ -219,7 +213,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="overflow-y-auto">
+      <SidebarContent className="overflow-y-auto will-change-scroll" style={{ overscrollBehavior: 'contain' }}>
         {search.trim() && (
           <div className="px-2 pb-2">
             {searchResults.length === 0 ? (
