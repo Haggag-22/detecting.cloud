@@ -196,7 +196,7 @@ function buildDetectionGraph(detId: string) {
     });
   });
 
-  // Top: AWS service
+  // Top: Primary AWS service
   nodes.push({
     id: `service-${det.awsService}`,
     type: "graphNode",
@@ -204,13 +204,34 @@ function buildDetectionGraph(detId: string) {
     data: { label: det.awsService, nodeType: "service" },
   });
   edges.push({
-    id: `e-svc-det`,
+    id: `e-svc-primary-det`,
     source: `service-${det.awsService}`,
     target: `detection-${det.id}`,
     style: { stroke: "hsl(210 79% 46% / 0.5)", strokeWidth: 1.5 },
-    label: "monitors",
+    label: "primary",
     labelStyle: { fontSize: 9, fill: "hsl(215 20% 55%)" },
     labelBgStyle: { fill: "hsl(215 40% 6%)", fillOpacity: 0.9 },
+  });
+
+  // Related AWS services
+  det.relatedServices.forEach((svc, i) => {
+    if (!nodes.find((n) => n.id === `service-${svc}`)) {
+      nodes.push({
+        id: `service-${svc}`,
+        type: "graphNode",
+        position: { x: 300 + i * 200, y: 80 },
+        data: { label: svc, nodeType: "service" },
+      });
+    }
+    edges.push({
+      id: `e-svc-related-${svc}`,
+      source: `service-${svc}`,
+      target: `detection-${det.id}`,
+      style: { stroke: "hsl(210 79% 46% / 0.3)", strokeWidth: 1, strokeDasharray: "5 3" },
+      label: "related",
+      labelStyle: { fontSize: 9, fill: "hsl(215 20% 55%)" },
+      labelBgStyle: { fill: "hsl(215 40% 6%)", fillOpacity: 0.9 },
+    });
   });
 
   return { nodes, edges };
