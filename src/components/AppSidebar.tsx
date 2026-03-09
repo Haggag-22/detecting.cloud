@@ -37,7 +37,7 @@ import { detections, getDetectionsByService } from "@/data/detections";
 import { researchPosts } from "@/data/research";
 import { LucideIcon } from "lucide-react";
 import { getAwsServiceIcon } from "@/components/AwsIcons";
-import logoImg from "@/assets/logo.jpeg";
+
 
 const STORAGE_KEY = "sidebar-expanded";
 
