@@ -720,23 +720,15 @@ level: critical`,
 ];
 
 /**
- * Get detections grouped by AWS service.
- * Includes rules where service is primary OR in relatedServices.
+ * Get detections grouped by PRIMARY AWS service only (for sidebar navigation).
+ * Each rule appears once under its primary service — no duplicates.
  */
 export function getDetectionsByService(): Record<string, Detection[]> {
-  const serviceSet = new Set<string>();
-  detections.forEach((d) => {
-    serviceSet.add(d.awsService);
-    d.relatedServices.forEach((s) => serviceSet.add(s));
-  });
-
   const grouped: Record<string, Detection[]> = {};
   const serviceOrder = ["IAM", "STS", "Lambda", "EC2", "S3", "EBS", "DynamoDB", "CloudTrail", "KMS", "EKS"];
 
   for (const service of serviceOrder) {
-    const serviceDetections = detections.filter(
-      (d) => d.awsService === service || d.relatedServices.includes(service)
-    );
+    const serviceDetections = detections.filter((d) => d.awsService === service);
     if (serviceDetections.length > 0) {
       grouped[service] = serviceDetections;
     }

@@ -35,19 +35,29 @@ const DetectionEngineeringPage = () => {
   const selectedDetection = ruleParam ? detections.find((d) => d.id === ruleParam) : null;
 
   // Filter detections
-  const filteredByService = serviceParam
-    ? detections.filter((d) => d.awsService === serviceParam || d.relatedServices.includes(serviceParam))
+  // Primary rules for the selected service
+  const primaryRules = serviceParam
+    ? detections.filter((d) => d.awsService === serviceParam)
     : detections;
 
-  const filtered = filteredByService.filter((d) => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return (
-      d.title.toLowerCase().includes(s) ||
-      d.description.toLowerCase().includes(s) ||
-      d.tags.some((t) => t.toLowerCase().includes(s))
-    );
-  });
+  // Related rules (where service appears in relatedServices but not primary)
+  const relatedRules = serviceParam
+    ? detections.filter((d) => d.awsService !== serviceParam && d.relatedServices.includes(serviceParam))
+    : [];
+
+  const filterBySearch = (list: typeof detections) =>
+    list.filter((d) => {
+      if (!search) return true;
+      const s = search.toLowerCase();
+      return (
+        d.title.toLowerCase().includes(s) ||
+        d.description.toLowerCase().includes(s) ||
+        d.tags.some((t) => t.toLowerCase().includes(s))
+      );
+    });
+
+  const filtered = filterBySearch(primaryRules);
+  const filteredRelated = filterBySearch(relatedRules);
 
   if (selectedDetection) {
     const ServiceIcon = getAwsServiceIcon(selectedDetection.awsService);
@@ -266,6 +276,23 @@ const DetectionEngineeringPage = () => {
             ))}
             {filtered.length === 0 && (
               <p className="text-muted-foreground text-sm py-8 text-center">No detections found.</p>
+            )}
+
+            {/* Related rules from other primary services */}
+            {filteredRelated.length > 0 && (
+              <div className="mt-10 pt-6 border-t border-border">
+                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-4">
+                  Related Detection Rules
+                </h2>
+                <p className="text-xs text-muted-foreground mb-4">
+                  These rules belong to other services but involve {serviceParam} in the attack chain.
+                </p>
+                <div className="space-y-3">
+                  {filteredRelated.map((det) => (
+                    <DetectionCard key={det.id} detection={det} />
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         ) : (
