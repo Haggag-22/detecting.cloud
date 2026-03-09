@@ -301,18 +301,27 @@ const AttackPathsPage = () => {
             if (catTechniques.length === 0) return null;
             return (
               <div key={catKey} className="mb-6">
-                <h3 className="text-sm font-medium text-muted-foreground mb-3 capitalize">
-                  {techniqueCategories[catKey].label}
-                </h3>
+                {(() => {
+                  const CatIcon = categoryIcon[catKey];
+                  return (
+                    <h3 className={`text-sm font-medium mb-3 flex items-center gap-2 ${categoryIconColor[catKey] || "text-muted-foreground"}`}>
+                      {CatIcon && <CatIcon className="h-4 w-4" />}
+                      <span>{techniqueCategories[catKey].label}</span>
+                    </h3>
+                  );
+                })()}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {catTechniques.map((tech) => (
+                  {catTechniques.map((tech) => {
+                    const TechCatIcon = categoryIcon[tech.category];
+                    return (
                     <Link
                       key={tech.id}
                       to={`/attack-paths?technique=${tech.id}`}
                       className="rounded-lg border border-border/50 bg-card p-4 hover:border-primary/30 transition-colors group"
                     >
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge className={`text-[10px] border-0 ${categoryColor[tech.category] || "bg-muted text-muted-foreground"}`}>
+                        <Badge className={`text-[10px] border-0 uppercase tracking-wide flex items-center gap-1 ${categoryColor[tech.category] || "bg-muted text-muted-foreground"}`}>
+                          {TechCatIcon && <TechCatIcon className={`h-3 w-3 ${categoryIconColor[tech.category] || ""}`} />}
                           {tech.category.replace(/-/g, " ")}
                         </Badge>
                       </div>
