@@ -3,6 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import logoImg from "@/assets/logo.png";
+import { techniques } from "@/data/techniques";
+import { attackPaths } from "@/data/attackPaths";
+import { detections } from "@/data/detections";
+import { Shield, Route, Crosshair, Server } from "lucide-react";
 
 const Index = () => {
   return (
@@ -57,6 +61,27 @@ const Index = () => {
                 </Button>
               </Link>
             </div>
+
+            {/* Stats Bar */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.4 }}
+              className="flex flex-wrap items-center justify-center gap-6 mt-10 text-sm text-muted-foreground"
+            >
+              {[
+                { icon: Crosshair, label: "Techniques", count: techniques.length },
+                { icon: Route, label: "Attack Paths", count: attackPaths.length },
+                { icon: Shield, label: "Detection Rules", count: detections.length },
+                { icon: Server, label: "AWS Services", count: new Set(techniques.flatMap(t => t.services)).size },
+              ].map((stat) => (
+                <div key={stat.label} className="flex items-center gap-2">
+                  <stat.icon className="h-4 w-4 text-primary/70" />
+                  <span className="font-semibold text-foreground">{stat.count}</span>
+                  <span>{stat.label}</span>
+                </div>
+              ))}
+            </motion.div>
           </motion.div>
         </div>
       </section>

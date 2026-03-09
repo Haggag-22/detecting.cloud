@@ -180,6 +180,12 @@ function buildSections(): SidebarSection[] {
       to: "/attack-graph",
     },
     {
+      key: "coverage",
+      label: "Detection Coverage",
+      icon: ShieldCheck,
+      to: "/coverage",
+    },
+    {
       key: "resources",
       label: "Resources",
       icon: ExternalLink,
