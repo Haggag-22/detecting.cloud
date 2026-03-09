@@ -180,7 +180,7 @@ const AttackPathsPage = () => {
                     return (
                     <Link
                       key={tech.id}
-                      to={`/attack-paths?technique=${tech.id}`}
+                      to={`/attack-paths/technique/${tech.id}`}
                       className="rounded-lg border border-border/50 bg-card p-4 hover:border-primary/30 transition-colors group"
                     >
                       <div className="flex items-center gap-2 mb-1">

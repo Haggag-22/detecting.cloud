@@ -127,7 +127,7 @@ function buildSections(): SidebarSection[] {
       iconColorClass: colorClass,
       children: catTechs.map((t) => ({
         label: t.name.length > 35 ? t.name.substring(0, 35) + "…" : t.name,
-        to: `/attack-paths?technique=${t.id}`,
+        to: `/attack-paths/technique/${t.id}`,
         dotColorClass: colorClass,
       })),
     };
