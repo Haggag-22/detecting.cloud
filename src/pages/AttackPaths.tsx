@@ -8,7 +8,7 @@ import {
   ChevronRight, AlertTriangle, Shield, Search, Link as LinkIcon, Network, Crosshair, ArrowLeft,
   KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff,
 } from "lucide-react";
-import { useSearchParams, Link } from "react-router-dom";
+import { useSearchParams, Link, Navigate } from "react-router-dom";
 import { AttackFlowChain } from "@/components/AttackFlowChain";
 import { LucideIcon } from "lucide-react";
 
