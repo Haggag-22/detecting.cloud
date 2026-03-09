@@ -3,13 +3,13 @@ Updated: now
 
 # Detecting.Cloud Design System
 
-- Theme: AWS-inspired colors — amber/yellow (HSL 43 96% 56%) as primary, blue (HSL 210 79% 46%) as accent
+- Theme: Blue primary (HSL 210 79% 46%), blue accent same value. Homepage keeps its gradient (amber→blue) unchanged.
 - Dark background: professional deep navy (HSL 215 40% 6%)
 - Fonts: Inter (display/body), JetBrains Mono (code)
-- Global collapsible + resizable sidebar on content pages (Research, Attack Paths, Detection Engineering, Attack Graph)
+- Global collapsible + resizable sidebar on content pages (Attack Paths, Detection Engineering, Attack Graph)
 - Sidebar persists expand state via sessionStorage
 - Homepage and About page have no sidebar
-- Labs section removed — platform focuses on Research, Attack Paths, Detection Engineering, Attack Graph
+- Research section removed from sidebar
 - GitHub repo: https://github.com/Haggag-22/detecting.cloud
 
 # Data Model (src/data/) — Knowledge Graph Architecture
