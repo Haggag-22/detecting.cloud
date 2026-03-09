@@ -3,6 +3,10 @@ import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import logoImg from "@/assets/logo.png";
+import { techniques } from "@/data/techniques";
+import { attackPaths } from "@/data/attackPaths";
+import { detections } from "@/data/detections";
+import { Shield, Route, Crosshair, Server } from "lucide-react";
 
 const Index = () => {
   return (
