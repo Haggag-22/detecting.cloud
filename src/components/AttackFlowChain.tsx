@@ -47,7 +47,7 @@ export function AttackFlowChain({ steps, compact = false }: AttackFlowChainProps
                 <Badge
                   className={`text-[10px] border px-1.5 py-0 ${categoryColor[step.technique.category] || "bg-muted text-muted-foreground border-border"}`}
                 >
-                  {step.technique.category.replace(/-/g, " ")}
+                  {step.technique.category.replace(/-/g, " ").toUpperCase()}
                 </Badge>
               </div>
               {!compact && step.context && (
