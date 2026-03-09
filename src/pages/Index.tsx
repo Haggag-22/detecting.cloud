@@ -21,7 +21,7 @@ const topics = [
   { icon: Server, title: "AWS Persistence", to: "/research" },
   { icon: Network, title: "Cloud Lateral Movement", to: "/research" },
   { icon: Database, title: "Cloud Data Exfiltration", to: "/research" },
-  { icon: Shield, title: "Detection Engineering", to: "/detection-engineering" },
+  { icon: ShieldCheck, title: "Detection Engineering", to: "/detection-engineering" },
 ];
 
 const Index = () => {
