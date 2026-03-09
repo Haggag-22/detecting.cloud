@@ -10,13 +10,17 @@ Updated: now
 - Sidebar persists expand state via sessionStorage
 - Homepage and About page have no sidebar
 - Labs section removed — platform focuses on Research, Attack Paths, Detection Engineering, Attack Graph
-
-# Data Model (src/data/)
-
-- **services.ts**: AwsService entity (id, name, shortName, description, category) + LogSource entity (id, name, description, awsServiceId)
-- **detections.ts**: Detection entity with `awsService` (primary) + `relatedServices[]` (cross-service). `getDetectionsByService()` groups by primary + related.
-- **attackPaths.ts**: AttackPath entity with `relatedDetectionIds[]` for bidirectional mapping
-- Attack paths have categories: iam-abuse, privilege-escalation, persistence, lateral-movement, data-exfiltration
-- Detection rules support 4 formats: sigma, splunk, cloudtrail (Athena), cloudwatch (Insights)
-- Attack graph is search-driven: select a technique or detection rule to visualize focused relationships
 - GitHub repo: https://github.com/Haggag-22/detecting.cloud
+
+# Data Model (src/data/) — Knowledge Graph Architecture
+
+- **techniques.ts**: Technique entity — reusable atomic attacker actions (id, name, services[], permissions[], detectionIds[], mitigations[], category)
+- **attackPaths.ts**: AttackPath entity — chains of technique references via `steps: { techniqueId, context }[]`
+- **detections.ts**: Detection entity with `awsService` (primary) + `relatedServices[]`. `getDetectionsByService()` groups by primary only.
+- **services.ts**: AwsService + LogSource entities
+- Techniques are reusable nodes that appear in multiple attack paths (no duplication)
+- Attack paths are sequences of technique IDs — displayed as visual flow chains with arrows
+- Technique pages show "Used in Attack Paths" section listing all chains containing that technique
+- Detection rules support 4 formats: sigma, splunk, cloudtrail (Athena), cloudwatch (Insights)
+- Attack graph visualizes technique nodes, attack path chains, detection rules, and AWS services
+- Sidebar has separate "Attack Paths" (chains) and "Techniques" (by category) sections
