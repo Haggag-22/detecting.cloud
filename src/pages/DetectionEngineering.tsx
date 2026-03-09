@@ -87,7 +87,7 @@ const DetectionEngineeringPage = () => {
           {/* Metadata */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div className="rounded-lg border border-border/50 bg-card p-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">AWS Service</p>
+              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Primary Service</p>
               <div className="flex items-center gap-2">
                 {ServiceIcon && <ServiceIcon size={16} />}
                 <span className="font-medium text-sm">{selectedDetection.awsService}</span>
@@ -108,6 +108,28 @@ const DetectionEngineeringPage = () => {
               <p className="text-sm font-medium">{availableFormats.length} formats</p>
             </div>
           </div>
+
+          {/* Related AWS Services */}
+          {selectedDetection.relatedServices.length > 0 && (
+            <div className="mb-8">
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">Related AWS Services</h2>
+              <div className="flex flex-wrap gap-2">
+                {selectedDetection.relatedServices.map((svc) => {
+                  const SvcIcon = getAwsServiceIcon(svc);
+                  return (
+                    <Link
+                      key={svc}
+                      to={`/detection-engineering?service=${svc}`}
+                      className="flex items-center gap-2 rounded-lg border border-border/50 bg-card px-3 py-2 hover:border-primary/30 transition-colors"
+                    >
+                      {SvcIcon && <SvcIcon size={16} />}
+                      <span className="text-sm font-medium">{svc}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Tags */}
           <div className="flex flex-wrap gap-1.5 mb-8">
