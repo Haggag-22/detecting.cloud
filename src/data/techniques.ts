@@ -244,11 +244,3 @@ export function getTechniquesByCategory(category: TechniqueCategory): Technique[
   return techniques.filter((t) => t.category === category);
 }
 
-/** Get all attack path slugs that include a given technique */
-export function getAttackPathsForTechnique(techniqueId: string): string[] {
-  // Import lazily to avoid circular deps — use the helper from attackPaths
-  const { attackPaths } = require("./attackPaths");
-  return attackPaths
-    .filter((ap: any) => ap.steps.some((s: any) => s.techniqueId === techniqueId))
-    .map((ap: any) => ap.slug);
-}
