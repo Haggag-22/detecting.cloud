@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Search, Github, Twitter, Menu, X, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SearchDialog } from "@/components/SearchDialog";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 
 const navLinks = [
   { label: "Home", to: "/" },
@@ -13,7 +14,7 @@ const navLinks = [
   { label: "About", to: "/about" },
 ];
 
-export function Navbar() {
+export function Navbar({ showSidebarTrigger = false }: { showSidebarTrigger?: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const location = useLocation();
