@@ -17,21 +17,15 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
-  Shield,
   KeyRound,
   TrendingUp,
   Server,
-  Network,
+  Network as NetworkIcon,
   Database,
   Search,
   Crosshair,
-  FlaskConical,
   ShieldCheck,
   FileText,
-  Eye,
-  Zap,
-  AlertTriangle,
-  Lock,
   ChevronRight,
   BookOpen,
   ExternalLink,
@@ -39,12 +33,12 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { attackPaths, attackPathCategories } from "@/data/attackPaths";
-import { detections } from "@/data/detections";
+import { detections, getDetectionsByService } from "@/data/detections";
 import { researchPosts } from "@/data/research";
-import { labs } from "@/data/labs";
 import { LucideIcon } from "lucide-react";
+import { getAwsServiceIcon } from "@/components/AwsIcons";
+import logoImg from "@/assets/logo.jpeg";
 
-// Persist expanded sections in sessionStorage
 const STORAGE_KEY = "sidebar-expanded";
 
 function getPersistedState(): Record<string, boolean> {
@@ -63,34 +57,30 @@ function persistState(state: Record<string, boolean>) {
 interface SidebarSection {
   key: string;
   label: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
+  customIcon?: React.ReactNode;
   to?: string;
-  children?: {
-    key: string;
-    label: string;
-    icon: LucideIcon;
-    to?: string;
-    children?: { label: string; to: string }[];
-  }[];
+  children?: SidebarChild[];
+}
+
+interface SidebarChild {
+  key: string;
+  label: string;
+  icon?: LucideIcon;
+  customIcon?: React.ReactNode;
+  to?: string;
+  children?: { label: string; to: string }[];
 }
 
 const categoryIcons: Record<string, LucideIcon> = {
   "iam-abuse": KeyRound,
   "privilege-escalation": TrendingUp,
   "persistence": Server,
-  "lateral-movement": Network,
+  "lateral-movement": NetworkIcon,
   "data-exfiltration": Database,
 };
 
-const detectionTypeIcons: Record<string, LucideIcon> = {
-  Sigma: Eye,
-  CloudTrail: Search,
-  Splunk: Zap,
-  SIEM: AlertTriangle,
-};
-
 function buildSections(): SidebarSection[] {
-  // Build Attack Paths section with nested categories → techniques
   const attackCategories = Object.entries(attackPathCategories).map(([catKey, catMeta]) => {
     const techniques = attackPaths
       .filter((ap) => ap.category === catKey)
@@ -103,19 +93,23 @@ function buildSections(): SidebarSection[] {
     };
   });
 
-  // Build Detection Engineering section by type
-  const detectionTypes = Array.from(new Set(detections.map((d) => d.type)));
-  const detectionCategories = detectionTypes.map((type) => {
-    const rules = detections
-      .filter((d) => d.type === type)
-      .map((d) => ({ label: d.title, to: `/detection-engineering?rule=${d.id}` }));
-    return {
-      key: `det-${type}`,
-      label: `${type} Rules`,
-      icon: detectionTypeIcons[type] || ShieldCheck,
-      children: rules,
-    };
-  });
+  // Build Detection Engineering by AWS service
+  const detectionsByService = getDetectionsByService();
+  const detectionServiceChildren: SidebarChild[] = [
+    { key: "det-all", label: "All Detections", icon: ShieldCheck, to: "/detection-engineering" },
+    ...Object.entries(detectionsByService).map(([service, rules]) => {
+      const ServiceIcon = getAwsServiceIcon(service);
+      return {
+        key: `det-svc-${service}`,
+        label: service,
+        customIcon: ServiceIcon ? <ServiceIcon size={14} /> : undefined,
+        children: rules.map((d) => ({
+          label: d.title.length > 40 ? d.title.substring(0, 40) + "…" : d.title,
+          to: `/detection-engineering?rule=${d.id}`,
+        })),
+      };
+    }),
+  ];
 
   return [
     {
@@ -123,28 +117,15 @@ function buildSections(): SidebarSection[] {
       label: "Research",
       icon: FileText,
       to: "/research",
-      children: researchPosts.map((p) => ({
-        key: `res-${p.slug}`,
-        label: p.title,
-        icon: BookOpen,
-        to: undefined,
-        children: [{ label: p.title, to: `/research/${p.slug}` }],
-      })).length > 0
-        ? [
-            {
-              key: "res-all",
-              label: "All Articles",
-              icon: FileText,
-              to: "/research",
-            },
-            ...researchPosts.slice(0, 6).map((p) => ({
-              key: `res-${p.slug}`,
-              label: p.title.length > 35 ? p.title.substring(0, 35) + "…" : p.title,
-              icon: BookOpen,
-              to: `/research/${p.slug}`,
-            })),
-          ]
-        : undefined,
+      children: [
+        { key: "res-all", label: "All Articles", icon: FileText, to: "/research" },
+        ...researchPosts.slice(0, 6).map((p) => ({
+          key: `res-${p.slug}`,
+          label: p.title.length > 35 ? p.title.substring(0, 35) + "…" : p.title,
+          icon: BookOpen,
+          to: `/research/${p.slug}`,
+        })),
+      ],
     },
     {
       key: "attack-paths",
@@ -161,33 +142,15 @@ function buildSections(): SidebarSection[] {
       label: "Detection Engineering",
       icon: ShieldCheck,
       to: "/detection-engineering",
-      children: [
-        { key: "det-all", label: "All Detections", icon: ShieldCheck, to: "/detection-engineering" },
-        ...detectionCategories,
-      ],
-    },
-    {
-      key: "labs",
-      label: "Labs",
-      icon: FlaskConical,
-      to: "/labs",
-      children: [
-        { key: "lab-all", label: "All Labs", icon: FlaskConical, to: "/labs" },
-        ...labs.map((l) => ({
-          key: `lab-${l.slug}`,
-          label: l.title,
-          icon: Lock,
-          to: `/labs?lab=${l.slug}`,
-        })),
-      ],
+      children: detectionServiceChildren,
     },
     {
       key: "attack-graph",
       label: "Attack Graph",
-      icon: Network,
+      icon: NetworkIcon,
       to: "/attack-graph",
       children: [
-        { key: "graph-full", label: "Full Graph", icon: Network, to: "/attack-graph" },
+        { key: "graph-full", label: "Full Graph", icon: NetworkIcon, to: "/attack-graph" },
       ],
     },
     {
@@ -208,7 +171,6 @@ export function AppSidebar() {
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     const persisted = getPersistedState();
-    // Default: expand the section matching current path
     const defaults: Record<string, boolean> = {};
     sections.forEach((s) => {
       if (s.to && location.pathname.startsWith(s.to)) {
@@ -228,12 +190,10 @@ export function AppSidebar() {
 
   const [search, setSearch] = useState("");
 
-  // Flatten all items for search
   const allSearchItems: { label: string; to: string; type: string }[] = [];
   attackPaths.forEach((ap) => allSearchItems.push({ label: ap.title, to: `/attack-paths?technique=${ap.slug}`, type: "Attack Path" }));
   detections.forEach((d) => allSearchItems.push({ label: d.title, to: `/detection-engineering?rule=${d.id}`, type: "Detection" }));
   researchPosts.forEach((p) => allSearchItems.push({ label: p.title, to: `/research/${p.slug}`, type: "Research" }));
-  labs.forEach((l) => allSearchItems.push({ label: l.title, to: `/labs?lab=${l.slug}`, type: "Lab" }));
 
   const searchResults = search.trim()
     ? allSearchItems.filter((item) => item.label.toLowerCase().includes(search.toLowerCase()))
@@ -243,7 +203,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader className="p-3 space-y-3">
         <Link to="/" className="flex items-center gap-2 font-display font-bold text-sm">
-          <Shield className="h-4 w-4 shrink-0 text-primary" />
+          <img src={logoImg} alt="Logo" className="h-5 w-5 rounded shrink-0" />
           <span className="truncate">
             Detecting<span className="text-primary">.Cloud</span>
           </span>
@@ -260,7 +220,6 @@ export function AppSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="overflow-y-auto">
-        {/* Search results */}
         {search.trim() && (
           <div className="px-2 pb-2">
             {searchResults.length === 0 ? (
@@ -282,7 +241,6 @@ export function AppSidebar() {
           </div>
         )}
 
-        {/* Main navigation (hidden during search) */}
         {!search.trim() &&
           sections.map((section) => (
             <div key={section.key} className="px-2 py-0.5">
@@ -297,7 +255,7 @@ export function AppSidebar() {
                         tooltip={section.label}
                         className="font-medium text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground"
                       >
-                        <section.icon className="h-4 w-4" />
+                        {section.icon && <section.icon className="h-4 w-4" />}
                         <span className="flex-1">{section.label}</span>
                         <ChevronRight
                           className={`h-3.5 w-3.5 transition-transform duration-200 ${
@@ -312,7 +270,6 @@ export function AppSidebar() {
                         <SidebarMenuSub>
                           {section.children.map((child) =>
                             child.children && child.children.length > 0 ? (
-                              // Nested collapsible (e.g., category → techniques)
                               <NestedCollapsible
                                 key={child.key}
                                 item={child}
@@ -328,7 +285,7 @@ export function AppSidebar() {
                                   size="sm"
                                 >
                                   <Link to={child.to || "#"}>
-                                    <child.icon className="h-3.5 w-3.5" />
+                                    {child.customIcon || (child.icon && <child.icon className="h-3.5 w-3.5" />)}
                                     <span>{child.label}</span>
                                   </Link>
                                 </SidebarMenuSubButton>
@@ -354,13 +311,7 @@ function NestedCollapsible({
   expanded,
   toggleSection,
 }: {
-  item: {
-    key: string;
-    label: string;
-    icon: LucideIcon;
-    to?: string;
-    children?: { label: string; to: string }[];
-  };
+  item: SidebarChild;
   currentPath: string;
   expanded: Record<string, boolean>;
   toggleSection: (key: string) => void;
@@ -373,7 +324,7 @@ function NestedCollapsible({
       >
         <CollapsibleTrigger asChild>
           <SidebarMenuSubButton size="sm" className="cursor-pointer">
-            <item.icon className="h-3.5 w-3.5" />
+            {item.customIcon || (item.icon && <item.icon className="h-3.5 w-3.5" />)}
             <span className="flex-1">{item.label}</span>
             <ChevronRight
               className={`h-3 w-3 transition-transform duration-200 ${

@@ -181,7 +181,7 @@ const AttackPathsPage = () => {
                           >
                             <div className="flex items-center gap-2 mb-1">
                               <Badge variant="outline" className="text-xs border-border text-muted-foreground">
-                                {det.type}
+                                {det.awsService}
                               </Badge>
                               <span className="font-medium text-sm">{det.title}</span>
                             </div>
