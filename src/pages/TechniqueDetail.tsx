@@ -206,39 +206,6 @@ const TechniqueDetailPage = () => {
           </div>
         )}
 
-        {/* Related Techniques */}
-        {relatedTechniques.length > 0 && (
-          <div className="border-t border-border pt-6">
-            <h2 className="flex items-center gap-2 font-display text-lg font-semibold mb-4">
-              <Layers className="h-4 w-4 text-primary" /> Related Techniques
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {relatedTechniques.map((t) => {
-                const TIcon = categoryIcon[t.category];
-                return (
-                  <Link
-                    key={t.id}
-                    to={`/attack-paths/technique/${t.id}`}
-                    className="rounded-lg border border-border/50 bg-card p-4 hover:border-primary/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <Badge className={`text-[10px] border-0 flex items-center gap-1 ${categoryColor[t.category]}`}>
-                        {TIcon && <TIcon className={`h-3 w-3 ${categoryIconColor[t.category]}`} />}
-                        {techniqueCategories[t.category].label}
-                      </Badge>
-                    </div>
-                    <h4 className="font-semibold text-sm mb-1">{t.name}</h4>
-                    <div className="flex flex-wrap gap-1">
-                      {t.services.map((svc) => (
-                        <span key={svc} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">{svc}</span>
-                      ))}
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
     </Layout>
   );
