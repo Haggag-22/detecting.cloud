@@ -1,8 +1,27 @@
 import { getTechniqueById, type Technique } from "@/data/techniques";
 import { Badge } from "@/components/ui/badge";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff, Crosshair } from "lucide-react";
 import { Link } from "react-router-dom";
 import type { AttackPathStep } from "@/data/attackPaths";
+import { LucideIcon } from "lucide-react";
+
+const catIcon: Record<string, LucideIcon> = {
+  "initial-access": Crosshair,
+  "credential-access": KeyRound,
+  "privilege-escalation": TrendingUp,
+  "persistence": Server,
+  "lateral-movement": Wifi,
+  "exfiltration": Database,
+  "defense-evasion": ShieldOff,
+};
+
+const catIconColor: Record<string, string> = {
+  "credential-access": "text-purple-400",
+  "privilege-escalation": "text-red-400",
+  "persistence": "text-orange-400",
+  "lateral-movement": "text-blue-400",
+  "exfiltration": "text-emerald-400",
+};
 
 const categoryColor: Record<string, string> = {
   "initial-access": "bg-muted text-muted-foreground border-border",
