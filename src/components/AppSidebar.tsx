@@ -401,7 +401,7 @@ function NestedCollapsible({
                     {child.dotColorClass && (
                       <span className={`w-1 h-1 rounded-full shrink-0 ${child.dotColorClass.replace("text-", "bg-")}`} />
                     )}
-                    <span className="truncate">{child.label}</span>
+                    <span className={`truncate ${child.dotColorClass || ""}`}>{child.label}</span>
                   </Link>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
