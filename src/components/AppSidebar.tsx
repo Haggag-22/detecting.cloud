@@ -200,7 +200,7 @@ export function AppSidebar() {
     : [];
 
   return (
-    <Sidebar collapsible="icon" className="border-r border-sidebar-border">
+    <Sidebar collapsible="icon" className="border-r-0">
       <SidebarHeader className="p-3 space-y-3 pt-[4.5rem]">
         <div className="relative group-data-[collapsible=icon]:hidden">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />

@@ -16,14 +16,13 @@ import {
   Position,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { attackPaths, attackPathCategories } from "@/data/attackPaths";
+import { attackPaths } from "@/data/attackPaths";
 import { detections } from "@/data/detections";
 import { Badge } from "@/components/ui/badge";
-import { useNavigate } from "react-router-dom";
-import { Shield, Crosshair, Eye, Cloud, FileText, Filter, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { Shield, Crosshair, Eye, Cloud, FileText, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
-// --- Node types ---
 type GraphNodeType = "attack" | "detection" | "service" | "logSource";
 
 interface GraphNodeData {
@@ -36,161 +35,187 @@ interface GraphNodeData {
   [key: string]: unknown;
 }
 
-// Extract unique AWS services and log sources from data
-function extractServices(): string[] {
-  const services = new Set<string>();
-  attackPaths.forEach((ap) => {
-    ap.tags.forEach((t) => {
-      if (["IAM", "Lambda", "S3", "EC2", "CloudTrail", "STS", "Glue", "VPC"].includes(t)) {
-        services.add(t);
-      }
-    });
-  });
-  return Array.from(services);
-}
-
-function extractLogSources(): string[] {
-  const sources = new Set<string>();
-  detections.forEach((d) => {
-    d.logSources.forEach((ls) => sources.add(ls));
-  });
-  return Array.from(sources);
-}
-
-// Build graph data
-function buildGraph(filter: string) {
-  const services = extractServices();
-  const logSources = extractLogSources();
+// Build a focused graph around a single attack technique
+function buildTechniqueGraph(slug: string) {
+  const ap = attackPaths.find((a) => a.slug === slug);
+  if (!ap) return { nodes: [], edges: [] };
 
   const nodes: Node<GraphNodeData>[] = [];
   const edges: Edge[] = [];
 
-  // Filter attack paths
-  let filteredAttacks = attackPaths;
-  if (filter && filter !== "all") {
-    if (filter in attackPathCategories) {
-      filteredAttacks = attackPaths.filter((ap) => ap.category === filter);
-    } else if (["AWS", "Azure", "GCP"].includes(filter)) {
-      filteredAttacks = attackPaths.filter((ap) => ap.provider === filter);
-    }
-  }
-
-  const relatedDetectionIds = new Set<string>();
-  const relatedServices = new Set<string>();
-  const relatedLogSources = new Set<string>();
-
-  // Attack nodes - arrange in a circle on the left
-  const attackCount = filteredAttacks.length;
-  filteredAttacks.forEach((ap, i) => {
-    const angle = (i / Math.max(attackCount, 1)) * Math.PI * 1.4 - Math.PI * 0.7;
-    const radius = 350;
-    nodes.push({
-      id: `attack-${ap.slug}`,
-      type: "graphNode",
-      position: { x: 400 + Math.cos(angle) * radius, y: 400 + Math.sin(angle) * radius },
-      data: {
-        label: ap.title,
-        nodeType: "attack",
-        category: ap.category,
-        severity: ap.severity,
-        link: `/attack-paths?technique=${ap.slug}`,
-        tags: ap.tags,
-      },
-    });
-
-    // Connect to services
-    ap.tags.forEach((t) => {
-      if (services.includes(t)) {
-        relatedServices.add(t);
-        edges.push({
-          id: `e-attack-${ap.slug}-svc-${t}`,
-          source: `attack-${ap.slug}`,
-          target: `service-${t}`,
-          animated: false,
-          style: { stroke: "hsl(210 79% 46% / 0.4)", strokeWidth: 1.5 },
-          label: "uses",
-          labelStyle: { fontSize: 9, fill: "hsl(215 20% 55%)" },
-          labelBgStyle: { fill: "hsl(213 35% 7%)", fillOpacity: 0.8 },
-        });
-      }
-    });
-
-    // Connect to detections
-    ap.relatedDetectionIds.forEach((detId) => {
-      relatedDetectionIds.add(detId);
-      edges.push({
-        id: `e-attack-${ap.slug}-det-${detId}`,
-        source: `attack-${ap.slug}`,
-        target: `detection-${detId}`,
-        animated: true,
-        style: { stroke: "hsl(43 96% 56% / 0.5)", strokeWidth: 2 },
-        label: "detected by",
-        labelStyle: { fontSize: 9, fill: "hsl(215 20% 55%)" },
-        labelBgStyle: { fill: "hsl(213 35% 7%)", fillOpacity: 0.8 },
-      });
-    });
+  // Center: the attack technique
+  nodes.push({
+    id: `attack-${ap.slug}`,
+    type: "graphNode",
+    position: { x: 500, y: 300 },
+    data: {
+      label: ap.title,
+      nodeType: "attack",
+      category: ap.category,
+      severity: ap.severity,
+      link: `/attack-paths?technique=${ap.slug}`,
+      tags: ap.tags,
+    },
   });
 
-  // Service nodes - center column
-  const filteredServices = filter === "all" || !filter ? services : Array.from(relatedServices);
-  filteredServices.forEach((svc, i) => {
+  // Left: AWS services used
+  const services = ap.tags.filter((t) =>
+    ["IAM", "Lambda", "S3", "EC2", "CloudTrail", "STS", "Glue", "VPC", "KMS", "EBS", "DynamoDB", "EKS"].includes(t)
+  );
+  services.forEach((svc, i) => {
     nodes.push({
       id: `service-${svc}`,
       type: "graphNode",
-      position: { x: 850, y: 80 + i * 120 },
+      position: { x: 100, y: 150 + i * 130 },
       data: { label: svc, nodeType: "service" },
+    });
+    edges.push({
+      id: `e-svc-${svc}-attack`,
+      source: `service-${svc}`,
+      target: `attack-${ap.slug}`,
+      style: { stroke: "hsl(210 79% 46% / 0.5)", strokeWidth: 1.5 },
+      label: "targets",
+      labelStyle: { fontSize: 9, fill: "hsl(215 20% 55%)" },
+      labelBgStyle: { fill: "hsl(215 40% 6%)", fillOpacity: 0.9 },
     });
   });
 
-  // Detection nodes - right side
-  const filteredDetections = filter === "all" || !filter
-    ? detections
-    : detections.filter((d) => relatedDetectionIds.has(d.id));
-  filteredDetections.forEach((det, i) => {
-    const angle = (i / Math.max(filteredDetections.length, 1)) * Math.PI * 1.4 - Math.PI * 0.7;
-    const radius = 300;
+  // Right: detection rules
+  const relatedDets = detections.filter((d) => ap.relatedDetectionIds.includes(d.id));
+  relatedDets.forEach((det, i) => {
     nodes.push({
       id: `detection-${det.id}`,
       type: "graphNode",
-      position: { x: 1300 + Math.cos(angle) * radius, y: 400 + Math.sin(angle) * radius },
+      position: { x: 900, y: 100 + i * 160 },
       data: {
         label: det.title,
         nodeType: "detection",
         link: `/detection-engineering?rule=${det.id}`,
-        tags: det.tags,
       },
     });
+    edges.push({
+      id: `e-attack-det-${det.id}`,
+      source: `attack-${ap.slug}`,
+      target: `detection-${det.id}`,
+      animated: true,
+      style: { stroke: "hsl(43 96% 56% / 0.5)", strokeWidth: 2 },
+      label: "detected by",
+      labelStyle: { fontSize: 9, fill: "hsl(215 20% 55%)" },
+      labelBgStyle: { fill: "hsl(215 40% 6%)", fillOpacity: 0.9 },
+    });
 
-    // Connect detections to log sources
-    det.logSources.forEach((ls) => {
-      relatedLogSources.add(ls);
+    // Far right: log sources for each detection
+    det.logSources.forEach((ls, j) => {
+      const logId = `log-${det.id}-${ls.replace(/\s/g, "_")}`;
+      if (!nodes.find((n) => n.id === logId)) {
+        nodes.push({
+          id: logId,
+          type: "graphNode",
+          position: { x: 1300, y: 80 + i * 160 + j * 80 },
+          data: { label: ls, nodeType: "logSource" },
+        });
+      }
       edges.push({
         id: `e-det-${det.id}-log-${ls.replace(/\s/g, "_")}`,
         source: `detection-${det.id}`,
-        target: `log-${ls.replace(/\s/g, "_")}`,
+        target: logId,
         style: { stroke: "hsl(142 71% 45% / 0.4)", strokeWidth: 1.5 },
         label: "analyzes",
         labelStyle: { fontSize: 9, fill: "hsl(215 20% 55%)" },
-        labelBgStyle: { fill: "hsl(213 35% 7%)", fillOpacity: 0.8 },
+        labelBgStyle: { fill: "hsl(215 40% 6%)", fillOpacity: 0.9 },
       });
-    });
-  });
-
-  // Log source nodes - far right
-  const filteredLogSources = filter === "all" || !filter ? logSources : Array.from(relatedLogSources);
-  filteredLogSources.forEach((ls, i) => {
-    nodes.push({
-      id: `log-${ls.replace(/\s/g, "_")}`,
-      type: "graphNode",
-      position: { x: 1750, y: 120 + i * 130 },
-      data: { label: ls, nodeType: "logSource" },
     });
   });
 
   return { nodes, edges };
 }
 
-// Custom node colors
+// Build a focused graph around a single detection rule
+function buildDetectionGraph(detId: string) {
+  const det = detections.find((d) => d.id === detId);
+  if (!det) return { nodes: [], edges: [] };
+
+  const nodes: Node<GraphNodeData>[] = [];
+  const edges: Edge[] = [];
+
+  // Center: the detection rule
+  nodes.push({
+    id: `detection-${det.id}`,
+    type: "graphNode",
+    position: { x: 500, y: 300 },
+    data: {
+      label: det.title,
+      nodeType: "detection",
+      link: `/detection-engineering?rule=${det.id}`,
+    },
+  });
+
+  // Left: attack techniques that this rule detects
+  const relatedAttacks = attackPaths.filter((ap) => ap.relatedDetectionIds.includes(det.id));
+  relatedAttacks.forEach((ap, i) => {
+    nodes.push({
+      id: `attack-${ap.slug}`,
+      type: "graphNode",
+      position: { x: 100, y: 150 + i * 140 },
+      data: {
+        label: ap.title,
+        nodeType: "attack",
+        severity: ap.severity,
+        link: `/attack-paths?technique=${ap.slug}`,
+      },
+    });
+    edges.push({
+      id: `e-attack-${ap.slug}-det`,
+      source: `attack-${ap.slug}`,
+      target: `detection-${det.id}`,
+      animated: true,
+      style: { stroke: "hsl(43 96% 56% / 0.5)", strokeWidth: 2 },
+      label: "detected by",
+      labelStyle: { fontSize: 9, fill: "hsl(215 20% 55%)" },
+      labelBgStyle: { fill: "hsl(215 40% 6%)", fillOpacity: 0.9 },
+    });
+  });
+
+  // Right: log sources
+  det.logSources.forEach((ls, i) => {
+    const logId = `log-${ls.replace(/\s/g, "_")}`;
+    nodes.push({
+      id: logId,
+      type: "graphNode",
+      position: { x: 900, y: 200 + i * 120 },
+      data: { label: ls, nodeType: "logSource" },
+    });
+    edges.push({
+      id: `e-det-log-${ls.replace(/\s/g, "_")}`,
+      source: `detection-${det.id}`,
+      target: logId,
+      style: { stroke: "hsl(142 71% 45% / 0.4)", strokeWidth: 1.5 },
+      label: "analyzes",
+      labelStyle: { fontSize: 9, fill: "hsl(215 20% 55%)" },
+      labelBgStyle: { fill: "hsl(215 40% 6%)", fillOpacity: 0.9 },
+    });
+  });
+
+  // Top: AWS service
+  nodes.push({
+    id: `service-${det.awsService}`,
+    type: "graphNode",
+    position: { x: 500, y: 80 },
+    data: { label: det.awsService, nodeType: "service" },
+  });
+  edges.push({
+    id: `e-svc-det`,
+    source: `service-${det.awsService}`,
+    target: `detection-${det.id}`,
+    style: { stroke: "hsl(210 79% 46% / 0.5)", strokeWidth: 1.5 },
+    label: "monitors",
+    labelStyle: { fontSize: 9, fill: "hsl(215 20% 55%)" },
+    labelBgStyle: { fill: "hsl(215 40% 6%)", fillOpacity: 0.9 },
+  });
+
+  return { nodes, edges };
+}
+
 const nodeColors: Record<GraphNodeType, { bg: string; border: string; text: string; icon: typeof Shield }> = {
   attack: { bg: "bg-destructive/10", border: "border-destructive/40", text: "text-destructive", icon: Crosshair },
   detection: { bg: "bg-primary/10", border: "border-primary/40", text: "text-primary", icon: Eye },
@@ -205,7 +230,7 @@ function GraphNodeComponent({ data }: NodeProps<Node<GraphNodeData>>) {
 
   return (
     <div
-      className={`px-3 py-2 rounded-lg border ${config.bg} ${config.border} cursor-pointer hover:scale-105 transition-transform min-w-[120px] max-w-[200px]`}
+      className={`px-3 py-2 rounded-lg border ${config.bg} ${config.border} cursor-pointer hover:scale-105 transition-transform min-w-[120px] max-w-[220px]`}
       onClick={() => data.link && navigate(data.link)}
     >
       <Handle type="target" position={Position.Left} className="!bg-muted-foreground !w-2 !h-2" />
@@ -228,29 +253,48 @@ function GraphNodeComponent({ data }: NodeProps<Node<GraphNodeData>>) {
 
 const nodeTypes = { graphNode: GraphNodeComponent };
 
-const filterOptions = [
-  { value: "all", label: "All" },
-  { value: "iam-abuse", label: "IAM Abuse" },
-  { value: "privilege-escalation", label: "Privilege Escalation" },
-  { value: "persistence", label: "Persistence" },
-  { value: "lateral-movement", label: "Lateral Movement" },
-  { value: "data-exfiltration", label: "Data Exfiltration" },
+// Combine all searchable items
+const allItems = [
+  ...attackPaths.map((ap) => ({ id: ap.slug, label: ap.title, type: "technique" as const })),
+  ...detections.map((d) => ({ id: d.id, label: d.title, type: "detection" as const })),
 ];
 
 const AttackGraphPage = () => {
-  const [filter, setFilter] = useState("all");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedTechnique = searchParams.get("technique");
+  const selectedDetection = searchParams.get("rule");
 
-  const { nodes: initialNodes, edges: initialEdges } = useMemo(() => buildGraph(filter), [filter]);
+  const [search, setSearch] = useState("");
+
+  const hasSelection = !!selectedTechnique || !!selectedDetection;
+
+  const { nodes: initialNodes, edges: initialEdges } = useMemo(() => {
+    if (selectedTechnique) return buildTechniqueGraph(selectedTechnique);
+    if (selectedDetection) return buildDetectionGraph(selectedDetection);
+    return { nodes: [], edges: [] };
+  }, [selectedTechnique, selectedDetection]);
+
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  // Reset nodes/edges when filter changes
-  const handleFilterChange = useCallback((value: string) => {
-    setFilter(value);
-    const { nodes: n, edges: e } = buildGraph(value);
-    setNodes(n);
-    setEdges(e);
-  }, [setNodes, setEdges]);
+  // Sync when selection changes
+  useMemo(() => {
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+  }, [initialNodes, initialEdges, setNodes, setEdges]);
+
+  const handleSelect = useCallback((item: typeof allItems[0]) => {
+    setSearch("");
+    if (item.type === "technique") {
+      setSearchParams({ technique: item.id });
+    } else {
+      setSearchParams({ rule: item.id });
+    }
+  }, [setSearchParams]);
+
+  const filteredItems = search.trim()
+    ? allItems.filter((item) => item.label.toLowerCase().includes(search.toLowerCase())).slice(0, 10)
+    : [];
 
   return (
     <Layout>
@@ -258,85 +302,115 @@ const AttackGraphPage = () => {
         <div className="mb-6">
           <h1 className="font-display text-3xl font-bold mb-2">Attack & Detection Graph</h1>
           <p className="text-muted-foreground text-sm">
-            Interactive map of cloud attack techniques, AWS services, detection rules, and log sources.
-            Click any node to navigate to its detail page.
+            Search for an attack technique or detection rule to visualize its relationships with AWS services, detections, and log sources.
           </p>
         </div>
 
-        {/* Legend */}
-        <div className="flex flex-wrap gap-4 mb-4">
-          {Object.entries(nodeColors).map(([type, config]) => {
-            const Icon = config.icon;
-            return (
-              <div key={type} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <div className={`w-3 h-3 rounded-sm ${config.bg} ${config.border} border`} />
-                <Icon className={`h-3 w-3 ${config.text}`} />
-                <span className="capitalize">{type === "logSource" ? "Log Source" : type}</span>
-              </div>
-            );
-          })}
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground ml-4">
-            <div className="w-6 h-0.5 bg-primary/50" />
-            <span>detected by</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <div className="w-6 h-0.5 bg-accent/50" />
-            <span>uses service</span>
-          </div>
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <div className="w-6 h-0.5 bg-green-500/50" />
-            <span>analyzes logs</span>
-          </div>
+        {/* Search bar */}
+        <div className="relative mb-6 max-w-lg">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search a technique or detection rule..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-10 bg-card border-border/50"
+          />
+          {filteredItems.length > 0 && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border/50 rounded-lg shadow-xl z-50 max-h-64 overflow-y-auto">
+              {filteredItems.map((item) => (
+                <button
+                  key={`${item.type}-${item.id}`}
+                  onClick={() => handleSelect(item)}
+                  className="w-full text-left px-4 py-2.5 text-sm hover:bg-muted/50 flex items-center gap-3 transition-colors"
+                >
+                  {item.type === "technique" ? (
+                    <Crosshair className="h-3.5 w-3.5 text-destructive shrink-0" />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5 text-primary shrink-0" />
+                  )}
+                  <span className="truncate text-foreground">{item.label}</span>
+                  <span className="text-xs text-muted-foreground ml-auto shrink-0 capitalize">{item.type}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Graph */}
-        <div className="rounded-lg border border-border/50 bg-card overflow-hidden" style={{ height: "70vh" }}>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            nodeTypes={nodeTypes}
-            fitView
-            minZoom={0.2}
-            maxZoom={2}
-            defaultEdgeOptions={{ type: "smoothstep" }}
-            proOptions={{ hideAttribution: true }}
-          >
-            <Background variant={BackgroundVariant.Dots} gap={30} size={1} color="hsl(213 20% 16% / 0.5)" />
-            <Controls
-              className="!bg-card !border-border/50 !rounded-lg [&>button]:!bg-card [&>button]:!border-border/50 [&>button]:!text-muted-foreground [&>button:hover]:!bg-muted"
-            />
-            <MiniMap
-              className="!bg-card !border-border/50 !rounded-lg"
-              nodeColor={(node) => {
-                const nt = (node.data as GraphNodeData).nodeType;
-                if (nt === "attack") return "hsl(0 84% 60%)";
-                if (nt === "detection") return "hsl(43 96% 56%)";
-                if (nt === "service") return "hsl(210 79% 46%)";
-                return "hsl(142 71% 45%)";
-              }}
-              maskColor="hsl(213 35% 7% / 0.7)"
-            />
+        {/* Quick picks when nothing selected */}
+        {!hasSelection && (
+          <div className="space-y-4">
+            <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Select a technique to visualize</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {attackPaths.map((ap) => (
+                <button
+                  key={ap.slug}
+                  onClick={() => setSearchParams({ technique: ap.slug })}
+                  className="text-left p-4 rounded-lg border border-border/50 bg-card hover:border-primary/30 hover:bg-primary/5 transition-colors group"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Crosshair className="h-3.5 w-3.5 text-destructive" />
+                    <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">{ap.title}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{ap.overview}</p>
+                  <Badge className={`text-[10px] mt-2 border-0 ${
+                    ap.severity === "Critical" ? "bg-destructive/20 text-destructive" :
+                    ap.severity === "High" ? "bg-primary/20 text-primary" : "bg-accent/20 text-accent"
+                  }`}>
+                    {ap.severity}
+                  </Badge>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
-            <Panel position="top-left" className="flex flex-wrap gap-1.5">
-              <div className="flex items-center gap-1.5 bg-card/90 backdrop-blur-sm border border-border/50 rounded-lg px-2 py-1.5">
-                <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-                {filterOptions.map((opt) => (
-                  <Button
-                    key={opt.value}
-                    variant={filter === opt.value ? "default" : "ghost"}
-                    size="sm"
-                    className="h-6 text-xs px-2"
-                    onClick={() => handleFilterChange(opt.value)}
-                  >
-                    {opt.label}
-                  </Button>
-                ))}
-              </div>
-            </Panel>
-          </ReactFlow>
-        </div>
+        {/* Graph - only when something is selected */}
+        {hasSelection && (
+          <div className="rounded-lg border border-border/50 bg-card overflow-hidden" style={{ height: "70vh" }}>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              nodeTypes={nodeTypes}
+              fitView
+              minZoom={0.3}
+              maxZoom={2}
+              defaultEdgeOptions={{ type: "smoothstep" }}
+              proOptions={{ hideAttribution: true }}
+            >
+              <Background variant={BackgroundVariant.Dots} gap={30} size={1} color="hsl(213 20% 16% / 0.5)" />
+              <Controls
+                className="!bg-card !border-border/50 !rounded-lg [&>button]:!bg-card [&>button]:!border-border/50 [&>button]:!text-muted-foreground [&>button:hover]:!bg-muted"
+              />
+              <MiniMap
+                className="!bg-card !border-border/50 !rounded-lg"
+                nodeColor={(node) => {
+                  const nt = (node.data as GraphNodeData).nodeType;
+                  if (nt === "attack") return "hsl(0 84% 60%)";
+                  if (nt === "detection") return "hsl(43 96% 56%)";
+                  if (nt === "service") return "hsl(210 79% 46%)";
+                  return "hsl(142 71% 45%)";
+                }}
+                maskColor="hsl(215 40% 6% / 0.7)"
+              />
+              <Panel position="top-left">
+                <div className="flex flex-wrap gap-3 bg-card/90 backdrop-blur-sm border border-border/50 rounded-lg px-3 py-2">
+                  {Object.entries(nodeColors).map(([type, config]) => {
+                    const Icon = config.icon;
+                    return (
+                      <div key={type} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className={`w-3 h-3 rounded-sm ${config.bg} ${config.border} border`} />
+                        <Icon className={`h-3 w-3 ${config.text}`} />
+                        <span className="capitalize">{type === "logSource" ? "Log Source" : type}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </Panel>
+            </ReactFlow>
+          </div>
+        )}
       </div>
     </Layout>
   );
