@@ -83,7 +83,7 @@ export function AttackFlowChain({ steps, compact = false }: AttackFlowChainProps
                   {step.technique.services.map((svc) => (
                     <span
                       key={svc}
-                      className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-mono"
+                      className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono"
                     >
                       {svc}
                     </span>

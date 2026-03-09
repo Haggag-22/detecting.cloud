@@ -32,10 +32,10 @@ const categoryIconColor: Record<string, string> = {
   "defense-evasion": "text-muted-foreground",
 };
 
-const severityColor = {
-  Critical: "bg-destructive/10 text-destructive",
-  High: "bg-primary/10 text-primary",
-  Medium: "bg-accent/10 text-accent",
+const severityColor: Record<string, string> = {
+  Critical: "bg-severity-critical/15 text-severity-critical",
+  High: "bg-severity-high/15 text-severity-high",
+  Medium: "bg-severity-medium/15 text-severity-medium",
 };
 
 const categoryColor: Record<string, string> = {
@@ -329,7 +329,7 @@ const AttackPathsPage = () => {
                       <p className="text-xs text-muted-foreground line-clamp-2">{tech.description}</p>
                       <div className="flex flex-wrap gap-1 mt-2">
                         {tech.services.map((svc) => (
-                          <span key={svc} className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-mono">
+                          <span key={svc} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
                             {svc}
                           </span>
                         ))}

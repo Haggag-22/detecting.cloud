@@ -47,12 +47,12 @@ const Index = () => {
             </p>
             <div className="flex flex-wrap gap-3 justify-center">
               <Link to="/detection-engineering">
-                <Button size="lg" className="bg-gradient-primary hover:opacity-90 text-primary-foreground font-semibold">
+                <Button size="lg" className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold">
                   Explore Detection Rules
                 </Button>
               </Link>
               <Link to="/attack-paths">
-                <Button size="lg" variant="outline" className="border-border hover:bg-muted">
+                <Button size="lg" variant="outline" className="border-primary/30 text-primary hover:bg-primary/10">
                   Explore Attack Paths
                 </Button>
               </Link>
