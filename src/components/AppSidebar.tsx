@@ -380,7 +380,7 @@ function NestedCollapsible({
             ) : (
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.iconColorClass ? item.iconColorClass.replace("text-", "bg-") : "bg-muted-foreground"}`} />
             ))}
-            <span className="flex-1">{item.label}</span>
+            <span className="flex-1 font-semibold">{item.label}</span>
             <ChevronRight
               className={`h-3 w-3 transition-transform duration-200 ${
                 expanded[item.key] ? "rotate-90" : ""
