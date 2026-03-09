@@ -3,10 +3,12 @@ import { Layout } from "@/components/Layout";
 import { detections, getDetectionsByService } from "@/data/detections";
 import { attackPaths } from "@/data/attackPaths";
 import { Badge } from "@/components/ui/badge";
-import { Search, Link as LinkIcon, ChevronRight } from "lucide-react";
+import { Search, Link as LinkIcon, ChevronRight, Copy, Download, Share2, Check } from "lucide-react";
 import { useSearchParams, Link } from "react-router-dom";
 import { getAwsServiceIcon } from "@/components/AwsIcons";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 const severityColors: Record<string, string> = {
   Critical: "bg-severity-critical/15 text-severity-critical",
