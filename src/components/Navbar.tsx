@@ -23,10 +23,13 @@ export function Navbar({ showSidebarTrigger = false }: { showSidebarTrigger?: bo
     <>
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 font-display font-bold text-lg">
-            <Shield className="h-5 w-5 text-primary" />
-            <span>Detecting<span className="text-primary">.Cloud</span></span>
-          </Link>
+          <div className="flex items-center gap-2">
+            {showSidebarTrigger && <SidebarTrigger className="text-muted-foreground hover:text-foreground" />}
+            <Link to="/" className="flex items-center gap-2 font-display font-bold text-lg">
+              <Shield className="h-5 w-5 text-primary" />
+              <span>Detecting<span className="text-primary">.Cloud</span></span>
+            </Link>
+          </div>
 
           <div className="hidden lg:flex items-center gap-1">
             {navLinks.map((link) => (
