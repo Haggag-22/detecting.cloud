@@ -11,7 +11,10 @@ export interface Detection {
   id: string;
   title: string;
   description: string;
+  /** Primary AWS service this rule belongs to */
   awsService: string;
+  /** Additional AWS services involved in the attack/detection */
+  relatedServices: string[];
   severity: "Critical" | "High" | "Medium" | "Low";
   tags: string[];
   logSources: string[];
@@ -20,18 +23,6 @@ export interface Detection {
   relatedAttackSlugs: string[];
 }
 
-export const awsServices = [
-  "IAM",
-  "Lambda",
-  "EC2",
-  "S3",
-  "EBS",
-  "DynamoDB",
-  "CloudTrail",
-  "KMS",
-  "EKS",
-] as const;
-
 export const detections: Detection[] = [
   // --- IAM ---
   {
@@ -39,6 +30,7 @@ export const detections: Detection[] = [
     title: "IAM PassRole Privilege Escalation",
     description: "Detects when iam:PassRole is used to pass an administrative role to a Lambda function or other AWS service.",
     awsService: "IAM",
+    relatedServices: ["Lambda", "STS"],
     severity: "Critical",
     tags: ["IAM", "PassRole", "Privilege Escalation"],
     logSources: ["AWS CloudTrail"],
@@ -74,6 +66,7 @@ ORDER BY eventTime DESC`,
     title: "IAM User Policy Attachment",
     description: "Detects when an IAM policy is attached directly to a user, which may indicate privilege escalation.",
     awsService: "IAM",
+    relatedServices: [],
     severity: "High",
     tags: ["IAM", "Privilege Escalation", "Policy"],
     logSources: ["AWS CloudTrail"],
@@ -113,6 +106,7 @@ ORDER BY eventTime DESC`,
     title: "IAM Access Key Created for Another User",
     description: "Detects when an IAM user creates access keys for a different user, potentially establishing backdoor access.",
     awsService: "IAM",
+    relatedServices: [],
     severity: "High",
     tags: ["IAM", "Persistence", "Access Keys"],
     logSources: ["AWS CloudTrail"],
@@ -142,6 +136,7 @@ ORDER BY eventTime DESC`,
     title: "IAM Policy Version Created with Full Admin",
     description: "Detects creation of a new policy version granting full administrative access (Action: *, Resource: *).",
     awsService: "IAM",
+    relatedServices: [],
     severity: "Critical",
     tags: ["IAM", "Privilege Escalation", "Policy"],
     logSources: ["AWS CloudTrail"],
@@ -174,6 +169,7 @@ ORDER BY eventTime DESC`,
     title: "Lambda Function with External Network Calls",
     description: "Identifies Lambda functions making connections to external IP addresses.",
     awsService: "Lambda",
+    relatedServices: ["EC2"],
     severity: "High",
     tags: ["Lambda", "Persistence", "Network"],
     logSources: ["VPC Flow Logs", "Lambda Logs"],
@@ -216,6 +212,7 @@ ORDER BY start_time DESC`,
     title: "Lambda Function Created with Admin Role",
     description: "Detects creation of Lambda functions with overly permissive execution roles.",
     awsService: "Lambda",
+    relatedServices: ["IAM"],
     severity: "Critical",
     tags: ["Lambda", "Privilege Escalation", "PassRole"],
     logSources: ["AWS CloudTrail"],
@@ -246,6 +243,7 @@ WHERE eventName = 'CreateFunction20150331'
     title: "Lambda Event Source Mapping Created",
     description: "Detects new Lambda event source mappings which could be used for persistence via trigger-based execution.",
     awsService: "Lambda",
+    relatedServices: ["DynamoDB", "S3"],
     severity: "Medium",
     tags: ["Lambda", "Persistence", "Event Source"],
     logSources: ["AWS CloudTrail"],
@@ -272,6 +270,7 @@ level: medium`,
     title: "EC2 Instance with Highly Privileged IAM Role",
     description: "Detects EC2 instances launched with IAM roles that have administrative or highly permissive policies.",
     awsService: "EC2",
+    relatedServices: ["IAM"],
     severity: "High",
     tags: ["EC2", "Privilege Escalation", "IAM Role"],
     logSources: ["AWS CloudTrail"],
@@ -303,6 +302,7 @@ WHERE eventName = 'RunInstances'
     title: "EC2 IMDSv1 Usage Detected",
     description: "Detects EC2 instances using IMDSv1 which is vulnerable to SSRF-based credential theft.",
     awsService: "EC2",
+    relatedServices: ["IAM"],
     severity: "Medium",
     tags: ["EC2", "IMDS", "Credential Theft"],
     logSources: ["AWS CloudTrail", "EC2 Instance Metadata"],
@@ -330,6 +330,7 @@ level: medium`,
     title: "EC2 Security Group Opened to 0.0.0.0/0",
     description: "Detects when an EC2 security group is modified to allow inbound traffic from any IP address.",
     awsService: "EC2",
+    relatedServices: [],
     severity: "High",
     tags: ["EC2", "Security Group", "Network"],
     logSources: ["AWS CloudTrail"],
@@ -362,6 +363,7 @@ level: high`,
     title: "Unusual S3 Data Download Volume",
     description: "Detects unusually large data downloads from S3 buckets that may indicate exfiltration.",
     awsService: "S3",
+    relatedServices: ["IAM", "CloudTrail"],
     severity: "High",
     tags: ["S3", "Data Exfiltration", "Anomaly"],
     logSources: ["AWS CloudTrail S3 Data Events"],
@@ -400,6 +402,7 @@ ORDER BY download_count DESC`,
     title: "S3 Bucket Policy Modified",
     description: "Detects modifications to S3 bucket policies which could expose data publicly or to unauthorized accounts.",
     awsService: "S3",
+    relatedServices: ["IAM"],
     severity: "High",
     tags: ["S3", "Bucket Policy", "Data Exposure"],
     logSources: ["AWS CloudTrail"],
@@ -429,6 +432,7 @@ level: high`,
     title: "S3 Bucket Made Public",
     description: "Detects when S3 Public Access Block settings are removed, potentially exposing bucket contents.",
     awsService: "S3",
+    relatedServices: [],
     severity: "Critical",
     tags: ["S3", "Public Access", "Data Exposure"],
     logSources: ["AWS CloudTrail"],
@@ -453,8 +457,9 @@ level: critical`,
   {
     id: "det-002",
     title: "CloudTrail Logging Disabled",
-    description: "Detects when CloudTrail logging is stopped or the trail is deleted.",
+    description: "Detects when CloudTrail logging is stopped or the trail is deleted — a critical defense evasion technique.",
     awsService: "CloudTrail",
+    relatedServices: ["IAM"],
     severity: "Critical",
     tags: ["CloudTrail", "Evasion", "Defense"],
     logSources: ["AWS CloudTrail"],
@@ -491,6 +496,7 @@ ORDER BY eventTime DESC`,
     title: "KMS Key Scheduled for Deletion",
     description: "Detects when a KMS key is scheduled for deletion, which could lead to data loss or indicate destructive activity.",
     awsService: "KMS",
+    relatedServices: ["S3", "EBS"],
     severity: "Critical",
     tags: ["KMS", "Encryption", "Destructive"],
     logSources: ["AWS CloudTrail"],
@@ -518,6 +524,7 @@ level: critical`,
     title: "KMS Key Policy Modified",
     description: "Detects modifications to KMS key policies which could grant unauthorized access to encryption keys.",
     awsService: "KMS",
+    relatedServices: ["IAM"],
     severity: "High",
     tags: ["KMS", "Policy", "Encryption"],
     logSources: ["AWS CloudTrail"],
@@ -544,6 +551,7 @@ level: high`,
     title: "EBS Snapshot Made Public",
     description: "Detects when an EBS snapshot is shared publicly, potentially exposing sensitive data.",
     awsService: "EBS",
+    relatedServices: ["EC2"],
     severity: "Critical",
     tags: ["EBS", "Snapshot", "Data Exposure"],
     logSources: ["AWS CloudTrail"],
@@ -573,6 +581,7 @@ level: critical`,
     title: "EBS Volume Not Encrypted",
     description: "Detects creation of unencrypted EBS volumes which violates security best practices.",
     awsService: "EBS",
+    relatedServices: ["KMS"],
     severity: "Medium",
     tags: ["EBS", "Encryption", "Compliance"],
     logSources: ["AWS CloudTrail"],
@@ -601,6 +610,7 @@ level: medium`,
     title: "DynamoDB Table Exported to S3",
     description: "Detects when a DynamoDB table is exported to S3, which could be used for data exfiltration.",
     awsService: "DynamoDB",
+    relatedServices: ["S3"],
     severity: "High",
     tags: ["DynamoDB", "Data Exfiltration", "S3"],
     logSources: ["AWS CloudTrail"],
@@ -628,6 +638,7 @@ level: high`,
     title: "DynamoDB Table Deletion Protection Disabled",
     description: "Detects when deletion protection is removed from a DynamoDB table.",
     awsService: "DynamoDB",
+    relatedServices: [],
     severity: "Medium",
     tags: ["DynamoDB", "Deletion Protection", "Compliance"],
     logSources: ["AWS CloudTrail"],
@@ -655,6 +666,7 @@ level: medium`,
     title: "EKS Cluster Public Endpoint Enabled",
     description: "Detects when an EKS cluster API server endpoint is made publicly accessible.",
     awsService: "EKS",
+    relatedServices: [],
     severity: "High",
     tags: ["EKS", "Kubernetes", "Public Access"],
     logSources: ["AWS CloudTrail"],
@@ -685,6 +697,7 @@ level: high`,
     title: "EKS Anonymous Authentication Enabled",
     description: "Detects EKS cluster configurations that may allow anonymous or unauthenticated access.",
     awsService: "EKS",
+    relatedServices: ["IAM"],
     severity: "Critical",
     tags: ["EKS", "Kubernetes", "Authentication"],
     logSources: ["AWS CloudTrail", "EKS Audit Logs"],
@@ -706,14 +719,50 @@ level: critical`,
   },
 ];
 
-// Helper: group detections by AWS service
+/**
+ * Get detections grouped by AWS service.
+ * Includes rules where service is primary OR in relatedServices.
+ */
 export function getDetectionsByService(): Record<string, Detection[]> {
+  const serviceSet = new Set<string>();
+  detections.forEach((d) => {
+    serviceSet.add(d.awsService);
+    d.relatedServices.forEach((s) => serviceSet.add(s));
+  });
+
   const grouped: Record<string, Detection[]> = {};
-  for (const service of awsServices) {
-    const serviceDetections = detections.filter((d) => d.awsService === service);
+  const serviceOrder = ["IAM", "STS", "Lambda", "EC2", "S3", "EBS", "DynamoDB", "CloudTrail", "KMS", "EKS"];
+
+  for (const service of serviceOrder) {
+    const serviceDetections = detections.filter(
+      (d) => d.awsService === service || d.relatedServices.includes(service)
+    );
     if (serviceDetections.length > 0) {
       grouped[service] = serviceDetections;
     }
   }
+
   return grouped;
+}
+
+/**
+ * Get detections for a specific service (primary + related).
+ */
+export function getDetectionsForService(service: string): Detection[] {
+  return detections.filter(
+    (d) => d.awsService === service || d.relatedServices.includes(service)
+  );
+}
+
+/**
+ * Get all unique services that have detection rules.
+ */
+export function getServicesWithDetections(): string[] {
+  const services = new Set<string>();
+  detections.forEach((d) => {
+    services.add(d.awsService);
+    d.relatedServices.forEach((s) => services.add(s));
+  });
+  const order = ["IAM", "STS", "Lambda", "EC2", "S3", "EBS", "DynamoDB", "CloudTrail", "KMS", "EKS"];
+  return order.filter((s) => services.has(s));
 }
