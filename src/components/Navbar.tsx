@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Search, Github, Twitter, Menu, X, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SearchDialog } from "@/components/SearchDialog";
+import { SidebarTrigger } from "@/components/ui/sidebar";
 
 const navLinks = [
   { label: "Home", to: "/" },
@@ -13,7 +14,7 @@ const navLinks = [
   { label: "About", to: "/about" },
 ];
 
-export function Navbar() {
+export function Navbar({ showSidebarTrigger = false }: { showSidebarTrigger?: boolean }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const location = useLocation();
@@ -22,10 +23,13 @@ export function Navbar() {
     <>
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 font-display font-bold text-lg">
-            <Shield className="h-5 w-5 text-primary" />
-            <span>Detecting<span className="text-primary">.Cloud</span></span>
-          </Link>
+          <div className="flex items-center gap-2">
+            {showSidebarTrigger && <SidebarTrigger className="text-muted-foreground hover:text-foreground" />}
+            <Link to="/" className="flex items-center gap-2 font-display font-bold text-lg">
+              <Shield className="h-5 w-5 text-primary" />
+              <span>Detecting<span className="text-primary">.Cloud</span></span>
+            </Link>
+          </div>
 
           <div className="hidden lg:flex items-center gap-1">
             {navLinks.map((link) => (
