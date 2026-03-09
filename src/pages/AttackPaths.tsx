@@ -329,7 +329,7 @@ const AttackPathsPage = () => {
                       <p className="text-xs text-muted-foreground line-clamp-2">{tech.description}</p>
                       <div className="flex flex-wrap gap-1 mt-2">
                         {tech.services.map((svc) => (
-                          <span key={svc} className="text-[10px] px-1.5 py-0.5 rounded bg-accent/10 text-accent font-mono">
+                          <span key={svc} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
                             {svc}
                           </span>
                         ))}
