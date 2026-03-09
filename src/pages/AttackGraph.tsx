@@ -351,7 +351,7 @@ const AttackGraphPage = () => {
                     <Crosshair className="h-3.5 w-3.5 text-destructive" />
                     <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">{ap.title}</span>
                   </div>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{ap.description}</p>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{ap.overview}</p>
                   <Badge className={`text-[10px] mt-2 border-0 ${
                     ap.severity === "Critical" ? "bg-destructive/20 text-destructive" :
                     ap.severity === "High" ? "bg-primary/20 text-primary" : "bg-accent/20 text-accent"
