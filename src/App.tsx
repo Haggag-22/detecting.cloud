@@ -3,8 +3,14 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import Index from "./pages/Index.tsx";
-import NotFound from "./pages/NotFound.tsx";
+import Index from "./pages/Index";
+import Research from "./pages/Research";
+import Article from "./pages/Article";
+import AttackPaths from "./pages/AttackPaths";
+import DetectionEngineering from "./pages/DetectionEngineering";
+import Labs from "./pages/Labs";
+import About from "./pages/About";
+import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -16,7 +22,12 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/research" element={<Research />} />
+          <Route path="/research/:slug" element={<Article />} />
+          <Route path="/attack-paths" element={<AttackPaths />} />
+          <Route path="/detection-engineering" element={<DetectionEngineering />} />
+          <Route path="/labs" element={<Labs />} />
+          <Route path="/about" element={<About />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
