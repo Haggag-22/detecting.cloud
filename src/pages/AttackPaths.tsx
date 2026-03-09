@@ -222,7 +222,7 @@ const AttackPathsPage = () => {
               <p className="text-muted-foreground mb-4">{activeAttackPath.description}</p>
               <Link
                 to={`/attack-graph?technique=${activeAttackPath.slug}`}
-                className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-colors"
+                className="inline-flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/20 transition-colors"
               >
                 <Network className="h-4 w-4" />
                 View in Attack Graph
