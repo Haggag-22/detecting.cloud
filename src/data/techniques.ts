@@ -14,6 +14,8 @@ export interface Technique {
   detectionIds: string[];
   mitigations: string[];
   category: TechniqueCategory;
+  /** Example CloudTrail log event for this technique */
+  cloudtrailSample?: string;
 }
 
 export type TechniqueCategory =
