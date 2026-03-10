@@ -514,9 +514,9 @@ const AttackGraphPage = () => {
                   const nt = (node.data as GraphNodeData).nodeType;
                   if (nt === "attack") return "hsl(0 84% 60%)";
                   if (nt === "technique") return "hsl(43 96% 56%)";
-                  if (nt === "detection") return "hsl(210 79% 46%)";
-                  if (nt === "service") return "hsl(215 20% 55%)";
-                  return "hsl(142 71% 45%)";
+                  if (nt === "detection") return "hsl(270 70% 65%)";
+                  if (nt === "service") return "hsl(199 89% 48%)";
+                  return "hsl(160 84% 39%)";
                 }}
                 maskColor="hsl(215 40% 6% / 0.7)"
               />
