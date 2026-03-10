@@ -12,6 +12,7 @@ import DetectionEngineering from "./pages/DetectionEngineering";
 import About from "./pages/About";
 import AttackGraph from "./pages/AttackGraph";
 import Coverage from "./pages/Coverage";
+import GapAnalysis from "./pages/GapAnalysis";
 import TechniqueDetail from "./pages/TechniqueDetail";
 import NotFound from "./pages/NotFound";
 import { AiAssistant } from "./components/AiAssistant";
@@ -34,6 +35,7 @@ const App = () => (
           
           <Route path="/attack-graph" element={<AttackGraph />} />
           <Route path="/coverage" element={<Coverage />} />
+          <Route path="/gap-analysis" element={<GapAnalysis />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<NotFound />} />
         </Routes>

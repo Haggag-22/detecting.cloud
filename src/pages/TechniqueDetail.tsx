@@ -1,12 +1,12 @@
 import { Layout } from "@/components/Layout";
 import { useParams, Link } from "react-router-dom";
-import { getTechniqueById, techniques, techniqueCategories } from "@/data/techniques";
+import { getTechniqueById, techniqueCategories } from "@/data/techniques";
 import { getAttackPathsForTechnique } from "@/data/attackPaths";
 import { detections } from "@/data/detections";
 import { Badge } from "@/components/ui/badge";
 import {
   ChevronRight, Shield, Link as LinkIcon, Network, Crosshair,
-  KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff, Lock, Layers,
+  KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff, Lock,
   FileJson, Copy, Check,
 } from "lucide-react";
 import { useState } from "react";
@@ -66,11 +66,6 @@ const TechniqueDetailPage = () => {
   const usedInPaths = getAttackPathsForTechnique(technique.id);
   const relatedDetections = detections.filter((d) => technique.detectionIds.includes(d.id));
   const CatIcon = categoryIcon[technique.category];
-
-  // Related techniques: share at least one AWS service, excluding self
-  const relatedTechniques = techniques.filter(
-    (t) => t.id !== technique.id && t.services.some((svc) => technique.services.includes(svc))
-  );
 
   return (
     <Layout>
@@ -213,28 +208,6 @@ const TechniqueDetailPage = () => {
           <CloudTrailSample sample={technique.cloudtrailSample} />
         )}
 
-        {/* Related Techniques */}
-        {relatedTechniques.length > 0 && (
-          <div className="border-t border-border pt-6 mb-8">
-            <h2 className="flex items-center gap-2 font-display text-lg font-semibold mb-4">
-              <Layers className="h-4 w-4 text-muted-foreground" /> Related Techniques
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {relatedTechniques.slice(0, 4).map((rt) => (
-                <Link
-                  key={rt.id}
-                  to={`/attack-paths/technique/${rt.id}`}
-                  className="block rounded-lg border border-border/50 bg-card p-3 hover:border-primary/30 transition-colors"
-                >
-                  <Badge className={`text-[10px] border-0 mb-1 ${categoryColor[rt.category]}`}>
-                    {techniqueCategories[rt.category].label}
-                  </Badge>
-                  <p className="text-sm font-medium">{rt.name}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </Layout>
   );
