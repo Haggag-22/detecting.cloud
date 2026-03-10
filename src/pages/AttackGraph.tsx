@@ -510,6 +510,7 @@ const AttackGraphPage = () => {
               />
               <MiniMap
                 className="!bg-card !border-border/50 !rounded-lg"
+                style={{ background: "hsl(215, 38%, 8%)" }}
                 nodeColor={(node) => {
                   const nt = (node.data as GraphNodeData).nodeType;
                   if (nt === "attack") return "hsl(0 84% 60%)";
