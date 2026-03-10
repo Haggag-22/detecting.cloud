@@ -207,6 +207,24 @@ export const techniques: Technique[] = [
       "Implement permission boundaries",
     ],
     category: "privilege-escalation",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T18:12:05Z",
+  "eventSource": "iam.amazonaws.com",
+  "eventName": "AttachUserPolicy",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "userName": "compromised-dev",
+    "policyArn": "arn:aws:iam::aws:policy/AdministratorAccess"
+  }
+}`,
   },
   {
     id: "tech-lambda-code-execution",
