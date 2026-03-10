@@ -1,3 +1,4 @@
-# Removals Registry
+# Removals & Rejections
 
-- **Related Techniques section** on TechniqueDetail page — removed per user request. Do not re-add.
+- Related Techniques section removed from TechniqueDetail page (user request)
+- Lovable Cloud declined — using localStorage for subscriber storage

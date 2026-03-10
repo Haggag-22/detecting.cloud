@@ -160,6 +160,12 @@ function buildSections(): SidebarSection[] {
       children: attackPathChildren,
     },
     {
+      key: "simulator",
+      label: "Attack Simulator",
+      icon: Route,
+      to: "/simulator",
+    },
+    {
       key: "techniques",
       label: "Techniques",
       icon: Route,
@@ -172,6 +178,12 @@ function buildSections(): SidebarSection[] {
       icon: ShieldCheck,
       to: "/detection-engineering",
       children: detectionServiceChildren,
+    },
+    {
+      key: "community-rules",
+      label: "Community Rules",
+      icon: Bug,
+      to: "/community-rules",
     },
     {
       key: "attack-graph",
@@ -190,6 +202,12 @@ function buildSections(): SidebarSection[] {
       label: "Gap Analysis",
       icon: ShieldCheck,
       to: "/gap-analysis",
+    },
+    {
+      key: "tool-comparison",
+      label: "Tool Comparison",
+      icon: ExternalLink,
+      to: "/tool-comparison",
     },
     {
       key: "resources",
