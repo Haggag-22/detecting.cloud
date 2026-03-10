@@ -22,6 +22,18 @@ export function Navbar({ showSidebarTrigger = false }: { showSidebarTrigger?: bo
   const [searchOpen, setSearchOpen] = useState(false);
   const location = useLocation();
 
+  // Global Cmd/Ctrl+K shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
   return (
     <>
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
