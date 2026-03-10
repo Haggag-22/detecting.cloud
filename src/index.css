@@ -22,7 +22,7 @@
     --secondary-foreground: 210 40% 94%;
 
     --muted: 215 32% 11%;
-    --muted-foreground: 215 16% 65%;
+    --muted-foreground: 215 16% 72%;
 
     --accent: 210 79% 46%;
     --accent-foreground: 210 40% 98%;
@@ -131,6 +131,8 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     font-weight: 400;
+    letter-spacing: 0.01em;
+    text-rendering: optimizeLegibility;
   }
 
   h1, h2, h3, h4, h5, h6 {

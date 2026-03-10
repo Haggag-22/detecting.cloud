@@ -11,7 +11,7 @@ import { Shield, Route, Crosshair, Server } from "lucide-react";
 const Index = () => {
   return (
     <Layout>
-      <section className="relative overflow-hidden min-h-[calc(100vh-4rem)] flex items-center">
+      <section className="relative overflow-hidden min-h-screen flex items-center">
         <div className="absolute inset-0 grid-pattern opacity-30" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-gradient-primary opacity-[0.04] blur-3xl" />
 
