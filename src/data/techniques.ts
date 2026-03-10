@@ -662,25 +662,6 @@ export const techniques: Technique[] = [
   }
 }`,
   },
-  // ─── Test technique (remove before production) ───
-  {
-    id: "tech-test-publish",
-    name: "Test Technique for Publish Verification",
-    shortName: "Test Publish",
-    description:
-      "A placeholder technique to verify that new techniques appear in the app without manual publish. Delete this entry once you confirm the workflow.",
-    services: ["IAM"],
-    permissions: ["iam:GetUser"],
-    detectionIds: ["det-001"],
-    mitigations: ["This is a test entry - no real mitigations"],
-    category: "defense-evasion",
-    cloudtrailSample: `{
-  "eventVersion": "1.08",
-  "eventName": "GetUser",
-  "eventSource": "iam.amazonaws.com",
-  "userIdentity": { "type": "IAMUser", "userName": "test-user" }
-}`,
-  },
 ];
 
 // ─── Lookup helpers ───
