@@ -150,7 +150,6 @@ export default function CommunityRules() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterFormat, setFilterFormat] = useState<string>("all");
   const [filterSeverity, setFilterSeverity] = useState<string>("all");
-  const [submitOpen, setSubmitOpen] = useState(false);
 
   const filtered = communityRules.filter((r) => {
     const matchSearch =
