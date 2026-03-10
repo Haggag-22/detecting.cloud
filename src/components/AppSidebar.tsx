@@ -96,7 +96,7 @@ interface SidebarChild {
   iconColorClass?: string;
   customIcon?: React.ReactNode;
   to?: string;
-  children?: { label: string; to: string; dotColorClass?: string }[];
+  children?: { label: string; to: string }[];
 }
 
 function buildSections(): SidebarSection[] {
@@ -132,7 +132,6 @@ function buildSections(): SidebarSection[] {
       children: catTechs.map((t) => ({
         label: t.name.length > 35 ? t.name.substring(0, 35) + "…" : t.name,
         to: `/attack-paths/technique/${t.id}`,
-        dotColorClass: colorClass,
       })),
     };
   }).filter((c) => c.children.length > 0);
@@ -451,9 +450,6 @@ function NestedCollapsible({
                   size="sm"
                 >
                   <Link to={child.to}>
-                    {child.dotColorClass && (
-                      <span className={`w-1 h-1 rounded-full shrink-0 ${child.dotColorClass.replace("text-", "bg-")}`} />
-                    )}
                     <span className="truncate">{child.label}</span>
                   </Link>
                 </SidebarMenuSubButton>

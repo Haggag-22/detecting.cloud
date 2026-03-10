@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   ChevronRight, Shield, Link as LinkIcon, Network, Crosshair,
   KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff, Lock,
-  FileJson, Copy, Check,
+  FileJson, Copy, Check, Terminal,
 } from "lucide-react";
 import { useState } from "react";
 import { LucideIcon } from "lucide-react";
@@ -140,18 +140,30 @@ const TechniqueDetailPage = () => {
           </div>
         )}
 
+        {/* Commands */}
+        {technique.commands && technique.commands.length > 0 && (
+          <div className="mb-8">
+            <h2 className="flex items-center gap-2 font-display text-lg font-semibold mb-3">
+              <Terminal className="h-4 w-4 text-primary" /> Example Commands
+            </h2>
+            <div className="space-y-2">
+              {technique.commands.map((cmd, i) => (
+                <pre key={i} className="p-3 rounded-lg bg-muted text-xs font-mono overflow-x-auto border border-border/50">
+                  {cmd}
+                </pre>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Mitigations */}
         <div className="mb-8">
           <h2 className="flex items-center gap-2 font-display text-lg font-semibold mb-3">
             <Shield className="h-4 w-4 text-emerald-400" /> Mitigations
           </h2>
-          <ul className="space-y-2">
-            {technique.mitigations.map((m, i) => (
-              <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                <span className="text-emerald-400 mt-0.5">•</span> {m}
-              </li>
-            ))}
-          </ul>
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {technique.mitigations.join(" ")}
+          </p>
         </div>
 
         {/* Detection Rules */}

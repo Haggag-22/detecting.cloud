@@ -38,7 +38,7 @@ export const attackPaths: AttackPath[] = [
     slug: "ec2-imds-to-s3-exfiltration",
     title: "EC2 IMDS to S3 Exfiltration",
     description:
-      "An attacker gains code execution on an EC2 instance, steals IAM credentials via the Instance Metadata Service, assumes a cross-account role, and exfiltrates sensitive data from S3.",
+      "This attack chain begins when an attacker achieves code execution on an EC2 instance, either through a compromised application, RCE vulnerability, or stolen SSH keys. Once on the instance, the attacker queries the Instance Metadata Service at 169.254.169.254 to retrieve the IAM role credentials attached to the instance. These temporary credentials are then used to assume a cross-account role that has S3 access, or to directly access S3 buckets if the instance role already has permissions. The attacker downloads sensitive objects from target buckets to complete the exfiltration. This path requires no prior AWS credentials; the attacker only needs a foothold on the instance.",
     severity: "Critical",
     objective: "exfiltration",
     tags: ["EC2", "IAM", "STS", "S3", "IMDS", "Data Exfiltration"],
@@ -52,7 +52,7 @@ export const attackPaths: AttackPath[] = [
     slug: "passrole-lambda-escalation",
     title: "PassRole Lambda Privilege Escalation",
     description:
-      "An attacker with iam:PassRole and lambda:CreateFunction creates a Lambda function with an admin role, executes code to create backdoor credentials, and establishes persistent access.",
+      "An attacker who has iam:PassRole and lambda:CreateFunction can escalate to full administrative access. The attacker creates a new Lambda function and passes a high-privilege IAM role (e.g., one with AdministratorAccess) as the execution role. The Lambda code is written to create a backdoor IAM user and attach administrative policies, then generate access keys for that user. When the attacker invokes the Lambda, it runs with the passed role's permissions and performs these actions. The attacker then uses the newly created access keys for persistent access. This chain exploits the fact that PassRole allows assigning any role the attacker has permission to pass, and Lambda execution inherits that role's full permissions.",
     severity: "Critical",
     objective: "privilege-escalation",
     tags: ["IAM", "Lambda", "PassRole", "Privilege Escalation", "Persistence"],
@@ -67,7 +67,7 @@ export const attackPaths: AttackPath[] = [
     slug: "iam-policy-escalation-chain",
     title: "IAM Policy Escalation Chain",
     description:
-      "An attacker exploits iam:CreatePolicyVersion to grant themselves admin access, then uses the elevated permissions to assume sensitive roles across the organization.",
+      "This path exploits iam:CreatePolicyVersion on a managed policy that the attacker is already attached to. The attacker creates a new policy version with a document that grants Action: * and Resource: *, then sets it as the default version. Because the attacker is attached to this policy, the new permissions take effect immediately without any additional API calls. The attacker then uses the escalated permissions to assume cross-account roles or perform other privileged actions across the organization. The key requirement is that the attacker must have CreatePolicyVersion on a policy they are attached to.",
     severity: "Critical",
     objective: "privilege-escalation",
     tags: ["IAM", "STS", "Policy", "Privilege Escalation", "Cross-Account"],
@@ -81,7 +81,7 @@ export const attackPaths: AttackPath[] = [
     slug: "lambda-persistence-backdoor",
     title: "Lambda Persistence Backdoor",
     description:
-      "An attacker creates a Lambda function with elevated permissions, configures automated triggers, and disables CloudTrail to cover their tracks.",
+      "The attacker establishes persistent access by deploying a backdoor Lambda function with a privileged execution role. The Lambda code is designed to execute on every invocation (e.g., creating backdoor users or exfiltrating data). The attacker then configures EventBridge rules or S3 event notifications to trigger the Lambda automatically on a schedule or when specific events occur. Finally, the attacker disables or modifies CloudTrail to reduce the likelihood of detection. This creates a self-sustaining backdoor that continues to run even after the initial compromise is remediated.",
     severity: "High",
     objective: "persistence",
     tags: ["Lambda", "IAM", "CloudTrail", "Persistence", "Defense Evasion"],
@@ -96,7 +96,7 @@ export const attackPaths: AttackPath[] = [
     slug: "iam-backdoor-exfiltration",
     title: "IAM Backdoor & Data Exfiltration",
     description:
-      "An attacker creates a backdoor IAM user, generates long-lived access keys, modifies S3 bucket policies to allow cross-account access, and exfiltrates data.",
+      "After gaining IAM privileges, the attacker creates a hidden backdoor user with a low-profile name and attaches an administrative inline policy. Access keys are generated for this user to enable persistent programmatic access. The attacker then modifies S3 bucket policies on target buckets to add their external account as an allowed principal, or to grant the backdoor user explicit access. Using the backdoor credentials, the attacker downloads sensitive data from the buckets. This path ensures access survives key rotation of the original compromised credentials.",
     severity: "High",
     objective: "exfiltration",
     tags: ["IAM", "S3", "Persistence", "Data Exfiltration"],
@@ -111,7 +111,7 @@ export const attackPaths: AttackPath[] = [
     slug: "ec2-lateral-movement",
     title: "EC2 Lateral Movement & Escalation",
     description:
-      "An attacker compromises an EC2 instance, steals IMDS credentials, escalates via PassRole to Lambda, and uses the Lambda role to exfiltrate data.",
+      "The attacker gains access to an EC2 instance (e.g., via compromised application or SSH) and retrieves the instance role credentials from the Instance Metadata Service. If the instance role has iam:PassRole and lambda:CreateFunction, the attacker can escalate by creating a Lambda function with a higher-privilege role. The Lambda is invoked with code that uses the escalated role to access S3 or other resources. The attacker exfiltrates data using the Lambda's permissions. This path demonstrates lateral movement from a low-privilege instance to broader data access through service chaining.",
     severity: "High",
     objective: "lateral-movement",
     tags: ["EC2", "IAM", "Lambda", "S3", "Lateral Movement"],
@@ -126,7 +126,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "external-imds-ssrf-to-s3",
     title: "External IMDS SSRF to S3",
-    description: "Exploit SSRF in a publicly accessible web app to reach EC2 IMDS, steal instance role credentials with no prior AWS access, and exfiltrate S3 data.",
+    description:
+      "This critical path requires no prior AWS credentials. The attacker finds a web application that is vulnerable to Server-Side Request Forgery (SSRF) and runs on EC2. By injecting a URL pointing to the Instance Metadata Service (e.g., http://169.254.169.254/latest/meta-data/iam/security-credentials/), the attacker causes the server to fetch its own IAM role credentials and return them in the response. With these credentials, the attacker accesses S3 buckets that the instance role can read and exfiltrates sensitive data. This is a common scenario in CloudGoat and similar cloud security labs.",
     severity: "Critical",
     objective: "credential-access",
     tags: ["EC2", "IMDS", "SSRF", "S3", "CloudGoat"],
@@ -142,7 +143,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "trust-backdoor-persistence",
     title: "Trust Policy Backdoor Persistence",
-    description: "Modify IAM role trust policies to add attacker principals (e.g., external account root) for persistent cross-account access.",
+    description:
+      "An attacker with iam:UpdateAssumeRolePolicy modifies a role's trust policy to add their own principal (e.g., the root of an attacker-controlled AWS account) as a trusted entity. Once the trust policy is updated, the attacker can assume the role from their account at any time using sts:AssumeRole. This creates a persistent backdoor that survives key rotation or remediation of the original compromise. The attacker maintains long-term cross-account access through the backdoored role.",
     severity: "Critical",
     objective: "persistence",
     tags: ["IAM", "Trust Policy", "Persistence", "Cross-Account"],
@@ -154,7 +156,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "oidc-misconfig-initial-access",
     title: "OIDC Trust Misconfiguration Initial Access",
-    description: "Exploit overly permissive OIDC trust policies (e.g., GitHub, GitLab) to assume roles from attacker-controlled repositories.",
+    description:
+      "IAM roles can trust external OIDC identity providers such as GitHub or GitLab. If the trust policy is misconfigured (e.g., uses a wildcard or overly broad subject claim), an attacker can satisfy the trust conditions from an attacker-controlled repository or identity. The attacker forks a target repository, configures GitHub Actions to request OIDC tokens, and uses those tokens to assume the role via the AWS STS assume-role-with-web-identity API. This provides initial access without any stolen credentials or prior AWS access.",
     severity: "Critical",
     objective: "initial-access",
     tags: ["IAM", "OIDC", "GitHub", "Initial Access"],
@@ -166,7 +169,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "cloudfront-takeover-initial-access",
     title: "CloudFront Orphaned Origin Takeover",
-    description: "Take over orphaned CloudFront origins (e.g., deleted S3 buckets) by creating a bucket with the same name to serve malicious content.",
+    description:
+      "When a CloudFront distribution uses an S3 bucket as its origin and that bucket is later deleted, the distribution becomes orphaned. The origin domain (e.g., bucket-name.s3.amazonaws.com) may still resolve to the S3 namespace. An attacker can create a new S3 bucket with the same name as the deleted bucket. CloudFront will then serve content from the attacker's bucket, allowing the attacker to serve malicious content to users visiting the distribution URL. This provides initial access or enables phishing and malware distribution through a trusted domain.",
     severity: "Critical",
     objective: "initial-access",
     tags: ["CloudFront", "S3", "Origin Takeover", "Initial Access"],
@@ -177,7 +181,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "beanstalk-secrets-to-admin",
     title: "Beanstalk Secrets to Admin",
-    description: "Extract credentials from Elastic Beanstalk environment configuration and use them to create access keys for admin persistence.",
+    description:
+      "Elastic Beanstalk environment configurations often store IAM credentials or references to Parameter Store secrets. An attacker with elasticbeanstalk:DescribeConfigurationSettings can retrieve these environment variables. If the instance profile or referenced credentials have iam:CreateAccessKey, the attacker uses the stolen credentials to create long-lived access keys for themselves or a backdoor user. This pivots from read-only environment access to persistent administrative access.",
     severity: "High",
     objective: "privilege-escalation",
     tags: ["Elastic Beanstalk", "IAM", "Credential Theft"],
@@ -189,7 +194,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "lambda-cred-theft-to-s3",
     title: "Lambda Credential Theft to S3",
-    description: "Exploit SSRF in a Lambda function to steal execution role credentials via IMDS, then exfiltrate S3 data.",
+    description:
+      "A Lambda function vulnerable to SSRF can be exploited to reach the Instance Metadata Service. Lambda runs on EC2-like infrastructure and has access to IMDS. By triggering the Lambda with a malicious input that causes an outbound request to 169.254.169.254, the attacker retrieves the Lambda's execution role credentials. With those credentials, the attacker accesses S3 buckets and other resources that the Lambda role can access, enabling data exfiltration.",
     severity: "High",
     objective: "credential-access",
     tags: ["Lambda", "SSRF", "IMDS", "S3"],
@@ -201,7 +207,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "eventbridge-persistence-chain",
     title: "EventBridge Persistence Chain",
-    description: "Pass a privileged role to Lambda, deploy backdoor code, and configure EventBridge rules for scheduled persistence.",
+    description:
+      "The attacker uses iam:PassRole and lambda:CreateFunction to deploy a Lambda with an administrative role. The Lambda code performs malicious actions (e.g., creating backdoor users). The attacker then uses events:PutRule and events:PutTargets to create an EventBridge rule that invokes the Lambda on a schedule (e.g., every 5 minutes). The Lambda runs automatically without further attacker interaction, establishing persistence. Each execution can reinforce backdoor access or exfiltrate data.",
     severity: "High",
     objective: "persistence",
     tags: ["Lambda", "EventBridge", "PassRole", "Persistence"],
@@ -214,7 +221,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "codebuild-env-to-privesc",
     title: "CodeBuild Environment to Privilege Escalation",
-    description: "Extract credentials from CodeBuild environment variables during build, then pivot to create access keys or assume roles.",
+    description:
+      "CodeBuild projects can have environment variables that contain credentials or reference Parameter Store secrets. An attacker who can trigger a build (or modify the build spec) injects code that exfiltrates these credentials during the build. The build runs with the CodeBuild service role, which may have iam:CreateAccessKey or other privileged permissions. The attacker uses the stolen credentials to create access keys or assume higher-privilege roles, completing the escalation.",
     severity: "High",
     objective: "privilege-escalation",
     tags: ["CodeBuild", "Credential Theft", "Privilege Escalation"],
@@ -226,7 +234,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "ecs-task-cred-theft-chain",
     title: "ECS Task Credential Theft Chain",
-    description: "Extract IAM credentials from ECS task role, then assume roles or create access keys for escalation.",
+    description:
+      "ECS tasks receive IAM credentials via the task role, which are available inside the container through the metadata endpoint or environment variables. An attacker with code execution in a container (e.g., via a vulnerable application) can retrieve these credentials. If the task role has sts:AssumeRole or iam:CreateAccessKey, the attacker uses the stolen credentials to assume higher-privilege roles or create persistent access keys, escalating from the task's permissions to broader account access.",
     severity: "High",
     objective: "credential-access",
     tags: ["ECS", "IAM", "Credential Theft"],
@@ -238,7 +247,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "ec2-userdata-to-imds",
     title: "EC2 User Data to IMDS",
-    description: "Retrieve EC2 user data to find secrets or bootstrap info, then use instance access to steal IMDS credentials.",
+    description:
+      "An attacker with ec2:DescribeInstanceAttribute can retrieve the user data of an EC2 instance, which may contain embedded secrets, database connection strings, or bootstrap scripts. If the attacker also has access to the instance (e.g., the user data revealed SSH keys or the instance is in a shared environment), they can log in and query the Instance Metadata Service to steal the instance role credentials. This combines reconnaissance (user data disclosure) with credential theft (IMDS access).",
     severity: "High",
     objective: "credential-access",
     tags: ["EC2", "User Data", "IMDS"],
@@ -250,7 +260,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "ec2-userdata-injection-persistence",
     title: "EC2 User Data Injection Persistence",
-    description: "Modify EC2 instance user data to inject malicious bootstrap scripts for persistence across instance restarts.",
+    description:
+      "An attacker with ec2:ModifyInstanceAttribute can change the user data of a running instance. User data is executed when the instance boots. By injecting a malicious script (e.g., one that creates a backdoor user or installs a reverse shell), the attacker ensures the script runs on the next instance restart or when a new instance is launched from an AMI that includes the modified user data. This establishes persistence that survives instance replacement.",
     severity: "High",
     objective: "persistence",
     tags: ["EC2", "User Data", "Persistence"],
@@ -261,7 +272,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "ssm-via-tags-lateral-movement",
     title: "SSM Access via CreateTags Lateral Movement",
-    description: "Bypass SSM resource-based access by adding attacker tags to instances, then use StartSession for lateral movement.",
+    description:
+      "SSM Session Manager access can be restricted via resource tags (e.g., only principals with a specific tag can start sessions on instances with a matching tag). An attacker with ec2:CreateTags or ssm:AddTagsToResource can add the required tags to target instances, satisfying the session policy. The attacker then uses ssm:StartSession to gain interactive shell access to the instances without SSH keys or open port 22. This bypasses tag-based access controls for lateral movement.",
     severity: "High",
     objective: "lateral-movement",
     tags: ["SSM", "EC2", "CreateTags", "Lateral Movement"],
@@ -273,7 +285,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "volume-snapshot-credential-loot",
     title: "Volume Snapshot Credential Loot",
-    description: "Create snapshot of EC2 volume, copy to attacker account, mount, and extract credentials or sensitive data.",
+    description:
+      "An attacker with ec2:CreateSnapshot and ec2:ModifySnapshotAttribute creates a snapshot of an EC2 instance's root or data volume. The snapshot is shared with the attacker's account (or made temporarily public), then copied and attached as a volume to an attacker-controlled instance. The attacker mounts the volume and extracts credentials from the filesystem (e.g., ~/.aws/credentials, application config files) or other sensitive data. Unencrypted volumes are especially vulnerable.",
     severity: "High",
     objective: "credential-access",
     tags: ["EC2", "Snapshot", "Credential Access"],
@@ -284,7 +297,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "resource-policy-initial-access",
     title: "Resource Policy Initial Access",
-    description: "Exploit resource policies with Principal * or overly permissive principals to access S3 or Lambda without prior credentials.",
+    description:
+      "S3 buckets and Lambda functions can have resource-based policies that grant access to principals. Misconfigurations such as Principal: * or overly broad account/role allowlists enable unauthenticated or weakly authenticated access. An attacker discovers these misconfigured resources (e.g., through enumeration or public disclosure) and accesses them without prior AWS credentials. This provides initial access to read S3 objects, invoke Lambda functions, or trigger other actions depending on the policy.",
     severity: "High",
     objective: "initial-access",
     tags: ["S3", "Lambda", "Resource Policy", "Misconfiguration"],
@@ -295,7 +309,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "cognito-self-signup-access",
     title: "Cognito Self-Signup Access",
-    description: "Exploit open Cognito User Pool self-signup to create attacker accounts and gain application access.",
+    description:
+      "When a Cognito User Pool has self-signup enabled without proper restrictions, anyone can create an account. An attacker registers with a valid email (or uses a disposable email) and gains access to the application protected by the User Pool. Depending on the application's authorization logic, the attacker may access resources intended only for legitimate users. This is a common misconfiguration that provides initial access to applications using Cognito for authentication.",
     severity: "High",
     objective: "initial-access",
     tags: ["Cognito", "Self-Signup", "Initial Access"],
@@ -306,7 +321,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "cognito-identity-pool-privesc",
     title: "Cognito Identity Pool Privilege Escalation",
-    description: "Obtain temporary credentials from Cognito Identity Pool with unauthenticated access, then use overprivileged role.",
+    description:
+      "Cognito Identity Pools can be configured to allow unauthenticated access, granting temporary AWS credentials to anyone who requests them. The credentials are scoped to an IAM role. If that role is overprivileged (e.g., has S3 read access to sensitive buckets), an attacker can obtain credentials without authentication and use them to access resources. The attacker calls GetCredentialsForIdentity (or the equivalent in the SDK) and receives temporary keys with the role's permissions.",
     severity: "High",
     objective: "privilege-escalation",
     tags: ["Cognito", "Identity Pool", "Privilege Escalation"],
@@ -318,7 +334,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "bedrock-agent-hijacking",
     title: "Bedrock Agent Hijacking",
-    description: "Modify Bedrock agent configuration (Lambda function) to hijack agent and invoke with elevated permissions.",
+    description:
+      "Bedrock agents use Lambda functions to execute custom logic. An attacker with bedrock:UpdateAgent and lambda:UpdateFunctionCode can modify the agent's Lambda to run attacker-controlled code. When the agent is invoked (e.g., via the Bedrock API or an application using the agent), the malicious Lambda executes with the agent's IAM role permissions. This hijacks the agent's behavior for privilege escalation or data exfiltration while appearing to be legitimate agent usage.",
     severity: "High",
     objective: "privilege-escalation",
     tags: ["Bedrock", "Lambda", "Agent Hijacking"],
@@ -329,7 +346,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "passrole-ec2-escalation",
     title: "PassRole EC2 Escalation",
-    description: "Exploit PassRole with RunInstances to launch EC2 with privileged role, then steal credentials via IMDS.",
+    description:
+      "An attacker with iam:PassRole and ec2:RunInstances launches a new EC2 instance with an IAM instance profile that has high privileges. The attacker specifies an AMI they control or a standard Amazon Linux AMI. Once the instance is running, the attacker accesses it (e.g., via SSM if they have StartSession, or by pre-configuring user data to exfiltrate credentials). The attacker queries the Instance Metadata Service to retrieve the instance role credentials, gaining the privileged role's permissions.",
     severity: "High",
     objective: "privilege-escalation",
     tags: ["IAM", "EC2", "PassRole", "IMDS"],
@@ -341,7 +359,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "passrole-ecs-escalation",
     title: "PassRole ECS Escalation",
-    description: "Exploit PassRole with RunTask to run ECS task with privileged role, then extract credentials from task.",
+    description:
+      "An attacker with iam:PassRole and ecs:RunTask runs an ECS task with a privileged task role. The task uses a container image that the attacker controls (or one that allows credential extraction). When the task runs, it receives the task role's credentials via the container metadata endpoint. The attacker's code in the container exfiltrates these credentials (e.g., by sending them to an external server or writing to an S3 bucket the attacker controls). The attacker then uses the credentials for privilege escalation.",
     severity: "High",
     objective: "privilege-escalation",
     tags: ["IAM", "ECS", "PassRole"],
@@ -353,7 +372,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "passrole-glue-escalation",
     title: "PassRole Glue Escalation",
-    description: "Exploit PassRole with CreateDevEndpoint to create Glue dev endpoint with privileged role, extract credentials via SSH.",
+    description:
+      "An attacker with iam:PassRole and glue:CreateDevEndpoint creates a Glue development endpoint with a high-privilege role. The endpoint is an EC2 instance that runs the Glue environment. The attacker uses glue:UpdateDevEndpoint to add their SSH public key to the endpoint. They then SSH into the endpoint and query the Instance Metadata Service to retrieve the endpoint's IAM role credentials. This provides the attacker with the privileged role's permissions for escalation.",
     severity: "High",
     objective: "privilege-escalation",
     tags: ["IAM", "Glue", "PassRole"],
@@ -365,7 +385,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "get-federation-token-persistence",
     title: "GetFederationToken Persistence",
-    description: "Create federation tokens that survive access key deletion, providing persistent access after key rotation.",
+    description:
+      "An attacker with sts:GetFederationToken can create federation tokens that are tied to the attacker's identity but have a configurable policy. Unlike AssumeRole, federation tokens are not revoked when the original access key is deleted or rotated. The attacker creates a federation token with broad permissions before their access key is rotated. They store the token credentials and use them for persistent access even after the organization believes they have removed the attacker's access by deleting keys.",
     severity: "High",
     objective: "persistence",
     tags: ["STS", "Federation Token", "Persistence"],
@@ -376,7 +397,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "codebuild-github-runner-persistence",
     title: "CodeBuild GitHub Runner Persistence",
-    description: "Create CodeBuild project as GitHub Actions runner for persistent code execution and credential theft.",
+    description:
+      "An attacker creates a CodeBuild project configured to act as a GitHub Actions runner. When the organization's GitHub repository runs workflows, the CodeBuild project executes the workflow jobs. The attacker modifies the workflow (if they have repo access) or creates a malicious workflow that exfiltrates credentials or performs other malicious actions. The CodeBuild service role's credentials are available during the build. This establishes persistence through the CI/CD pipeline.",
     severity: "High",
     objective: "persistence",
     tags: ["CodeBuild", "GitHub", "Persistence"],
@@ -387,7 +409,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "rogue-oidc-persistence",
     title: "Rogue OIDC Persistence",
-    description: "Create rogue OIDC identity provider and use it in trust policies to assume roles from attacker-controlled identity sources.",
+    description:
+      "An attacker with iam:CreateOpenIDConnectProvider creates an OIDC identity provider that points to an attacker-controlled URL (e.g., a server that issues OIDC tokens). The attacker then modifies role trust policies (if they have UpdateAssumeRolePolicy) to trust this provider. From their IdP, the attacker issues tokens that satisfy the trust policy and assumes the role via sts:AssumeRoleWithWebIdentity. This creates persistence through a trusted identity source that the organization may not immediately recognize as malicious.",
     severity: "High",
     objective: "persistence",
     tags: ["IAM", "OIDC", "Persistence"],
@@ -399,7 +422,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "roles-anywhere-persistence",
     title: "Roles Anywhere Persistence",
-    description: "Create IAM Roles Anywhere trust anchors and profiles to enable certificate-based access from attacker infrastructure.",
+    description:
+      "IAM Roles Anywhere allows workloads outside of AWS (e.g., on-premises servers) to obtain temporary credentials using X.509 certificates. An attacker with rolesanywhere:CreateTrustAnchor and rolesanywhere:CreateProfile creates a trust anchor that trusts a certificate authority the attacker controls. They create a profile that maps the certificate to a privileged IAM role. The attacker then uses a certificate from their CA to assume the role from any infrastructure, establishing persistence that does not rely on IAM users or access keys.",
     severity: "High",
     objective: "persistence",
     tags: ["IAM", "Roles Anywhere", "Persistence"],
@@ -410,7 +434,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "guardduty-evasion-chain",
     title: "GuardDuty Evasion Chain",
-    description: "Modify or disable GuardDuty detectors, add trusted IPs, and suppress findings to evade detection.",
+    description:
+      "An attacker with GuardDuty management permissions performs a series of actions to evade detection. They use guardduty:UpdateDetector to disable the detector or reduce its sensitivity. They add attacker IPs to trusted IP lists via guardduty:CreateIPSet and guardduty:UpdateIPSet so that activity from those IPs does not generate findings. They create or update filters via guardduty:CreateFilter and guardduty:UpdateFilter to suppress specific finding types. This chain blinds security monitoring to the attacker's subsequent activities.",
     severity: "High",
     objective: "defense-evasion",
     tags: ["GuardDuty", "Defense Evasion"],
@@ -423,7 +448,8 @@ export const attackPaths: AttackPath[] = [
   {
     slug: "cloudtrail-evasion-chain",
     title: "CloudTrail Evasion Chain",
-    description: "Update CloudTrail configuration, modify event selectors, or alter bucket lifecycle to reduce or eliminate audit logging.",
+    description:
+      "An attacker with CloudTrail and S3 permissions performs multiple actions to reduce audit visibility. They use cloudtrail:UpdateTrail to change the trail configuration (e.g., disable logging or point to a different bucket). They use cloudtrail:PutEventSelectors to exclude data events or management events from being logged. They use s3:PutBucketLifecycleConfiguration on the CloudTrail bucket to add a lifecycle rule that deletes or transitions objects quickly, reducing the retention of existing logs. This chain degrades or eliminates audit trail coverage.",
     severity: "High",
     objective: "defense-evasion",
     tags: ["CloudTrail", "Defense Evasion"],
