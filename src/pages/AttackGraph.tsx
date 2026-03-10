@@ -339,9 +339,9 @@ function GraphNodeComponent({ data }: NodeProps<Node<GraphNodeData>>) {
       <div className="flex items-center gap-2">
         <Icon className={`h-3.5 w-3.5 shrink-0 ${config.text}`} />
         <span
-          className="text-xs font-medium truncate"
+          className="text-xs font-bold truncate"
           style={{
-            color: "hsl(var(--foreground))",
+            color: "#ffffff",
             fontFamily: "inherit",
           }}
         >

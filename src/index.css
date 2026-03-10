@@ -183,6 +183,7 @@
     font-family: Inter, system-ui, -apple-system, sans-serif !important;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    color: hsl(var(--foreground));
+    color: #ffffff;
+    font-weight: 700;
   }
 }
