@@ -328,12 +328,25 @@ function GraphNodeComponent({ data }: NodeProps<Node<GraphNodeData>>) {
     <div
       className={`px-3 py-2 rounded-lg border ${config.bg} ${config.border} cursor-pointer hover:scale-105 transition-transform min-w-[120px] max-w-[220px]`}
       onClick={() => data.link && navigate(data.link)}
+      style={{
+        fontFamily: "Inter, system-ui, -apple-system, sans-serif",
+        WebkitFontSmoothing: "antialiased",
+        MozOsxFontSmoothing: "grayscale",
+      }}
     >
       <Handle type="target" position={Position.Left} className="!bg-muted-foreground !w-2 !h-2" />
       <Handle type="source" position={Position.Right} className="!bg-muted-foreground !w-2 !h-2" />
       <div className="flex items-center gap-2">
         <Icon className={`h-3.5 w-3.5 shrink-0 ${config.text}`} />
-        <span className="text-xs font-medium text-foreground truncate">{data.label}</span>
+        <span
+          className="text-xs font-medium truncate"
+          style={{
+            color: "hsl(var(--foreground))",
+            fontFamily: "inherit",
+          }}
+        >
+          {data.label}
+        </span>
       </div>
       {data.severity && (
         <Badge className={`text-[10px] mt-1 border-0 ${

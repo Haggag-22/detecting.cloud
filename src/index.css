@@ -177,4 +177,12 @@
       linear-gradient(90deg, hsl(var(--border) / 0.3) 1px, transparent 1px);
     background-size: 60px 60px;
   }
+
+  /* React Flow node font fix - ensures text renders correctly in transform context */
+  .react-flow__node {
+    font-family: Inter, system-ui, -apple-system, sans-serif !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: hsl(var(--foreground));
+  }
 }
