@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { LucideIcon } from "lucide-react";
-import { LucideIcon } from "lucide-react";
 
 const categoryIcon: Record<string, LucideIcon> = {
   "initial-access": Crosshair,
