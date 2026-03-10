@@ -31,6 +31,7 @@ function getCoverageStatus(detectionIds: string[]): CoverageStatus {
 const CoveragePage = () => {
   const [categoryFilter, setCategoryFilter] = useState<TechniqueCategory | "all">("all");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Collect unique services
   const allServices = Array.from(new Set(techniques.flatMap((t) => t.services))).sort();
