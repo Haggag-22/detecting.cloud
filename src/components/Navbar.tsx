@@ -11,10 +11,13 @@ const navLinks = [
   { label: "Home", to: "/" },
   { label: "Research", to: "/research" },
   { label: "Attack Paths", to: "/attack-paths" },
+  { label: "Simulator", to: "/simulator" },
   { label: "Attack Graph", to: "/attack-graph" },
   { label: "Coverage", to: "/coverage" },
   { label: "Gap Analysis", to: "/gap-analysis" },
   { label: "Detection Engineering", to: "/detection-engineering" },
+  { label: "Community Rules", to: "/community-rules" },
+  { label: "Tools", to: "/tool-comparison" },
   { label: "About", to: "/about" },
 ];
 
