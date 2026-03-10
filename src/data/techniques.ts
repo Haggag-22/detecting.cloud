@@ -126,6 +126,33 @@ export const techniques: Technique[] = [
       "Audit trust policies regularly",
     ],
     category: "lateral-movement",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T16:05:22Z",
+  "eventSource": "sts.amazonaws.com",
+  "eventName": "AssumeRole",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "roleArn": "arn:aws:iam::987654321098:role/CrossAccountAdmin",
+    "roleSessionName": "legit-session"
+  },
+  "responseElements": {
+    "credentials": {
+      "accessKeyId": "ASIA3XFRBF23EXAMPLE",
+      "expiration": "2024-03-15T17:05:22Z"
+    },
+    "assumedRoleUser": {
+      "arn": "arn:aws:sts::987654321098:assumed-role/CrossAccountAdmin/legit-session"
+    }
+  }
+}`,
   },
   {
     id: "tech-create-policy-version",
