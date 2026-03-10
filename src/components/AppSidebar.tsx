@@ -72,13 +72,13 @@ const objectiveColors: Record<AttackObjective, string> = {
 };
 
 const techniqueCategoryColors: Record<string, string> = {
-  "initial-access": "text-muted-foreground",
+  "initial-access": "text-cyan-400",
   "credential-access": "text-purple-400",
   "privilege-escalation": "text-red-400",
   "persistence": "text-orange-400",
   "lateral-movement": "text-blue-400",
   "exfiltration": "text-emerald-400",
-  "defense-evasion": "text-muted-foreground",
+  "defense-evasion": "text-amber-400",
 };
 
 interface SidebarSection {

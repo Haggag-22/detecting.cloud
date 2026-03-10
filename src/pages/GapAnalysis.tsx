@@ -23,13 +23,13 @@ function getCoverage(detectionIds: string[]): CoverageStatus {
 }
 
 const categoryBarColors: Record<TechniqueCategory, string> = {
-  "initial-access": "hsl(215, 20%, 55%)",
+  "initial-access": "hsl(187, 85%, 53%)",
   "credential-access": "hsl(270, 70%, 65%)",
   "privilege-escalation": "hsl(0, 84%, 60%)",
   "persistence": "hsl(25, 95%, 53%)",
   "lateral-movement": "hsl(210, 79%, 46%)",
   "exfiltration": "hsl(160, 84%, 39%)",
-  "defense-evasion": "hsl(215, 20%, 55%)",
+  "defense-evasion": "hsl(38, 92%, 50%)",
 };
 
 const severityScore: Record<string, number> = { Critical: 4, High: 3, Medium: 2, Low: 1 };

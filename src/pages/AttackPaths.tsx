@@ -23,13 +23,13 @@ const categoryIcon: Record<string, LucideIcon> = {
 };
 
 const categoryIconColor: Record<string, string> = {
-  "initial-access": "text-muted-foreground",
+  "initial-access": "text-cyan-400",
   "credential-access": "text-purple-400",
   "privilege-escalation": "text-red-400",
   "persistence": "text-orange-400",
   "lateral-movement": "text-blue-400",
   "exfiltration": "text-emerald-400",
-  "defense-evasion": "text-muted-foreground",
+  "defense-evasion": "text-amber-400",
 };
 
 const severityColor: Record<string, string> = {
@@ -39,13 +39,13 @@ const severityColor: Record<string, string> = {
 };
 
 const categoryColor: Record<string, string> = {
-  "initial-access": "bg-muted text-muted-foreground",
+  "initial-access": "bg-cyan-500/15 text-cyan-400",
   "credential-access": "bg-purple-500/15 text-purple-400",
   "privilege-escalation": "bg-red-500/15 text-red-400",
   "persistence": "bg-orange-500/15 text-orange-400",
   "lateral-movement": "bg-blue-500/15 text-blue-400",
   "exfiltration": "bg-emerald-500/15 text-emerald-400",
-  "defense-evasion": "bg-muted text-muted-foreground",
+  "defense-evasion": "bg-amber-500/15 text-amber-400",
 };
 
 const AttackPathsPage = () => {

@@ -24,13 +24,13 @@ const catIconColor: Record<string, string> = {
 };
 
 const categoryColor: Record<string, string> = {
-  "initial-access": "bg-muted text-muted-foreground border-border",
+  "initial-access": "bg-cyan-500/15 text-cyan-400 border-cyan-500/30",
   "credential-access": "bg-purple-500/15 text-purple-400 border-purple-500/30",
   "privilege-escalation": "bg-red-500/15 text-red-400 border-red-500/30",
   "persistence": "bg-orange-500/15 text-orange-400 border-orange-500/30",
   "lateral-movement": "bg-blue-500/15 text-blue-400 border-blue-500/30",
   "exfiltration": "bg-emerald-500/15 text-emerald-400 border-emerald-500/30",
-  "defense-evasion": "bg-muted text-muted-foreground border-border",
+  "defense-evasion": "bg-amber-500/15 text-amber-400 border-amber-500/30",
 };
 
 interface AttackFlowChainProps {

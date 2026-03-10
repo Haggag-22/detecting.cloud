@@ -7,13 +7,13 @@ import { Link } from "react-router-dom";
 import { CheckCircle2, XCircle, AlertCircle, Filter, Search } from "lucide-react";
 
 const categoryColors: Record<TechniqueCategory, string> = {
-  "initial-access": "bg-muted text-muted-foreground",
+  "initial-access": "bg-cyan-500/15 text-cyan-400",
   "credential-access": "bg-purple-500/15 text-purple-400",
   "privilege-escalation": "bg-red-500/15 text-red-400",
   "persistence": "bg-orange-500/15 text-orange-400",
   "lateral-movement": "bg-blue-500/15 text-blue-400",
   "exfiltration": "bg-emerald-500/15 text-emerald-400",
-  "defense-evasion": "bg-muted text-muted-foreground",
+  "defense-evasion": "bg-amber-500/15 text-amber-400",
 };
 
 type CoverageStatus = "covered" | "partial" | "none";
