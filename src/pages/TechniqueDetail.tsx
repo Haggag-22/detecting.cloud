@@ -1,15 +1,16 @@
 import { Layout } from "@/components/Layout";
 import { useParams, Link } from "react-router-dom";
-import { getTechniqueById, techniques, techniqueCategories } from "@/data/techniques";
+import { getTechniqueById, techniqueCategories } from "@/data/techniques";
 import { getAttackPathsForTechnique } from "@/data/attackPaths";
 import { detections } from "@/data/detections";
 import { Badge } from "@/components/ui/badge";
 import {
   ChevronRight, Shield, Link as LinkIcon, Network, Crosshair,
-  KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff, Lock, Layers,
+  KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff, Lock,
   FileJson, Copy, Check,
 } from "lucide-react";
 import { useState } from "react";
+import { LucideIcon } from "lucide-react";
 import { LucideIcon } from "lucide-react";
 
 const categoryIcon: Record<string, LucideIcon> = {
