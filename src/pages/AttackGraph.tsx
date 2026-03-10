@@ -313,10 +313,10 @@ function buildDetectionGraph(detId: string) {
 
 const nodeColors: Record<GraphNodeType, { bg: string; border: string; text: string; icon: typeof Shield }> = {
   attack: { bg: "bg-destructive/10", border: "border-destructive/40", text: "text-destructive", icon: Crosshair },
-  technique: { bg: "bg-primary/10", border: "border-primary/40", text: "text-primary", icon: Route },
-  detection: { bg: "bg-accent/10", border: "border-accent/40", text: "text-accent", icon: Eye },
-  service: { bg: "bg-muted", border: "border-border", text: "text-muted-foreground", icon: Cloud },
-  logSource: { bg: "bg-green-500/10", border: "border-green-500/40", text: "text-green-400", icon: FileText },
+  technique: { bg: "bg-amber-500/10", border: "border-amber-500/40", text: "text-amber-400", icon: Route },
+  detection: { bg: "bg-purple-500/10", border: "border-purple-500/40", text: "text-purple-400", icon: Eye },
+  service: { bg: "bg-sky-500/15", border: "border-sky-500/40", text: "text-sky-400", icon: Cloud },
+  logSource: { bg: "bg-emerald-500/10", border: "border-emerald-500/40", text: "text-emerald-400", icon: FileText },
 };
 
 function GraphNodeComponent({ data }: NodeProps<Node<GraphNodeData>>) {
@@ -514,9 +514,9 @@ const AttackGraphPage = () => {
                   const nt = (node.data as GraphNodeData).nodeType;
                   if (nt === "attack") return "hsl(0 84% 60%)";
                   if (nt === "technique") return "hsl(43 96% 56%)";
-                  if (nt === "detection") return "hsl(210 79% 46%)";
-                  if (nt === "service") return "hsl(215 20% 55%)";
-                  return "hsl(142 71% 45%)";
+                  if (nt === "detection") return "hsl(270 70% 65%)";
+                  if (nt === "service") return "hsl(199 89% 48%)";
+                  return "hsl(160 84% 39%)";
                 }}
                 maskColor="hsl(215 40% 6% / 0.7)"
               />
