@@ -717,6 +717,143 @@ level: critical`,
     },
     relatedAttackSlugs: [],
   },
+  // --- ECS ---
+  {
+    id: "det-027",
+    title: "ECS Task Definition with External Image",
+    description: "Detects registration of ECS task definitions using container images from non-approved registries.",
+    awsService: "ECS",
+    relatedServices: ["IAM"],
+    severity: "High",
+    tags: ["ECS", "Container", "Supply Chain"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Development environments pulling from public registries"],
+    rules: {
+      sigma: `title: ECS Task Definition External Image
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventName: RegisterTaskDefinition
+  filter:
+    requestParameters.containerDefinitions{}.image|contains:
+      - '.dkr.ecr.'
+  condition: selection and not filter
+level: high`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventName=RegisterTaskDefinition
+| where NOT like(requestParameters, "%.dkr.ecr.%")
+| table _time, userIdentity.arn, requestParameters.family`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.family
+| filter eventName = "RegisterTaskDefinition"
+| sort @timestamp desc`,
+    },
+    relatedAttackSlugs: [],
+  },
+
+  // --- Secrets Manager ---
+  {
+    id: "det-028",
+    title: "Secrets Manager Bulk Secret Retrieval",
+    description: "Detects retrieval of multiple secrets in a short timeframe, indicating potential credential harvesting.",
+    awsService: "Secrets Manager",
+    relatedServices: ["IAM"],
+    severity: "High",
+    tags: ["Secrets Manager", "Credential Access", "Exfiltration"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Application startup loading configuration secrets", "Secret rotation processes"],
+    rules: {
+      sigma: `title: Secrets Manager Bulk Retrieval
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventName: GetSecretValue
+  condition: selection
+  timeframe: 5m
+  count: "> 10"
+level: high`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventName=GetSecretValue
+| stats count by userIdentity.arn, bin(_time, 5m)
+| where count > 10
+| sort -count`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.secretId
+| filter eventName = "GetSecretValue"
+| stats count(*) as retrievals by userIdentity.arn
+| filter retrievals > 10`,
+    },
+    relatedAttackSlugs: [],
+  },
+
+  // --- SSM ---
+  {
+    id: "det-029",
+    title: "SSM Run Command Execution",
+    description: "Detects use of SSM SendCommand to execute commands on EC2 instances, a common lateral movement technique.",
+    awsService: "SSM",
+    relatedServices: ["EC2", "IAM"],
+    severity: "High",
+    tags: ["SSM", "Lateral Movement", "Command Execution"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Automated patching via SSM", "Legitimate ops commands"],
+    rules: {
+      sigma: `title: SSM Run Command Execution
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventName:
+      - SendCommand
+      - StartSession
+  condition: selection
+level: high`,
+      splunk: `index=aws sourcetype=aws:cloudtrail (eventName=SendCommand OR eventName=StartSession)
+| table _time, userIdentity.arn, requestParameters.documentName, requestParameters.instanceIds{}`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.documentName
+| filter eventName in ["SendCommand", "StartSession"]
+| sort @timestamp desc`,
+    },
+    relatedAttackSlugs: [],
+  },
+
+  // --- Organizations ---
+  {
+    id: "det-030",
+    title: "Organizations SCP Modified or Detached",
+    description: "Detects changes to Service Control Policies which could remove security guardrails across the organization.",
+    awsService: "Organizations",
+    relatedServices: ["IAM"],
+    severity: "Critical",
+    tags: ["Organizations", "SCP", "Defense Evasion"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Planned governance changes by cloud platform team"],
+    rules: {
+      sigma: `title: Organizations SCP Change
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventName:
+      - DetachPolicy
+      - DeletePolicy
+      - UpdatePolicy
+  filter:
+    eventSource: organizations.amazonaws.com
+  condition: selection and filter
+level: critical`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=organizations.amazonaws.com
+  (eventName=DetachPolicy OR eventName=DeletePolicy OR eventName=UpdatePolicy)
+| table _time, userIdentity.arn, eventName, requestParameters.policyId`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.policyId
+| filter eventSource = "organizations.amazonaws.com"
+| filter eventName in ["DetachPolicy", "DeletePolicy", "UpdatePolicy"]
+| sort @timestamp desc`,
+    },
+    relatedAttackSlugs: [],
+  },
 ];
 
 /**
