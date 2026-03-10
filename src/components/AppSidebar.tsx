@@ -10,6 +10,7 @@ import {
   SidebarMenuSub,
   SidebarMenuSubItem,
   SidebarMenuSubButton,
+  SidebarFooter,
 } from "@/components/ui/sidebar";
 import {
   Collapsible,
@@ -31,6 +32,12 @@ import {
   Wifi,
   Database,
   ShieldOff,
+  Home,
+  Info,
+  Wrench,
+  BarChart3,
+  Github,
+  Twitter,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { attackPaths, attackObjectiveLabels, type AttackObjective } from "@/data/attackPaths";
@@ -39,6 +46,8 @@ import { detections, getDetectionsByService } from "@/data/detections";
 import { researchPosts } from "@/data/research";
 import { LucideIcon } from "lucide-react";
 import { getAwsServiceIcon } from "@/components/AwsIcons";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import logoImg from "@/assets/logo.png";
 
 const STORAGE_KEY = "sidebar-expanded";
 
@@ -55,8 +64,6 @@ function persistState(state: Record<string, boolean>) {
   sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-// ─── Category color system ───
-// Only the icon/dot gets this color, not the entire row
 const objectiveColors: Record<AttackObjective, string> = {
   "credential-access": "text-purple-400",
   "privilege-escalation": "text-red-400",
@@ -94,7 +101,6 @@ interface SidebarChild {
 }
 
 function buildSections(): SidebarSection[] {
-  // Attack Paths — single list with category color accents
   const attackPathChildren: SidebarChild[] = [
     { key: "ap-all", label: "All Attack Paths", icon: Crosshair, to: "/attack-paths" },
     ...attackPaths.map((ap) => ({
@@ -106,7 +112,6 @@ function buildSections(): SidebarSection[] {
     })),
   ];
 
-  // Technique Library — grouped by category with icons and color accents
   const techniqueCategoryIcons: Record<string, LucideIcon> = {
     "initial-access": Crosshair,
     "credential-access": KeyRound,
@@ -133,7 +138,6 @@ function buildSections(): SidebarSection[] {
     };
   }).filter((c) => c.children.length > 0);
 
-  // Detection Engineering by AWS service
   const detectionsByService = getDetectionsByService();
   const detectionServiceChildren: SidebarChild[] = [
     { key: "det-all", label: "All Detections", icon: ShieldCheck, to: "/detection-engineering" },
@@ -152,6 +156,18 @@ function buildSections(): SidebarSection[] {
   ];
 
   return [
+    {
+      key: "home",
+      label: "Home",
+      icon: Home,
+      to: "/",
+    },
+    {
+      key: "research",
+      label: "Research",
+      icon: ExternalLink,
+      to: "/research",
+    },
     {
       key: "attack-paths",
       label: "Attack Paths",
@@ -194,7 +210,7 @@ function buildSections(): SidebarSection[] {
     {
       key: "coverage",
       label: "Detection Coverage",
-      icon: ShieldCheck,
+      icon: BarChart3,
       to: "/coverage",
     },
     {
@@ -206,16 +222,14 @@ function buildSections(): SidebarSection[] {
     {
       key: "tool-comparison",
       label: "Tool Comparison",
-      icon: ExternalLink,
+      icon: Wrench,
       to: "/tool-comparison",
     },
     {
-      key: "resources",
-      label: "Resources",
-      icon: ExternalLink,
-      children: [
-        { key: "res-about", label: "About", icon: Bug, to: "/about" },
-      ],
+      key: "about",
+      label: "About",
+      icon: Info,
+      to: "/about",
     },
   ];
 }
@@ -229,7 +243,7 @@ export function AppSidebar() {
     const persisted = getPersistedState();
     const defaults: Record<string, boolean> = {};
     sections.forEach((s) => {
-      if (s.to && location.pathname.startsWith(s.to)) {
+      if (s.to && location.pathname.startsWith(s.to) && s.to !== "/") {
         defaults[s.key] = true;
       }
     });
@@ -257,15 +271,24 @@ export function AppSidebar() {
     : [];
 
   return (
-    <Sidebar collapsible="icon" className="border-r-0">
-      <SidebarHeader className="p-3 space-y-3 pt-[4.5rem]">
+    <Sidebar collapsible="icon" className="border-r border-border/50">
+      <SidebarHeader className="p-4 space-y-4">
+        {/* Logo & Brand */}
+        <Link to="/" className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
+          <img src={logoImg} alt="Detecting.Cloud logo" className="h-8 w-8 rounded-lg shrink-0" />
+          <span className="font-display font-bold text-base tracking-tight group-data-[collapsible=icon]:hidden">
+            Detecting<span className="text-primary">.Cloud</span>
+          </span>
+        </Link>
+
+        {/* Search */}
         <div className="relative group-data-[collapsible=icon]:hidden">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <SidebarInput
-            placeholder="Search techniques..."
+            placeholder="Search..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-8 h-8 text-xs"
+            className="pl-8 h-8 text-sm"
           />
         </div>
       </SidebarHeader>
@@ -274,7 +297,7 @@ export function AppSidebar() {
         {search.trim() && (
           <div className="px-2 pb-2">
             {searchResults.length === 0 ? (
-              <p className="text-xs text-muted-foreground px-2 py-3">No results found</p>
+              <p className="text-sm text-muted-foreground px-2 py-3">No results found</p>
             ) : (
               <SidebarMenu>
                 {searchResults.slice(0, 15).map((item) => (
@@ -282,7 +305,7 @@ export function AppSidebar() {
                     <SidebarMenuButton asChild isActive={currentPath === item.to}>
                       <Link to={item.to} onClick={() => setSearch("")}>
                         <span className="text-xs text-muted-foreground shrink-0 w-16">{item.type}</span>
-                        <span className="truncate text-xs">{item.label}</span>
+                        <span className="truncate text-sm">{item.label}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -294,14 +317,16 @@ export function AppSidebar() {
 
         {!search.trim() &&
           sections.map((section) => {
-            // Simple link section (no children)
             if (!section.children) {
+              const isActive = section.to === "/" 
+                ? location.pathname === "/" 
+                : section.to ? location.pathname.startsWith(section.to) : false;
               return (
                 <div key={section.key} className="px-2 py-0.5">
                   <SidebarMenu>
                     <SidebarMenuItem>
-                      <SidebarMenuButton asChild tooltip={section.label}
-                        className="font-medium text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                      <SidebarMenuButton asChild tooltip={section.label} isActive={isActive}
+                        className="text-sm font-medium"
                       >
                         <Link to={section.to || "#"}>
                           {section.icon && <section.icon className="h-4 w-4" />}
@@ -325,7 +350,7 @@ export function AppSidebar() {
                       <CollapsibleTrigger asChild>
                         <SidebarMenuButton
                           tooltip={section.label}
-                          className="font-medium text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground"
+                          className="text-sm font-medium text-muted-foreground hover:text-foreground"
                         >
                           {section.icon && <section.icon className="h-4 w-4" />}
                           <span className="flex-1">{section.label}</span>
@@ -376,6 +401,23 @@ export function AppSidebar() {
             );
           })}
       </SidebarContent>
+
+      {/* Footer with theme toggle and social links */}
+      <SidebarFooter className="p-3 border-t border-border/50">
+        <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center">
+          <ThemeToggle />
+          <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
+            <a href="https://github.com/Haggag-22/detecting.cloud" target="_blank" rel="noopener noreferrer"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors">
+              <Github className="h-4 w-4" />
+            </a>
+            <a href="https://twitter.com" target="_blank" rel="noopener noreferrer"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors">
+              <Twitter className="h-4 w-4" />
+            </a>
+          </div>
+        </div>
+      </SidebarFooter>
     </Sidebar>
   );
 }
