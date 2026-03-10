@@ -86,6 +86,30 @@ export const techniques: Technique[] = [
       "Use SCPs to limit which roles can be passed",
     ],
     category: "privilege-escalation",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012",
+    "userName": "compromised-dev"
+  },
+  "eventTime": "2024-03-15T15:10:44Z",
+  "eventSource": "lambda.amazonaws.com",
+  "eventName": "CreateFunction20150331",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "functionName": "data-processor-v2",
+    "role": "arn:aws:iam::123456789012:role/AdminRole",
+    "runtime": "python3.12",
+    "handler": "index.handler"
+  },
+  "responseElements": {
+    "functionArn": "arn:aws:lambda:us-east-1:123456789012:function:data-processor-v2"
+  }
+}`,
   },
   {
     id: "tech-assumerole-abuse",
