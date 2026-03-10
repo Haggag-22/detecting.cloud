@@ -64,6 +64,61 @@
     --cat-lateral: 210 79% 46%;
     --cat-exfiltration: 160 84% 39%;
   }
+
+  .light {
+    --background: 210 20% 98%;
+    --foreground: 215 25% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 15%;
+
+    --primary: 210 79% 46%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 15% 92%;
+    --secondary-foreground: 215 25% 25%;
+
+    --muted: 215 15% 94%;
+    --muted-foreground: 215 15% 45%;
+
+    --accent: 210 79% 46%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 15% 85%;
+    --input: 215 15% 85%;
+    --ring: 210 79% 46%;
+
+    --sidebar-background: 215 15% 96%;
+    --sidebar-foreground: 215 25% 15%;
+    --sidebar-primary: 210 79% 46%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 215 15% 92%;
+    --sidebar-accent-foreground: 215 25% 25%;
+    --sidebar-border: 215 15% 85%;
+    --sidebar-ring: 210 79% 46%;
+
+    --glow-primary: 210 79% 46%;
+    --glow-accent: 210 79% 46%;
+    --surface-elevated: 210 15% 96%;
+    --gradient-start: 210 79% 46%;
+    --gradient-end: 199 89% 48%;
+
+    --severity-critical: 0 72% 51%;
+    --severity-high: 25 90% 48%;
+    --severity-medium: 45 90% 42%;
+
+    --cat-credential: 270 60% 55%;
+    --cat-privesc: 0 72% 51%;
+    --cat-persistence: 25 90% 48%;
+    --cat-lateral: 210 79% 46%;
+    --cat-exfiltration: 160 75% 35%;
+  }
 }
 
 @layer base {

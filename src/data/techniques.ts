@@ -14,6 +14,8 @@ export interface Technique {
   detectionIds: string[];
   mitigations: string[];
   category: TechniqueCategory;
+  /** Example CloudTrail log event for this technique */
+  cloudtrailSample?: string;
 }
 
 export type TechniqueCategory =
@@ -51,6 +53,23 @@ export const techniques: Technique[] = [
       "Use VPC endpoints to restrict metadata access",
     ],
     category: "credential-access",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "AssumedRole",
+    "principalId": "AROA3XFRBF23:i-0abc123def456",
+    "arn": "arn:aws:sts::123456789012:assumed-role/EC2-WebServer-Role/i-0abc123def456",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T14:22:33Z",
+  "eventSource": "sts.amazonaws.com",
+  "eventName": "GetCallerIdentity",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "userAgent": "aws-cli/2.15.0 Python/3.11.6",
+  "requestParameters": null,
+  "responseElements": null
+}`,
   },
   {
     id: "tech-passrole-abuse",
@@ -67,6 +86,30 @@ export const techniques: Technique[] = [
       "Use SCPs to limit which roles can be passed",
     ],
     category: "privilege-escalation",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012",
+    "userName": "compromised-dev"
+  },
+  "eventTime": "2024-03-15T15:10:44Z",
+  "eventSource": "lambda.amazonaws.com",
+  "eventName": "CreateFunction20150331",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "functionName": "data-processor-v2",
+    "role": "arn:aws:iam::123456789012:role/AdminRole",
+    "runtime": "python3.12",
+    "handler": "index.handler"
+  },
+  "responseElements": {
+    "functionArn": "arn:aws:lambda:us-east-1:123456789012:function:data-processor-v2"
+  }
+}`,
   },
   {
     id: "tech-assumerole-abuse",
@@ -83,6 +126,33 @@ export const techniques: Technique[] = [
       "Audit trust policies regularly",
     ],
     category: "lateral-movement",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T16:05:22Z",
+  "eventSource": "sts.amazonaws.com",
+  "eventName": "AssumeRole",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "roleArn": "arn:aws:iam::987654321098:role/CrossAccountAdmin",
+    "roleSessionName": "legit-session"
+  },
+  "responseElements": {
+    "credentials": {
+      "accessKeyId": "ASIA3XFRBF23EXAMPLE",
+      "expiration": "2024-03-15T17:05:22Z"
+    },
+    "assumedRoleUser": {
+      "arn": "arn:aws:sts::987654321098:assumed-role/CrossAccountAdmin/legit-session"
+    }
+  }
+}`,
   },
   {
     id: "tech-create-policy-version",
@@ -99,6 +169,28 @@ export const techniques: Technique[] = [
       "Enable AWS Config rules for policy compliance",
     ],
     category: "privilege-escalation",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T17:30:11Z",
+  "eventSource": "iam.amazonaws.com",
+  "eventName": "CreatePolicyVersion",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "policyArn": "arn:aws:iam::123456789012:policy/DevTeamPolicy",
+    "policyDocument": "{\\"Version\\":\\"2012-10-17\\",\\"Statement\\":[{\\"Effect\\":\\"Allow\\",\\"Action\\":\\"*\\",\\"Resource\\":\\"*\\"}]}",
+    "setAsDefault": true
+  },
+  "responseElements": {
+    "policyVersion": { "versionId": "v3", "isDefaultVersion": true }
+  }
+}`,
   },
   {
     id: "tech-attach-user-policy",
@@ -115,6 +207,24 @@ export const techniques: Technique[] = [
       "Implement permission boundaries",
     ],
     category: "privilege-escalation",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T18:12:05Z",
+  "eventSource": "iam.amazonaws.com",
+  "eventName": "AttachUserPolicy",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "userName": "compromised-dev",
+    "policyArn": "arn:aws:iam::aws:policy/AdministratorAccess"
+  }
+}`,
   },
   {
     id: "tech-lambda-code-execution",
@@ -131,6 +241,25 @@ export const techniques: Technique[] = [
       "Audit Lambda functions and their associated roles",
     ],
     category: "privilege-escalation",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T19:00:33Z",
+  "eventSource": "lambda.amazonaws.com",
+  "eventName": "Invoke",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "functionName": "arn:aws:lambda:us-east-1:123456789012:function:data-processor-v2",
+    "invocationType": "RequestResponse"
+  },
+  "responseElements": null
+}`,
   },
   {
     id: "tech-s3-data-download",
@@ -147,6 +276,28 @@ export const techniques: Technique[] = [
       "Implement S3 Block Public Access at the account level",
     ],
     category: "exfiltration",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "AssumedRole",
+    "principalId": "AROA3XFRBF23:attacker-session",
+    "arn": "arn:aws:sts::123456789012:assumed-role/DataReadRole/attacker-session",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T20:45:12Z",
+  "eventSource": "s3.amazonaws.com",
+  "eventName": "GetObject",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "bucketName": "company-sensitive-data",
+    "key": "financials/2024-Q1-report.xlsx"
+  },
+  "responseElements": null,
+  "additionalEventData": {
+    "bytesTransferredOut": 15728640
+  }
+}`,
   },
   {
     id: "tech-iam-user-creation",
@@ -163,6 +314,30 @@ export const techniques: Technique[] = [
       "Implement alerting on any IAM changes",
     ],
     category: "persistence",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T21:15:44Z",
+  "eventSource": "iam.amazonaws.com",
+  "eventName": "CreateUser",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "userName": "svc-cloudwatch-metrics"
+  },
+  "responseElements": {
+    "user": {
+      "userName": "svc-cloudwatch-metrics",
+      "userId": "AIDA3XFRBF23BACKDOOR",
+      "arn": "arn:aws:iam::123456789012:user/svc-cloudwatch-metrics"
+    }
+  }
+}`,
   },
   {
     id: "tech-access-key-creation",
@@ -179,6 +354,30 @@ export const techniques: Technique[] = [
       "Use temporary credentials (STS) instead of long-lived keys",
     ],
     category: "persistence",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T21:18:02Z",
+  "eventSource": "iam.amazonaws.com",
+  "eventName": "CreateAccessKey",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "userName": "svc-cloudwatch-metrics"
+  },
+  "responseElements": {
+    "accessKey": {
+      "userName": "svc-cloudwatch-metrics",
+      "accessKeyId": "AKIA3XFRBF23BACKDOOR",
+      "status": "Active"
+    }
+  }
+}`,
   },
   {
     id: "tech-lambda-event-trigger",
@@ -195,6 +394,28 @@ export const techniques: Technique[] = [
       "Audit event source mappings regularly",
     ],
     category: "persistence",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T22:05:18Z",
+  "eventSource": "events.amazonaws.com",
+  "eventName": "PutRule",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "name": "scheduled-health-check",
+    "scheduleExpression": "rate(5 minutes)",
+    "state": "ENABLED"
+  },
+  "responseElements": {
+    "ruleArn": "arn:aws:events:us-east-1:123456789012:rule/scheduled-health-check"
+  }
+}`,
   },
   {
     id: "tech-cloudtrail-disable",
@@ -211,6 +432,24 @@ export const techniques: Technique[] = [
       "Set up real-time alerting on trail changes",
     ],
     category: "defense-evasion",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T23:00:01Z",
+  "eventSource": "cloudtrail.amazonaws.com",
+  "eventName": "StopLogging",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "name": "arn:aws:cloudtrail:us-east-1:123456789012:trail/management-trail"
+  },
+  "responseElements": null
+}`,
   },
   {
     id: "tech-s3-bucket-policy-mod",
@@ -227,6 +466,32 @@ export const techniques: Technique[] = [
       "Monitor bucket policy changes via CloudTrail",
     ],
     category: "exfiltration",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "AssumedRole",
+    "principalId": "AROA3XFRBF23:attacker-session",
+    "arn": "arn:aws:sts::123456789012:assumed-role/DataReadRole/attacker-session",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T23:30:55Z",
+  "eventSource": "s3.amazonaws.com",
+  "eventName": "PutBucketPolicy",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "bucketName": "company-sensitive-data",
+    "bucketPolicy": {
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Principal": {"AWS": "arn:aws:iam::999888777666:root"},
+        "Action": "s3:*",
+        "Resource": "arn:aws:s3:::company-sensitive-data/*"
+      }]
+    }
+  }
+}`,
   },
 ];
 

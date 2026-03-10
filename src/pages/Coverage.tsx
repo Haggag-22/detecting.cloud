@@ -4,7 +4,7 @@ import { techniques, techniqueCategories, type TechniqueCategory } from "@/data/
 import { detections } from "@/data/detections";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
-import { CheckCircle2, XCircle, AlertCircle, Filter } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, Filter, Search } from "lucide-react";
 
 const categoryColors: Record<TechniqueCategory, string> = {
   "initial-access": "bg-muted text-muted-foreground",
@@ -31,6 +31,7 @@ function getCoverageStatus(detectionIds: string[]): CoverageStatus {
 const CoveragePage = () => {
   const [categoryFilter, setCategoryFilter] = useState<TechniqueCategory | "all">("all");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Collect unique services
   const allServices = Array.from(new Set(techniques.flatMap((t) => t.services))).sort();
@@ -38,6 +39,7 @@ const CoveragePage = () => {
   const filtered = techniques.filter((t) => {
     if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
     if (serviceFilter !== "all" && !t.services.includes(serviceFilter)) return false;
+    if (searchQuery && !t.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
 
@@ -81,6 +83,15 @@ const CoveragePage = () => {
         {/* Filters */}
         <div className="flex flex-wrap gap-3 mb-6 items-center">
           <Filter className="h-4 w-4 text-muted-foreground" />
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              placeholder="Search techniques..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="rounded-lg border border-border bg-card pl-8 pr-3 py-2 text-sm outline-none focus:border-primary/50 w-48"
+            />
+          </div>
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value as TechniqueCategory | "all")}

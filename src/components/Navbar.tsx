@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Search, Github, Twitter, Menu, X } from "lucide-react";
 import logoImg from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { SearchDialog } from "@/components/SearchDialog";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const navLinks = [
   { label: "Home", to: "/" },
@@ -20,6 +21,18 @@ export function Navbar({ showSidebarTrigger = false }: { showSidebarTrigger?: bo
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const location = useLocation();
+
+  // Global Cmd/Ctrl+K shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
 
   return (
     <>
@@ -49,10 +62,12 @@ export function Navbar({ showSidebarTrigger = false }: { showSidebarTrigger?: bo
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={() => setSearchOpen(true)} className="text-muted-foreground hover:text-foreground">
               <Search className="h-4 w-4" />
+              <span className="sr-only">Search (⌘K)</span>
             </Button>
+            <ThemeToggle />
             <a href="https://github.com/Haggag-22/detecting.cloud" target="_blank" rel="noopener noreferrer">
               <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
                 <Github className="h-4 w-4" />
