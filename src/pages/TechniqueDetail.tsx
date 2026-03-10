@@ -7,7 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   ChevronRight, Shield, Link as LinkIcon, Network, Crosshair,
   KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff, Lock, Layers,
+  FileJson, Copy, Check,
 } from "lucide-react";
+import { useState } from "react";
 import { LucideIcon } from "lucide-react";
 
 const categoryIcon: Record<string, LucideIcon> = {
