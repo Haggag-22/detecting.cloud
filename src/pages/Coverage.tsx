@@ -83,6 +83,15 @@ const CoveragePage = () => {
         {/* Filters */}
         <div className="flex flex-wrap gap-3 mb-6 items-center">
           <Filter className="h-4 w-4 text-muted-foreground" />
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              placeholder="Search techniques..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="rounded-lg border border-border bg-card pl-8 pr-3 py-2 text-sm outline-none focus:border-primary/50 w-48"
+            />
+          </div>
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value as TechniqueCategory | "all")}
