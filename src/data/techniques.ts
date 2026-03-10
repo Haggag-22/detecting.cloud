@@ -354,6 +354,30 @@ export const techniques: Technique[] = [
       "Use temporary credentials (STS) instead of long-lived keys",
     ],
     category: "persistence",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T21:18:02Z",
+  "eventSource": "iam.amazonaws.com",
+  "eventName": "CreateAccessKey",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "userName": "svc-cloudwatch-metrics"
+  },
+  "responseElements": {
+    "accessKey": {
+      "userName": "svc-cloudwatch-metrics",
+      "accessKeyId": "AKIA3XFRBF23BACKDOOR",
+      "status": "Active"
+    }
+  }
+}`,
   },
   {
     id: "tech-lambda-event-trigger",
