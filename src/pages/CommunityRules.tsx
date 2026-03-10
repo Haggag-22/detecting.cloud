@@ -4,10 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Users, ThumbsUp, Copy, Plus, Search, Filter, ExternalLink } from "lucide-react";
+import { Users, ThumbsUp, Copy, Search, Filter, GitPullRequest } from "lucide-react";
 import { toast } from "sonner";
 
 interface CommunityRule {
@@ -152,7 +150,6 @@ export default function CommunityRules() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterFormat, setFilterFormat] = useState<string>("all");
   const [filterSeverity, setFilterSeverity] = useState<string>("all");
-  const [submitOpen, setSubmitOpen] = useState(false);
 
   const filtered = communityRules.filter((r) => {
     const matchSearch =
@@ -182,44 +179,12 @@ export default function CommunityRules() {
               Community-contributed detection rules for AWS cloud security. Vote, copy, and contribute your own.
             </p>
           </div>
-          <Dialog open={submitOpen} onOpenChange={setSubmitOpen}>
-            <DialogTrigger asChild>
-              <Button className="gap-2 shrink-0">
-                <Plus className="h-4 w-4" /> Submit Rule
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Submit a Detection Rule</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 pt-2">
-                <Input placeholder="Rule title" />
-                <Textarea placeholder="Description" rows={3} />
-                <div className="grid grid-cols-2 gap-3">
-                  <Input placeholder="AWS Service" />
-                  <Select>
-                    <SelectTrigger><SelectValue placeholder="Format" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="sigma">Sigma</SelectItem>
-                      <SelectItem value="splunk">Splunk</SelectItem>
-                      <SelectItem value="cloudtrail">CloudTrail</SelectItem>
-                      <SelectItem value="cloudwatch">CloudWatch</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Textarea placeholder="Paste your detection rule here..." rows={8} className="font-mono text-xs" />
-                <Button
-                  className="w-full"
-                  onClick={() => {
-                    toast.success("Rule submitted for review! Thank you for contributing.");
-                    setSubmitOpen(false);
-                  }}
-                >
-                  Submit for Review
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+          <Button
+            className="gap-2 shrink-0"
+            onClick={() => window.open("https://github.com/your-username/detecting-cloud/pulls", "_blank")}
+          >
+            <GitPullRequest className="h-4 w-4" /> Contribute via PR
+          </Button>
         </div>
 
         {/* Filters */}
