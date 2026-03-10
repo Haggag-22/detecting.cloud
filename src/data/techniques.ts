@@ -314,6 +314,30 @@ export const techniques: Technique[] = [
       "Implement alerting on any IAM changes",
     ],
     category: "persistence",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T21:15:44Z",
+  "eventSource": "iam.amazonaws.com",
+  "eventName": "CreateUser",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "userName": "svc-cloudwatch-metrics"
+  },
+  "responseElements": {
+    "user": {
+      "userName": "svc-cloudwatch-metrics",
+      "userId": "AIDA3XFRBF23BACKDOOR",
+      "arn": "arn:aws:iam::123456789012:user/svc-cloudwatch-metrics"
+    }
+  }
+}`,
   },
   {
     id: "tech-access-key-creation",
