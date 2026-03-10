@@ -394,6 +394,28 @@ export const techniques: Technique[] = [
       "Audit event source mappings regularly",
     ],
     category: "persistence",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T22:05:18Z",
+  "eventSource": "events.amazonaws.com",
+  "eventName": "PutRule",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "name": "scheduled-health-check",
+    "scheduleExpression": "rate(5 minutes)",
+    "state": "ENABLED"
+  },
+  "responseElements": {
+    "ruleArn": "arn:aws:events:us-east-1:123456789012:rule/scheduled-health-check"
+  }
+}`,
   },
   {
     id: "tech-cloudtrail-disable",
