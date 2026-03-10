@@ -91,6 +91,42 @@ export const AwsStsIcon: React.FC<IconProps> = ({ className, size = defaultSize 
   </svg>
 );
 
+export const AwsEcsIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
+  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
+    <rect x="4" y="4" width="32" height="32" rx="2" fill="#ED7100" />
+    <rect x="11" y="11" width="7" height="7" rx="1" fill="#fff" />
+    <rect x="22" y="11" width="7" height="7" rx="1" fill="#fff" />
+    <rect x="11" y="22" width="7" height="7" rx="1" fill="#fff" />
+    <rect x="22" y="22" width="7" height="7" rx="1" fill="#fff" />
+  </svg>
+);
+
+export const AwsSecretsManagerIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
+  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
+    <rect x="4" y="4" width="32" height="32" rx="2" fill="#DD344C" />
+    <path d="M20 10v4M20 26v4M14 14l2.8 2.8M23.2 23.2l2.8 2.8M10 20h4M26 20h4M14 26l2.8-2.8M23.2 16.8L26 14" stroke="#fff" strokeWidth="2" />
+    <circle cx="20" cy="20" r="4" fill="#fff" />
+  </svg>
+);
+
+export const AwsSsmIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
+  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
+    <rect x="4" y="4" width="32" height="32" rx="2" fill="#E7157B" />
+    <rect x="10" y="14" width="20" height="12" rx="2" fill="none" stroke="#fff" strokeWidth="2" />
+    <path d="M14 20l3 3 6-6" stroke="#fff" strokeWidth="2" fill="none" />
+  </svg>
+);
+
+export const AwsOrganizationsIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
+  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
+    <rect x="4" y="4" width="32" height="32" rx="2" fill="#E7157B" />
+    <circle cx="20" cy="12" r="3" fill="#fff" />
+    <circle cx="12" cy="26" r="3" fill="#fff" />
+    <circle cx="28" cy="26" r="3" fill="#fff" />
+    <path d="M20 15v4M16 22l-3 2M24 22l3 2" stroke="#fff" strokeWidth="1.5" />
+  </svg>
+);
+
 export const awsServiceIcons: Record<string, React.FC<IconProps>> = {
   IAM: AwsIamIcon,
   Lambda: AwsLambdaIcon,
@@ -102,6 +138,10 @@ export const awsServiceIcons: Record<string, React.FC<IconProps>> = {
   KMS: AwsKmsIcon,
   EKS: AwsEksIcon,
   STS: AwsStsIcon,
+  ECS: AwsEcsIcon,
+  "Secrets Manager": AwsSecretsManagerIcon,
+  SSM: AwsSsmIcon,
+  Organizations: AwsOrganizationsIcon,
 };
 
 export function getAwsServiceIcon(service: string): React.FC<IconProps> | null {

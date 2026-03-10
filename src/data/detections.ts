@@ -892,6 +892,6 @@ export function getServicesWithDetections(): string[] {
     services.add(d.awsService);
     d.relatedServices.forEach((s) => services.add(s));
   });
-  const order = ["IAM", "STS", "Lambda", "EC2", "S3", "EBS", "DynamoDB", "CloudTrail", "KMS", "EKS"];
+  const order = ["IAM", "STS", "Lambda", "EC2", "S3", "EBS", "DynamoDB", "CloudTrail", "KMS", "EKS", "ECS", "Secrets Manager", "SSM", "Organizations"];
   return order.filter((s) => services.has(s));
 }

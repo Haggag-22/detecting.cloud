@@ -35,6 +35,7 @@ const App = () => (
           
           <Route path="/attack-graph" element={<AttackGraph />} />
           <Route path="/coverage" element={<Coverage />} />
+          <Route path="/gap-analysis" element={<GapAnalysis />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
