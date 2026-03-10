@@ -181,7 +181,7 @@ export default function CommunityRules() {
           </div>
           <Button
             className="gap-2 shrink-0"
-            onClick={() => window.open("https://github.com/your-username/detecting-cloud/pulls", "_blank")}
+            onClick={() => window.open("https://github.com/Haggag-22/detecting.cloud/pulls", "_blank")}
           >
             <GitPullRequest className="h-4 w-4" /> Contribute via PR
           </Button>
