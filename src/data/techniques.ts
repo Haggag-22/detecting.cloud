@@ -276,6 +276,28 @@ export const techniques: Technique[] = [
       "Implement S3 Block Public Access at the account level",
     ],
     category: "exfiltration",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "AssumedRole",
+    "principalId": "AROA3XFRBF23:attacker-session",
+    "arn": "arn:aws:sts::123456789012:assumed-role/DataReadRole/attacker-session",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T20:45:12Z",
+  "eventSource": "s3.amazonaws.com",
+  "eventName": "GetObject",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "bucketName": "company-sensitive-data",
+    "key": "financials/2024-Q1-report.xlsx"
+  },
+  "responseElements": null,
+  "additionalEventData": {
+    "bytesTransferredOut": 15728640
+  }
+}`,
   },
   {
     id: "tech-iam-user-creation",
