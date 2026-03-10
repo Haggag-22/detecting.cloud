@@ -12,6 +12,7 @@ import DetectionEngineering from "./pages/DetectionEngineering";
 import About from "./pages/About";
 import AttackGraph from "./pages/AttackGraph";
 import Coverage from "./pages/Coverage";
+import GapAnalysis from "./pages/GapAnalysis";
 import TechniqueDetail from "./pages/TechniqueDetail";
 import NotFound from "./pages/NotFound";
 import { AiAssistant } from "./components/AiAssistant";
