@@ -862,7 +862,7 @@ level: critical`,
  */
 export function getDetectionsByService(): Record<string, Detection[]> {
   const grouped: Record<string, Detection[]> = {};
-  const serviceOrder = ["IAM", "STS", "Lambda", "EC2", "S3", "EBS", "DynamoDB", "CloudTrail", "KMS", "EKS"];
+  const serviceOrder = ["IAM", "STS", "Lambda", "EC2", "S3", "EBS", "DynamoDB", "CloudTrail", "KMS", "EKS", "ECS", "Secrets Manager", "SSM", "Organizations"];
 
   for (const service of serviceOrder) {
     const serviceDetections = detections.filter((d) => d.awsService === service);
