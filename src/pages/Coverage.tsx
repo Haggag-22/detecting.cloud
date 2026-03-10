@@ -39,6 +39,7 @@ const CoveragePage = () => {
   const filtered = techniques.filter((t) => {
     if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
     if (serviceFilter !== "all" && !t.services.includes(serviceFilter)) return false;
+    if (searchQuery && !t.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
 
