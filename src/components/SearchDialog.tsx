@@ -4,6 +4,8 @@ import { Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { researchPosts } from "@/data/research";
 import { attackPaths } from "@/data/attackPaths";
+import { techniques } from "@/data/techniques";
+import { detections } from "@/data/detections";
 
 interface SearchDialogProps {
   open: boolean;
@@ -17,6 +19,8 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   const allItems = [
     ...researchPosts.map((p) => ({ title: p.title, description: p.preview, url: `/research/${p.slug}`, type: "Research" })),
     ...attackPaths.map((a) => ({ title: a.title, description: a.description, url: `/attack-paths?technique=${a.slug}`, type: "Attack Path" })),
+    ...techniques.map((t) => ({ title: t.name, description: t.description, url: `/attack-paths/technique/${t.id}`, type: "Technique" })),
+    ...detections.map((d) => ({ title: d.title, description: d.description, url: `/detection-engineering?rule=${d.id}`, type: "Detection" })),
   ];
 
   const filtered = query.length > 1

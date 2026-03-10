@@ -466,6 +466,32 @@ export const techniques: Technique[] = [
       "Monitor bucket policy changes via CloudTrail",
     ],
     category: "exfiltration",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "AssumedRole",
+    "principalId": "AROA3XFRBF23:attacker-session",
+    "arn": "arn:aws:sts::123456789012:assumed-role/DataReadRole/attacker-session",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T23:30:55Z",
+  "eventSource": "s3.amazonaws.com",
+  "eventName": "PutBucketPolicy",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "bucketName": "company-sensitive-data",
+    "bucketPolicy": {
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Principal": {"AWS": "arn:aws:iam::999888777666:root"},
+        "Action": "s3:*",
+        "Resource": "arn:aws:s3:::company-sensitive-data/*"
+      }]
+    }
+  }
+}`,
   },
 ];
 

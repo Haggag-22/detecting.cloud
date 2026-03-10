@@ -208,9 +208,72 @@ const TechniqueDetailPage = () => {
           </div>
         )}
 
+        {/* CloudTrail Sample */}
+        {technique.cloudtrailSample && (
+          <CloudTrailSample sample={technique.cloudtrailSample} />
+        )}
+
+        {/* Related Techniques */}
+        {relatedTechniques.length > 0 && (
+          <div className="border-t border-border pt-6 mb-8">
+            <h2 className="flex items-center gap-2 font-display text-lg font-semibold mb-4">
+              <Layers className="h-4 w-4 text-muted-foreground" /> Related Techniques
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {relatedTechniques.slice(0, 4).map((rt) => (
+                <Link
+                  key={rt.id}
+                  to={`/attack-paths/technique/${rt.id}`}
+                  className="block rounded-lg border border-border/50 bg-card p-3 hover:border-primary/30 transition-colors"
+                >
+                  <Badge className={`text-[10px] border-0 mb-1 ${categoryColor[rt.category]}`}>
+                    {techniqueCategories[rt.category].label}
+                  </Badge>
+                  <p className="text-sm font-medium">{rt.name}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </Layout>
   );
 };
+
+function CloudTrailSample({ sample }: { sample: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(sample);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="border-t border-border pt-6 mb-8">
+      <h2 className="flex items-center gap-2 font-display text-lg font-semibold mb-3">
+        <FileJson className="h-4 w-4 text-primary" /> CloudTrail Event Sample
+      </h2>
+      <p className="text-xs text-muted-foreground mb-3">
+        Example CloudTrail log event showing what this technique looks like in your logs.
+      </p>
+      <div className="relative rounded-lg border border-border/50 bg-muted overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 border-b border-border/50 bg-card">
+          <span className="text-xs font-mono text-muted-foreground">CloudTrail JSON</span>
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? "Copied" : "Copy"}
+          </button>
+        </div>
+        <pre className="p-4 overflow-x-auto text-xs font-mono leading-relaxed text-foreground">
+          {sample}
+        </pre>
+      </div>
+    </div>
+  );
+}
 
 export default TechniqueDetailPage;

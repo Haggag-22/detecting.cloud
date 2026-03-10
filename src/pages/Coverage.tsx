@@ -4,7 +4,7 @@ import { techniques, techniqueCategories, type TechniqueCategory } from "@/data/
 import { detections } from "@/data/detections";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
-import { CheckCircle2, XCircle, AlertCircle, Filter } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle, Filter, Search } from "lucide-react";
 
 const categoryColors: Record<TechniqueCategory, string> = {
   "initial-access": "bg-muted text-muted-foreground",
