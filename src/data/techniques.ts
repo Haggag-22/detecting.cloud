@@ -53,6 +53,23 @@ export const techniques: Technique[] = [
       "Use VPC endpoints to restrict metadata access",
     ],
     category: "credential-access",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "AssumedRole",
+    "principalId": "AROA3XFRBF23:i-0abc123def456",
+    "arn": "arn:aws:sts::123456789012:assumed-role/EC2-WebServer-Role/i-0abc123def456",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T14:22:33Z",
+  "eventSource": "sts.amazonaws.com",
+  "eventName": "GetCallerIdentity",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "userAgent": "aws-cli/2.15.0 Python/3.11.6",
+  "requestParameters": null,
+  "responseElements": null
+}`,
   },
   {
     id: "tech-passrole-abuse",
