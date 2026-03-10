@@ -102,7 +102,7 @@ function buildSections(): SidebarSection[] {
       label: ap.title.length > 35 ? ap.title.substring(0, 35) + "…" : ap.title,
       icon: Route,
       iconColorClass: objectiveColors[ap.objective],
-      to: `/attack-paths/technique/${ap.slug}`,
+      to: `/attack-paths?technique=${ap.slug}`,
     })),
   ];
 
