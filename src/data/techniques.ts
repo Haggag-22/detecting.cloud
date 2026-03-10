@@ -169,6 +169,28 @@ export const techniques: Technique[] = [
       "Enable AWS Config rules for policy compliance",
     ],
     category: "privilege-escalation",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T17:30:11Z",
+  "eventSource": "iam.amazonaws.com",
+  "eventName": "CreatePolicyVersion",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "policyArn": "arn:aws:iam::123456789012:policy/DevTeamPolicy",
+    "policyDocument": "{\\"Version\\":\\"2012-10-17\\",\\"Statement\\":[{\\"Effect\\":\\"Allow\\",\\"Action\\":\\"*\\",\\"Resource\\":\\"*\\"}]}",
+    "setAsDefault": true
+  },
+  "responseElements": {
+    "policyVersion": { "versionId": "v3", "isDefaultVersion": true }
+  }
+}`,
   },
   {
     id: "tech-attach-user-policy",
