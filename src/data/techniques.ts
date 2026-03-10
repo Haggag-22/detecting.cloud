@@ -241,6 +241,25 @@ export const techniques: Technique[] = [
       "Audit Lambda functions and their associated roles",
     ],
     category: "privilege-escalation",
+    cloudtrailSample: `{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "principalId": "AIDA3XFRBF23EXAMPLE",
+    "arn": "arn:aws:iam::123456789012:user/compromised-dev",
+    "accountId": "123456789012"
+  },
+  "eventTime": "2024-03-15T19:00:33Z",
+  "eventSource": "lambda.amazonaws.com",
+  "eventName": "Invoke",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "functionName": "arn:aws:lambda:us-east-1:123456789012:function:data-processor-v2",
+    "invocationType": "RequestResponse"
+  },
+  "responseElements": null
+}`,
   },
   {
     id: "tech-s3-data-download",
