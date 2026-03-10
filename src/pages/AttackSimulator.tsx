@@ -251,7 +251,7 @@ export default function AttackSimulator() {
                             <div>
                               <p className="text-sm text-muted-foreground">{step.technique.description}</p>
                               <div className="flex flex-wrap gap-1.5 mt-3">
-                                {step.technique.awsServices.map((svc) => (
+                                {step.technique.services.map((svc) => (
                                   <Badge key={svc} variant="outline" className="text-xs">
                                     {svc}
                                   </Badge>

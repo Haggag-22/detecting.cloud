@@ -8,12 +8,15 @@ import Research from "./pages/Research";
 import Article from "./pages/Article";
 import AttackPaths from "./pages/AttackPaths";
 import DetectionEngineering from "./pages/DetectionEngineering";
-
 import About from "./pages/About";
 import AttackGraph from "./pages/AttackGraph";
 import Coverage from "./pages/Coverage";
 import GapAnalysis from "./pages/GapAnalysis";
 import TechniqueDetail from "./pages/TechniqueDetail";
+import AttackSimulator from "./pages/AttackSimulator";
+import CommunityRules from "./pages/CommunityRules";
+import ToolComparison from "./pages/ToolComparison";
+import AdminSubscribers from "./pages/AdminSubscribers";
 import NotFound from "./pages/NotFound";
 import { AiAssistant } from "./components/AiAssistant";
 
@@ -32,10 +35,13 @@ const App = () => (
           <Route path="/attack-paths/technique/:id" element={<TechniqueDetail />} />
           <Route path="/attack-paths" element={<AttackPaths />} />
           <Route path="/detection-engineering" element={<DetectionEngineering />} />
-          
           <Route path="/attack-graph" element={<AttackGraph />} />
           <Route path="/coverage" element={<Coverage />} />
           <Route path="/gap-analysis" element={<GapAnalysis />} />
+          <Route path="/simulator" element={<AttackSimulator />} />
+          <Route path="/community-rules" element={<CommunityRules />} />
+          <Route path="/tool-comparison" element={<ToolComparison />} />
+          <Route path="/admin/subscribers" element={<AdminSubscribers />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
