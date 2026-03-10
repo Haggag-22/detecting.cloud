@@ -105,6 +105,30 @@ const AttackPathsPage = () => {
               </h3>
               <AttackFlowChain steps={activeAttackPath.steps} />
             </div>
+
+            {/* References */}
+            {activeAttackPath.references && activeAttackPath.references.length > 0 && (
+              <div className="mt-6 rounded-lg border border-border p-6 bg-card">
+                <h3 className="flex items-center gap-2 font-semibold mb-4">
+                  <LinkIcon className="h-4 w-4 text-primary" /> References
+                </h3>
+                <ul className="space-y-2">
+                  {activeAttackPath.references.map((ref, i) => (
+                    <li key={i} className="text-sm text-muted-foreground flex items-center gap-2">
+                      <span>{ref.source}</span>
+                      {ref.url && (
+                        <>
+                          <span className="text-muted-foreground/50">—</span>
+                          <a href={ref.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">
+                            {ref.url}
+                          </a>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </div>
       </Layout>
