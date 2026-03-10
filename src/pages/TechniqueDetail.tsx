@@ -68,11 +68,6 @@ const TechniqueDetailPage = () => {
   const relatedDetections = detections.filter((d) => technique.detectionIds.includes(d.id));
   const CatIcon = categoryIcon[technique.category];
 
-  // Related techniques: share at least one AWS service, excluding self
-  const relatedTechniques = techniques.filter(
-    (t) => t.id !== technique.id && t.services.some((svc) => technique.services.includes(svc))
-  );
-
   return (
     <Layout>
       <div className="container py-12 max-w-4xl">
