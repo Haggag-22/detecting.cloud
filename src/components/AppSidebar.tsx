@@ -102,7 +102,7 @@ function buildSections(): SidebarSection[] {
       label: ap.title.length > 35 ? ap.title.substring(0, 35) + "…" : ap.title,
       icon: Route,
       iconColorClass: objectiveColors[ap.objective],
-      to: `/attack-paths/technique/${ap.slug}`,
+      to: `/attack-paths?technique=${ap.slug}`,
     })),
   ];
 
@@ -380,7 +380,7 @@ function NestedCollapsible({
             ) : (
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.iconColorClass ? item.iconColorClass.replace("text-", "bg-") : "bg-muted-foreground"}`} />
             ))}
-            <span className="flex-1 font-semibold">{item.label}</span>
+            <span className={`flex-1 font-semibold ${item.iconColorClass || ""}`}>{item.label}</span>
             <ChevronRight
               className={`h-3 w-3 transition-transform duration-200 ${
                 expanded[item.key] ? "rotate-90" : ""
@@ -401,7 +401,7 @@ function NestedCollapsible({
                     {child.dotColorClass && (
                       <span className={`w-1 h-1 rounded-full shrink-0 ${child.dotColorClass.replace("text-", "bg-")}`} />
                     )}
-                    <span className={`truncate ${child.dotColorClass || ""}`}>{child.label}</span>
+                    <span className="truncate">{child.label}</span>
                   </Link>
                 </SidebarMenuSubButton>
               </SidebarMenuSubItem>
