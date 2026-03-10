@@ -78,7 +78,6 @@ export function Footer() {
               <li><Link to="/detection-engineering" className="hover:text-foreground transition-colors">Detection Engineering</Link></li>
               <li><Link to="/simulator" className="hover:text-foreground transition-colors">Attack Simulator</Link></li>
               <li><Link to="/community-rules" className="hover:text-foreground transition-colors">Community Rules</Link></li>
-              <li><Link to="/tool-comparison" className="hover:text-foreground transition-colors">Tool Comparison</Link></li>
             </ul>
           </div>
         </div>

@@ -34,7 +34,6 @@ import {
   ShieldOff,
   Home,
   Info,
-  Wrench,
   BarChart3,
   Github,
   Twitter,
@@ -212,12 +211,6 @@ function buildSections(): SidebarSection[] {
       label: "Gap Analysis",
       icon: ShieldCheck,
       to: "/gap-analysis",
-    },
-    {
-      key: "tool-comparison",
-      label: "Tool Comparison",
-      icon: Wrench,
-      to: "/tool-comparison",
     },
     {
       key: "about",

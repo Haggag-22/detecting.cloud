@@ -15,7 +15,6 @@ import GapAnalysis from "./pages/GapAnalysis";
 import TechniqueDetail from "./pages/TechniqueDetail";
 import AttackSimulator from "./pages/AttackSimulator";
 import CommunityRules from "./pages/CommunityRules";
-import ToolComparison from "./pages/ToolComparison";
 import AdminSubscribers from "./pages/AdminSubscribers";
 import NotFound from "./pages/NotFound";
 import { AiAssistant } from "./components/AiAssistant";
@@ -40,7 +39,6 @@ const App = () => (
           <Route path="/gap-analysis" element={<GapAnalysis />} />
           <Route path="/simulator" element={<AttackSimulator />} />
           <Route path="/community-rules" element={<CommunityRules />} />
-          <Route path="/tool-comparison" element={<ToolComparison />} />
           <Route path="/admin/subscribers" element={<AdminSubscribers />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<NotFound />} />
