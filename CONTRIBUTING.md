@@ -5,45 +5,34 @@ Thanks for your interest in contributing detection rules! This guide explains ho
 ## How to Contribute a Detection Rule
 
 ### 1. Fork & Clone
+
 ```bash
 git clone https://github.com/YOUR-USERNAME/detecting.cloud.git
 cd detecting.cloud
 npm install
 ```
 
-### 2. Add Your Detection Rule
+### 2. Add Your Community Rule
 
-Edit `src/data/detections.ts` and add a new entry to the `detections` array.
+> **Important**: Community rules go in `src/data/communityRules.ts` — NOT in `src/data/detections.ts` (which contains the core platform rules maintained by the project owner).
 
-Each detection rule follows this structure:
+Add a new entry to the `communityRules` array in `src/data/communityRules.ts`:
 
 ```typescript
 {
-  id: "det-XXX",              // Unique ID (use next available number)
+  id: "cr-XXX",                // Use next available number (e.g., cr-007)
   title: "Your Rule Title",
   description: "What this rule detects and why it matters.",
-  awsService: "IAM",          // Primary AWS service (e.g., IAM, S3, EC2, Lambda, STS, etc.)
-  relatedServices: ["Lambda"], // Other AWS services involved
-  severity: "High",           // Critical | High | Medium | Low
+  author: "YourGitHubUsername",
+  awsService: "IAM",           // Primary AWS service (IAM, S3, EC2, Lambda, KMS, etc.)
+  severity: "High",            // Critical | High | Medium | Low
+  format: "sigma",             // sigma | splunk | cloudtrail | cloudwatch
+  rule: `your detection rule query here`,
+  votes: 0,
+  createdAt: "YYYY-MM-DD",     // Today's date
   tags: ["IAM", "Persistence"],
-  logSources: ["AWS CloudTrail"],
-  falsePositives: ["Describe legitimate scenarios that could trigger this rule"],
-  rules: {
-    sigma: `your sigma rule here`,
-    splunk: `your splunk query here`,
-    cloudtrail: `your CloudTrail Lake SQL query here`,
-    cloudwatch: `your CloudWatch Insights query here`,
-  },
-  relatedAttackSlugs: [],     // Related attack path slugs (if any)
 }
 ```
-
-### Rule Format Guidelines
-
-- **At least one** rule format is required (sigma, splunk, cloudtrail, or cloudwatch)
-- All four formats are preferred but not mandatory
-- Use realistic, tested queries when possible
-- Follow existing rules as examples
 
 ### Severity Levels
 
@@ -55,16 +44,32 @@ Each detection rule follows this structure:
 | **Low** | Informational, minor policy violations |
 
 ### 3. Test Locally
+
 ```bash
 npm run dev
 ```
-Navigate to the Detection Engineering page and verify your rule appears correctly.
+
+Navigate to the **Community Rules** page and verify your rule appears correctly.
 
 ### 4. Submit a Pull Request
+
 - Push your changes to your fork
-- Open a PR against `main` branch of `Haggag-22/detecting.cloud`
+- Open a PR against the `main` branch of `Haggag-22/detecting.cloud`
+- **Only modify `src/data/communityRules.ts`** — PRs touching other files will be rejected
 - Include a brief description of what the rule detects
 - Reference any MITRE ATT&CK technique IDs if applicable
+
+## Project Structure (for reference)
+
+```
+src/data/
+├── communityRules.ts   ← ADD YOUR RULES HERE
+├── detections.ts       ← Core rules (do NOT modify)
+├── techniques.ts       ← Technique library (do NOT modify)
+├── attackPaths.ts      ← Attack paths (do NOT modify)
+├── research.ts         ← Research posts (do NOT modify)
+└── services.ts         ← AWS services (do NOT modify)
+```
 
 ## Code of Conduct
 
@@ -75,4 +80,4 @@ Navigate to the Detection Engineering page and verify your rule appears correctl
 
 ## Questions?
 
-Open an issue on the repo or reach out via the platform.
+Open an [issue](https://github.com/Haggag-22/detecting.cloud/issues) on the repo.

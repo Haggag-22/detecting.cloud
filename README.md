@@ -1,73 +1,41 @@
-# Welcome to your Lovable project
+# Detecting.Cloud
 
-## Project info
+**Cloud Attack Research & Detection Engineering Platform**
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+[detecting.cloud](https://detecting.cloud) is an open-source platform focused on researching real-world cloud attack paths and building practical detection rules for defenders.
 
-## How can I edit this code?
+## What's Inside
 
-There are several ways of editing your application.
+- **Attack Paths** — Step-by-step breakdowns of real-world AWS attack chains
+- **Detection Rules** — Ready-to-use rules in Sigma, Splunk, CloudTrail Lake, and CloudWatch Insights formats
+- **Technique Library** — Categorized cloud attack techniques (credential access, privilege escalation, persistence, lateral movement, exfiltration)
+- **Attack Simulator** — Visualize attack flows and understand kill chains
+- **Attack Graph** — Interactive graph showing relationships between techniques, detections, and services
+- **Detection Coverage** — See which techniques have detections and identify gaps
+- **Gap Analysis** — Find blind spots in your detection coverage
+- **Community Rules** — Community-contributed detection rules (see [CONTRIBUTING.md](CONTRIBUTING.md))
+- **Tool Comparison** — Compare AWS security tools and services
 
-**Use Lovable**
+## Tech Stack
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+- React + TypeScript + Vite
+- Tailwind CSS + shadcn/ui
+- Framer Motion
+- React Flow (attack graphs)
 
-Changes made via Lovable will be committed automatically to this repo.
+## Contributing
 
-**Use your preferred IDE**
+We welcome community detection rules! See [CONTRIBUTING.md](CONTRIBUTING.md) for instructions on submitting rules via Pull Request.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Local Development
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```bash
+git clone https://github.com/Haggag-22/detecting.cloud.git
+cd detecting.cloud
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+## License
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+This project is open source. Detection rules are free to use in your security operations.
