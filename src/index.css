@@ -178,6 +178,34 @@
     background-size: 60px 60px;
   }
 
+  /* Attack Graph: dark theme for Controls, MiniMap, and Legend to match canvas background */
+  .attack-graph-flow {
+    --xy-minimap-background-color-default: hsl(215 40% 6%);
+    --xy-controls-button-background-color-default: hsl(215 40% 6%);
+    --xy-controls-button-background-color-hover-default: hsl(215 32% 11%);
+    --xy-controls-button-color-default: hsl(215 16% 72%);
+    --xy-controls-button-color-hover-default: hsl(210 40% 94%);
+    --xy-controls-button-border-color-default: hsl(215 24% 15%);
+  }
+  .attack-graph-controls,
+  .attack-graph-controls button {
+    background-color: hsl(215 40% 6%) !important;
+    border-color: hsl(215 24% 15%) !important;
+    color: hsl(215 16% 72%) !important;
+  }
+  .attack-graph-controls button:hover {
+    background-color: hsl(215 32% 11%) !important;
+    color: hsl(210 40% 94%) !important;
+  }
+  .attack-graph-minimap {
+    background-color: hsl(215 40% 6%) !important;
+    border: 1px solid hsl(215 24% 15%) !important;
+  }
+  .attack-graph-legend {
+    background-color: hsl(215 40% 6%);
+    color: hsl(215 16% 72%);
+  }
+
   /* React Flow node font fix - ensures text renders correctly in transform context */
   .react-flow__node {
     font-family: Inter, system-ui, -apple-system, sans-serif !important;

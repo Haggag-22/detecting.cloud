@@ -504,7 +504,7 @@ const AttackGraphPage = () => {
 
         {/* Graph */}
         {hasSelection && (
-          <div className="rounded-lg border border-border/50 bg-card overflow-hidden" style={{ height: "70vh" }}>
+          <div className="attack-graph-flow rounded-lg border border-border/50 bg-card overflow-hidden" style={{ height: "70vh" }}>
             <ReactFlow
               nodes={nodes}
               edges={edges}
@@ -516,14 +516,14 @@ const AttackGraphPage = () => {
               maxZoom={2}
               defaultEdgeOptions={{ type: "smoothstep" }}
               proOptions={{ hideAttribution: true }}
+              colorMode="dark"
             >
               <Background variant={BackgroundVariant.Dots} gap={30} size={1} color="hsl(213 20% 16% / 0.5)" />
               <Controls
-                className="!bg-card !border-border/50 !rounded-lg [&>button]:!bg-card [&>button]:!border-border/50 [&>button]:!text-muted-foreground [&>button:hover]:!bg-muted"
+                className="attack-graph-controls !rounded-lg"
               />
               <MiniMap
-                className="!bg-card !border-border/50 !rounded-lg"
-                style={{ background: "hsl(215, 38%, 8%)" }}
+                className="attack-graph-minimap !rounded-lg"
                 nodeColor={(node) => {
                   const nt = (node.data as GraphNodeData).nodeType;
                   if (nt === "attack") return "hsl(0 84% 60%)";
@@ -535,7 +535,7 @@ const AttackGraphPage = () => {
                 maskColor="hsl(215 40% 6% / 0.7)"
               />
               <Panel position="top-left">
-                <div className="flex flex-wrap gap-3 bg-card/90 backdrop-blur-sm border border-border/50 rounded-lg px-3 py-2">
+                <div className="flex flex-wrap gap-3 attack-graph-legend border border-border/50 rounded-lg px-3 py-2">
                   {Object.entries(nodeColors).map(([type, config]) => {
                     const Icon = config.icon;
                     return (
