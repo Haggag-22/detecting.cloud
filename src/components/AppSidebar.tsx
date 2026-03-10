@@ -163,12 +163,6 @@ function buildSections(): SidebarSection[] {
       to: "/",
     },
     {
-      key: "research",
-      label: "Research",
-      icon: ExternalLink,
-      to: "/research",
-    },
-    {
       key: "attack-paths",
       label: "Attack Paths",
       icon: Crosshair,
