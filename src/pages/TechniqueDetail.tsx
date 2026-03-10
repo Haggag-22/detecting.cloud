@@ -209,28 +209,6 @@ const TechniqueDetailPage = () => {
           <CloudTrailSample sample={technique.cloudtrailSample} />
         )}
 
-        {/* Related Techniques */}
-        {relatedTechniques.length > 0 && (
-          <div className="border-t border-border pt-6 mb-8">
-            <h2 className="flex items-center gap-2 font-display text-lg font-semibold mb-4">
-              <Layers className="h-4 w-4 text-muted-foreground" /> Related Techniques
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {relatedTechniques.slice(0, 4).map((rt) => (
-                <Link
-                  key={rt.id}
-                  to={`/attack-paths/technique/${rt.id}`}
-                  className="block rounded-lg border border-border/50 bg-card p-3 hover:border-primary/30 transition-colors"
-                >
-                  <Badge className={`text-[10px] border-0 mb-1 ${categoryColor[rt.category]}`}>
-                    {techniqueCategories[rt.category].label}
-                  </Badge>
-                  <p className="text-sm font-medium">{rt.name}</p>
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </Layout>
   );
