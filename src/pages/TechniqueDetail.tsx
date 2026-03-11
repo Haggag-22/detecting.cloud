@@ -176,6 +176,18 @@ const TechniqueDetailPage = () => {
           </p>
         </div>
 
+        {/* Detection Strategy */}
+        {technique.detectionStrategy && (
+          <div className="border-t border-border pt-6 mb-8">
+            <h2 className="flex items-center gap-2 font-display text-lg font-semibold mb-3">
+              <LinkIcon className="h-4 w-4 text-accent" /> Detection Strategy
+            </h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {technique.detectionStrategy}
+            </p>
+          </div>
+        )}
+
         {/* Detection Rules */}
         {relatedDetections.length > 0 && (
           <div className="border-t border-border pt-6 mb-8">

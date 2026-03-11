@@ -987,6 +987,182 @@ level: critical`,
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "organizations.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.policyId", "eventSource", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "organizations.amazonaws.com", eventName: "DetachPolicy", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { policyId: "p-xxx", targetId: "ou-xxx" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who modified or detached the SCP.", "Assess impact on organization-wide guardrails.", "Verify if this was planned governance change.", "Restore SCP if unauthorized."],
     testingSteps: ["Detach or update a Service Control Policy in Organizations.", "Verify CloudTrail captures DetachPolicy/DeletePolicy/UpdatePolicy.", "Run the detection to confirm the alert triggers."],},
+
+  // --- IAM Inline Policy Injection ---
+  {
+    id: "det-031",
+    title: "IAM Inline Policy Modification",
+    description: "Detects when inline IAM policies are added or updated via PutRolePolicy or PutUserPolicy. Provides baseline visibility into IAM inline policy changes affecting roles and users.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "High",
+    tags: ["IAM", "Inline Policy", "Privilege Escalation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate policy updates by admins", "Infrastructure automation (Terraform, CloudFormation)"],
+    rules: {
+      sigma: `title: IAM Inline Policy Modification
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - PutRolePolicy
+      - PutUserPolicy
+  condition: selection
+level: high`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=PutRolePolicy OR eventName=PutUserPolicy)
+| table _time, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName IN ('PutRolePolicy', 'PutUserPolicy')
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName in ["PutRolePolicy", "PutUserPolicy"]
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePolicy", "PutUserPolicy"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: {
+      primaryLogSource: "AWS CloudTrail",
+      generatingService: "iam.amazonaws.com",
+      importantFields: ["eventSource", "eventName", "userIdentity.arn", "userIdentity.type", "requestParameters.roleName", "requestParameters.userName", "sourceIPAddress", "eventTime"],
+      exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "PutRolePolicy", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "TargetRole", policyName: "EscalationPolicy", policyDocument: "{}" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2),
+    },
+    investigationSteps: ["Identify the identity that modified the inline policy.", "Verify whether the change was authorized.", "Inspect the policy document for excessive permissions.", "Review userIdentity.sessionContext.sessionIssuer.arn for assumed roles."],
+    testingSteps: ["Call PutRolePolicy or PutUserPolicy with a test policy.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+  },
+  {
+    id: "det-032",
+    title: "Suspicious Inline Policy Privilege Escalation",
+    description: "Detects PutRolePolicy/PutUserPolicy calls where the inline policy grants suspicious privileges. Attackers often use inline policies to escalate privileges or gain access to sensitive resources. Suspicious content includes Action \"*\", Resource \"*\", or high-risk permissions like iam:*, sts:AssumeRole, iam:PassRole, kms:Decrypt, secretsmanager:GetSecretValue, s3:GetObject.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "Critical",
+    tags: ["IAM", "Inline Policy", "Privilege Escalation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Admin creating broad policies for service accounts", "Legitimate cross-account assume role setup"],
+    rules: {
+      sigma: `title: Suspicious Inline Policy Privilege Escalation
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - PutRolePolicy
+      - PutUserPolicy
+  filter_policy:
+    requestParameters.policyDocument|contains:
+      - '"Action":"*"'
+      - '"Resource":"*"'
+      - 'iam:*'
+      - 'sts:AssumeRole'
+      - 'iam:PassRole'
+      - 'kms:Decrypt'
+      - 'secretsmanager:GetSecretValue'
+      - 's3:GetObject'
+  condition: selection and filter_policy
+level: critical`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=PutRolePolicy OR eventName=PutUserPolicy)
+| where like(requestParameters.policyDocument, "%*%") OR like(requestParameters.policyDocument, "%iam:*%") OR like(requestParameters.policyDocument, "%sts:AssumeRole%") OR like(requestParameters.policyDocument, "%iam:PassRole%") OR like(requestParameters.policyDocument, "%kms:Decrypt%") OR like(requestParameters.policyDocument, "%secretsmanager:GetSecretValue%") OR like(requestParameters.policyDocument, "%s3:GetObject%")
+| table _time, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.policyDocument
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName IN ('PutRolePolicy', 'PutUserPolicy')
+  AND (
+    requestParameters.policyDocument LIKE '%"Action":"*"%'
+    OR requestParameters.policyDocument LIKE '%"Resource":"*"%'
+    OR requestParameters.policyDocument LIKE '%iam:*%'
+    OR requestParameters.policyDocument LIKE '%sts:AssumeRole%'
+    OR requestParameters.policyDocument LIKE '%iam:PassRole%'
+    OR requestParameters.policyDocument LIKE '%kms:Decrypt%'
+    OR requestParameters.policyDocument LIKE '%secretsmanager:GetSecretValue%'
+    OR requestParameters.policyDocument LIKE '%s3:GetObject%'
+  )
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName in ["PutRolePolicy", "PutUserPolicy"]
+| filter requestParameters.policyDocument like /"Action":"\*"/ or requestParameters.policyDocument like /"Resource":"\*"/ or requestParameters.policyDocument like /iam:\*/ or requestParameters.policyDocument like /sts:AssumeRole/ or requestParameters.policyDocument like /iam:PassRole/
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePolicy", "PutUserPolicy"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: {
+      primaryLogSource: "AWS CloudTrail",
+      generatingService: "iam.amazonaws.com",
+      importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "requestParameters.policyDocument", "sourceIPAddress", "eventTime"],
+      exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "PutRolePolicy", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "TargetRole", policyName: "EscalationPolicy", policyDocument: '{"Statement":[{"Effect":"Allow","Action":"*","Resource":"*"}]}' }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2),
+    },
+    investigationSteps: ["Identify who added the inline policy and which principal was targeted.", "Inspect the policy document for excessive permissions.", "Verify if the actor is a known admin or automation.", "Check for self-modification (actor modifying their own role/user)."],
+    testingSteps: ["Add an inline policy with Action * and Resource * to a test role.", "Verify CloudTrail captures the event with policyDocument.", "Run the detection to confirm the alert triggers."],
+  },
+  {
+    id: "det-033",
+    title: "Inline Policy Modification by Unexpected Actor",
+    description: "Detects IAM policy changes (PutRolePolicy, PutUserPolicy) performed by actors that normally should not modify IAM permissions. IAM policy modifications are typically performed by limited administrative roles or infrastructure automation. Suspicious actors include IAM users, application roles, EC2 instance roles, and assumed roles outside normal IAM administration. Uses userIdentity.type, userIdentity.arn, and userIdentity.sessionContext.sessionIssuer.arn.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "High",
+    tags: ["IAM", "Inline Policy", "Anomaly"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate DevOps or automation roles", "IAM admin users with expected access"],
+    rules: {
+      sigma: `title: Inline Policy Modification by Unexpected Actor
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - PutRolePolicy
+      - PutUserPolicy
+  filter_known_admin:
+    userIdentity.principalId|contains:
+      - 'terraform'
+      - 'cloudformation'
+      - 'admin'
+      - 'Admin'
+      - 'IAMAdmin'
+  condition: selection and not filter_known_admin
+level: high`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=PutRolePolicy OR eventName=PutUserPolicy)
+| where NOT (like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%") OR like(userIdentity.arn, "%admin%") OR like(userIdentity.arn, "%Admin%") OR like(userIdentity.arn, "%IAMAdmin%"))
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName IN ('PutRolePolicy', 'PutUserPolicy')
+  AND userIdentity.principalId NOT LIKE '%terraform%'
+  AND userIdentity.principalId NOT LIKE '%cloudformation%'
+  AND userIdentity.arn NOT LIKE '%admin%'
+  AND userIdentity.arn NOT LIKE '%Admin%'
+  AND userIdentity.arn NOT LIKE '%IAMAdmin%'
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName in ["PutRolePolicy", "PutUserPolicy"]
+| filter userIdentity.principalId not like /terraform/ and userIdentity.principalId not like /cloudformation/ and userIdentity.arn not like /admin/i
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePolicy", "PutUserPolicy"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: {
+      primaryLogSource: "AWS CloudTrail",
+      generatingService: "iam.amazonaws.com",
+      importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.roleName", "requestParameters.userName", "sourceIPAddress", "eventTime"],
+      exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "PutRolePolicy", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/app-user", principalId: "AIDAEXAMPLE" }, requestParameters: { roleName: "TargetRole", policyName: "EscalationPolicy" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2),
+    },
+    investigationSteps: ["Identify the actor type (IAMUser, AssumedRole) and ARN.", "Verify if this identity is authorized to modify IAM policies.", "Check userIdentity.sessionContext.sessionIssuer.arn for assumed roles.", "Review whether the actor is an EC2 instance role or application role."],
+    testingSteps: ["As a non-admin IAM user or assumed role, call PutRolePolicy.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
+  },
 ];
 
 /**
