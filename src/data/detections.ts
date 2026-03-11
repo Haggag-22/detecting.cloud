@@ -992,10 +992,10 @@ level: critical`,
   {
     id: "det-031",
     title: "IAM Inline Policy Modification",
-    description: "Detects when inline IAM policies are added or updated via PutRolePolicy or PutUserPolicy. Provides baseline visibility into IAM inline policy changes affecting roles and users.",
+    description: "Detects when inline IAM policies are added or updated via PutRolePolicy or PutUserPolicy. Provides baseline visibility into IAM inline policy changes affecting roles and users. Important activity but not necessarily malicious — fires during normal operations (Terraform, CI/CD, manual admin tasks).",
     awsService: "IAM",
     relatedServices: [],
-    severity: "High",
+    severity: "Medium",
     tags: ["IAM", "Inline Policy", "Privilege Escalation"],
     logSources: ["AWS CloudTrail"],
     falsePositives: ["Legitimate policy updates by admins", "Infrastructure automation (Terraform, CloudFormation)"],
@@ -1011,7 +1011,7 @@ detection:
       - PutRolePolicy
       - PutUserPolicy
   condition: selection
-level: high`,
+level: medium`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=PutRolePolicy OR eventName=PutUserPolicy)
 | table _time, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress
@@ -1162,6 +1162,79 @@ ORDER BY eventTime DESC`,
     },
     investigationSteps: ["Identify the actor type (IAMUser, AssumedRole) and ARN.", "Verify if this identity is authorized to modify IAM policies.", "Check userIdentity.sessionContext.sessionIssuer.arn for assumed roles.", "Review whether the actor is an EC2 instance role or application role."],
     testingSteps: ["As a non-admin IAM user or assumed role, call PutRolePolicy.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
+  },
+  {
+    id: "det-034",
+    title: "Inline Policy Modification Followed by Sensitive API Use",
+    description: "Behavior correlation: detects when PutRolePolicy or PutUserPolicy is followed within 10 minutes by the same identity performing sensitive API calls (AssumeRole, GetSecretValue, ListBuckets). Example attack chain: attacker compromises EC2 role → PutRolePolicy → AssumeRole, GetSecretValue, ListBuckets. Catches real attacks with much higher confidence than single-event rules.",
+    awsService: "IAM",
+    relatedServices: ["STS", "Secrets Manager", "S3"],
+    severity: "Critical",
+    tags: ["IAM", "Inline Policy", "Behavior Correlation", "Privilege Escalation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate policy update followed by normal API use", "DevOps workflow updating role then assuming it"],
+    rules: {
+      sigma: `title: Inline Policy Modification Followed by Sensitive API Use
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_policy:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - PutRolePolicy
+      - PutUserPolicy
+  selection_sensitive:
+    eventName:
+      - AssumeRole
+      - GetSecretValue
+      - ListBuckets
+  condition: 1 of selection_*
+level: critical
+# Note: Full correlation (same identity, within 10 min) requires SIEM correlation or runbooks.
+# This Sigma rule identifies both event types; implement time-window correlation in your SIEM.`,
+      splunk: `index=aws sourcetype=aws:cloudtrail
+  ((eventSource=iam.amazonaws.com AND (eventName=PutRolePolicy OR eventName=PutUserPolicy))
+   OR (eventName=AssumeRole OR eventName=GetSecretValue OR eventName=ListBuckets))
+| eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
+| transaction actor maxspan=10m
+| where mvcount(mvfilter(eventSource="iam.amazonaws.com" AND eventName IN ("PutRolePolicy","PutUserPolicy")))>0
+  AND mvcount(mvfilter(eventName IN ("AssumeRole","GetSecretValue","ListBuckets")))>0
+| table _time, actor, eventName, requestParameters.roleName, requestParameters.userName`,
+      cloudtrail: `WITH policy_mods AS (
+  SELECT userIdentity.arn AS actor, eventTime AS policy_time
+  FROM cloudtrail_logs
+  WHERE eventSource = 'iam.amazonaws.com'
+    AND eventName IN ('PutRolePolicy', 'PutUserPolicy')
+),
+sensitive_use AS (
+  SELECT userIdentity.arn AS actor, eventTime AS use_time, eventName
+  FROM cloudtrail_logs
+  WHERE eventName IN ('AssumeRole', 'GetSecretValue', 'ListBuckets')
+)
+SELECT p.actor, p.policy_time, s.use_time, s.eventName
+FROM policy_mods p
+JOIN sensitive_use s ON p.actor = s.actor
+  AND s.use_time > p.policy_time
+  AND s.use_time <= p.policy_time + INTERVAL '10' MINUTE
+ORDER BY p.policy_time DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, eventSource
+| filter (eventSource = "iam.amazonaws.com" and eventName in ["PutRolePolicy", "PutUserPolicy"])
+  or eventName in ["AssumeRole", "GetSecretValue", "ListBuckets"]
+| stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
+| filter cnt > 1
+| sort cnt desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePolicy", "PutUserPolicy"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: {
+      primaryLogSource: "AWS CloudTrail",
+      generatingService: "iam.amazonaws.com",
+      importantFields: ["eventSource", "eventName", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.roleName", "requestParameters.userName", "eventTime"],
+      exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "PutRolePolicy", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/ec2-role/i-xxx" }, requestParameters: { roleName: "TargetRole", policyName: "EscalationPolicy" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2),
+    },
+    investigationSteps: ["Identify the identity that performed the policy modification.", "Review the sequence: policy change → sensitive API use within 10 minutes.", "Verify if AssumeRole/GetSecretValue/ListBuckets was expected.", "Check whether the actor compromised an EC2 or application role before the policy change."],
+    testingSteps: ["As a test role, call PutRolePolicy, then within 10 min call AssumeRole or GetSecretValue.", "Verify both events appear in CloudTrail.", "Run the Splunk or Athena correlation query to confirm the alert triggers."],
   },
 ];
 

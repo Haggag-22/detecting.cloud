@@ -759,7 +759,7 @@ export const techniques: Technique[] = [
       "An attacker with iam:PutRolePolicy or iam:PutUserPolicy can attach an inline policy directly to a role or user. Inline policies are embedded in the principal and can grant broad permissions (e.g., Action: *, Resource: *), bypassing restrictions that might apply to managed policies. The attacker targets principals they control or can assume. Required permissions are iam:PutRolePolicy for roles or iam:PutUserPolicy for users.",
     services: ["IAM"],
     permissions: ["iam:PutRolePolicy", "iam:PutUserPolicy"],
-    detectionIds: ["det-031", "det-032", "det-033"],
+    detectionIds: ["det-031", "det-032", "det-033", "det-034"],
     detectionStrategy:
       "IAM Inline Policy Injection can be detected by monitoring IAM policy modification API calls recorded in CloudTrail. The key events are PutRolePolicy and PutUserPolicy, which allow an attacker to attach inline policies to roles or users and grant excessive privileges. Detection should focus on: IAM policy modification activity, unexpected actors modifying policies, inline policies granting excessive permissions (e.g., Action \"*\", Resource \"*\"), and self-modification or privilege escalation behavior.",
     mitigations: ["Restrict PutRolePolicy/PutUserPolicy", "Use permission boundaries", "Monitor inline policy changes"],
