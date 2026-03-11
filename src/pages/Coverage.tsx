@@ -10,7 +10,7 @@ import {
 } from "recharts";
 import {
   CheckCircle2, XCircle, AlertCircle, AlertTriangle, Filter, Search,
-  ShieldAlert, TrendingUp,
+  TrendingUp,
 } from "lucide-react";
 
 const categoryColors: Record<TechniqueCategory, string> = {
@@ -47,10 +47,20 @@ function getCoverageStatus(detectionIds: string[]): CoverageStatus {
 
 const severityScore: Record<string, number> = { Critical: 4, High: 3, Medium: 2, Low: 1 };
 
+function getPriorityLabel(score: number): string {
+  if (score >= 9) return "Critical";
+  if (score >= 7) return "High";
+  if (score >= 4) return "Medium";
+  if (score >= 1) return "Low";
+  return "—";
+}
+
 const CoveragePage = () => {
   const [categoryFilter, setCategoryFilter] = useState<TechniqueCategory | "all">("all");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<"status" | "priority">("status");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   const analysis = useMemo(() => {
     const categories = (Object.keys(techniqueCategories) as TechniqueCategory[]).map((cat) => {
@@ -76,15 +86,6 @@ const CoveragePage = () => {
       return { service: svc, total: svcTechs.length, covered, pct: svcTechs.length > 0 ? Math.round((covered / svcTechs.length) * 100) : 0 };
     });
 
-    const uncovered = techniques
-      .filter((t) => getCoverageStatus(t.detectionIds) === "none")
-      .map((t) => {
-        const appearsIn = attackPaths.filter((ap) => ap.steps.some((s) => s.techniqueId === t.id));
-        const maxSeverity = appearsIn.reduce((max, ap) => Math.max(max, severityScore[ap.severity] || 0), 0);
-        return { ...t, pathCount: appearsIn.length, priorityScore: maxSeverity * 2 + appearsIn.length };
-      })
-      .sort((a, b) => b.priorityScore - a.priorityScore);
-
     const partialTechs = techniques
       .filter((t) => getCoverageStatus(t.detectionIds) === "partial")
       .map((t) => {
@@ -98,19 +99,43 @@ const CoveragePage = () => {
     const totalNone = totalTechs - totalCovered - totalPartial;
     const overallPct = Math.round(((totalCovered + totalPartial * 0.5) / totalTechs) * 100);
 
-    return { categories, services, uncovered, partialTechs, totalTechs, totalCovered, totalPartial, totalNone, overallPct };
+    return { categories, services, partialTechs, totalTechs, totalCovered, totalPartial, totalNone, overallPct };
   }, []);
 
-  const filtered = techniques.filter((t) => {
+  const techniquesWithMeta = useMemo(() => {
+    return techniques.map((t) => {
+      const status = getCoverageStatus(t.detectionIds);
+      const appearsIn = attackPaths.filter((ap) => ap.steps.some((s) => s.techniqueId === t.id));
+      const pathCount = appearsIn.length;
+      const maxSeverity = appearsIn.reduce((max, ap) => Math.max(max, severityScore[ap.severity] || 0), 0);
+      const priorityScore = status === "none" ? maxSeverity * 2 + pathCount : 0;
+      const priorityLabel = status === "none" ? getPriorityLabel(priorityScore) : "—";
+      return { ...t, status, pathCount, priorityScore, priorityLabel };
+    });
+  }, [attackPaths]);
+
+  const filtered = techniquesWithMeta.filter((t) => {
     if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
     if (serviceFilter !== "all" && !t.services.includes(serviceFilter)) return false;
     if (searchQuery && !t.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
 
-  const coveredCount = filtered.filter((t) => getCoverageStatus(t.detectionIds) === "covered").length;
-  const partialCount = filtered.filter((t) => getCoverageStatus(t.detectionIds) === "partial").length;
-  const noneCount = filtered.filter((t) => getCoverageStatus(t.detectionIds) === "none").length;
+  const sorted = useMemo(() => {
+    const order = sortOrder === "desc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      if (sortBy === "status") {
+        const statusOrder = { none: 0, partial: 1, covered: 2 };
+        const diff = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
+        return diff * order;
+      }
+      if (sortBy === "priority") {
+        const diff = a.priorityScore - b.priorityScore;
+        return diff * order;
+      }
+      return 0;
+    });
+  }, [filtered, sortBy, sortOrder]);
 
   return (
     <Layout>
@@ -199,48 +224,6 @@ const CoveragePage = () => {
           </div>
         </div>
 
-        {/* Coverage Gaps — Priority List */}
-        {analysis.uncovered.length > 0 && (
-          <div className="mb-8">
-            <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 text-destructive" /> Coverage Gaps — Priority List
-            </h2>
-            <p className="text-xs text-muted-foreground mb-4">
-              Techniques with no detection rules, sorted by priority (based on severity of attack paths they appear in).
-            </p>
-            <div className="rounded-lg border border-border/50 overflow-hidden">
-              <div className="grid grid-cols-[1fr_140px_80px_80px] gap-0 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted px-4 py-3 border-b border-border">
-                <span>Technique</span>
-                <span>Category</span>
-                <span>In Paths</span>
-                <span>Priority</span>
-              </div>
-              <div className="divide-y divide-border/50">
-                {analysis.uncovered.map((tech) => (
-                  <Link
-                    key={tech.id}
-                    to={`/attack-paths/technique/${tech.id}`}
-                    className="grid grid-cols-[1fr_140px_80px_80px] gap-0 px-4 py-3 hover:bg-muted/50 transition-colors items-center"
-                  >
-                    <span className="font-medium text-sm">{tech.name}</span>
-                    <Badge variant="outline" className="text-[10px] w-fit border-border">
-                      {techniqueCategories[tech.category].label}
-                    </Badge>
-                    <span className="text-xs text-muted-foreground">{tech.pathCount} chains</span>
-                    <div className="flex items-center gap-1.5">
-                      <div className={`w-2 h-2 rounded-full ${
-                        tech.priorityScore >= 8 ? "bg-destructive" :
-                        tech.priorityScore >= 4 ? "bg-yellow-400" : "bg-muted-foreground"
-                      }`} />
-                      <span className="text-xs">{tech.priorityScore > 0 ? tech.priorityScore : "—"}</span>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Partial Coverage */}
         {analysis.partialTechs.length > 0 && (
           <div className="mb-8">
@@ -264,9 +247,9 @@ const CoveragePage = () => {
           </div>
         )}
 
-        {/* Filters & All Techniques Matrix */}
+        {/* Filters & Coverage Matrix */}
         <div>
-          <h2 className="font-display text-lg font-semibold mb-4">All Techniques</h2>
+          <h2 className="font-display text-lg font-semibold mb-4">Coverage Matrix</h2>
           <div className="flex flex-wrap gap-3 mb-6 items-center">
             <Filter className="h-4 w-4 text-muted-foreground" />
             <div className="relative">
@@ -298,19 +281,37 @@ const CoveragePage = () => {
                 <option key={svc.service} value={svc.service}>{svc.service}</option>
               ))}
             </select>
+            <span className="text-xs text-muted-foreground ml-2">Sort by:</span>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as "status" | "priority")}
+              className="rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary/50"
+            >
+              <option value="status">Status (Gap / Covered)</option>
+              <option value="priority">Priority</option>
+            </select>
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
+              className="rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary/50"
+            >
+              <option value="desc">Descending</option>
+              <option value="asc">Ascending</option>
+            </select>
           </div>
 
           <div className="rounded-lg border border-border/50 overflow-hidden">
-            <div className="grid grid-cols-[1fr_140px_120px_100px_100px] gap-0 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted px-4 py-3 border-b border-border">
+            <div className="grid grid-cols-[1fr_120px_100px_80px_80px_100px_80px] gap-0 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted px-4 py-3 border-b border-border">
               <span>Technique</span>
               <span>Category</span>
               <span>Services</span>
+              <span>In Paths</span>
               <span>Detections</span>
               <span>Status</span>
+              <span>Priority</span>
             </div>
             <div className="divide-y divide-border/50">
-              {filtered.map((tech) => {
-                const status = getCoverageStatus(tech.detectionIds);
+              {sorted.map((tech) => {
                 const matchedDetections = tech.detectionIds
                   .map((id) => detections.find((d) => d.id === id))
                   .filter(Boolean);
@@ -319,33 +320,44 @@ const CoveragePage = () => {
                   <Link
                     key={tech.id}
                     to={`/attack-paths/technique/${tech.id}`}
-                    className="grid grid-cols-[1fr_140px_120px_100px_100px] gap-0 px-4 py-3 hover:bg-muted/50 transition-colors items-center"
+                    className="grid grid-cols-[1fr_120px_100px_80px_80px_100px_80px] gap-0 px-4 py-3 hover:bg-muted/50 transition-colors items-center"
                   >
                     <span className="font-medium text-sm text-foreground">{tech.name}</span>
                     <Badge className={`text-[10px] border-0 w-fit ${categoryColors[tech.category]}`}>
                       {techniqueCategories[tech.category].label}
                     </Badge>
                     <span className="text-xs text-muted-foreground">{tech.services.join(", ")}</span>
+                    <span className="text-xs text-muted-foreground">{tech.pathCount} chains</span>
                     <span className="text-xs text-muted-foreground">{matchedDetections.length} rules</span>
                     <div className="flex items-center gap-1.5">
-                      {status === "covered" && (
+                      {tech.status === "covered" && (
                         <>
                           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
                           <span className="text-xs text-emerald-400">Covered</span>
                         </>
                       )}
-                      {status === "partial" && (
+                      {tech.status === "partial" && (
                         <>
                           <AlertCircle className="h-3.5 w-3.5 text-yellow-400" />
                           <span className="text-xs text-yellow-400">Partial</span>
                         </>
                       )}
-                      {status === "none" && (
+                      {tech.status === "none" && (
                         <>
                           <XCircle className="h-3.5 w-3.5 text-red-400" />
                           <span className="text-xs text-red-400">Gap</span>
                         </>
                       )}
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {tech.priorityLabel !== "—" && (
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${
+                          tech.priorityLabel === "Critical" ? "bg-destructive" :
+                          tech.priorityLabel === "High" ? "bg-orange-400" :
+                          tech.priorityLabel === "Medium" ? "bg-yellow-400" : "bg-muted-foreground"
+                        }`} />
+                      )}
+                      <span className="text-xs text-muted-foreground">{tech.priorityLabel}</span>
                     </div>
                   </Link>
                 );
