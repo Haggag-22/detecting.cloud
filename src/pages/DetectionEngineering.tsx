@@ -25,22 +25,26 @@ const formatLabels: Record<string, string> = {
 };
 
 // Syntax highlighting for JSON, HCL (Terraform), YAML (CloudFormation)
+// Uses placeholders for numbers to avoid regex matching digits in inserted class names (e.g. text-amber-400)
+const NUM_PLACEHOLDER = "\uE000"; // Unicode private use - won't appear in source code
+const NUM_END = "\uE001";
+
 function highlightCodeBlock(code: string, language: string): React.ReactNode {
   const keyClass = "text-primary";
   const stringClass = "text-emerald-400";
   const numberClass = "text-amber-400";
   const boolNullClass = "text-blue-400";
-  const punctuationClass = "text-muted-foreground";
 
   if (language === "json") {
     let html = code
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
+      .replace(/\b(-?\d+\.?\d*)\b/g, (m) => `${NUM_PLACEHOLDER}${m}${NUM_END}`)
+      .replace(/\b(true|false|null)\b/g, `<span class="${boolNullClass}">$1</span>`)
       .replace(/"([^"\\]*(\\.[^"\\]*)*)"\s*(?=:)/g, `<span class="${keyClass}">"$1"</span>`)
       .replace(/"([^"\\]*(\\.[^"\\]*)*)"(?!\s*:)/g, `<span class="${stringClass}">"$1"</span>`)
-      .replace(/\b(-?\d+\.?\d*)\b/g, `<span class="${numberClass}">$1</span>`)
-      .replace(/\b(true|false|null)\b/g, `<span class="${boolNullClass}">$1</span>`);
+      .replace(new RegExp(`${NUM_PLACEHOLDER}([^${NUM_END}]+)${NUM_END}`, "g"), `<span class="${numberClass}">$1</span>`);
     return <code dangerouslySetInnerHTML={{ __html: html }} />;
   }
 
@@ -52,10 +56,11 @@ function highlightCodeBlock(code: string, language: string): React.ReactNode {
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
+      .replace(/\b(\d+)\b/g, (m) => `${NUM_PLACEHOLDER}${m}${NUM_END}`)
       .replace(hclKeywords, `<span class="${keyClass}">$1</span>`)
       .replace(hclFuncs, `<span class="${boolNullClass}">$1</span>`)
       .replace(hclStrings, `<span class="${stringClass}">"$1"</span>`)
-      .replace(/\b(\d+)\b/g, `<span class="${numberClass}">$1</span>`);
+      .replace(new RegExp(`${NUM_PLACEHOLDER}([^${NUM_END}]+)${NUM_END}`, "g"), `<span class="${numberClass}">$1</span>`);
     return <code dangerouslySetInnerHTML={{ __html: html }} />;
   }
 
@@ -65,11 +70,12 @@ function highlightCodeBlock(code: string, language: string): React.ReactNode {
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
+      .replace(/\b(-?\d+\.?\d*)\b/g, (m) => `${NUM_PLACEHOLDER}${m}${NUM_END}`)
+      .replace(/\b(true|false|null|yes|no)\b/gi, `<span class="${boolNullClass}">$1</span>`)
       .replace(yamlKeys, (_, indent, key, colon) => `${indent}<span class="${keyClass}">${key}</span>${colon}`)
       .replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, `<span class="${stringClass}">"$1"</span>`)
       .replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, `<span class="${stringClass}">'$1'</span>`)
-      .replace(/\b(-?\d+\.?\d*)\b/g, `<span class="${numberClass}">$1</span>`)
-      .replace(/\b(true|false|null|yes|no)\b/gi, `<span class="${boolNullClass}">$1</span>`);
+      .replace(new RegExp(`${NUM_PLACEHOLDER}([^${NUM_END}]+)${NUM_END}`, "g"), `<span class="${numberClass}">$1</span>`);
     return <code dangerouslySetInnerHTML={{ __html: html }} />;
   }
 
