@@ -777,7 +777,9 @@ export const techniques: Technique[] = [
       "IAM managed policies can have multiple versions. Only the default version is in effect. An attacker with iam:SetDefaultPolicyVersion can roll back to an older version of a policy that has more permissive permissions. If a policy was previously tightened (e.g., a new version removed admin access), the attacker sets the older version as default to restore the broader permissions. This requires no new policy creation and can be done with a single API call. Required permission is iam:SetDefaultPolicyVersion on the target policy.",
     services: ["IAM"],
     permissions: ["iam:SetDefaultPolicyVersion"],
-    detectionIds: [],
+    detectionIds: ["det-035", "det-036", "det-037"],
+    detectionStrategy:
+      "Attackers can escalate privileges by reverting a managed policy to an earlier version containing broader permissions. Detection should monitor SetDefaultPolicyVersion API calls, unexpected actors modifying policies, changes affecting administrative policies, and policy version rollbacks.",
     mitigations: ["Restrict SetDefaultPolicyVersion", "Audit policy version changes", "Use AWS Config for policy compliance"],
     category: "privilege-escalation",
     commands: [
@@ -793,7 +795,9 @@ export const techniques: Technique[] = [
       "An attacker with iam:DetachUserPolicy, iam:DetachRolePolicy, or iam:DeleteUserPolicy can remove restrictive policies from principals they control or have compromised. Detaching a policy that limited the principal's permissions (e.g., a deny policy or permission boundary) immediately expands the effective permissions. Deleting an inline policy removes its restrictions. The attacker targets their own user or role, or principals they can modify. Required permissions include iam:DetachUserPolicy, iam:DetachRolePolicy, iam:DeleteUserPolicy, or iam:DeleteRolePolicy.",
     services: ["IAM"],
     permissions: ["iam:DeleteUserPolicy", "iam:DetachUserPolicy", "iam:DetachRolePolicy"],
-    detectionIds: [],
+    detectionIds: ["det-038", "det-039", "det-040"],
+    detectionStrategy:
+      "Attackers can escalate privileges by removing restrictive policies or deleting inline policies that limited access. Detection should focus on policy detach events, policy deletion events, unexpected actors modifying IAM policies, and removal of restrictive policies (deny policies, permission boundaries).",
     mitigations: ["Alert on policy detach/delete", "Use SCPs to protect critical policies", "Implement change management"],
     category: "privilege-escalation",
     commands: [
