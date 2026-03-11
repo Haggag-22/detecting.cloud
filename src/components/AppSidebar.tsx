@@ -121,20 +121,23 @@ function buildSections(): SidebarSection[] {
     "defense-evasion": ShieldOff,
   };
 
-  const techniqueChildren: SidebarChild[] = (Object.keys(techniqueCategories) as TechniqueCategory[]).map((catKey) => {
-    const catTechs = techniques.filter((t) => t.category === catKey);
-    const colorClass = techniqueCategoryColors[catKey] || "text-muted-foreground";
-    return {
-      key: `tech-cat-${catKey}`,
-      label: techniqueCategories[catKey].label,
-      icon: techniqueCategoryIcons[catKey] || Crosshair,
-      iconColorClass: colorClass,
-      children: catTechs.map((t) => ({
-        label: t.name.length > 35 ? t.name.substring(0, 35) + "…" : t.name,
-        to: `/attack-paths/technique/${t.id}`,
-      })),
-    };
-  }).filter((c) => c.children.length > 0);
+  const techniqueChildren: SidebarChild[] = [
+    { key: "tech-all", label: "All Techniques", icon: Route, to: "/techniques" },
+    ...(Object.keys(techniqueCategories) as TechniqueCategory[]).map((catKey) => {
+      const catTechs = techniques.filter((t) => t.category === catKey);
+      const colorClass = techniqueCategoryColors[catKey] || "text-muted-foreground";
+      return {
+        key: `tech-cat-${catKey}`,
+        label: techniqueCategories[catKey].label,
+        icon: techniqueCategoryIcons[catKey] || Crosshair,
+        iconColorClass: colorClass,
+        children: catTechs.map((t) => ({
+          label: t.name.length > 35 ? t.name.substring(0, 35) + "…" : t.name,
+          to: `/attack-paths/technique/${t.id}`,
+        })),
+      };
+    }).filter((c) => c.children.length > 0),
+  ];
 
   const detectionsByService = getDetectionsByService();
   const detectionServiceChildren: SidebarChild[] = [
