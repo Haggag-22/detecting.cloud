@@ -182,16 +182,16 @@ function buildSections(): SidebarSection[] {
       children: detectionServiceChildren,
     },
     {
-      key: "community-rules",
-      label: "Community Rules",
-      icon: Bug,
-      to: "/community-rules",
-    },
-    {
       key: "attack-graph",
       label: "Attack Graph",
       icon: NetworkIcon,
       to: "/attack-graph",
+    },
+    {
+      key: "simulator",
+      label: "Attack Simulator",
+      icon: Route,
+      to: "/simulator",
     },
     {
       key: "coverage",
@@ -206,10 +206,10 @@ function buildSections(): SidebarSection[] {
       to: "/gap-analysis",
     },
     {
-      key: "simulator",
-      label: "Attack Simulator",
-      icon: Route,
-      to: "/simulator",
+      key: "community-rules",
+      label: "Community Rules",
+      icon: Bug,
+      to: "/community-rules",
     },
     {
       key: "about",

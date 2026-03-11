@@ -24,7 +24,59 @@ const formatLabels: Record<string, string> = {
   cloudwatch: "CloudWatch Insights",
 };
 
-// Lightweight syntax highlighting for YAML and SPL
+// Syntax highlighting for JSON, HCL (Terraform), YAML (CloudFormation)
+function highlightCodeBlock(code: string, language: string): React.ReactNode {
+  const keyClass = "text-primary";
+  const stringClass = "text-emerald-400";
+  const numberClass = "text-amber-400";
+  const boolNullClass = "text-blue-400";
+  const punctuationClass = "text-muted-foreground";
+
+  if (language === "json") {
+    let html = code
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"([^"\\]*(\\.[^"\\]*)*)"\s*(?=:)/g, `<span class="${keyClass}">"$1"</span>`)
+      .replace(/"([^"\\]*(\\.[^"\\]*)*)"(?!\s*:)/g, `<span class="${stringClass}">"$1"</span>`)
+      .replace(/\b(-?\d+\.?\d*)\b/g, `<span class="${numberClass}">$1</span>`)
+      .replace(/\b(true|false|null)\b/g, `<span class="${boolNullClass}">$1</span>`);
+    return <code dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+
+  if (language === "hcl") {
+    const hclKeywords = /\b(resource|data|variable|output|module|provider|terraform|locals|for|in|count|each)\b/g;
+    const hclStrings = /"([^"\\]*(\\.[^"\\]*)*)"/g;
+    const hclFuncs = /\b(jsonencode|file|join|split|lookup|element)\b/g;
+    let html = code
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(hclKeywords, `<span class="${keyClass}">$1</span>`)
+      .replace(hclFuncs, `<span class="${boolNullClass}">$1</span>`)
+      .replace(hclStrings, `<span class="${stringClass}">"$1"</span>`)
+      .replace(/\b(\d+)\b/g, `<span class="${numberClass}">$1</span>`);
+    return <code dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+
+  if (language === "yaml") {
+    const yamlKeys = /^(\s*)([\w.-]+)(\s*:)/gm;
+    let html = code
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(yamlKeys, (_, indent, key, colon) => `${indent}<span class="${keyClass}">${key}</span>${colon}`)
+      .replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, `<span class="${stringClass}">"$1"</span>`)
+      .replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, `<span class="${stringClass}">'$1'</span>`)
+      .replace(/\b(-?\d+\.?\d*)\b/g, `<span class="${numberClass}">$1</span>`)
+      .replace(/\b(true|false|null|yes|no)\b/gi, `<span class="${boolNullClass}">$1</span>`);
+    return <code dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+
+  return <code>{code}</code>;
+}
+
+// Lightweight syntax highlighting for YAML and SPL (detection rules)
 function highlightCode(code: string, format: string): React.ReactNode {
   if (format === "sigma") {
     // Highlight YAML keys and values
@@ -573,7 +625,7 @@ function CodeBlockWithCopy({
         </Button>
       </div>
       <pre className="p-4 overflow-x-auto bg-muted/30 text-sm font-mono leading-relaxed">
-        <code>{content}</code>
+        {highlightCodeBlock(content, language)}
       </pre>
     </div>
   );
