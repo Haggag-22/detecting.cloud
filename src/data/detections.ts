@@ -2359,6 +2359,494 @@ ORDER BY p.update_time DESC`,
     investigationSteps: ["Identify the user whose password was updated.", "Review ConsoleLogin events for that user within 1 hour.", "Check if the login was from an unusual IP or without MFA."],
     testingSteps: ["Update a login profile, then log in via console within 1h.", "Verify both events in CloudTrail.", "Run the Splunk or Athena correlation query."],
   },
+
+  // --- IAM Add User to Group ---
+  {
+    id: "det-056",
+    title: "IAM User Added to Group",
+    description: "Baseline visibility whenever a user is added to an IAM group. Important group-membership activity but can be legitimate in onboarding or admin workflows.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "Medium",
+    tags: ["IAM", "AddUserToGroup", "Privilege Escalation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate onboarding", "Admin group membership management"],
+    rules: {
+      sigma: `title: IAM User Added to Group
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: AddUserToGroup
+  condition: selection
+level: medium`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=AddUserToGroup
+| table _time, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName = 'AddUserToGroup'
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName, sourceIPAddress
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "AddUserToGroup"
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["AddUserToGroup"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.groupName", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "AddUserToGroup", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { groupName: "AdminGroup", userName: "compromised-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify who added the user and which group.", "Verify if the group has privileged policies.", "Check if the addition was authorized."],
+    testingSteps: ["Call AddUserToGroup.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+  },
+  {
+    id: "det-057",
+    title: "User Added to Privileged Group",
+    description: "Detects likely privilege escalation when the destination group is high-risk. Matches Admin, Administrators, PowerUser, BreakGlass, SecurityAdmin, PlatformAdmin patterns.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "High",
+    tags: ["IAM", "AddUserToGroup", "Privilege Escalation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Approved identity-lifecycle or onboarding automation"],
+    rules: {
+      sigma: `title: User Added to Privileged Group
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: AddUserToGroup
+  filter_privileged:
+    requestParameters.groupName|contains:
+      - 'Admin'
+      - 'Administrators'
+      - 'PowerUser'
+      - 'BreakGlass'
+      - 'SecurityAdmin'
+      - 'PlatformAdmin'
+  condition: selection and filter_privileged
+level: high`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=AddUserToGroup
+| where like(requestParameters.groupName, "%Admin%") OR like(requestParameters.groupName, "%PowerUser%") OR like(requestParameters.groupName, "%BreakGlass%") OR like(requestParameters.groupName, "%SecurityAdmin%") OR like(requestParameters.groupName, "%PlatformAdmin%") OR like(requestParameters.groupName, "%Administrators%")
+| table _time, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName = 'AddUserToGroup'
+  AND (requestParameters.groupName LIKE '%Admin%' OR requestParameters.groupName LIKE '%PowerUser%' OR requestParameters.groupName LIKE '%BreakGlass%' OR requestParameters.groupName LIKE '%SecurityAdmin%' OR requestParameters.groupName LIKE '%PlatformAdmin%' OR requestParameters.groupName LIKE '%Administrators%')
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "AddUserToGroup"
+| filter requestParameters.groupName like /Admin|PowerUser|BreakGlass|SecurityAdmin|PlatformAdmin|Administrators/
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["AddUserToGroup"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.groupName", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "AddUserToGroup", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { groupName: "AdminGroup", userName: "compromised-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the group and its attached policies.", "Verify if the user addition was authorized.", "Check for self-addition (actor = added user)."],
+    testingSteps: ["Add a user to a group with Admin in the name.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+  },
+  {
+    id: "det-058",
+    title: "Self-Addition or Backdoor Addition to Group",
+    description: "Detects likely malicious group membership when the actor adds themselves, or adds a suspiciously named user (backup, svc, admin2, support-temp, breakglass2, automation-backup).",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "High",
+    tags: ["IAM", "AddUserToGroup", "Privilege Escalation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Expected identity provisioning patterns"],
+    rules: {
+      sigma: `title: Self-Addition or Backdoor Addition to Group
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: AddUserToGroup
+  filter_suspicious_target:
+    requestParameters.userName|contains:
+      - 'backup'
+      - 'svc'
+      - 'admin2'
+      - 'support-temp'
+      - 'breakglass2'
+      - 'automation-backup'
+  condition: selection and filter_suspicious_target
+level: high`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=AddUserToGroup
+| eval actor_user=replace(userIdentity.arn, ".*user/", "")
+| where like(requestParameters.userName, "%backup%") OR like(requestParameters.userName, "%svc%") OR like(requestParameters.userName, "%admin2%") OR like(requestParameters.userName, "%support-temp%") OR like(requestParameters.userName, "%breakglass2%") OR like(requestParameters.userName, "%automation-backup%") OR (actor_user=requestParameters.userName)
+| table _time, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName = 'AddUserToGroup'
+  AND (requestParameters.userName LIKE '%backup%' OR requestParameters.userName LIKE '%svc%' OR requestParameters.userName LIKE '%admin2%' OR requestParameters.userName LIKE '%support-temp%' OR requestParameters.userName LIKE '%breakglass2%' OR requestParameters.userName LIKE '%automation-backup%'
+    OR regexp_extract(userIdentity.arn, 'user/([^/]+)$', 1) = requestParameters.userName)
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "AddUserToGroup"
+| filter requestParameters.userName like /backup|svc|admin2|support-temp|breakglass2|automation-backup/
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["AddUserToGroup"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.groupName", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "AddUserToGroup", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/attacker" }, requestParameters: { groupName: "AdminGroup", userName: "attacker" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Check if actor added themselves (self-addition).", "Verify if target username matches backdoor patterns.", "Review when the target user was created."],
+    testingSteps: ["Add yourself to a group or add a user with 'backup' in the name.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+  },
+  {
+    id: "det-059",
+    title: "AddUserToGroup Followed by Privileged Use",
+    description: "High-confidence escalation: AddUserToGroup then within 15 minutes the added user performs CreateAccessKey, AssumeRole, ConsoleLogin, GetSecretValue, s3:GetObject, AttachUserPolicy, PutUserPolicy.",
+    awsService: "IAM",
+    relatedServices: ["STS", "Secrets Manager", "S3"],
+    severity: "Critical",
+    tags: ["IAM", "AddUserToGroup", "Behavior Correlation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate onboarding followed by normal first-use activity"],
+    rules: {
+      sigma: `title: AddUserToGroup Followed by Privileged Use
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_add:
+    eventSource: iam.amazonaws.com
+    eventName: AddUserToGroup
+  selection_sensitive:
+    eventName:
+      - CreateAccessKey
+      - AssumeRole
+      - GetSecretValue
+      - AttachUserPolicy
+      - PutUserPolicy
+  condition: 1 of selection_*
+level: critical
+# Full correlation (added user, 15 min) requires SIEM.`,
+      splunk: `index=aws sourcetype=aws:cloudtrail
+  ((eventSource=iam.amazonaws.com AND eventName=AddUserToGroup) OR (eventName=CreateAccessKey OR eventName=AssumeRole OR eventName=GetSecretValue OR eventName=AttachUserPolicy OR eventName=PutUserPolicy))
+| eval target_user=case(eventName="AddUserToGroup", requestParameters.userName, eventName=CreateAccessKey, requestParameters.userName, eventName=AttachUserPolicy, requestParameters.userName, eventName=PutUserPolicy, requestParameters.userName, 1=1, replace(userIdentity.arn, ".*user/", ""))
+| eval is_add=if(eventName="AddUserToGroup", 1, 0)
+| eval is_sensitive=if(eventName IN ("CreateAccessKey","AssumeRole","GetSecretValue","AttachUserPolicy","PutUserPolicy"), 1, 0)
+| transaction target_user maxspan=15m
+| where mvcount(mvfilter(is_add=1))>0 AND mvcount(mvfilter(is_sensitive=1))>0
+| table _time, target_user, eventName, userIdentity.arn`,
+      cloudtrail: `WITH add_event AS (
+  SELECT requestParameters.userName AS target_user, eventTime AS add_time
+  FROM cloudtrail_logs
+  WHERE eventSource = 'iam.amazonaws.com'
+    AND eventName = 'AddUserToGroup'
+),
+sensitive_use AS (
+  SELECT regexp_extract(userIdentity.arn, 'user/([^/]+)$', 1) AS target_user, eventTime AS use_time, eventName
+  FROM cloudtrail_logs
+  WHERE eventName IN ('CreateAccessKey', 'AssumeRole', 'GetSecretValue', 'AttachUserPolicy', 'PutUserPolicy')
+)
+SELECT a.target_user, a.add_time, s.use_time, s.eventName
+FROM add_event a
+JOIN sensitive_use s ON a.target_user = s.target_user
+  AND s.use_time > a.add_time
+  AND s.use_time <= a.add_time + INTERVAL '15' MINUTE
+ORDER BY a.add_time DESC`,
+      cloudwatch: `fields @timestamp, eventSource, eventName, requestParameters.userName, userIdentity.arn
+| filter (eventSource = "iam.amazonaws.com" and eventName = "AddUserToGroup")
+  or eventName in ["CreateAccessKey", "AssumeRole", "GetSecretValue", "AttachUserPolicy", "PutUserPolicy"]
+| parse userIdentity.arn "*user/%{target_user}"
+| eval target_user=coalesce(requestParameters.userName, target_user)
+| stats count(*) as cnt, collect_list(eventName) as events by target_user
+| filter cnt > 1
+| sort cnt desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["AddUserToGroup"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.groupName", "requestParameters.userName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "AddUserToGroup", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { groupName: "AdminGroup", userName: "compromised-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the added user.", "Review activity by that user within 15 minutes.", "Verify if CreateAccessKey, AssumeRole, or other sensitive actions were expected."],
+    testingSteps: ["Add user to group, then as that user call CreateAccessKey within 15 min.", "Verify both events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+  },
+
+  // --- IAM Backdoor Role Creation ---
+  {
+    id: "det-060",
+    title: "IAM Role Created",
+    description: "Baseline visibility for new IAM role creation. Role creation is often legitimate but security-sensitive because the trust policy defines who can assume it.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "Medium",
+    tags: ["IAM", "CreateRole", "Persistence"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate role creation", "Terraform/CloudFormation"],
+    rules: {
+      sigma: `title: IAM Role Created
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: CreateRole
+  condition: selection
+level: medium`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=CreateRole
+| table _time, userIdentity.arn, eventName, requestParameters.roleName, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.roleName, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName = 'CreateRole'
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, sourceIPAddress
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "CreateRole"
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateRole"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.assumeRolePolicyDocument", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateRole", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "BackdoorRole", assumeRolePolicyDocument: "{}" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify who created the role.", "Inspect the trust policy (assumeRolePolicyDocument).", "Verify if the role creation was authorized."],
+    testingSteps: ["Call CreateRole.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+  },
+  {
+    id: "det-061",
+    title: "Suspicious Trust Policy on Role Creation",
+    description: "Detects likely persistence or backdoor setup through dangerous trust policies. Flags trust policies allowing root of another account, external principals, or broad trust. Excludes expected service principals (ec2.amazonaws.com, ecs-tasks.amazonaws.com, lambda.amazonaws.com) when role name and actor are consistent with normal provisioning.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "High",
+    tags: ["IAM", "CreateRole", "Persistence"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate cross-account role", "Service-linked role creation"],
+    rules: {
+      sigma: `title: Suspicious Trust Policy on Role Creation
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: CreateRole
+  filter_suspicious:
+    requestParameters.assumeRolePolicyDocument|contains:
+      - '"AWS":"arn:aws:iam::'
+      - 'root'
+      - ':root"'
+      - 'Principal'
+  condition: selection and filter_suspicious
+level: high
+# Refine: exclude ec2.amazonaws.com, lambda.amazonaws.com when role name matches.`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=CreateRole
+| where (like(requestParameters.assumeRolePolicyDocument, "%root%") OR like(requestParameters.assumeRolePolicyDocument, "%:root%") OR like(requestParameters.assumeRolePolicyDocument, "%arn:aws:iam::%"))
+  AND NOT (like(requestParameters.assumeRolePolicyDocument, "%ec2.amazonaws.com%") AND like(requestParameters.roleName, "%ec2%"))
+  AND NOT (like(requestParameters.assumeRolePolicyDocument, "%lambda.amazonaws.com%") AND like(requestParameters.roleName, "%lambda%"))
+| table _time, userIdentity.arn, eventName, requestParameters.roleName`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.assumeRolePolicyDocument
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName = 'CreateRole'
+  AND (requestParameters.assumeRolePolicyDocument LIKE '%root%' OR requestParameters.assumeRolePolicyDocument LIKE '%arn:aws:iam::%')
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.assumeRolePolicyDocument
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "CreateRole"
+| filter requestParameters.assumeRolePolicyDocument like /root|arn:aws:iam:/
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateRole"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.assumeRolePolicyDocument", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateRole", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "BackdoorRole", assumeRolePolicyDocument: '{"Statement":[{"Effect":"Allow","Principal":{"AWS":"arn:aws:iam::999999999999:root"},"Action":"sts:AssumeRole"}]}' }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Inspect the trust policy for external or root principals.", "Verify if cross-account trust was authorized.", "Check for overly broad trust conditions."],
+    testingSteps: ["Create a role with root trust policy.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+  },
+  {
+    id: "det-062",
+    title: "New Role Immediately Granted Privileged Policy",
+    description: "Correlates CreateRole with AttachRolePolicy or PutRolePolicy shortly after. Flags AdministratorAccess, PowerUserAccess, or inline policies with Action *, iam:*, sts:AssumeRole, iam:PassRole, kms:Decrypt, secretsmanager:GetSecretValue.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "Critical",
+    tags: ["IAM", "CreateRole", "Persistence", "Behavior Correlation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate role creation with appropriate policies"],
+    rules: {
+      sigma: `title: New Role Immediately Granted Privileged Policy
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_create:
+    eventSource: iam.amazonaws.com
+    eventName: CreateRole
+  selection_attach:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - AttachRolePolicy
+      - PutRolePolicy
+  condition: 1 of selection_*
+level: critical
+# Full correlation (same role, 15 min) requires SIEM.`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com
+  (eventName=CreateRole OR eventName=AttachRolePolicy OR eventName=PutRolePolicy)
+| eval role_name=case(eventName="CreateRole", requestParameters.roleName, eventName=AttachRolePolicy, requestParameters.roleName, eventName=PutRolePolicy, requestParameters.roleName, 1=1, null)
+| eval is_create=if(eventName="CreateRole", 1, 0)
+| eval is_privileged=if((eventName="AttachRolePolicy" AND (like(requestParameters.policyArn, "%AdministratorAccess%") OR like(requestParameters.policyArn, "%PowerUserAccess%"))) OR (eventName="PutRolePolicy" AND like(requestParameters.policyDocument, "%*%")), 1, 0)
+| transaction role_name maxspan=15m
+| where mvcount(mvfilter(is_create=1))>0 AND mvcount(mvfilter(is_privileged=1))>0
+| table _time, role_name, eventName, requestParameters.policyArn`,
+      cloudtrail: `WITH role_created AS (
+  SELECT requestParameters.roleName AS role_name, eventTime AS create_time
+  FROM cloudtrail_logs
+  WHERE eventSource = 'iam.amazonaws.com'
+    AND eventName = 'CreateRole'
+),
+policy_attached AS (
+  SELECT requestParameters.roleName AS role_name, eventTime AS attach_time, eventName, requestParameters.policyArn, requestParameters.policyDocument
+  FROM cloudtrail_logs
+  WHERE eventSource = 'iam.amazonaws.com'
+    AND eventName IN ('AttachRolePolicy', 'PutRolePolicy')
+    AND (requestParameters.policyArn LIKE '%AdministratorAccess%' OR requestParameters.policyArn LIKE '%PowerUserAccess%' OR requestParameters.policyDocument LIKE '%*%')
+)
+SELECT r.role_name, r.create_time, p.attach_time, p.eventName, p.policyArn
+FROM role_created r
+JOIN policy_attached p ON r.role_name = p.role_name
+  AND p.attach_time > r.create_time
+  AND p.attach_time <= r.create_time + INTERVAL '15' MINUTE
+ORDER BY r.create_time DESC`,
+      cloudwatch: `fields @timestamp, eventSource, eventName, requestParameters.roleName, requestParameters.policyArn, requestParameters.policyDocument
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName in ["CreateRole", "AttachRolePolicy", "PutRolePolicy"]
+| stats count(*) as cnt, collect_list(eventName) as events by requestParameters.roleName
+| filter cnt > 1
+| sort cnt desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateRole", "AttachRolePolicy", "PutRolePolicy"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.policyArn", "requestParameters.policyDocument", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateRole", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "BackdoorRole" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the role and policies attached.", "Review the sequence: CreateRole → AttachRolePolicy/PutRolePolicy within 15 min.", "Verify if AdministratorAccess or PowerUserAccess was authorized."],
+    testingSteps: ["Create a role, then attach AdministratorAccess within 15 min.", "Verify both events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+  },
+  {
+    id: "det-063",
+    title: "Suspicious Role Creation by Unexpected Actor",
+    description: "Detects role creation by identities that should not manage IAM roles. Suspicious actors include IAM users, application roles, EC2 instance roles, and non-admin assumed roles. Excludes Terraform, CloudFormation, and admin roles.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "High",
+    tags: ["IAM", "CreateRole", "Anomaly"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate DevOps or automation roles", "IAM admin users with expected access"],
+    rules: {
+      sigma: `title: Suspicious Role Creation by Unexpected Actor
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: CreateRole
+  filter_known_admin:
+    userIdentity.principalId|contains:
+      - 'terraform'
+      - 'cloudformation'
+      - 'admin'
+      - 'Admin'
+      - 'IAMAdmin'
+  condition: selection and not filter_known_admin
+level: high`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=CreateRole
+| where NOT (like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%") OR like(userIdentity.arn, "%admin%") OR like(userIdentity.arn, "%Admin%") OR like(userIdentity.arn, "%IAMAdmin%"))
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName = 'CreateRole'
+  AND userIdentity.principalId NOT LIKE '%terraform%'
+  AND userIdentity.principalId NOT LIKE '%cloudformation%'
+  AND userIdentity.arn NOT LIKE '%admin%'
+  AND userIdentity.arn NOT LIKE '%Admin%'
+  AND userIdentity.arn NOT LIKE '%IAMAdmin%'
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "CreateRole"
+| filter userIdentity.principalId not like /terraform|cloudformation|admin/i
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateRole"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.roleName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateRole", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx" }, requestParameters: { roleName: "BackdoorRole" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized to create IAM roles.", "Check sessionContext.sessionIssuer.arn for assumed roles."],
+    testingSteps: ["As a non-admin role, call CreateRole.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
+  },
+  {
+    id: "det-064",
+    title: "New Role Created Then Assumed",
+    description: "High-confidence persistence: CreateRole (optionally with AttachRolePolicy/PutRolePolicy) then AssumeRole on that role shortly afterward. Catches the common create-backdoor-role-then-use-it pattern.",
+    awsService: "IAM",
+    relatedServices: ["STS"],
+    severity: "Critical",
+    tags: ["IAM", "CreateRole", "Persistence", "Behavior Correlation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate role creation and immediate testing"],
+    rules: {
+      sigma: `title: New Role Created Then Assumed
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_create:
+    eventSource: iam.amazonaws.com
+    eventName: CreateRole
+  selection_assume:
+    eventName: AssumeRole
+  condition: 1 of selection_*
+level: critical
+# Full correlation (same role ARN assumed) requires SIEM.`,
+      splunk: `index=aws sourcetype=aws:cloudtrail
+  ((eventSource=iam.amazonaws.com AND eventName=CreateRole) OR (eventSource=sts.amazonaws.com AND eventName=AssumeRole))
+| eval role_name=case(eventName="CreateRole", requestParameters.roleName, eventName="AssumeRole", replace(requestParameters.roleArn, ".*role/", ""), 1=1, null)
+| eval is_create=if(eventName="CreateRole", 1, 0)
+| eval is_assume=if(eventName="AssumeRole", 1, 0)
+| transaction role_name maxspan=30m
+| where mvcount(mvfilter(is_create=1))>0 AND mvcount(mvfilter(is_assume=1))>0
+| table _time, role_name, eventName, userIdentity.arn`,
+      cloudtrail: `WITH role_created AS (
+  SELECT requestParameters.roleName AS role_name, eventTime AS create_time, awsregion, recipientaccountid
+  FROM cloudtrail_logs
+  WHERE eventSource = 'iam.amazonaws.com'
+    AND eventName = 'CreateRole'
+),
+role_assumed AS (
+  SELECT requestParameters.roleArn, regexp_extract(requestParameters.roleArn, 'role/([^/]+)$', 1) AS role_name, eventTime AS assume_time
+  FROM cloudtrail_logs
+  WHERE eventSource = 'sts.amazonaws.com'
+    AND eventName = 'AssumeRole'
+)
+SELECT r.role_name, r.create_time, a.assume_time
+FROM role_created r
+JOIN role_assumed a ON r.role_name = a.role_name
+  AND a.assume_time > r.create_time
+  AND a.assume_time <= r.create_time + INTERVAL '30' MINUTE
+ORDER BY r.create_time DESC`,
+      cloudwatch: `fields @timestamp, eventSource, eventName, requestParameters.roleName, requestParameters.roleArn
+| filter (eventSource = "iam.amazonaws.com" and eventName = "CreateRole")
+  or (eventSource = "sts.amazonaws.com" and eventName = "AssumeRole")
+| eval role_key=coalesce(requestParameters.roleName, replace(requestParameters.roleArn, ".*role/", ""))
+| stats count(*) as cnt, collect_list(eventName) as events by role_key
+| filter cnt > 1
+| sort cnt desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam", "aws.sts"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateRole", "AssumeRole"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.roleArn", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateRole", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "BackdoorRole" }, recipientAccountId: "123456789012", sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the role that was created.", "Review AssumeRole events for that role within 30 minutes.", "Verify if the assumption was authorized."],
+    testingSteps: ["Create a role, attach policy, then AssumeRole within 30 min.", "Verify all events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+  },
 ];
 
 /**

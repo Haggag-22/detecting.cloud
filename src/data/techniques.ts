@@ -883,7 +883,9 @@ export const techniques: Technique[] = [
       "An attacker with iam:AddUserToGroup can add a user (themselves or a backdoor user) to an IAM group that has elevated permissions. Group membership grants the user all permissions attached to the group's policies. If the attacker finds a group with broad access (e.g., AdminGroup), adding their user immediately escalates privileges. Required permission is iam:AddUserToGroup. The attacker must have a user to add and the group must exist.",
     services: ["IAM"],
     permissions: ["iam:AddUserToGroup"],
-    detectionIds: [],
+    detectionIds: ["det-056", "det-057", "det-058", "det-059"],
+    detectionStrategy:
+      "AddUserToGroup is dangerous because group membership instantly grants all permissions attached to the group. The best detections focus on privileged groups (Admin, PowerUser, break-glass), suspicious target users (backdoor patterns, self-addition), and follow-on privileged activity by the added user.",
     mitigations: ["Restrict AddUserToGroup", "Audit group membership", "Use least-privilege groups"],
     category: "privilege-escalation",
     commands: [
@@ -898,7 +900,9 @@ export const techniques: Technique[] = [
       "An attacker with iam:CreateRole and iam:AttachRolePolicy creates a new IAM role with a trust policy that allows their principal (e.g., attacker account root or a specific user) to assume it. They attach high-privilege policies to the role. The attacker can then assume this role at any time for persistent access. This survives key rotation because it relies on role assumption rather than stored credentials. Required permissions are iam:CreateRole and iam:AttachRolePolicy (or iam:PutRolePolicy for inline policies).",
     services: ["IAM"],
     permissions: ["iam:CreateRole", "iam:AttachRolePolicy"],
-    detectionIds: [],
+    detectionIds: ["det-060", "det-061", "det-062", "det-063", "det-064"],
+    detectionStrategy:
+      "Backdoor role creation is rarely just CreateRole by itself. The high-confidence pattern is CreateRole plus suspicious trust policy (external account, root, broad principal), plus privileged permissions (AttachRolePolicy/PutRolePolicy with AdministratorAccess or broad actions), plus subsequent AssumeRole usage.",
     mitigations: ["Restrict role creation", "Audit new roles", "Use SCPs to limit role creation"],
     category: "persistence",
     commands: [
@@ -914,7 +918,9 @@ export const techniques: Technique[] = [
       "An attacker with iam:PassRole and ec2:RunInstances launches a new EC2 instance with an IAM instance profile that has a high-privilege role. The instance profile is specified via the IamInstanceProfile parameter. Once the instance is running, the attacker accesses it (via SSM, user data exfiltration, or if they have network access) and queries the Instance Metadata Service to retrieve the role's temporary credentials. Required permissions are iam:PassRole for the instance profile role and ec2:RunInstances.",
     services: ["IAM", "EC2"],
     permissions: ["iam:PassRole", "ec2:RunInstances"],
-    detectionIds: [],
+    detectionIds: ["det-065", "det-066", "det-067", "det-068", "det-069"],
+    detectionStrategy:
+      "PassRole abuse via EC2 is best detected by monitoring EC2 RunInstances and instance-profile association changes (AssociateIamInstanceProfile, ReplaceIamInstanceProfileAssociation) that involve privileged or unusual instance profiles, then correlating with subsequent sensitive activity by the attached role. Do not alert on iam:PassRole directly; detect through EC2 activity and instance profile parameters.",
     mitigations: ["Restrict PassRole to specific role ARNs", "Limit RunInstances to approved AMIs", "Use permission boundaries"],
     category: "privilege-escalation",
     commands: [
@@ -929,7 +935,9 @@ export const techniques: Technique[] = [
       "An attacker with iam:PassRole and ecs:RunTask runs an ECS task with a privileged task role. The task role is specified in the task definition. The attacker uses a task definition that runs a container they control (or one that exposes credentials). When the task runs, it receives the task role's credentials via the container metadata endpoint. The attacker's code exfiltrates these credentials. Required permissions are iam:PassRole for the task role and ecs:RunTask. The attacker may need ecs:RegisterTaskDefinition to create a custom task definition.",
     services: ["IAM", "ECS"],
     permissions: ["iam:PassRole", "ecs:RunTask"],
-    detectionIds: [],
+    detectionIds: ["det-070", "det-071", "det-072", "det-073", "det-074"],
+    detectionStrategy:
+      "PassRole abuse via ECS is best detected through RunTask activity using privileged or unusual task roles and task definitions, especially when followed by sensitive API usage by the resulting task role. ECS task roles are delivered to containers and abuse shows up in downstream role activity. Do not alert on iam:PassRole directly; detect through ECS RunTask and task role context.",
     mitigations: ["Restrict PassRole for ECS", "Use task execution role separation", "Audit RunTask with custom roles"],
     category: "privilege-escalation",
     commands: [
