@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   ChevronRight, Shield, Link as LinkIcon, Network, Crosshair,
   KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff, Lock,
-  FileJson, Copy, Check, Terminal,
+  FileJson, Copy, Check, Terminal, Play,
 } from "lucide-react";
 import { useState } from "react";
 import { LucideIcon } from "lucide-react";
@@ -92,13 +92,24 @@ const TechniqueDetailPage = () => {
           </div>
           <h1 className="font-display text-3xl font-bold mb-3">{technique.name}</h1>
           <p className="text-muted-foreground leading-relaxed mb-4">{technique.description}</p>
-          <Link
-            to={`/attack-graph?technique=${technique.id}`}
-            className="inline-flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/20 transition-colors"
-          >
-            <Network className="h-4 w-4" />
-            View in Attack Graph
-          </Link>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              to={`/attack-graph?technique=${technique.id}`}
+              className="inline-flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/20 transition-colors"
+            >
+              <Network className="h-4 w-4" />
+              View in Attack Graph
+            </Link>
+            {usedInPaths.length > 0 && (
+              <Link
+                to={`/simulator?path=${usedInPaths[0].slug}`}
+                className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-colors"
+              >
+                <Play className="h-4 w-4" />
+                Simulate Attack Path
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* Summary Cards */}

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { attackPaths, attackObjectiveLabels } from "@/data/attackPaths";
 import { techniques } from "@/data/techniques";
@@ -18,9 +19,21 @@ const severityColor: Record<string, string> = {
 };
 
 export default function AttackSimulator() {
-  const [selectedPath, setSelectedPath] = useState(attackPaths[0].slug);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const pathParam = searchParams.get("path");
+  const initialSlug = pathParam && attackPaths.some((p) => p.slug === pathParam) ? pathParam : attackPaths[0].slug;
+  const [selectedPath, setSelectedPath] = useState(initialSlug);
   const [currentStep, setCurrentStep] = useState(-1); // -1 = not started
   const [simulationComplete, setSimulationComplete] = useState(false);
+
+  // Sync selected path when path query param changes (e.g. from Attack Paths page link)
+  useEffect(() => {
+    if (pathParam && attackPaths.some((p) => p.slug === pathParam)) {
+      setSelectedPath(pathParam);
+      setCurrentStep(-1);
+      setSimulationComplete(false);
+    }
+  }, [pathParam]);
 
   const path = attackPaths.find((p) => p.slug === selectedPath)!;
   const totalSteps = path.steps.length;
@@ -51,6 +64,7 @@ export default function AttackSimulator() {
     setSelectedPath(slug);
     setCurrentStep(-1);
     setSimulationComplete(false);
+    setSearchParams({ path: slug });
   };
 
   // Build step details
@@ -64,6 +78,12 @@ export default function AttackSimulator() {
 
   const detectedCount = stepsWithDetails.filter((s) => s.detections.length > 0).length;
   const coveragePercent = Math.round((detectedCount / totalSteps) * 100);
+
+  // Coverage breakdown: Full (>1 rule), Partial (1 rule), None (0 rules)
+  const fullCoverageCount = stepsWithDetails.filter((s) => s.detections.length > 1).length;
+  const partialCoverageCount = stepsWithDetails.filter((s) => s.detections.length === 1).length;
+  const noCoverageCount = stepsWithDetails.filter((s) => s.detections.length === 0).length;
+  const coverageScore = totalSteps > 0 ? Math.round(((fullCoverageCount + partialCoverageCount) / totalSteps) * 100) : 0;
 
   return (
     <Layout>
@@ -108,6 +128,45 @@ export default function AttackSimulator() {
 
         {/* Description */}
         <p className="text-sm text-muted-foreground mb-6 max-w-3xl">{path.description}</p>
+
+        {/* Attack Path Detection Summary */}
+        <Card className="mb-8 border-border/50">
+          <CardHeader className="py-4">
+            <CardTitle className="text-base font-medium">Attack Detection Coverage</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+              <div className="rounded-lg border border-border/50 bg-card p-3">
+                <p className="text-xl font-bold text-foreground">{totalSteps}</p>
+                <p className="text-xs text-muted-foreground">Steps</p>
+              </div>
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3">
+                <p className="text-xl font-bold text-emerald-400">{fullCoverageCount}</p>
+                <p className="text-xs text-muted-foreground">Full Coverage</p>
+              </div>
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+                <p className="text-xl font-bold text-amber-400">{partialCoverageCount}</p>
+                <p className="text-xs text-muted-foreground">Partial Coverage</p>
+              </div>
+              <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
+                <p className="text-xl font-bold text-red-400">{noCoverageCount}</p>
+                <p className="text-xs text-muted-foreground">No Coverage</p>
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-muted-foreground">Coverage Score</span>
+                <span className="font-semibold text-foreground">{coverageScore}%</span>
+              </div>
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-primary rounded-full transition-all duration-300"
+                  style={{ width: `${coverageScore}%` }}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Progress bar */}
         {currentStep >= 0 && (
@@ -260,41 +319,99 @@ export default function AttackSimulator() {
                             </div>
                           )}
 
-                          {/* Detection status */}
+                          {/* Telemetry Sources — aggregated from detection rules (technique → detectionIds → logSources) */}
+                          <div className="rounded-lg border border-border/50 bg-card p-4">
+                            <p className="text-sm font-medium text-primary mb-2">Telemetry Sources</p>
+                            {(() => {
+                              const logSources = [...new Set(step.detections.flatMap((d) => d.logSources))];
+                              return logSources.length > 0 ? (
+                                <div className="flex flex-wrap gap-2">
+                                  {logSources.map((src) => (
+                                    <Badge key={src} variant="outline" className="text-xs border-border/70">
+                                      {src}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-xs text-muted-foreground">
+                                  No detection rules linked — telemetry requirements cannot be determined from the data model.
+                                </p>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Detection Coverage Indicator */}
                           <div className={`p-4 rounded-lg border ${
                             hasDetection
-                              ? "border-emerald-500/30 bg-emerald-500/5"
+                              ? step.detections.length > 1
+                                ? "border-emerald-500/30 bg-emerald-500/5"
+                                : "border-amber-500/30 bg-amber-500/5"
                               : "border-red-500/30 bg-red-500/5"
                           }`}>
                             <div className="flex items-center gap-2 mb-2">
                               {hasDetection ? (
-                                <ShieldCheck className="h-5 w-5 text-emerald-400" />
+                                step.detections.length > 1 ? (
+                                  <ShieldCheck className="h-5 w-5 text-emerald-400" />
+                                ) : (
+                                  <ShieldCheck className="h-5 w-5 text-amber-400" />
+                                )
                               ) : (
                                 <ShieldOff className="h-5 w-5 text-red-400" />
                               )}
                               <span className={`font-semibold text-sm ${
-                                hasDetection ? "text-emerald-400" : "text-red-400"
+                                hasDetection
+                                  ? step.detections.length > 1
+                                    ? "text-emerald-400"
+                                    : "text-amber-400"
+                                  : "text-red-400"
                               }`}>
-                                {hasDetection
-                                  ? `Detected — ${step.detections.length} rule${step.detections.length > 1 ? "s" : ""}`
-                                  : "Not Detected — Gap Identified"}
+                                Detection Coverage:{" "}
+                                {step.detections.length > 1 ? "Full" : step.detections.length === 1 ? "Partial" : "None"}
                               </span>
                             </div>
                             {hasDetection ? (
-                              <ul className="space-y-1">
-                                {step.detections.map((d) => (
-                                  <li key={d.id} className="text-xs text-muted-foreground flex items-center gap-2">
-                                    <CheckCircle className="h-3 w-3 text-emerald-400 shrink-0" />
-                                    {d.title}
-                                  </li>
-                                ))}
-                              </ul>
+                              <>
+                                <p className="text-xs text-muted-foreground mb-2">Detected Rules:</p>
+                                <ul className="space-y-1">
+                                  {step.detections.map((d) => (
+                                    <li key={d.id} className="text-xs flex items-center gap-2">
+                                      <CheckCircle className={`h-3 w-3 shrink-0 ${step.detections.length > 1 ? "text-emerald-400" : "text-amber-400"}`} />
+                                      <Link
+                                        to={`/detection-engineering?rule=${d.id}`}
+                                        className="text-primary hover:underline font-medium"
+                                      >
+                                        {d.title}
+                                      </Link>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </>
                             ) : (
-                              <p className="text-xs text-muted-foreground">
-                                No detection rules cover this technique. Consider building a detection for this gap.
-                              </p>
+                              <>
+                                <p className="text-sm font-medium text-red-400 mb-1">Detection Gap</p>
+                                <p className="text-xs text-muted-foreground">
+                                  No detection rules currently exist for this technique.
+                                </p>
+                              </>
                             )}
                           </div>
+
+                          {/* Investigation Guidance — from detection rules */}
+                          {(() => {
+                            const investigationSteps = step.detections.flatMap((d) => d.investigationSteps ?? []);
+                            const uniqueSteps = [...new Set(investigationSteps)];
+                            if (uniqueSteps.length === 0) return null;
+                            return (
+                              <div className="rounded-lg border border-border/50 bg-card p-4">
+                                <p className="text-sm font-medium text-primary mb-2">Investigation Guidance</p>
+                                <ol className="space-y-1 list-decimal list-inside text-sm text-muted-foreground">
+                                  {uniqueSteps.slice(0, 6).map((stepText, i) => (
+                                    <li key={i}>{stepText}</li>
+                                  ))}
+                                </ol>
+                              </div>
+                            );
+                          })()}
 
                           {/* Navigation */}
                           <div className="flex justify-between pt-2">

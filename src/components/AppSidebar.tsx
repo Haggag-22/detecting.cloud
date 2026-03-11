@@ -168,12 +168,6 @@ function buildSections(): SidebarSection[] {
       children: attackPathChildren,
     },
     {
-      key: "simulator",
-      label: "Attack Simulator",
-      icon: Route,
-      to: "/simulator",
-    },
-    {
       key: "techniques",
       label: "Techniques",
       icon: Route,
@@ -210,6 +204,12 @@ function buildSections(): SidebarSection[] {
       label: "Gap Analysis",
       icon: ShieldCheck,
       to: "/gap-analysis",
+    },
+    {
+      key: "simulator",
+      label: "Attack Simulator",
+      icon: Route,
+      to: "/simulator",
     },
     {
       key: "about",

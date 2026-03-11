@@ -6,7 +6,7 @@ import { detections } from "@/data/detections";
 import { Badge } from "@/components/ui/badge";
 import {
   ChevronRight, AlertTriangle, Shield, Search, Link as LinkIcon, Network, Crosshair, ArrowLeft,
-  KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff,
+  KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff, Play,
 } from "lucide-react";
 import { useSearchParams, Link, Navigate } from "react-router-dom";
 import { AttackFlowChain } from "@/components/AttackFlowChain";
@@ -89,13 +89,22 @@ const AttackPathsPage = () => {
               </div>
               <h1 className="font-display text-3xl font-bold mb-3">{activeAttackPath.title}</h1>
               <p className="text-muted-foreground mb-4">{activeAttackPath.description}</p>
-              <Link
-                to={`/attack-graph?technique=${activeAttackPath.slug}`}
-                className="inline-flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/20 transition-colors"
-              >
-                <Network className="h-4 w-4" />
-                View in Attack Graph
-              </Link>
+              <div className="flex flex-wrap gap-3">
+                <Link
+                  to={`/attack-graph?technique=${activeAttackPath.slug}`}
+                  className="inline-flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-2 text-sm font-medium text-destructive hover:bg-destructive/20 transition-colors"
+                >
+                  <Network className="h-4 w-4" />
+                  View in Attack Graph
+                </Link>
+                <Link
+                  to={`/simulator?path=${activeAttackPath.slug}`}
+                  className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-colors"
+                >
+                  <Play className="h-4 w-4" />
+                  Simulate this Attack Path
+                </Link>
+              </div>
             </div>
 
             {/* Visual Attack Flow */}
