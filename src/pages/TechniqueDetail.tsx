@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { LucideIcon } from "lucide-react";
+import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
 
 const categoryIcon: Record<string, LucideIcon> = {
   "initial-access": Crosshair,
@@ -270,11 +271,11 @@ function CloudTrailSample({ sample }: { sample: string }) {
   };
 
   return (
-    <div className="border-t border-border pt-6 mb-8">
+    <div className="mb-8 rounded-lg border border-border/50 bg-card p-6">
       <h2 className="flex items-center gap-2 font-display text-lg font-semibold mb-3">
         <FileJson className="h-4 w-4 text-primary" /> CloudTrail Event Sample
       </h2>
-      <p className="text-xs text-muted-foreground mb-3">
+      <p className="text-sm text-muted-foreground mb-4">
         Example CloudTrail log event showing what this technique looks like in your logs.
       </p>
       <div className="relative rounded-lg border border-border/50 bg-muted overflow-hidden">
@@ -289,7 +290,7 @@ function CloudTrailSample({ sample }: { sample: string }) {
           </button>
         </div>
         <pre className="p-4 overflow-x-auto text-xs font-mono leading-relaxed text-foreground">
-          {sample}
+          {renderCodeWithColoredKeys(sample, "json")}
         </pre>
       </div>
     </div>

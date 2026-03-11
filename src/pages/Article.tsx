@@ -3,6 +3,7 @@ import { Layout } from "@/components/Layout";
 import { researchPosts } from "@/data/research";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Clock, Calendar, User } from "lucide-react";
+import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
 
 const ArticlePage = () => {
   const { slug } = useParams();
@@ -42,7 +43,9 @@ const ArticlePage = () => {
               </div>
             )}
             <pre className="p-4 overflow-x-auto bg-muted/50 text-sm font-mono leading-relaxed">
-              <code>{code}</code>
+              {["json", "yaml", "hcl"].includes(lang)
+                ? renderCodeWithColoredKeys(code, lang)
+                : <code>{code}</code>}
             </pre>
           </div>
         );

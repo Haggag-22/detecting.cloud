@@ -24,6 +24,8 @@ const formatLabels: Record<string, string> = {
   cloudwatch: "CloudWatch Insights",
 };
 
+import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
+
 // Lightweight syntax highlighting for YAML and SPL (detection rules)
 function highlightCode(code: string, format: string): React.ReactNode {
   if (format === "sigma") {
@@ -221,8 +223,7 @@ const DetectionEngineeringPage = () => {
           </div>
 
           {/* Rule Formats Tabs with Copy & Syntax Highlighting */}
-          <div className="mb-8">
-            <h2 className="font-display text-lg font-semibold mb-4">Detection Rules</h2>
+          <DetectionSectionCard title="Detection Rules">
             <Tabs defaultValue={availableFormats[0]?.[0] || "sigma"}>
               <TabsList className="bg-muted border border-border/50">
                 {availableFormats.map(([key]) => (
@@ -252,11 +253,10 @@ const DetectionEngineeringPage = () => {
                 </TabsContent>
               ))}
             </Tabs>
-          </div>
+          </DetectionSectionCard>
 
           {/* False Positives */}
-          <div className="mb-8">
-            <h2 className="font-display text-lg font-semibold mb-3">False Positives</h2>
+          <DetectionSectionCard title="False Positives">
             <ul className="space-y-2">
               {selectedDetection.falsePositives.map((fp, i) => (
                 <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
@@ -264,7 +264,7 @@ const DetectionEngineeringPage = () => {
                 </li>
               ))}
             </ul>
-          </div>
+          </DetectionSectionCard>
 
           {/* Telemetry Source */}
           <DetectionSectionCard title="Telemetry Source">
@@ -573,7 +573,9 @@ function CodeBlockWithCopy({
         </Button>
       </div>
       <pre className="p-4 overflow-x-auto bg-muted/30 text-sm font-mono leading-relaxed">
-        <code>{content}</code>
+        {["json", "hcl", "yaml"].includes(language)
+          ? renderCodeWithColoredKeys(content, language)
+          : <code>{content}</code>}
       </pre>
     </div>
   );

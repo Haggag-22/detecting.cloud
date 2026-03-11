@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Users, ThumbsUp, Copy, Search, Filter, GitPullRequest } from "lucide-react";
 import { toast } from "sonner";
 import { communityRules } from "@/data/communityRules";
+import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
 
 const formatColors: Record<string, string> = {
   sigma: "bg-blue-500/20 text-blue-400 border-blue-500/30",
@@ -131,7 +132,9 @@ export default function CommunityRules() {
                 </div>
 
                 <pre className="bg-muted/50 rounded-md p-3 text-xs font-mono overflow-x-auto max-h-32 text-foreground">
-                  {rule.rule}
+                  {rule.format === "sigma"
+                    ? renderCodeWithColoredKeys(rule.rule, "yaml")
+                    : <code>{rule.rule}</code>}
                 </pre>
 
                 <div className="flex items-center justify-between">
