@@ -14,7 +14,6 @@ const navLinks = [
   { label: "Simulator", to: "/simulator" },
   { label: "Attack Graph", to: "/attack-graph" },
   { label: "Coverage", to: "/coverage" },
-  { label: "Gap Analysis", to: "/gap-analysis" },
   { label: "Detection Engineering", to: "/detection-engineering" },
   { label: "Community Rules", to: "/community-rules" },
   { label: "About", to: "/about" },

@@ -509,7 +509,7 @@ export default function AttackSimulator() {
                           <RotateCcw className="h-4 w-4" /> Run Again
                         </Button>
                         <Button asChild>
-                          <Link to="/gap-analysis">View Full Gap Analysis</Link>
+                          <Link to="/coverage">View Detection Coverage</Link>
                         </Button>
                       </div>
                     </CardContent>

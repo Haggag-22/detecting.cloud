@@ -11,7 +11,6 @@ import DetectionEngineering from "./pages/DetectionEngineering";
 import About from "./pages/About";
 import AttackGraph from "./pages/AttackGraph";
 import Coverage from "./pages/Coverage";
-import GapAnalysis from "./pages/GapAnalysis";
 import TechniqueDetail from "./pages/TechniqueDetail";
 import TechniquesLibrary from "./pages/TechniquesLibrary";
 import AttackSimulator from "./pages/AttackSimulator";
@@ -38,7 +37,6 @@ const App = () => (
           <Route path="/detection-engineering" element={<DetectionEngineering />} />
           <Route path="/attack-graph" element={<AttackGraph />} />
           <Route path="/coverage" element={<Coverage />} />
-          <Route path="/gap-analysis" element={<GapAnalysis />} />
           <Route path="/simulator" element={<AttackSimulator />} />
           <Route path="/community-rules" element={<CommunityRules />} />
           <Route path="/admin/subscribers" element={<AdminSubscribers />} />

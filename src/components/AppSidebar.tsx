@@ -203,12 +203,6 @@ function buildSections(): SidebarSection[] {
       to: "/coverage",
     },
     {
-      key: "gap-analysis",
-      label: "Gap Analysis",
-      icon: ShieldCheck,
-      to: "/gap-analysis",
-    },
-    {
       key: "community-rules",
       label: "Community Rules",
       icon: Bug,
