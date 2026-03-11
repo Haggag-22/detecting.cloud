@@ -301,7 +301,7 @@ const CoveragePage = () => {
           </div>
 
           <div className="rounded-lg border border-border/50 overflow-hidden">
-            <div className="grid grid-cols-[1fr_120px_100px_80px_80px_100px_80px] gap-0 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted px-4 py-3 border-b border-border">
+            <div className="grid grid-cols-[1fr_140px_120px_100px_110px_120px_100px] gap-x-6 gap-y-0 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted px-4 py-3 border-b border-border">
               <span>Technique</span>
               <span>Category</span>
               <span>Services</span>
@@ -320,7 +320,7 @@ const CoveragePage = () => {
                   <Link
                     key={tech.id}
                     to={`/attack-paths/technique/${tech.id}`}
-                    className="grid grid-cols-[1fr_120px_100px_80px_80px_100px_80px] gap-0 px-4 py-3 hover:bg-muted/50 transition-colors items-center"
+                    className="grid grid-cols-[1fr_140px_120px_100px_110px_120px_100px] gap-x-6 gap-y-0 px-4 py-3 hover:bg-muted/50 transition-colors items-center"
                   >
                     <span className="font-medium text-sm text-foreground">{tech.name}</span>
                     <Badge className={`text-[10px] border-0 w-fit ${categoryColors[tech.category]}`}>
