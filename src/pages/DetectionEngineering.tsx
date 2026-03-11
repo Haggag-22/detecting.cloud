@@ -25,26 +25,28 @@ const formatLabels: Record<string, string> = {
 };
 
 // Syntax highlighting for JSON, HCL (Terraform), YAML (CloudFormation)
-// Uses placeholders for numbers to avoid regex matching digits in inserted class names (e.g. text-amber-400)
-const NUM_PLACEHOLDER = "\uE000"; // Unicode private use - won't appear in source code
+// Uses inline styles to avoid class names appearing as literal text; placeholders for numbers to avoid regex matching digits
+const NUM_PLACEHOLDER = "\uE000";
 const NUM_END = "\uE001";
 
-function highlightCodeBlock(code: string, language: string): React.ReactNode {
-  const keyClass = "text-primary";
-  const stringClass = "text-emerald-400";
-  const numberClass = "text-amber-400";
-  const boolNullClass = "text-blue-400";
+const CODE_STYLES = {
+  key: "color:hsl(210,79%,46%)",
+  string: "color:hsl(160,84%,39%)",
+  number: "color:hsl(38,92%,50%)",
+  bool: "color:hsl(217,91%,60%)",
+};
 
+function highlightCodeBlock(code: string, language: string): React.ReactNode {
   if (language === "json") {
     let html = code
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/\b(-?\d+\.?\d*)\b/g, (m) => `${NUM_PLACEHOLDER}${m}${NUM_END}`)
-      .replace(/\b(true|false|null)\b/g, `<span class="${boolNullClass}">$1</span>`)
-      .replace(/"([^"\\]*(\\.[^"\\]*)*)"\s*(?=:)/g, `<span class="${keyClass}">"$1"</span>`)
-      .replace(/"([^"\\]*(\\.[^"\\]*)*)"(?!\s*:)/g, `<span class="${stringClass}">"$1"</span>`)
-      .replace(new RegExp(`${NUM_PLACEHOLDER}([^${NUM_END}]+)${NUM_END}`, "g"), `<span class="${numberClass}">$1</span>`);
+      .replace(/\b(true|false|null)\b/g, `<span style="${CODE_STYLES.bool}">$1</span>`)
+      .replace(/"([^"\\]*(\\.[^"\\]*)*)"\s*(?=:)/g, `<span style="${CODE_STYLES.key}">"$1"</span>`)
+      .replace(/"([^"\\]*(\\.[^"\\]*)*)"(?!\s*:)/g, `<span style="${CODE_STYLES.string}">"$1"</span>`)
+      .replace(new RegExp(`${NUM_PLACEHOLDER}([^${NUM_END}]+)${NUM_END}`, "g"), `<span style="${CODE_STYLES.number}">$1</span>`);
     return <code dangerouslySetInnerHTML={{ __html: html }} />;
   }
 
@@ -57,10 +59,10 @@ function highlightCodeBlock(code: string, language: string): React.ReactNode {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/\b(\d+)\b/g, (m) => `${NUM_PLACEHOLDER}${m}${NUM_END}`)
-      .replace(hclKeywords, `<span class="${keyClass}">$1</span>`)
-      .replace(hclFuncs, `<span class="${boolNullClass}">$1</span>`)
-      .replace(hclStrings, `<span class="${stringClass}">"$1"</span>`)
-      .replace(new RegExp(`${NUM_PLACEHOLDER}([^${NUM_END}]+)${NUM_END}`, "g"), `<span class="${numberClass}">$1</span>`);
+      .replace(hclKeywords, `<span style="${CODE_STYLES.key}">$1</span>`)
+      .replace(hclFuncs, `<span style="${CODE_STYLES.bool}">$1</span>`)
+      .replace(hclStrings, `<span style="${CODE_STYLES.string}">"$1"</span>`)
+      .replace(new RegExp(`${NUM_PLACEHOLDER}([^${NUM_END}]+)${NUM_END}`, "g"), `<span style="${CODE_STYLES.number}">$1</span>`);
     return <code dangerouslySetInnerHTML={{ __html: html }} />;
   }
 
@@ -71,11 +73,11 @@ function highlightCodeBlock(code: string, language: string): React.ReactNode {
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/\b(-?\d+\.?\d*)\b/g, (m) => `${NUM_PLACEHOLDER}${m}${NUM_END}`)
-      .replace(/\b(true|false|null|yes|no)\b/gi, `<span class="${boolNullClass}">$1</span>`)
-      .replace(yamlKeys, (_, indent, key, colon) => `${indent}<span class="${keyClass}">${key}</span>${colon}`)
-      .replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, `<span class="${stringClass}">"$1"</span>`)
-      .replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, `<span class="${stringClass}">'$1'</span>`)
-      .replace(new RegExp(`${NUM_PLACEHOLDER}([^${NUM_END}]+)${NUM_END}`, "g"), `<span class="${numberClass}">$1</span>`);
+      .replace(/\b(true|false|null|yes|no)\b/gi, `<span style="${CODE_STYLES.bool}">$1</span>`)
+      .replace(yamlKeys, (_, indent, key, colon) => `${indent}<span style="${CODE_STYLES.key}">${key}</span>${colon}`)
+      .replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, `<span style="${CODE_STYLES.string}">"$1"</span>`)
+      .replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, `<span style="${CODE_STYLES.string}">'$1'</span>`)
+      .replace(new RegExp(`${NUM_PLACEHOLDER}([^${NUM_END}]+)${NUM_END}`, "g"), `<span style="${CODE_STYLES.number}">$1</span>`);
     return <code dangerouslySetInnerHTML={{ __html: html }} />;
   }
 
