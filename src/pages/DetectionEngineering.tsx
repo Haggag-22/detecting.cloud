@@ -36,7 +36,7 @@ function highlightCode(code: string, format: string): React.ReactNode {
         .replace(/'([^']+)'/g, "<s>'$1'</s>");
       return (
         <span key={i}>
-          <span dangerouslySetInnerHTML={{ __html: highlighted.replace(/<k>/g, '<span class="text-primary">').replace(/<\/k>/g, '</span>').replace(/<s>/g, '<span class="text-emerald-400">').replace(/<\/s>/g, '</span>') }} />
+          <span dangerouslySetInnerHTML={{ __html: highlighted.replace(/<k>/g, '<span class="text-yellow-400">').replace(/<\/k>/g, '</span>').replace(/<s>/g, '<span class="text-emerald-400">').replace(/<\/s>/g, '</span>') }} />
           {"\n"}
         </span>
       );
@@ -44,18 +44,18 @@ function highlightCode(code: string, format: string): React.ReactNode {
   }
   if (format === "splunk") {
     const highlighted = code
-      .replace(/\b(index|sourcetype|where|table|stats|sort|like|OR|AND|NOT|IN|by|as)\b/gi, '<span class="text-primary">$1</span>')
+      .replace(/\b(index|sourcetype|where|table|stats|sort|like|OR|AND|NOT|IN|by|as)\b/gi, '<span class="text-yellow-400">$1</span>')
       .replace(/\|/g, '<span class="text-accent">|</span>');
     return <span dangerouslySetInnerHTML={{ __html: highlighted }} />;
   }
   if (format === "cloudtrail") {
     const highlighted = code
-      .replace(/\b(SELECT|FROM|WHERE|AND|OR|ORDER BY|GROUP BY|HAVING|IN|LIKE|NOT|DESC|ASC|COUNT|SUM)\b/gi, '<span class="text-primary">$1</span>');
+      .replace(/\b(SELECT|FROM|WHERE|AND|OR|ORDER BY|GROUP BY|HAVING|IN|LIKE|NOT|DESC|ASC|COUNT|SUM)\b/gi, '<span class="text-yellow-400">$1</span>');
     return <span dangerouslySetInnerHTML={{ __html: highlighted }} />;
   }
   if (format === "cloudwatch") {
     const highlighted = code
-      .replace(/\b(fields|filter|sort|stats|count|like|in|by|desc|asc|not)\b/gi, '<span class="text-primary">$1</span>')
+      .replace(/\b(fields|filter|sort|stats|count|like|in|by|desc|asc|not)\b/gi, '<span class="text-yellow-400">$1</span>')
       .replace(/\|/g, '<span class="text-accent">|</span>');
     return <span dangerouslySetInnerHTML={{ __html: highlighted }} />;
   }
