@@ -24,66 +24,6 @@ const formatLabels: Record<string, string> = {
   cloudwatch: "CloudWatch Insights",
 };
 
-// Syntax highlighting for JSON, HCL (Terraform), YAML (CloudFormation)
-// Uses inline styles to avoid class names appearing as literal text; placeholders for numbers to avoid regex matching digits
-const NUM_PLACEHOLDER = "\uE000";
-const NUM_END = "\uE001";
-
-const CODE_STYLES = {
-  key: "color:hsl(210,79%,46%)",
-  string: "color:hsl(160,84%,39%)",
-  number: "color:hsl(38,92%,50%)",
-  bool: "color:hsl(217,91%,60%)",
-};
-
-function highlightCodeBlock(code: string, language: string): React.ReactNode {
-  if (language === "json") {
-    let html = code
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\b(-?\d+\.?\d*)\b/g, (m) => `${NUM_PLACEHOLDER}${m}${NUM_END}`)
-      .replace(/\b(true|false|null)\b/g, `<span style="${CODE_STYLES.bool}">$1</span>`)
-      .replace(/"([^"\\]*(\\.[^"\\]*)*)"\s*(?=:)/g, `<span style="${CODE_STYLES.key}">"$1"</span>`)
-      .replace(/"([^"\\]*(\\.[^"\\]*)*)"(?!\s*:)/g, `<span style="${CODE_STYLES.string}">"$1"</span>`)
-      .replace(new RegExp(`${NUM_PLACEHOLDER}([^${NUM_END}]+)${NUM_END}`, "g"), `<span style="${CODE_STYLES.number}">$1</span>`);
-    return <code dangerouslySetInnerHTML={{ __html: html }} />;
-  }
-
-  if (language === "hcl") {
-    const hclKeywords = /\b(resource|data|variable|output|module|provider|terraform|locals|for|in|count|each)\b/g;
-    const hclStrings = /"([^"\\]*(\\.[^"\\]*)*)"/g;
-    const hclFuncs = /\b(jsonencode|file|join|split|lookup|element)\b/g;
-    let html = code
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\b(\d+)\b/g, (m) => `${NUM_PLACEHOLDER}${m}${NUM_END}`)
-      .replace(hclKeywords, `<span style="${CODE_STYLES.key}">$1</span>`)
-      .replace(hclFuncs, `<span style="${CODE_STYLES.bool}">$1</span>`)
-      .replace(hclStrings, `<span style="${CODE_STYLES.string}">"$1"</span>`)
-      .replace(new RegExp(`${NUM_PLACEHOLDER}([^${NUM_END}]+)${NUM_END}`, "g"), `<span style="${CODE_STYLES.number}">$1</span>`);
-    return <code dangerouslySetInnerHTML={{ __html: html }} />;
-  }
-
-  if (language === "yaml") {
-    const yamlKeys = /^(\s*)([\w.-]+)(\s*:)/gm;
-    let html = code
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\b(-?\d+\.?\d*)\b/g, (m) => `${NUM_PLACEHOLDER}${m}${NUM_END}`)
-      .replace(/\b(true|false|null|yes|no)\b/gi, `<span style="${CODE_STYLES.bool}">$1</span>`)
-      .replace(yamlKeys, (_, indent, key, colon) => `${indent}<span style="${CODE_STYLES.key}">${key}</span>${colon}`)
-      .replace(/"([^"\\]*(\\.[^"\\]*)*)"/g, `<span style="${CODE_STYLES.string}">"$1"</span>`)
-      .replace(/'([^'\\]*(\\.[^'\\]*)*)'/g, `<span style="${CODE_STYLES.string}">'$1'</span>`)
-      .replace(new RegExp(`${NUM_PLACEHOLDER}([^${NUM_END}]+)${NUM_END}`, "g"), `<span style="${CODE_STYLES.number}">$1</span>`);
-    return <code dangerouslySetInnerHTML={{ __html: html }} />;
-  }
-
-  return <code>{code}</code>;
-}
-
 // Lightweight syntax highlighting for YAML and SPL (detection rules)
 function highlightCode(code: string, format: string): React.ReactNode {
   if (format === "sigma") {
@@ -633,7 +573,7 @@ function CodeBlockWithCopy({
         </Button>
       </div>
       <pre className="p-4 overflow-x-auto bg-muted/30 text-sm font-mono leading-relaxed">
-        {highlightCodeBlock(content, language)}
+        <code>{content}</code>
       </pre>
     </div>
   );
