@@ -22,6 +22,7 @@ const formatLabels: Record<string, string> = {
   splunk: "Splunk Query",
   cloudtrail: "CloudTrail Athena",
   cloudwatch: "CloudWatch Insights",
+  eventbridge: "EventBridge Rule Pattern",
 };
 
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
@@ -58,6 +59,9 @@ function highlightCode(code: string, format: string): React.ReactNode {
       .replace(/\b(fields|filter|sort|stats|count|like|in|by|desc|asc|not)\b/gi, '<span class="text-yellow-400">$1</span>')
       .replace(/\|/g, '<span class="text-accent">|</span>');
     return <span dangerouslySetInnerHTML={{ __html: highlighted }} />;
+  }
+  if (format === "eventbridge") {
+    return renderCodeWithColoredKeys(code, "json");
   }
   return code;
 }
@@ -381,39 +385,6 @@ const DetectionEngineeringPage = () => {
                 <li key={i}>{step}</li>
               ))}
             </ol>
-          </DetectionSectionCard>
-
-          {/* Detection Deployment */}
-          <DetectionSectionCard title="Detection Deployment">
-            <p className="text-sm text-muted-foreground mb-4">
-              Examples of how to deploy the detection using infrastructure as code.
-            </p>
-            {selectedDetection.deployment ? (
-              <div className="space-y-6">
-                {selectedDetection.deployment.terraform && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Terraform</p>
-                    <CodeBlockWithCopy content={selectedDetection.deployment.terraform} language="hcl" copiedId={copiedId} setCopiedId={setCopiedId} copyKey="terraform" />
-                  </div>
-                )}
-                {selectedDetection.deployment.cloudformation && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">CloudFormation</p>
-                    <CodeBlockWithCopy content={selectedDetection.deployment.cloudformation} language="yaml" copiedId={copiedId} setCopiedId={setCopiedId} copyKey="cloudformation" />
-                  </div>
-                )}
-                {selectedDetection.deployment.eventbridge && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">EventBridge Rule Pattern</p>
-                    <CodeBlockWithCopy content={selectedDetection.deployment.eventbridge} language="json" copiedId={copiedId} setCopiedId={setCopiedId} copyKey="eventbridge" />
-                  </div>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                Deployment examples for this detection are not yet available. Use EventBridge rules or CloudWatch Logs Insights subscriptions to deploy detection logic in your environment.
-              </p>
-            )}
           </DetectionSectionCard>
         </div>
       </Layout>

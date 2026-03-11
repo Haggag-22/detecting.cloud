@@ -1,10 +1,12 @@
-export type RuleFormat = "sigma" | "splunk" | "cloudtrail" | "cloudwatch";
+export type RuleFormat = "sigma" | "splunk" | "cloudtrail" | "cloudwatch" | "eventbridge";
 
 export interface RuleFormats {
   sigma?: string;
   splunk?: string;
   cloudtrail?: string;
   cloudwatch?: string;
+  /** EventBridge rule pattern (detection logic, not deployment) */
+  eventbridge?: string;
 }
 
 /** Telemetry source metadata for detection engineering context */
@@ -17,13 +19,6 @@ export interface TelemetrySource {
   importantFields: string[];
   /** Sample AWS event JSON */
   exampleEvent: string;
-}
-
-/** Deployment example for infrastructure as code */
-export interface DeploymentExamples {
-  terraform?: string;
-  cloudformation?: string;
-  eventbridge?: string;
 }
 
 export interface Detection {
@@ -46,8 +41,6 @@ export interface Detection {
   investigationSteps?: string[];
   /** Safe lab testing procedures */
   testingSteps?: string[];
-  /** Infrastructure as code deployment examples */
-  deployment?: DeploymentExamples;
 }
 
 export const detections: Detection[] = [
@@ -85,6 +78,7 @@ ORDER BY eventTime DESC`,
 | filter eventName = "CreateFunction20150331"
 | filter requestParameters.role like /Admin/
 | sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.lambda"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateFunction20150331"] } }, null, 2),
     },
     relatedAttackSlugs: ["aws-passrole-abuse", "iam-privilege-escalation", "lambda-privilege-escalation"],
     telemetry: {
@@ -119,42 +113,6 @@ ORDER BY eventTime DESC`,
       "Observe the CloudTrail event for CreateFunction.",
       "Run the detection query to confirm the alert triggers.",
     ],
-    deployment: {
-      terraform: `resource "aws_cloudwatch_event_rule" "iam_passrole_detection" {
-  name        = "detect-passrole-privilege-escalation"
-  description = "Detects IAM PassRole abuse via Lambda creation"
-
-  event_pattern = jsonencode({
-    source      = ["aws.lambda"]
-    "detail-type" = ["AWS API Call via CloudTrail"]
-    detail = {
-      eventName = ["CreateFunction20150331"]
-    }
-  })
-}`,
-      cloudformation: `AWSTemplateFormatVersion: "2010-09-09"
-Resources:
-  PassRoleDetectionRule:
-    Type: AWS::Events::Rule
-    Properties:
-      Name: detect-passrole-privilege-escalation
-      Description: Detects IAM PassRole abuse via Lambda creation
-      EventPattern:
-        source:
-          - aws.lambda
-        detail-type:
-          - "AWS API Call via CloudTrail"
-        detail:
-          eventName:
-            - CreateFunction20150331`,
-      eventbridge: `{
-  "source": ["aws.lambda"],
-  "detail-type": ["AWS API Call via CloudTrail"],
-  "detail": {
-    "eventName": ["CreateFunction20150331"]
-  }
-}`,
-    },
   },
   {
     id: "det-004",
@@ -193,6 +151,7 @@ ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.policyArn
 | filter eventName in ["AttachUserPolicy", "PutUserPolicy"]
 | sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["AttachUserPolicy", "PutUserPolicy"] } }, null, 2),
     },
     relatedAttackSlugs: ["iam-privilege-escalation", "assumerole-abuse", "create-policy-version-abuse", "iam-backdoor-policies"],
     telemetry: {
@@ -202,13 +161,7 @@ ORDER BY eventTime DESC`,
       exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "AttachUserPolicy", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user", principalId: "AIDAEXAMPLE" }, requestParameters: { policyArn: "arn:aws:iam::123456789012:policy/AdminPolicy", userName: "target-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2),
     },
     investigationSteps: ["Identify the IAM user that attached the policy.", "Verify whether the policy attachment was authorized (e.g., onboarding).", "Check if userIdentity.principalId excludes Terraform/CloudFormation.", "Review the attached policy's permissions.", "Correlate with other IAM changes from the same identity."],
-    testingSteps: ["Create an IAM user with AttachUserPolicy permission.", "Attach a policy to another user.", "Verify CloudTrail captures AttachUserPolicy or PutUserPolicy.", "Run the detection query to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "iam_user_policy_attachment" {
-  name        = "detect-iam-user-policy-attachment"
-  description = "Detects IAM policy attached directly to user"
-  event_pattern = jsonencode({ source = ["aws.iam"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["AttachUserPolicy", "PutUserPolicy"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["AttachUserPolicy", "PutUserPolicy"] } }, null, 2) },
-  },
+    testingSteps: ["Create an IAM user with AttachUserPolicy permission.", "Attach a policy to another user.", "Verify CloudTrail captures AttachUserPolicy or PutUserPolicy.", "Run the detection query to confirm the alert triggers."],},
   {
     id: "det-010",
     title: "IAM Access Key Created for Another User",
@@ -236,17 +189,12 @@ level: medium`,
 FROM cloudtrail_logs
 WHERE eventName = 'CreateAccessKey'
 ORDER BY eventTime DESC`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateAccessKey"] } }, null, 2),
     },
     relatedAttackSlugs: ["iam-backdoor-policies"],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateAccessKey", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/attacker" }, requestParameters: { userName: "victim-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who created the access key and for which user.", "Verify if the target user differs from the caller (backdoor indicator).", "Review recent activity of both identities.", "Check if the key creation was part of onboarding."],
-    testingSteps: ["As user A, create an access key for user B.", "Verify CloudTrail captures CreateAccessKey.", "Run the detection to confirm it triggers on cross-user key creation."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "iam_access_key_other_user" {
-  name = "detect-iam-access-key-other-user"
-  description = "Detects access key created for different user"
-  event_pattern = jsonencode({ source = ["aws.iam"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["CreateAccessKey"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateAccessKey"] } }, null, 2) },
-  },
+    testingSteps: ["As user A, create an access key for user B.", "Verify CloudTrail captures CreateAccessKey.", "Run the detection to confirm it triggers on cross-user key creation."],},
   {
     id: "det-011",
     title: "IAM Policy Version Created with Full Admin",
@@ -275,17 +223,12 @@ level: critical`,
 FROM cloudtrail_logs
 WHERE eventName = 'CreatePolicyVersion'
 ORDER BY eventTime DESC`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreatePolicyVersion"] } }, null, 2),
     },
     relatedAttackSlugs: ["create-policy-version-abuse", "iam-privilege-escalation"],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.policyArn", "requestParameters.policyDocument", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreatePolicyVersion", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { policyArn: "arn:aws:iam::123456789012:policy/ExistingPolicy", policyDocument: '{"Statement":[{"Effect":"Allow","Action":"*","Resource":"*"}]}' }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who created the policy version.", "Inspect the new policy document for Action:* and Resource:*.", "Verify whether the identity was attached to the policy.", "Review recent privilege escalation activity."],
-    testingSteps: ["Attach a policy to your user, then create a new version with admin permissions.", "Set it as default.", "Run the detection query to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "iam_policy_version_admin" {
-  name = "detect-iam-policy-version-admin"
-  description = "Detects CreatePolicyVersion with full admin"
-  event_pattern = jsonencode({ source = ["aws.iam"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["CreatePolicyVersion"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreatePolicyVersion"] } }, null, 2) },
-  },
+    testingSteps: ["Attach a policy to your user, then create a new version with admin permissions.", "Set it as default.", "Run the detection query to confirm the alert triggers."],},
 
   // --- Lambda ---
   {
@@ -328,18 +271,12 @@ ORDER BY start_time DESC`,
 | filter dstAddr not like /^10\\./
 | filter dstAddr not like /^172\\.16/
 | stats count by srcAddr, dstAddr, dstPort`,
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["VPC Flow Log"], detail: {} }, null, 2),
     },
     relatedAttackSlugs: ["lambda-persistence", "lambda-privilege-escalation"],
     telemetry: { primaryLogSource: "VPC Flow Logs", generatingService: "vpcflowlogs.amazonaws.com", importantFields: ["srcAddr", "dstAddr", "dstPort", "protocol", "bytes"], exampleEvent: JSON.stringify({ version: "2", accountId: "123456789012", interfaceId: "eni-xxx", srcAddr: "10.0.1.50", dstAddr: "93.184.216.34", dstPort: 443, protocol: 6, packets: 1, bytes: 150 }, null, 2) },
     investigationSteps: ["Correlate srcAddr with Lambda ENI IPs.", "Identify which Lambda function made the external connection.", "Verify if the destination is an approved external API.", "Review Lambda function code for data exfiltration."],
-    testingSteps: ["Deploy a Lambda that calls an external API.", "Ensure VPC Flow Logs capture the traffic.", "Run the detection to confirm it triggers on non-RFC1918 destinations."],
-    deployment: { terraform: `resource "aws_cloudwatch_log_metric_filter" "lambda_external" {
-  name           = "lambda-external-network"
-  log_group_name = "/aws/vpc/flowlogs"
-  pattern        = "[version, accountId, interfaceId, srcAddr, dstAddr, dstPort, protocol, packets, bytes]"
-  metric_transformation { name = "LambdaExternalConnections", namespace = "Detections", value = "1" }
-}`, eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["VPC Flow Log"], detail: {} }, null, 2) },
-  },
+    testingSteps: ["Deploy a Lambda that calls an external API.", "Ensure VPC Flow Logs capture the traffic.", "Run the detection to confirm it triggers on non-RFC1918 destinations."],},
   {
     id: "det-012",
     title: "Lambda Function Created with Admin Role",
@@ -368,17 +305,12 @@ level: critical`,
 FROM cloudtrail_logs
 WHERE eventName = 'CreateFunction20150331'
   AND requestParameters.role LIKE '%Admin%'`,
+      eventbridge: JSON.stringify({ source: ["aws.lambda"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateFunction20150331"] } }, null, 2),
     },
     relatedAttackSlugs: ["aws-passrole-abuse", "lambda-privilege-escalation"],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "lambda.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.role", "requestParameters.functionName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "lambda.amazonaws.com", eventName: "CreateFunction20150331", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { functionName: "my-function", role: "arn:aws:iam::123456789012:role/AdministratorAccess" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who created the Lambda and which role was passed.", "Inspect the role for AdministratorAccess or similar.", "Verify if the creation was from a deployment pipeline.", "Review Lambda execution history for suspicious invocations."],
-    testingSteps: ["Create a Lambda with a role containing 'Admin' or 'AdministratorAccess'.", "Observe CloudTrail CreateFunction event.", "Run the detection query to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "lambda_admin_role" {
-  name = "detect-lambda-admin-role"
-  description = "Detects Lambda created with admin role"
-  event_pattern = jsonencode({ source = ["aws.lambda"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["CreateFunction20150331"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.lambda"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateFunction20150331"] } }, null, 2) },
-  },
+    testingSteps: ["Create a Lambda with a role containing 'Admin' or 'AdministratorAccess'.", "Observe CloudTrail CreateFunction event.", "Run the detection query to confirm the alert triggers."],},
   {
     id: "det-013",
     title: "Lambda Event Source Mapping Created",
@@ -401,17 +333,12 @@ detection:
 level: medium`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventName=CreateEventSourceMapping
 | table _time, userIdentity.arn, requestParameters.functionName, requestParameters.eventSourceArn`,
+      eventbridge: JSON.stringify({ source: ["aws.lambda"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateEventSourceMapping"] } }, null, 2),
     },
     relatedAttackSlugs: ["lambda-persistence"],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "lambda.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.functionName", "requestParameters.eventSourceArn", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "lambda.amazonaws.com", eventName: "CreateEventSourceMapping", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { functionName: "my-function", eventSourceArn: "arn:aws:dynamodb:us-east-1:123456789012:table/MyTable/stream/xxx" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the Lambda and event source (DynamoDB, S3, etc.).", "Verify if the mapping was part of a legitimate deployment.", "Review the Lambda's execution role and triggers.", "Check for persistence via scheduled or event-driven execution."],
-    testingSteps: ["Create an event source mapping (e.g., DynamoDB stream to Lambda).", "Verify CloudTrail captures CreateEventSourceMapping.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "lambda_event_source" {
-  name = "detect-lambda-event-source-mapping"
-  description = "Detects Lambda event source mapping creation"
-  event_pattern = jsonencode({ source = ["aws.lambda"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["CreateEventSourceMapping"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.lambda"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateEventSourceMapping"] } }, null, 2) },
-  },
+    testingSteps: ["Create an event source mapping (e.g., DynamoDB stream to Lambda).", "Verify CloudTrail captures CreateEventSourceMapping.", "Run the detection to confirm the alert triggers."],},
 
   // --- EC2 ---
   {
@@ -443,17 +370,12 @@ level: high`,
 FROM cloudtrail_logs
 WHERE eventName = 'RunInstances'
   AND requestParameters.iamInstanceProfile.arn LIKE '%Admin%'`,
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RunInstances"] } }, null, 2),
     },
     relatedAttackSlugs: ["ec2-metadata-abuse"],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.iamInstanceProfile.arn", "requestParameters.instanceType", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "RunInstances", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { instanceType: "t3.micro", iamInstanceProfile: { arn: "arn:aws:iam::123456789012:instance-profile/AdminRole" } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who launched the instance and which IAM profile was used.", "Inspect the instance profile for Admin or high-privilege policies.", "Verify if the instance is a management host with legitimate elevated access.", "Review IMDS configuration for credential theft risk."],
-    testingSteps: ["Launch an EC2 instance with an IAM profile containing 'Admin'.", "Verify CloudTrail captures RunInstances.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "ec2_admin_role" {
-  name = "detect-ec2-admin-iam-role"
-  description = "Detects EC2 launched with admin IAM role"
-  event_pattern = jsonencode({ source = ["aws.ec2"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["RunInstances"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RunInstances"] } }, null, 2) },
-  },
+    testingSteps: ["Launch an EC2 instance with an IAM profile containing 'Admin'.", "Verify CloudTrail captures RunInstances.", "Run the detection to confirm the alert triggers."],},
   {
     id: "det-015",
     title: "EC2 IMDSv1 Usage Detected",
@@ -479,17 +401,12 @@ level: medium`,
 | spath requestParameters.instancesSet.items{}.metadataOptions.httpTokens
 | where httpTokens="optional"
 | table _time, userIdentity.arn, responseElements.instancesSet.items{}.instanceId`,
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RunInstances"] } }, null, 2),
     },
     relatedAttackSlugs: ["ec2-metadata-abuse"],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.metadataOptions.httpTokens", "responseElements.instancesSet", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "RunInstances", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { metadataOptions: { httpTokens: "optional" } }, responseElements: { instancesSet: { items: [{ instanceId: "i-xxx" }] } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify instances launched with httpTokens: optional (IMDSv1).", "Assess SSRF risk for applications on those instances.", "Plan migration to IMDSv2.", "Review instance usage for credential access attempts."],
-    testingSteps: ["Launch an EC2 instance without enforcing IMDSv2.", "Verify CloudTrail shows metadataOptions.httpTokens.", "Run the detection to confirm it triggers on optional tokens."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "ec2_imdsv1" {
-  name = "detect-ec2-imdsv1"
-  description = "Detects EC2 instances using IMDSv1"
-  event_pattern = jsonencode({ source = ["aws.ec2"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["RunInstances"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RunInstances"] } }, null, 2) },
-  },
+    testingSteps: ["Launch an EC2 instance without enforcing IMDSv2.", "Verify CloudTrail shows metadataOptions.httpTokens.", "Run the detection to confirm it triggers on optional tokens."],},
   {
     id: "det-016",
     title: "EC2 Security Group Opened to 0.0.0.0/0",
@@ -518,17 +435,12 @@ level: high`,
 | filter eventName = "AuthorizeSecurityGroupIngress"
 | filter requestParameters like /0\\.0\\.0\\.0\\/0/
 | sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["AuthorizeSecurityGroupIngress"] } }, null, 2),
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.groupId", "requestParameters.ipPermissions", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "AuthorizeSecurityGroupIngress", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { groupId: "sg-xxx", ipPermissions: { items: [{ ipRanges: { items: [{ cidrIp: "0.0.0.0/0" }] } }] } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who modified the security group.", "Verify if 0.0.0.0/0 was intentionally added (e.g., web server).", "Review the affected instances and exposed ports.", "Check for lateral movement or data exfiltration risk."],
-    testingSteps: ["Add an ingress rule with 0.0.0.0/0 to a security group.", "Verify CloudTrail captures AuthorizeSecurityGroupIngress.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "sg_open_all" {
-  name = "detect-sg-opened-to-all"
-  description = "Detects security group opened to 0.0.0.0/0"
-  event_pattern = jsonencode({ source = ["aws.ec2"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["AuthorizeSecurityGroupIngress"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["AuthorizeSecurityGroupIngress"] } }, null, 2) },
-  },
+    testingSteps: ["Add an ingress rule with 0.0.0.0/0 to a security group.", "Verify CloudTrail captures AuthorizeSecurityGroupIngress.", "Run the detection to confirm the alert triggers."],},
 
   // --- S3 ---
   {
@@ -567,17 +479,12 @@ ORDER BY download_count DESC`,
 | stats count(*) as downloads by userIdentity.arn, requestParameters.bucketName
 | filter downloads > 100
 | sort downloads desc`,
+      eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["GetObject"] } }, null, 2),
     },
     relatedAttackSlugs: ["s3-data-exfiltration"],
     telemetry: { primaryLogSource: "AWS CloudTrail S3 Data Events", generatingService: "s3.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.bucketName", "requestParameters.key", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "s3.amazonaws.com", eventName: "GetObject", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { bucketName: "my-bucket", key: "sensitive/data.csv" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the identity and bucket with high download volume.", "Verify if the activity matches known pipelines or backups.", "Check for anomalous download patterns (time, volume).", "Review S3 access logs for exfiltration indicators."],
-    testingSteps: ["Enable S3 data events for a test bucket.", "Perform many GetObject operations.", "Run the detection to confirm volume-based alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "s3_getobject_volume" {
-  name = "detect-s3-unusual-download"
-  description = "Detects unusual S3 data download volume"
-  event_pattern = jsonencode({ source = ["aws.s3"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["GetObject"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["GetObject"] } }, null, 2) },
-  },
+    testingSteps: ["Enable S3 data events for a test bucket.", "Perform many GetObject operations.", "Run the detection to confirm volume-based alert triggers."],},
   {
     id: "det-017",
     title: "S3 Bucket Policy Modified",
@@ -605,17 +512,12 @@ level: high`,
       cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.bucketName
 | filter eventName in ["PutBucketPolicy", "DeleteBucketPolicy"]
 | sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutBucketPolicy", "DeleteBucketPolicy"] } }, null, 2),
     },
     relatedAttackSlugs: ["s3-data-exfiltration"],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "s3.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.bucketName", "requestParameters.policy", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "s3.amazonaws.com", eventName: "PutBucketPolicy", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { bucketName: "my-bucket", policy: '{"Statement":[{"Principal":{"AWS":"*"},"Action":"s3:GetObject"}]}' }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who modified the bucket policy.", "Inspect the new policy for public or cross-account access.", "Verify if the change was from IaC (Terraform/CloudFormation).", "Review recent S3 access from external principals."],
-    testingSteps: ["Modify an S3 bucket policy (PutBucketPolicy or DeleteBucketPolicy).", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "s3_bucket_policy" {
-  name = "detect-s3-bucket-policy-modified"
-  description = "Detects S3 bucket policy changes"
-  event_pattern = jsonencode({ source = ["aws.s3"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["PutBucketPolicy", "DeleteBucketPolicy"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutBucketPolicy", "DeleteBucketPolicy"] } }, null, 2) },
-  },
+    testingSteps: ["Modify an S3 bucket policy (PutBucketPolicy or DeleteBucketPolicy).", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],},
   {
     id: "det-018",
     title: "S3 Bucket Made Public",
@@ -638,17 +540,12 @@ detection:
 level: critical`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventName=DeletePublicAccessBlock
 | table _time, userIdentity.arn, requestParameters.bucketName`,
+      eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["DeletePublicAccessBlock"] } }, null, 2),
     },
     relatedAttackSlugs: ["s3-data-exfiltration"],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "s3.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.bucketName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "s3.amazonaws.com", eventName: "DeletePublicAccessBlock", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { bucketName: "my-bucket" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who removed the public access block.", "Assess whether the bucket contains sensitive data.", "Verify if static website hosting was intended.", "Restore PublicAccessBlock if unauthorized."],
-    testingSteps: ["Remove PublicAccessBlock from a test bucket.", "Verify CloudTrail captures DeletePublicAccessBlock.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "s3_public_access" {
-  name = "detect-s3-public-access-block-removed"
-  description = "Detects S3 Public Access Block removal"
-  event_pattern = jsonencode({ source = ["aws.s3"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["DeletePublicAccessBlock"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["DeletePublicAccessBlock"] } }, null, 2) },
-  },
+    testingSteps: ["Remove PublicAccessBlock from a test bucket.", "Verify CloudTrail captures DeletePublicAccessBlock.", "Run the detection to confirm the alert triggers."],},
 
   // --- CloudTrail ---
   {
@@ -683,17 +580,12 @@ ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, eventName, sourceIPAddress
 | filter eventName in ["StopLogging", "DeleteTrail", "UpdateTrail"]
 | sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.cloudtrail"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["StopLogging", "DeleteTrail", "UpdateTrail"] } }, null, 2),
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "cloudtrail.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "cloudtrail.amazonaws.com", eventName: "StopLogging", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { name: "my-trail" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who stopped, deleted, or updated the trail.", "Assess impact on audit visibility.", "Verify if this was planned maintenance.", "Restore CloudTrail immediately if unauthorized."],
-    testingSteps: ["Stop logging on a test trail (or use UpdateTrail).", "Verify CloudTrail captures StopLogging/DeleteTrail/UpdateTrail.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "cloudtrail_disabled" {
-  name = "detect-cloudtrail-disabled"
-  description = "Detects CloudTrail logging disabled or trail deleted"
-  event_pattern = jsonencode({ source = ["aws.cloudtrail"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["StopLogging", "DeleteTrail", "UpdateTrail"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.cloudtrail"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["StopLogging", "DeleteTrail", "UpdateTrail"] } }, null, 2) },
-  },
+    testingSteps: ["Stop logging on a test trail (or use UpdateTrail).", "Verify CloudTrail captures StopLogging/DeleteTrail/UpdateTrail.", "Run the detection to confirm the alert triggers."],},
 
   // --- KMS ---
   {
@@ -721,17 +613,12 @@ level: critical`,
       cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.keyId
 | filter eventName = "ScheduleKeyDeletion"
 | sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.kms"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["ScheduleKeyDeletion"] } }, null, 2),
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "kms.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.keyId", "requestParameters.pendingWindowInDays", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "kms.amazonaws.com", eventName: "ScheduleKeyDeletion", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { keyId: "arn:aws:kms:us-east-1:123456789012:key/xxx", pendingWindowInDays: 7 }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who scheduled the key deletion.", "Verify if this was planned key rotation.", "Assess impact on encrypted resources (S3, EBS).", "Cancel deletion if unauthorized."],
-    testingSteps: ["Schedule key deletion for a test KMS key.", "Verify CloudTrail captures ScheduleKeyDeletion.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "kms_deletion" {
-  name = "detect-kms-key-deletion-scheduled"
-  description = "Detects KMS key scheduled for deletion"
-  event_pattern = jsonencode({ source = ["aws.kms"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["ScheduleKeyDeletion"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.kms"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["ScheduleKeyDeletion"] } }, null, 2) },
-  },
+    testingSteps: ["Schedule key deletion for a test KMS key.", "Verify CloudTrail captures ScheduleKeyDeletion.", "Run the detection to confirm the alert triggers."],},
   {
     id: "det-020",
     title: "KMS Key Policy Modified",
@@ -754,17 +641,12 @@ detection:
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventName=PutKeyPolicy
 | table _time, userIdentity.arn, requestParameters.keyId`,
+      eventbridge: JSON.stringify({ source: ["aws.kms"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutKeyPolicy"] } }, null, 2),
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "kms.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.keyId", "requestParameters.policy", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "kms.amazonaws.com", eventName: "PutKeyPolicy", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { keyId: "arn:aws:kms:us-east-1:123456789012:key/xxx", policyName: "default" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who modified the key policy.", "Inspect the new policy for unauthorized principals.", "Verify if this was routine key management.", "Review key usage for anomalies."],
-    testingSteps: ["Modify a KMS key policy (PutKeyPolicy).", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "kms_policy" {
-  name = "detect-kms-key-policy-modified"
-  description = "Detects KMS key policy modifications"
-  event_pattern = jsonencode({ source = ["aws.kms"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["PutKeyPolicy"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.kms"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutKeyPolicy"] } }, null, 2) },
-  },
+    testingSteps: ["Modify a KMS key policy (PutKeyPolicy).", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],},
 
   // --- EBS ---
   {
@@ -794,17 +676,12 @@ level: critical`,
       cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.snapshotId
 | filter eventName = "ModifySnapshotAttribute"
 | sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["ModifySnapshotAttribute"] } }, null, 2),
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.snapshotId", "requestParameters.createVolumePermission", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "ModifySnapshotAttribute", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { snapshotId: "snap-xxx", createVolumePermission: { add: { items: [{ group: "all" }] } } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who made the snapshot public.", "Assess whether the snapshot contains sensitive data.", "Verify if this was for AMI sharing.", "Revoke public access if unauthorized."],
-    testingSteps: ["Modify snapshot attribute to add group 'all'.", "Verify CloudTrail captures ModifySnapshotAttribute.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "ebs_snapshot_public" {
-  name = "detect-ebs-snapshot-public"
-  description = "Detects EBS snapshot made public"
-  event_pattern = jsonencode({ source = ["aws.ec2"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["ModifySnapshotAttribute"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["ModifySnapshotAttribute"] } }, null, 2) },
-  },
+    testingSteps: ["Modify snapshot attribute to add group 'all'.", "Verify CloudTrail captures ModifySnapshotAttribute.", "Run the detection to confirm the alert triggers."],},
   {
     id: "det-022",
     title: "EBS Volume Not Encrypted",
@@ -829,17 +706,12 @@ level: medium`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventName=CreateVolume
 | where requestParameters.encrypted="false"
 | table _time, userIdentity.arn, responseElements.volumeId`,
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateVolume"] } }, null, 2),
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.encrypted", "responseElements.volumeId", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "CreateVolume", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { encrypted: false, size: 100 }, responseElements: { volumeId: "vol-xxx" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who created the unencrypted volume.", "Verify if the environment has encryption exceptions.", "Assess compliance impact.", "Consider enabling encryption by default."],
-    testingSteps: ["Create an EBS volume with encrypted: false.", "Verify CloudTrail captures CreateVolume.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "ebs_unencrypted" {
-  name = "detect-ebs-unencrypted-volume"
-  description = "Detects unencrypted EBS volume creation"
-  event_pattern = jsonencode({ source = ["aws.ec2"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["CreateVolume"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateVolume"] } }, null, 2) },
-  },
+    testingSteps: ["Create an EBS volume with encrypted: false.", "Verify CloudTrail captures CreateVolume.", "Run the detection to confirm the alert triggers."],},
 
   // --- DynamoDB ---
   {
@@ -867,17 +739,12 @@ level: high`,
       cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.tableArn
 | filter eventName = "ExportTableToPointInTime"
 | sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.dynamodb"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["ExportTableToPointInTime"] } }, null, 2),
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "dynamodb.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.tableArn", "requestParameters.s3Bucket", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "dynamodb.amazonaws.com", eventName: "ExportTableToPointInTime", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { tableArn: "arn:aws:dynamodb:us-east-1:123456789012:table/MyTable", s3Bucket: "export-bucket" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who initiated the export and the destination S3 bucket.", "Verify if this was a scheduled data lake or backup.", "Check the S3 bucket for unauthorized access.", "Review export frequency for exfiltration patterns."],
-    testingSteps: ["Export a DynamoDB table to S3.", "Verify CloudTrail captures ExportTableToPointInTime.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "dynamodb_export" {
-  name = "detect-dynamodb-export-s3"
-  description = "Detects DynamoDB table export to S3"
-  event_pattern = jsonencode({ source = ["aws.dynamodb"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["ExportTableToPointInTime"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.dynamodb"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["ExportTableToPointInTime"] } }, null, 2) },
-  },
+    testingSteps: ["Export a DynamoDB table to S3.", "Verify CloudTrail captures ExportTableToPointInTime.", "Run the detection to confirm the alert triggers."],},
   {
     id: "det-024",
     title: "DynamoDB Table Deletion Protection Disabled",
@@ -901,17 +768,12 @@ level: medium`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventName=UpdateTable
 | where requestParameters.deletionProtectionEnabled="false"
 | table _time, userIdentity.arn, requestParameters.tableName`,
+      eventbridge: JSON.stringify({ source: ["aws.dynamodb"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["UpdateTable"] } }, null, 2),
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "dynamodb.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.tableName", "requestParameters.deletionProtectionEnabled", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "dynamodb.amazonaws.com", eventName: "UpdateTable", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { tableName: "MyTable", deletionProtectionEnabled: false }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who disabled deletion protection.", "Verify if this was part of table lifecycle management.", "Assess risk of accidental table deletion.", "Re-enable protection if unauthorized."],
-    testingSteps: ["Disable deletion protection on a test DynamoDB table.", "Verify CloudTrail captures UpdateTable.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "dynamodb_deletion_protection" {
-  name = "detect-dynamodb-deletion-protection-disabled"
-  description = "Detects DynamoDB deletion protection disabled"
-  event_pattern = jsonencode({ source = ["aws.dynamodb"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["UpdateTable"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.dynamodb"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["UpdateTable"] } }, null, 2) },
-  },
+    testingSteps: ["Disable deletion protection on a test DynamoDB table.", "Verify CloudTrail captures UpdateTable.", "Run the detection to confirm the alert triggers."],},
 
   // --- EKS ---
   {
@@ -942,17 +804,12 @@ level: high`,
       cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.name
 | filter eventName in ["CreateCluster", "UpdateClusterConfig"]
 | sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.eks"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateCluster", "UpdateClusterConfig"] } }, null, 2),
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "eks.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.name", "requestParameters.resourcesVpcConfig", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "eks.amazonaws.com", eventName: "UpdateClusterConfig", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { name: "my-cluster", resourcesVpcConfig: { publicAccessCidrs: ["0.0.0.0/0"] } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who enabled public endpoint or expanded publicAccessCidrs.", "Verify if this was for development cluster access.", "Assess exposure of the API server.", "Restrict public access if unauthorized."],
-    testingSteps: ["Create or update an EKS cluster with public endpoint (0.0.0.0/0).", "Verify CloudTrail captures CreateCluster or UpdateClusterConfig.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "eks_public_endpoint" {
-  name = "detect-eks-public-endpoint"
-  description = "Detects EKS cluster public endpoint enabled"
-  event_pattern = jsonencode({ source = ["aws.eks"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["CreateCluster", "UpdateClusterConfig"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.eks"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateCluster", "UpdateClusterConfig"] } }, null, 2) },
-  },
+    testingSteps: ["Create or update an EKS cluster with public endpoint (0.0.0.0/0).", "Verify CloudTrail captures CreateCluster or UpdateClusterConfig.", "Run the detection to confirm the alert triggers."],},
   {
     id: "det-026",
     title: "EKS Anonymous Authentication Enabled",
@@ -975,17 +832,12 @@ detection:
 level: critical`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventName=UpdateClusterConfig
 | table _time, userIdentity.arn, requestParameters.name, requestParameters`,
+      eventbridge: JSON.stringify({ source: ["aws.eks"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["UpdateClusterConfig"] } }, null, 2),
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "eks.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.name", "requestParameters.accessConfig", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "eks.amazonaws.com", eventName: "UpdateClusterConfig", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { name: "my-cluster", accessConfig: { authenticationMode: "API_AND_CONFIG_MAP", bootstrapClusterCreatorAdminPermissions: true } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who updated the cluster config.", "Check for anonymous or permissive authentication.", "Verify RBAC and access controls.", "Restore secure auth if unauthorized."],
-    testingSteps: ["Update EKS cluster config with anonymous auth or permissive settings.", "Verify CloudTrail captures UpdateClusterConfig.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "eks_anonymous_auth" {
-  name = "detect-eks-anonymous-auth"
-  description = "Detects EKS anonymous authentication"
-  event_pattern = jsonencode({ source = ["aws.eks"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["UpdateClusterConfig"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.eks"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["UpdateClusterConfig"] } }, null, 2) },
-  },
+    testingSteps: ["Update EKS cluster config with anonymous auth or permissive settings.", "Verify CloudTrail captures UpdateClusterConfig.", "Run the detection to confirm the alert triggers."],},
   // --- ECS ---
   {
     id: "det-027",
@@ -1016,17 +868,12 @@ level: high`,
       cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.family
 | filter eventName = "RegisterTaskDefinition"
 | sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.ecs"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RegisterTaskDefinition"] } }, null, 2),
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ecs.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.family", "requestParameters.containerDefinitions", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ecs.amazonaws.com", eventName: "RegisterTaskDefinition", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { family: "my-task", containerDefinitions: [{ image: "nginx:latest" }] }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who registered the task definition.", "Inspect container images for non-ECR sources (supply chain risk).", "Verify if external registries are approved.", "Review task definitions for malicious code."],
-    testingSteps: ["Register an ECS task definition with an image from Docker Hub.", "Verify CloudTrail captures RegisterTaskDefinition.", "Run the detection to confirm it triggers on non-ECR images."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "ecs_external_image" {
-  name = "detect-ecs-external-image"
-  description = "Detects ECS task definition with external image"
-  event_pattern = jsonencode({ source = ["aws.ecs"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["RegisterTaskDefinition"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.ecs"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RegisterTaskDefinition"] } }, null, 2) },
-  },
+    testingSteps: ["Register an ECS task definition with an image from Docker Hub.", "Verify CloudTrail captures RegisterTaskDefinition.", "Run the detection to confirm it triggers on non-ECR images."],},
 
   // --- Secrets Manager ---
   {
@@ -1059,17 +906,12 @@ level: high`,
 | filter eventName = "GetSecretValue"
 | stats count(*) as retrievals by userIdentity.arn
 | filter retrievals > 10`,
+      eventbridge: JSON.stringify({ source: ["aws.secretsmanager"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["GetSecretValue"] } }, null, 2),
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "secretsmanager.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.secretId", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "secretsmanager.amazonaws.com", eventName: "GetSecretValue", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { secretId: "my-secret" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who retrieved secrets and in what volume.", "Verify if bulk retrieval matches app startup or rotation.", "Check for credential harvesting patterns.", "Review secret access patterns for anomalies."],
-    testingSteps: ["Retrieve multiple secrets in quick succession (e.g., >10 in 5 min).", "Verify CloudTrail captures GetSecretValue.", "Run the detection to confirm volume-based alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "secrets_bulk" {
-  name = "detect-secrets-manager-bulk-retrieval"
-  description = "Detects bulk secret retrieval"
-  event_pattern = jsonencode({ source = ["aws.secretsmanager"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["GetSecretValue"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.secretsmanager"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["GetSecretValue"] } }, null, 2) },
-  },
+    testingSteps: ["Retrieve multiple secrets in quick succession (e.g., >10 in 5 min).", "Verify CloudTrail captures GetSecretValue.", "Run the detection to confirm volume-based alert triggers."],},
 
   // --- SSM ---
   {
@@ -1099,17 +941,12 @@ level: high`,
       cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.documentName
 | filter eventName in ["SendCommand", "StartSession"]
 | sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.ssm"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["SendCommand", "StartSession"] } }, null, 2),
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ssm.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.documentName", "requestParameters.instanceIds", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ssm.amazonaws.com", eventName: "SendCommand", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { documentName: "AWS-RunShellScript", instanceIds: ["i-xxx"] }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who ran the command and on which instances.", "Verify if this was automated patching or ops.", "Inspect the document name and parameters.", "Review for lateral movement indicators."],
-    testingSteps: ["Run SSM SendCommand or StartSession on an instance.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "ssm_run_command" {
-  name = "detect-ssm-run-command"
-  description = "Detects SSM Run Command execution"
-  event_pattern = jsonencode({ source = ["aws.ssm"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["SendCommand", "StartSession"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.ssm"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["SendCommand", "StartSession"] } }, null, 2) },
-  },
+    testingSteps: ["Run SSM SendCommand or StartSession on an instance.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],},
 
   // --- Organizations ---
   {
@@ -1144,17 +981,12 @@ level: critical`,
 | filter eventSource = "organizations.amazonaws.com"
 | filter eventName in ["DetachPolicy", "DeletePolicy", "UpdatePolicy"]
 | sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.organizations"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["DetachPolicy", "DeletePolicy", "UpdatePolicy"] } }, null, 2),
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "organizations.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.policyId", "eventSource", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "organizations.amazonaws.com", eventName: "DetachPolicy", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { policyId: "p-xxx", targetId: "ou-xxx" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who modified or detached the SCP.", "Assess impact on organization-wide guardrails.", "Verify if this was planned governance change.", "Restore SCP if unauthorized."],
-    testingSteps: ["Detach or update a Service Control Policy in Organizations.", "Verify CloudTrail captures DetachPolicy/DeletePolicy/UpdatePolicy.", "Run the detection to confirm the alert triggers."],
-    deployment: { terraform: `resource "aws_cloudwatch_event_rule" "org_scp" {
-  name = "detect-org-scp-modified"
-  description = "Detects Organizations SCP changes"
-  event_pattern = jsonencode({ source = ["aws.organizations"], "detail-type" = ["AWS API Call via CloudTrail"], detail = { eventName = ["DetachPolicy", "DeletePolicy", "UpdatePolicy"] } })
-}`, eventbridge: JSON.stringify({ source: ["aws.organizations"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["DetachPolicy", "DeletePolicy", "UpdatePolicy"] } }, null, 2) },
-  },
+    testingSteps: ["Detach or update a Service Control Policy in Organizations.", "Verify CloudTrail captures DetachPolicy/DeletePolicy/UpdatePolicy.", "Run the detection to confirm the alert triggers."],},
 ];
 
 /**
