@@ -58,7 +58,7 @@ const TechniqueDetailPage = () => {
       <Layout>
         <div className="container py-12 text-center">
           <h1 className="font-display text-2xl font-bold mb-4">Technique Not Found</h1>
-          <Link to="/attack-paths" className="text-primary hover:underline">← Back to Attack Paths</Link>
+          <Link to="/techniques" className="text-primary hover:underline">← Back to Techniques Library</Link>
         </div>
       </Layout>
     );
@@ -73,9 +73,7 @@ const TechniqueDetailPage = () => {
       <div className="container py-12 max-w-4xl">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
-          <Link to="/attack-paths" className="hover:text-foreground transition-colors">Attack Paths</Link>
-          <ChevronRight className="h-3.5 w-3.5" />
-          <span className="text-muted-foreground">Techniques</span>
+          <Link to="/techniques" className="hover:text-foreground transition-colors">Techniques Library</Link>
           <ChevronRight className="h-3.5 w-3.5" />
           <span className="text-foreground">{technique.name}</span>
         </div>

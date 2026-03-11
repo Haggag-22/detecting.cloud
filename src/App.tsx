@@ -13,6 +13,7 @@ import AttackGraph from "./pages/AttackGraph";
 import Coverage from "./pages/Coverage";
 import GapAnalysis from "./pages/GapAnalysis";
 import TechniqueDetail from "./pages/TechniqueDetail";
+import TechniquesLibrary from "./pages/TechniquesLibrary";
 import AttackSimulator from "./pages/AttackSimulator";
 import CommunityRules from "./pages/CommunityRules";
 import AdminSubscribers from "./pages/AdminSubscribers";
@@ -33,6 +34,7 @@ const App = () => (
           <Route path="/research/:slug" element={<Article />} />
           <Route path="/attack-paths/technique/:id" element={<TechniqueDetail />} />
           <Route path="/attack-paths" element={<AttackPaths />} />
+          <Route path="/techniques" element={<TechniquesLibrary />} />
           <Route path="/detection-engineering" element={<DetectionEngineering />} />
           <Route path="/attack-graph" element={<AttackGraph />} />
           <Route path="/coverage" element={<Coverage />} />

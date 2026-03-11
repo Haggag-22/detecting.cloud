@@ -169,9 +169,9 @@ function buildSections(): SidebarSection[] {
     },
     {
       key: "techniques",
-      label: "Techniques",
+      label: "Techniques Library",
       icon: Route,
-      to: "/attack-paths",
+      to: "/techniques",
       children: techniqueChildren,
     },
     {
