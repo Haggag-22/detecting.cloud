@@ -179,7 +179,7 @@ const AttackPathsPage = () => {
                     return (
                       <span key={i} className="flex items-center gap-1.5">
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
-                          {tech?.shortName || "?"}
+                          {tech?.name || "?"}
                         </span>
                         {i < ap.steps.length - 1 && (
                           <ChevronRight className="h-3 w-3 text-muted-foreground/50" />

@@ -61,7 +61,7 @@ export function AttackFlowChain({ steps, compact = false }: AttackFlowChainProps
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <span className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors">
-                  {step.technique.shortName}
+                  {step.technique.name}
                 </span>
                 {(() => {
                   const CatIcon = catIcon[step.technique.category];

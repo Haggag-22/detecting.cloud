@@ -26,7 +26,7 @@ export function buildKnowledgeBase(): string {
   for (const ap of attackPaths) {
     const steps = ap.steps.map((s) => {
       const tech = techniques.find((t) => t.id === s.techniqueId);
-      return tech ? tech.shortName : s.techniqueId;
+      return tech ? tech.name : s.techniqueId;
     });
     sections.push(
       `- **${ap.title}** (Slug: ${ap.slug}, Severity: ${ap.severity}, Objective: ${attackObjectiveLabels[ap.objective]})\n` +
