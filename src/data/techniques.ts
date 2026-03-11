@@ -813,7 +813,9 @@ export const techniques: Technique[] = [
       "Permissions boundaries cap the maximum permissions a user or role can have. An attacker with iam:DeleteRolePermissionsBoundary or iam:DeleteUserPermissionsBoundary can remove the boundary from a principal, allowing it to use its full attached policy permissions without the boundary's restrictions. This is especially effective when the principal has broad managed policies attached but was constrained by a boundary. Required permissions are iam:DeleteRolePermissionsBoundary for roles or iam:DeleteUserPermissionsBoundary for users.",
     services: ["IAM"],
     permissions: ["iam:DeleteRolePermissionsBoundary", "iam:DeleteUserPermissionsBoundary"],
-    detectionIds: [],
+    detectionIds: ["det-041", "det-042", "det-043"],
+    detectionStrategy:
+      "Removing a permissions boundary immediately expands a principal's effective permissions if attached policies were previously constrained. Detection should monitor DeleteRolePermissionsBoundary and DeleteUserPermissionsBoundary, focus on unexpected actors, and correlate boundary removal with follow-on privileged activity to reduce false positives.",
     mitigations: ["Restrict boundary deletion", "Monitor IAM boundary changes", "Use SCPs to enforce boundaries"],
     category: "privilege-escalation",
     commands: [
@@ -829,7 +831,9 @@ export const techniques: Technique[] = [
       "An attacker with iam:PutRolePermissionsBoundary or iam:PutUserPermissionsBoundary can replace an existing permissions boundary with a weaker one. The new boundary may grant broader actions (e.g., s3:* instead of s3:GetObject only) or cover more resources. This effectively escalates the principal's permissions without modifying attached policies. Required permissions are iam:PutRolePermissionsBoundary for roles or iam:PutUserPermissionsBoundary for users.",
     services: ["IAM"],
     permissions: ["iam:PutRolePermissionsBoundary", "iam:PutUserPermissionsBoundary"],
-    detectionIds: [],
+    detectionIds: ["det-044", "det-045", "det-046", "det-047"],
+    detectionStrategy:
+      "Weakening is often not directly inferable from a single CloudTrail event unless the system knows approved boundary ARNs. Detection should focus on change visibility, non-approved boundary ARNs, sensitive targets, and suspicious follow-on behavior. Use allowlists for approved boundary policies where possible.",
     mitigations: ["Restrict boundary modifications", "Audit boundary changes", "Use least-privilege boundaries"],
     category: "privilege-escalation",
     commands: [
@@ -845,7 +849,9 @@ export const techniques: Technique[] = [
       "An attacker with iam:CreateLoginProfile can set a password for an IAM user, enabling AWS Management Console access. This is used for persistence when the attacker has created a backdoor user or compromised an existing user that lacked console access. The attacker can then log in via the web console in addition to programmatic access. Required permission is iam:CreateLoginProfile. The target user must not already have a login profile.",
     services: ["IAM"],
     permissions: ["iam:CreateLoginProfile"],
-    detectionIds: [],
+    detectionIds: ["det-048", "det-049", "det-050", "det-051"],
+    detectionStrategy:
+      "Creating a console password for an IAM user enables Management Console access. In SSO-first or programmatic-only environments, this is highly suspicious. Detection should monitor CreateLoginProfile, focus on unexpected actors and non-human target users, and correlate with ConsoleLogin for high-confidence persistence detection.",
     mitigations: ["Restrict CreateLoginProfile", "Prefer SSO over IAM user console", "Monitor login profile creation"],
     category: "privilege-escalation",
     commands: [
@@ -860,7 +866,9 @@ export const techniques: Technique[] = [
       "An attacker with iam:UpdateLoginProfile can change the password of an IAM user that has a login profile. This allows the attacker to set a known password on a compromised or backdoor user to maintain or regain console access. If the user's password was rotated during incident response, the attacker can set a new one. Required permission is iam:UpdateLoginProfile on the target user.",
     services: ["IAM"],
     permissions: ["iam:UpdateLoginProfile"],
-    detectionIds: [],
+    detectionIds: ["det-052", "det-053", "det-054", "det-055"],
+    detectionStrategy:
+      "Password changes on IAM users with console access enable persistence and account recovery. Detection should monitor UpdateLoginProfile, focus on unexpected actors and sensitive target users, and correlate with ConsoleLogin shortly after the change for high-confidence account takeover detection.",
     mitigations: ["Restrict UpdateLoginProfile", "Enable MFA", "Monitor login profile changes"],
     category: "privilege-escalation",
     commands: [

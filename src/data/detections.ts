@@ -1541,6 +1541,824 @@ ORDER BY eventTime DESC`,
     investigationSteps: ["Identify the actor type (IAMUser, AssumedRole) and ARN.", "Verify if this identity is authorized to detach or delete IAM policies.", "Check userIdentity.sessionContext.sessionIssuer.arn for assumed roles.", "Review whether the actor is an EC2 instance role or application role."],
     testingSteps: ["As a non-admin role, call DetachUserPolicy or DeleteUserPolicy.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
   },
+
+  // --- IAM Permissions Boundary Deletion ---
+  {
+    id: "det-041",
+    title: "Permissions Boundary Removed",
+    description: "Baseline visibility when a permissions boundary is deleted from a role or user. Important and potentially dangerous, but may occur during legitimate identity management or delegated administration.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "Medium",
+    tags: ["IAM", "Permissions Boundary", "Privilege Escalation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate boundary lifecycle management", "Terraform/CloudFormation"],
+    rules: {
+      sigma: `title: Permissions Boundary Removed
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - DeleteRolePermissionsBoundary
+      - DeleteUserPermissionsBoundary
+  condition: selection
+level: medium`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=DeleteRolePermissionsBoundary OR eventName=DeleteUserPermissionsBoundary)
+| table _time, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName IN ('DeleteRolePermissionsBoundary', 'DeleteUserPermissionsBoundary')
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName in ["DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"]
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "DeleteRolePermissionsBoundary", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "TargetRole" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify who removed the boundary.", "Verify target principal's attached policies and whether boundary removal expands permissions.", "Check if the change was authorized."],
+    testingSteps: ["Call DeleteRolePermissionsBoundary or DeleteUserPermissionsBoundary.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+  },
+  {
+    id: "det-042",
+    title: "Suspicious Permissions Boundary Removal by Unexpected Actor",
+    description: "Detects boundary deletion performed by identities that normally should not manage IAM boundaries. Suspicious actors include IAM users, application roles, EC2 instance roles, and assumed roles outside known IAM administration or infrastructure automation. Excludes Terraform, CloudFormation, and admin roles.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "High",
+    tags: ["IAM", "Permissions Boundary", "Anomaly"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate DevOps or automation roles", "IAM admin users with expected access"],
+    rules: {
+      sigma: `title: Suspicious Permissions Boundary Removal by Unexpected Actor
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - DeleteRolePermissionsBoundary
+      - DeleteUserPermissionsBoundary
+  filter_known_admin:
+    userIdentity.principalId|contains:
+      - 'terraform'
+      - 'cloudformation'
+      - 'admin'
+      - 'Admin'
+      - 'IAMAdmin'
+  condition: selection and not filter_known_admin
+level: high`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=DeleteRolePermissionsBoundary OR eventName=DeleteUserPermissionsBoundary)
+| where NOT (like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%") OR like(userIdentity.arn, "%admin%") OR like(userIdentity.arn, "%Admin%") OR like(userIdentity.arn, "%IAMAdmin%"))
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName IN ('DeleteRolePermissionsBoundary', 'DeleteUserPermissionsBoundary')
+  AND userIdentity.principalId NOT LIKE '%terraform%'
+  AND userIdentity.principalId NOT LIKE '%cloudformation%'
+  AND userIdentity.arn NOT LIKE '%admin%'
+  AND userIdentity.arn NOT LIKE '%Admin%'
+  AND userIdentity.arn NOT LIKE '%IAMAdmin%'
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName in ["DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"]
+| filter userIdentity.principalId not like /terraform/ and userIdentity.principalId not like /cloudformation/ and userIdentity.arn not like /admin/i
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.roleName", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "DeleteRolePermissionsBoundary", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx" }, requestParameters: { roleName: "TargetRole" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized to manage IAM boundaries.", "Check sessionContext.sessionIssuer.arn for assumed roles."],
+    testingSteps: ["As a non-admin role, call DeleteRolePermissionsBoundary.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
+  },
+  {
+    id: "det-043",
+    title: "Boundary Removal Followed by Sensitive Activity",
+    description: "Correlates boundary deletion with follow-on privileged activity within 5–15 minutes. Reduces false positives by requiring suspicious follow-on behavior. Same actor or affected principal performs AssumeRole, CreateAccessKey, AttachUserPolicy, PutUserPolicy, PutRolePolicy, GetSecretValue, KMS decrypt, or broad S3 access.",
+    awsService: "IAM",
+    relatedServices: ["STS", "Secrets Manager", "KMS", "S3"],
+    severity: "Critical",
+    tags: ["IAM", "Permissions Boundary", "Behavior Correlation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate boundary removal followed by normal admin workflow"],
+    rules: {
+      sigma: `title: Boundary Removal Followed by Sensitive Activity
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_boundary:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - DeleteRolePermissionsBoundary
+      - DeleteUserPermissionsBoundary
+  selection_sensitive:
+    eventName:
+      - AssumeRole
+      - CreateAccessKey
+      - AttachUserPolicy
+      - AttachRolePolicy
+      - PutUserPolicy
+      - PutRolePolicy
+      - GetSecretValue
+      - Decrypt
+  condition: 1 of selection_*
+level: critical
+# Full correlation (same actor, 5–15 min window) requires SIEM correlation.`,
+      splunk: `index=aws sourcetype=aws:cloudtrail
+  ((eventSource=iam.amazonaws.com AND (eventName=DeleteRolePermissionsBoundary OR eventName=DeleteUserPermissionsBoundary))
+   OR (eventName=AssumeRole OR eventName=CreateAccessKey OR eventName=AttachUserPolicy OR eventName=AttachRolePolicy OR eventName=PutUserPolicy OR eventName=PutRolePolicy OR eventName=GetSecretValue OR eventName=Decrypt))
+| eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
+| transaction actor maxspan=15m
+| where mvcount(mvfilter(eventSource="iam.amazonaws.com" AND eventName IN ("DeleteRolePermissionsBoundary","DeleteUserPermissionsBoundary")))>0
+  AND mvcount(mvfilter(eventName IN ("AssumeRole","CreateAccessKey","AttachUserPolicy","AttachRolePolicy","PutUserPolicy","PutRolePolicy","GetSecretValue","Decrypt")))>0
+| table _time, actor, eventName, requestParameters.roleName, requestParameters.userName`,
+      cloudtrail: `WITH boundary_removal AS (
+  SELECT userIdentity.arn AS actor, eventTime AS removal_time
+  FROM cloudtrail_logs
+  WHERE eventSource = 'iam.amazonaws.com'
+    AND eventName IN ('DeleteRolePermissionsBoundary', 'DeleteUserPermissionsBoundary')
+),
+sensitive_use AS (
+  SELECT userIdentity.arn AS actor, eventTime AS use_time, eventName
+  FROM cloudtrail_logs
+  WHERE eventName IN ('AssumeRole', 'CreateAccessKey', 'AttachUserPolicy', 'AttachRolePolicy', 'PutUserPolicy', 'PutRolePolicy', 'GetSecretValue', 'Decrypt')
+)
+SELECT b.actor, b.removal_time, s.use_time, s.eventName
+FROM boundary_removal b
+JOIN sensitive_use s ON b.actor = s.actor
+  AND s.use_time > b.removal_time
+  AND s.use_time <= b.removal_time + INTERVAL '15' MINUTE
+ORDER BY b.removal_time DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, eventSource
+| filter (eventSource = "iam.amazonaws.com" and eventName in ["DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"])
+  or eventName in ["AssumeRole", "CreateAccessKey", "AttachUserPolicy", "AttachRolePolicy", "PutUserPolicy", "PutRolePolicy", "GetSecretValue", "Decrypt"]
+| stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
+| filter cnt > 1
+| sort cnt desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "DeleteRolePermissionsBoundary", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "TargetRole" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the actor that removed the boundary.", "Review the sequence: boundary removal → sensitive API use within 15 minutes.", "Verify if the follow-on activity was expected.", "Assess whether the principal was newly unconstrained."],
+    testingSteps: ["Call DeleteRolePermissionsBoundary, then within 15 min call AssumeRole or GetSecretValue.", "Verify both events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+  },
+
+  // --- IAM Permissions Boundary Weakening ---
+  {
+    id: "det-044",
+    title: "Permissions Boundary Changed",
+    description: "Baseline visibility for any boundary change on a user or role. Boundary changes are high-sensitivity IAM events but can be legitimate.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "Medium",
+    tags: ["IAM", "Permissions Boundary", "Privilege Escalation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate boundary updates", "Terraform/CloudFormation"],
+    rules: {
+      sigma: `title: Permissions Boundary Changed
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - PutRolePermissionsBoundary
+      - PutUserPermissionsBoundary
+  condition: selection
+level: medium`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=PutRolePermissionsBoundary OR eventName=PutUserPermissionsBoundary)
+| table _time, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName IN ('PutRolePermissionsBoundary', 'PutUserPermissionsBoundary')
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary, sourceIPAddress
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName in ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"]
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "requestParameters.permissionsBoundary", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "PutRolePermissionsBoundary", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "TargetRole", permissionsBoundary: "arn:aws:iam::aws:policy/ExampleBoundary" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify who changed the boundary.", "Inspect the new boundary ARN.", "Verify if the change was authorized."],
+    testingSteps: ["Call PutRolePermissionsBoundary.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+  },
+  {
+    id: "det-045",
+    title: "Boundary Changed to Non-Approved Policy ARN",
+    description: "Detects boundary changes to a policy ARN outside the organization's approved boundary allowlist. In real environments, permissions boundaries are usually tightly standardized. Deviating from approved boundary ARNs is suspicious. Implement allowlist logic: alert when requestParameters.permissionsBoundary is not in the approved list.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "High",
+    tags: ["IAM", "Permissions Boundary", "Privilege Escalation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["New approved boundary added to allowlist", "Legitimate boundary migration"],
+    rules: {
+      sigma: `title: Boundary Changed to Non-Approved Policy ARN
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - PutRolePermissionsBoundary
+      - PutUserPermissionsBoundary
+  filter_non_approved:
+    requestParameters.permissionsBoundary|contains:
+      - 'aws:policy/AdministratorAccess'
+      - 'aws:policy/PowerUserAccess'
+      - 'FullAccess'
+      - 'Admin'
+  condition: selection and filter_non_approved
+level: high
+# Customize filter_non_approved: invert to allowlist approved ARNs if supported.`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=PutRolePermissionsBoundary OR eventName=PutUserPermissionsBoundary)
+| where like(requestParameters.permissionsBoundary, "%AdministratorAccess%") OR like(requestParameters.permissionsBoundary, "%PowerUserAccess%") OR like(requestParameters.permissionsBoundary, "%FullAccess%") OR like(requestParameters.permissionsBoundary, "%Admin%")
+| table _time, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName IN ('PutRolePermissionsBoundary', 'PutUserPermissionsBoundary')
+  AND (requestParameters.permissionsBoundary LIKE '%AdministratorAccess%' OR requestParameters.permissionsBoundary LIKE '%PowerUserAccess%' OR requestParameters.permissionsBoundary LIKE '%FullAccess%' OR requestParameters.permissionsBoundary LIKE '%Admin%')
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName in ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"]
+| filter requestParameters.permissionsBoundary like /AdministratorAccess|PowerUserAccess|FullAccess|Admin/
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.permissionsBoundary", "requestParameters.roleName", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "PutRolePermissionsBoundary", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "TargetRole", permissionsBoundary: "arn:aws:iam::aws:policy/AdministratorAccess" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify who set the boundary.", "Verify if the boundary ARN is in the approved allowlist.", "Assess whether the new boundary weakens restrictions."],
+    testingSteps: ["Set a boundary to a non-approved policy ARN.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+  },
+  {
+    id: "det-046",
+    title: "Boundary Change on Sensitive Principal",
+    description: "Detects boundary changes applied to highly sensitive users or roles. Sensitive targets include admin roles, break-glass roles, deployment roles, platform roles, and privileged human users. Even a legitimate-looking boundary change is risky on critical identities.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "High",
+    tags: ["IAM", "Permissions Boundary", "Privilege Escalation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Planned boundary change on critical role", "Break-glass procedure"],
+    rules: {
+      sigma: `title: Boundary Change on Sensitive Principal
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - PutRolePermissionsBoundary
+      - PutUserPermissionsBoundary
+  filter_role:
+    requestParameters.roleName|contains:
+      - 'admin'
+      - 'Admin'
+      - 'break-glass'
+      - 'deploy'
+      - 'platform'
+  filter_user:
+    requestParameters.userName|contains:
+      - 'admin'
+      - 'Admin'
+      - 'break-glass'
+      - 'deploy'
+      - 'platform'
+  condition: selection and (filter_role or filter_user)
+level: high`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=PutRolePermissionsBoundary OR eventName=PutUserPermissionsBoundary)
+| where like(requestParameters.roleName, "%admin%") OR like(requestParameters.roleName, "%Admin%") OR like(requestParameters.roleName, "%break-glass%") OR like(requestParameters.roleName, "%deploy%") OR like(requestParameters.roleName, "%platform%") OR like(requestParameters.userName, "%admin%") OR like(requestParameters.userName, "%Admin%") OR like(requestParameters.userName, "%break-glass%") OR like(requestParameters.userName, "%deploy%") OR like(requestParameters.userName, "%platform%")
+| table _time, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName IN ('PutRolePermissionsBoundary', 'PutUserPermissionsBoundary')
+  AND (requestParameters.roleName LIKE '%admin%' OR requestParameters.roleName LIKE '%Admin%' OR requestParameters.roleName LIKE '%break-glass%' OR requestParameters.roleName LIKE '%deploy%' OR requestParameters.roleName LIKE '%platform%' OR requestParameters.userName LIKE '%admin%' OR requestParameters.userName LIKE '%Admin%' OR requestParameters.userName LIKE '%break-glass%' OR requestParameters.userName LIKE '%deploy%' OR requestParameters.userName LIKE '%platform%')
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName in ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"]
+| filter requestParameters.roleName like /admin|break-glass|deploy|platform/i or requestParameters.userName like /admin|break-glass|deploy|platform/i
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "requestParameters.permissionsBoundary", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "PutRolePermissionsBoundary", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "TargetRole", permissionsBoundary: "arn:aws:iam::aws:policy/ExampleBoundary" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the target principal and whether it is sensitive.", "Verify if the boundary change was authorized.", "Assess impact on the principal's effective permissions."],
+    testingSteps: ["Set a boundary on a role with 'admin' in the name.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+  },
+  {
+    id: "det-047",
+    title: "Boundary Change Followed by Privileged or Sensitive Action",
+    description: "Correlates boundary update with immediate privileged use. Attackers weaken a boundary to immediately use broader permissions. Follow-on events: AssumeRole, CreatePolicyVersion, SetDefaultPolicyVersion, PassRole, GetSecretValue, Decrypt, broad S3 access.",
+    awsService: "IAM",
+    relatedServices: ["STS", "Secrets Manager", "KMS", "S3"],
+    severity: "Critical",
+    tags: ["IAM", "Permissions Boundary", "Behavior Correlation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate boundary change followed by normal admin workflow"],
+    rules: {
+      sigma: `title: Boundary Change Followed by Privileged or Sensitive Action
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_boundary:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - PutRolePermissionsBoundary
+      - PutUserPermissionsBoundary
+  selection_sensitive:
+    eventName:
+      - AssumeRole
+      - CreatePolicyVersion
+      - SetDefaultPolicyVersion
+      - PassRole
+      - GetSecretValue
+      - Decrypt
+  condition: 1 of selection_*
+level: critical
+# Full correlation requires SIEM.`,
+      splunk: `index=aws sourcetype=aws:cloudtrail
+  ((eventSource=iam.amazonaws.com AND (eventName=PutRolePermissionsBoundary OR eventName=PutUserPermissionsBoundary))
+   OR (eventName=AssumeRole OR eventName=CreatePolicyVersion OR eventName=SetDefaultPolicyVersion OR eventName=PassRole OR eventName=GetSecretValue OR eventName=Decrypt))
+| eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
+| transaction actor maxspan=15m
+| where mvcount(mvfilter(eventSource="iam.amazonaws.com" AND eventName IN ("PutRolePermissionsBoundary","PutUserPermissionsBoundary")))>0
+  AND mvcount(mvfilter(eventName IN ("AssumeRole","CreatePolicyVersion","SetDefaultPolicyVersion","PassRole","GetSecretValue","Decrypt")))>0
+| table _time, actor, eventName, requestParameters.roleName, requestParameters.userName`,
+      cloudtrail: `WITH boundary_change AS (
+  SELECT userIdentity.arn AS actor, eventTime AS change_time
+  FROM cloudtrail_logs
+  WHERE eventSource = 'iam.amazonaws.com'
+    AND eventName IN ('PutRolePermissionsBoundary', 'PutUserPermissionsBoundary')
+),
+sensitive_use AS (
+  SELECT userIdentity.arn AS actor, eventTime AS use_time, eventName
+  FROM cloudtrail_logs
+  WHERE eventName IN ('AssumeRole', 'CreatePolicyVersion', 'SetDefaultPolicyVersion', 'PassRole', 'GetSecretValue', 'Decrypt')
+)
+SELECT b.actor, b.change_time, s.use_time, s.eventName
+FROM boundary_change b
+JOIN sensitive_use s ON b.actor = s.actor
+  AND s.use_time > b.change_time
+  AND s.use_time <= b.change_time + INTERVAL '15' MINUTE
+ORDER BY b.change_time DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, eventSource
+| filter (eventSource = "iam.amazonaws.com" and eventName in ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"])
+  or eventName in ["AssumeRole", "CreatePolicyVersion", "SetDefaultPolicyVersion", "PassRole", "GetSecretValue", "Decrypt"]
+| stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
+| filter cnt > 1
+| sort cnt desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "PutRolePermissionsBoundary", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "TargetRole", permissionsBoundary: "arn:aws:iam::aws:policy/ExampleBoundary" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the actor that changed the boundary.", "Review the sequence: boundary change → privileged or sensitive action within 15 minutes.", "Verify if the follow-on activity was expected.", "Assess whether the boundary change enabled broader access."],
+    testingSteps: ["Call PutRolePermissionsBoundary, then within 15 min call AssumeRole or GetSecretValue.", "Verify both events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+  },
+
+  // --- IAM Create Login Profile ---
+  {
+    id: "det-048",
+    title: "IAM Login Profile Created",
+    description: "Baseline visibility when a console password is created for an IAM user. Use High severity if the platform assumes modern AWS environments should rarely create IAM console passwords; otherwise Medium.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "High",
+    tags: ["IAM", "Login Profile", "Privilege Escalation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate onboarding of new IAM users with console access", "Migration from SSO to IAM users"],
+    rules: {
+      sigma: `title: IAM Login Profile Created
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: CreateLoginProfile
+  condition: selection
+level: high`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=CreateLoginProfile
+| table _time, userIdentity.arn, eventName, requestParameters.userName, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.userName, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName = 'CreateLoginProfile'
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.userName, sourceIPAddress
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "CreateLoginProfile"
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateLoginProfile"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateLoginProfile", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { userName: "backdoor-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify who created the login profile.", "Verify if the target user should have console access.", "Check if the environment prefers SSO over IAM console passwords."],
+    testingSteps: ["Call CreateLoginProfile for a test user.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+  },
+  {
+    id: "det-049",
+    title: "Login Profile Created by Unexpected Actor",
+    description: "Detects console-password creation by actors who normally should not manage IAM users. Suspicious actors include IAM users, application roles, EC2 instance roles, and non-IAM-admin assumed roles. Excludes Terraform, CloudFormation, and admin roles.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "High",
+    tags: ["IAM", "Login Profile", "Anomaly"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate DevOps or helpdesk roles", "IAM admin users with expected access"],
+    rules: {
+      sigma: `title: Login Profile Created by Unexpected Actor
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: CreateLoginProfile
+  filter_known_admin:
+    userIdentity.principalId|contains:
+      - 'terraform'
+      - 'cloudformation'
+      - 'admin'
+      - 'Admin'
+      - 'IAMAdmin'
+  condition: selection and not filter_known_admin
+level: high`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=CreateLoginProfile
+| where NOT (like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%") OR like(userIdentity.arn, "%admin%") OR like(userIdentity.arn, "%Admin%") OR like(userIdentity.arn, "%IAMAdmin%"))
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName = 'CreateLoginProfile'
+  AND userIdentity.principalId NOT LIKE '%terraform%'
+  AND userIdentity.principalId NOT LIKE '%cloudformation%'
+  AND userIdentity.arn NOT LIKE '%admin%'
+  AND userIdentity.arn NOT LIKE '%Admin%'
+  AND userIdentity.arn NOT LIKE '%IAMAdmin%'
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "CreateLoginProfile"
+| filter userIdentity.principalId not like /terraform/ and userIdentity.principalId not like /cloudformation/ and userIdentity.arn not like /admin/i
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateLoginProfile"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateLoginProfile", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx" }, requestParameters: { userName: "backdoor-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized to create IAM login profiles.", "Check sessionContext.sessionIssuer.arn for assumed roles."],
+    testingSteps: ["As a non-admin role, call CreateLoginProfile.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
+  },
+  {
+    id: "det-050",
+    title: "Login Profile Created for Suspicious or Non-Human User",
+    description: "Detects login profile creation for users that look like service accounts, automation users, backdoor users, or identities that historically should not have console access. Attackers may create a console password for a backdoor IAM user or for a user that previously had only API-based access.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "High",
+    tags: ["IAM", "Login Profile", "Privilege Escalation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate service account given console access for troubleshooting"],
+    rules: {
+      sigma: `title: Login Profile Created for Suspicious or Non-Human User
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: CreateLoginProfile
+  filter_target:
+    requestParameters.userName|contains:
+      - 'svc-'
+      - 'service'
+      - 'automation'
+      - 'backdoor'
+      - 'bot'
+      - 'api'
+      - 'cicd'
+      - 'terraform'
+  condition: selection and filter_target
+level: high`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=CreateLoginProfile
+| where like(requestParameters.userName, "%svc-%") OR like(requestParameters.userName, "%service%") OR like(requestParameters.userName, "%automation%") OR like(requestParameters.userName, "%backdoor%") OR like(requestParameters.userName, "%bot%") OR like(requestParameters.userName, "%api%") OR like(requestParameters.userName, "%cicd%") OR like(requestParameters.userName, "%terraform%")
+| table _time, userIdentity.arn, eventName, requestParameters.userName`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.userName
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName = 'CreateLoginProfile'
+  AND (requestParameters.userName LIKE '%svc-%' OR requestParameters.userName LIKE '%service%' OR requestParameters.userName LIKE '%automation%' OR requestParameters.userName LIKE '%backdoor%' OR requestParameters.userName LIKE '%bot%' OR requestParameters.userName LIKE '%api%' OR requestParameters.userName LIKE '%cicd%' OR requestParameters.userName LIKE '%terraform%')
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.userName
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "CreateLoginProfile"
+| filter requestParameters.userName like /svc-|service|automation|backdoor|bot|api|cicd|terraform/
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateLoginProfile"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateLoginProfile", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { userName: "backdoor-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the target user and whether it is a service or automation account.", "Verify if the user should have console access.", "Check if the user was recently created."],
+    testingSteps: ["Create a login profile for a user with 'svc-' in the name.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+  },
+  {
+    id: "det-051",
+    title: "CreateLoginProfile Followed by Console Login",
+    description: "High-confidence correlation for persistence or account takeover. CreateLoginProfile for user X followed by ConsoleLogin success for the same IAM user within 24 hours. Escalate if login succeeds without MFA or from unusual source IP.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "Critical",
+    tags: ["IAM", "Login Profile", "Behavior Correlation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate onboarding followed by user's first console login"],
+    rules: {
+      sigma: `title: CreateLoginProfile Followed by Console Login
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_create:
+    eventSource: iam.amazonaws.com
+    eventName: CreateLoginProfile
+  selection_login:
+    eventSource: signin.amazonaws.com
+    eventName: ConsoleLogin
+  condition: 1 of selection_*
+level: critical
+# Full correlation (same user, within 24h) requires SIEM.`,
+      splunk: `index=aws sourcetype=aws:cloudtrail
+  ((eventSource=iam.amazonaws.com AND eventName=CreateLoginProfile) OR (eventSource=signin.amazonaws.com AND eventName=ConsoleLogin))
+| eval target_user=case(eventName="CreateLoginProfile", requestParameters.userName, eventName="ConsoleLogin", replace(userIdentity.arn, ".*user/", ""), 1=1, null)
+| eval is_create=if(eventName="CreateLoginProfile", 1, 0)
+| eval is_login=if(eventName="ConsoleLogin" AND responseElements.ConsoleLogin="Success", 1, 0)
+| transaction target_user maxspan=24h
+| where mvcount(mvfilter(is_create=1))>0 AND mvcount(mvfilter(is_login=1))>0
+| table _time, target_user, eventName, userIdentity.arn, sourceIPAddress`,
+      cloudtrail: `WITH profile_created AS (
+  SELECT requestParameters.userName AS target_user, eventTime AS create_time
+  FROM cloudtrail_logs
+  WHERE eventSource = 'iam.amazonaws.com'
+    AND eventName = 'CreateLoginProfile'
+),
+console_login AS (
+  SELECT regexp_extract(userIdentity.arn, 'user/([^/]+)$', 1) AS target_user, eventTime AS login_time
+  FROM cloudtrail_logs
+  WHERE eventSource = 'signin.amazonaws.com'
+    AND eventName = 'ConsoleLogin'
+    AND responseElements.ConsoleLogin = 'Success'
+)
+SELECT p.target_user, p.create_time, c.login_time
+FROM profile_created p
+JOIN console_login c ON p.target_user = c.target_user
+  AND c.login_time > p.create_time
+  AND c.login_time <= p.create_time + INTERVAL '24' HOUR
+ORDER BY p.create_time DESC`,
+      cloudwatch: `fields @timestamp, eventSource, eventName, requestParameters.userName, userIdentity.arn, responseElements.ConsoleLogin
+| filter (eventSource = "iam.amazonaws.com" and eventName = "CreateLoginProfile")
+  or (eventSource = "signin.amazonaws.com" and eventName = "ConsoleLogin" and responseElements.ConsoleLogin = "Success")
+| parse userIdentity.arn "*user/%{target_user}"
+| eval target_user=if(eventName="CreateLoginProfile", requestParameters.userName, target_user)
+| stats count(*) as cnt, collect_list(eventName) as events by target_user
+| filter cnt > 1
+| sort cnt desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateLoginProfile"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.userName", "requestParameters.userName", "responseElements.ConsoleLogin", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateLoginProfile", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { userName: "backdoor-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the user that received the login profile.", "Review ConsoleLogin events for that user within 24 hours.", "Check if the login was from an unusual IP or without MFA."],
+    testingSteps: ["Create a login profile, then log in via console within 24h.", "Verify both events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+  },
+
+  // --- IAM Update Login Profile ---
+  {
+    id: "det-052",
+    title: "IAM Login Profile Updated",
+    description: "Baseline visibility when an IAM user's console password is changed. Password changes can be legitimate, especially in support workflows or account recovery.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "Medium",
+    tags: ["IAM", "Login Profile", "Privilege Escalation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate password reset", "User-initiated password change", "Helpdesk password reset"],
+    rules: {
+      sigma: `title: IAM Login Profile Updated
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: UpdateLoginProfile
+  condition: selection
+level: medium`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=UpdateLoginProfile
+| table _time, userIdentity.arn, eventName, requestParameters.userName, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.userName, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName = 'UpdateLoginProfile'
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.userName, sourceIPAddress
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "UpdateLoginProfile"
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["UpdateLoginProfile"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "UpdateLoginProfile", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { userName: "TargetUser" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify who updated the login profile.", "Verify if the password change was authorized.", "Check if the target user was recently compromised."],
+    testingSteps: ["Call UpdateLoginProfile for a test user.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+  },
+  {
+    id: "det-053",
+    title: "Login Profile Updated by Unexpected Actor",
+    description: "Detects password changes made by identities that normally should not manage IAM users. Suspicious actors include IAM users, application roles, EC2 roles, and non-admin assumed roles. Excludes expected admin/helpdesk/automation roles.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "High",
+    tags: ["IAM", "Login Profile", "Anomaly"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate helpdesk or automation roles", "IAM admin users with expected access"],
+    rules: {
+      sigma: `title: Login Profile Updated by Unexpected Actor
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: UpdateLoginProfile
+  filter_known_admin:
+    userIdentity.principalId|contains:
+      - 'terraform'
+      - 'cloudformation'
+      - 'admin'
+      - 'Admin'
+      - 'IAMAdmin'
+      - 'helpdesk'
+  condition: selection and not filter_known_admin
+level: high`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=UpdateLoginProfile
+| where NOT (like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%") OR like(userIdentity.arn, "%admin%") OR like(userIdentity.arn, "%Admin%") OR like(userIdentity.arn, "%IAMAdmin%") OR like(userIdentity.arn, "%helpdesk%"))
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName = 'UpdateLoginProfile'
+  AND userIdentity.principalId NOT LIKE '%terraform%'
+  AND userIdentity.principalId NOT LIKE '%cloudformation%'
+  AND userIdentity.arn NOT LIKE '%admin%'
+  AND userIdentity.arn NOT LIKE '%Admin%'
+  AND userIdentity.arn NOT LIKE '%IAMAdmin%'
+  AND userIdentity.arn NOT LIKE '%helpdesk%'
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "UpdateLoginProfile"
+| filter userIdentity.principalId not like /terraform|cloudformation|admin|helpdesk/i
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["UpdateLoginProfile"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "UpdateLoginProfile", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx" }, requestParameters: { userName: "TargetUser" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized to update IAM login profiles.", "Check sessionContext.sessionIssuer.arn for assumed roles."],
+    testingSteps: ["As a non-admin role, call UpdateLoginProfile.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
+  },
+  {
+    id: "det-054",
+    title: "Login Profile Updated for Sensitive or Suspicious User",
+    description: "Detects when a password is changed for privileged IAM users, break-glass users, dormant users, suspected backdoor users, or users not expected to use console access. Attackers often reset passwords on useful identities, not random ones.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "High",
+    tags: ["IAM", "Login Profile", "Privilege Escalation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate password rotation for privileged users", "Break-glass procedure"],
+    rules: {
+      sigma: `title: Login Profile Updated for Sensitive or Suspicious User
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: UpdateLoginProfile
+  filter_sensitive:
+    requestParameters.userName|contains:
+      - 'admin'
+      - 'Admin'
+      - 'break-glass'
+      - 'root'
+      - 'backdoor'
+      - 'privileged'
+  condition: selection and filter_sensitive
+level: high`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=UpdateLoginProfile
+| where like(requestParameters.userName, "%admin%") OR like(requestParameters.userName, "%Admin%") OR like(requestParameters.userName, "%break-glass%") OR like(requestParameters.userName, "%root%") OR like(requestParameters.userName, "%backdoor%") OR like(requestParameters.userName, "%privileged%")
+| table _time, userIdentity.arn, eventName, requestParameters.userName`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.userName
+FROM cloudtrail_logs
+WHERE eventSource = 'iam.amazonaws.com'
+  AND eventName = 'UpdateLoginProfile'
+  AND (requestParameters.userName LIKE '%admin%' OR requestParameters.userName LIKE '%Admin%' OR requestParameters.userName LIKE '%break-glass%' OR requestParameters.userName LIKE '%root%' OR requestParameters.userName LIKE '%backdoor%' OR requestParameters.userName LIKE '%privileged%')
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.userName
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "UpdateLoginProfile"
+| filter requestParameters.userName like /admin|break-glass|root|backdoor|privileged/i
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["UpdateLoginProfile"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "UpdateLoginProfile", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { userName: "admin-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the target user and whether it is sensitive.", "Verify if the password change was authorized.", "Check if the user was recently involved in an incident."],
+    testingSteps: ["Update a login profile for a user with 'admin' in the name.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+  },
+  {
+    id: "det-055",
+    title: "UpdateLoginProfile Followed by Console Login",
+    description: "High-confidence persistence or account takeover rule. UpdateLoginProfile for user X followed by successful ConsoleLogin by same user X shortly afterward. Escalate if login succeeds without MFA or from unusual source IP.",
+    awsService: "IAM",
+    relatedServices: [],
+    severity: "Critical",
+    tags: ["IAM", "Login Profile", "Behavior Correlation"],
+    logSources: ["AWS CloudTrail"],
+    falsePositives: ["Legitimate password reset followed by user login"],
+    rules: {
+      sigma: `title: UpdateLoginProfile Followed by Console Login
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_update:
+    eventSource: iam.amazonaws.com
+    eventName: UpdateLoginProfile
+  selection_login:
+    eventSource: signin.amazonaws.com
+    eventName: ConsoleLogin
+  condition: 1 of selection_*
+level: critical
+# Full correlation (same user, short window) requires SIEM.`,
+      splunk: `index=aws sourcetype=aws:cloudtrail
+  ((eventSource=iam.amazonaws.com AND eventName=UpdateLoginProfile) OR (eventSource=signin.amazonaws.com AND eventName=ConsoleLogin))
+| eval target_user=case(eventName="UpdateLoginProfile", requestParameters.userName, eventName="ConsoleLogin", replace(userIdentity.arn, ".*user/", ""), 1=1, null)
+| eval is_update=if(eventName="UpdateLoginProfile", 1, 0)
+| eval is_login=if(eventName="ConsoleLogin" AND responseElements.ConsoleLogin="Success", 1, 0)
+| transaction target_user maxspan=1h
+| where mvcount(mvfilter(is_update=1))>0 AND mvcount(mvfilter(is_login=1))>0
+| table _time, target_user, eventName, userIdentity.arn, sourceIPAddress`,
+      cloudtrail: `WITH profile_updated AS (
+  SELECT requestParameters.userName AS target_user, eventTime AS update_time
+  FROM cloudtrail_logs
+  WHERE eventSource = 'iam.amazonaws.com'
+    AND eventName = 'UpdateLoginProfile'
+),
+console_login AS (
+  SELECT regexp_extract(userIdentity.arn, 'user/([^/]+)$', 1) AS target_user, eventTime AS login_time
+  FROM cloudtrail_logs
+  WHERE eventSource = 'signin.amazonaws.com'
+    AND eventName = 'ConsoleLogin'
+    AND responseElements.ConsoleLogin = 'Success'
+)
+SELECT p.target_user, p.update_time, c.login_time
+FROM profile_updated p
+JOIN console_login c ON p.target_user = c.target_user
+  AND c.login_time > p.update_time
+  AND c.login_time <= p.update_time + INTERVAL '1' HOUR
+ORDER BY p.update_time DESC`,
+      cloudwatch: `fields @timestamp, eventSource, eventName, requestParameters.userName, userIdentity.arn, responseElements.ConsoleLogin
+| filter (eventSource = "iam.amazonaws.com" and eventName = "UpdateLoginProfile")
+  or (eventSource = "signin.amazonaws.com" and eventName = "ConsoleLogin" and responseElements.ConsoleLogin = "Success")
+| parse userIdentity.arn "*user/%{target_user}"
+| eval target_user=if(eventName="UpdateLoginProfile", requestParameters.userName, target_user)
+| stats count(*) as cnt, collect_list(eventName) as events by target_user
+| filter cnt > 1
+| sort cnt desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["UpdateLoginProfile"] } }, null, 2),
+    },
+    relatedAttackSlugs: [],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.userName", "responseElements.ConsoleLogin", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "UpdateLoginProfile", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { userName: "TargetUser" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the user whose password was updated.", "Review ConsoleLogin events for that user within 1 hour.", "Check if the login was from an unusual IP or without MFA."],
+    testingSteps: ["Update a login profile, then log in via console within 1h.", "Verify both events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+  },
 ];
 
 /**
