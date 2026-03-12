@@ -15,15 +15,18 @@ import TechniqueDetail from "./pages/TechniqueDetail";
 import TechniquesLibrary from "./pages/TechniquesLibrary";
 import AttackSimulator from "./pages/AttackSimulator";
 import DetectionLab from "./pages/detection-lab/DetectionLab";
+import DetectionAnalysis from "./pages/detection-analysis/DetectionAnalysis";
 import CommunityRules from "./pages/CommunityRules";
 import AdminSubscribers from "./pages/AdminSubscribers";
 import NotFound from "./pages/NotFound";
 import { AiAssistant } from "./components/AiAssistant";
+import { DetectionAnalysisProvider } from "./context/DetectionAnalysisContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <DetectionAnalysisProvider>
     <TooltipProvider>
       <Toaster />
       <Sonner />
@@ -42,9 +45,12 @@ const App = () => (
           <Route path="/detection-lab" element={<Navigate to="/detection-lab/dataset" replace />} />
           <Route path="/detection-lab/dataset" element={<DetectionLab />} />
           <Route path="/detection-lab/user-log" element={<DetectionLab />} />
-          <Route path="/detection-lab/replay" element={<DetectionLab />} />
           <Route path="/detection-lab/coverage" element={<DetectionLab />} />
-          <Route path="/detection-lab/aws-simulation" element={<DetectionLab />} />
+          <Route path="/detection-analysis" element={<Navigate to="/detection-analysis/results" replace />} />
+          <Route path="/detection-analysis/results" element={<DetectionAnalysis page="results" />} />
+          <Route path="/detection-analysis/false-positives" element={<DetectionAnalysis page="false-positives" />} />
+          <Route path="/detection-analysis/confidence" element={<DetectionAnalysis page="confidence" />} />
+          <Route path="/detection-analysis/explanation" element={<DetectionAnalysis page="explanation" />} />
           <Route path="/community-rules" element={<CommunityRules />} />
           <Route path="/admin/subscribers" element={<AdminSubscribers />} />
           <Route path="/about" element={<About />} />
@@ -53,6 +59,7 @@ const App = () => (
         <AiAssistant />
       </BrowserRouter>
     </TooltipProvider>
+    </DetectionAnalysisProvider>
   </QueryClientProvider>
 );
 

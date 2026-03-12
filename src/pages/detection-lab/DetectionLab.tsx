@@ -2,21 +2,17 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FlaskConical, Database, FileText, RotateCcw, BarChart3, Server } from "lucide-react";
+import { FlaskConical, Database, FileText, BarChart3 } from "lucide-react";
 import { DatasetTesting } from "./sections/DatasetTesting";
 import { UserLogTesting } from "./sections/UserLogTesting";
-import { AttackReplayEngine } from "./sections/AttackReplayEngine";
 import { DetectionCoverageMapping } from "./sections/DetectionCoverageMapping";
-import { RealAwsSimulation } from "./sections/RealAwsSimulation";
 import { ResultDashboard } from "./ResultDashboard";
 import { DetectionLabProvider } from "./DetectionLabContext";
 
 const sections = [
-  { id: "dataset", path: "dataset", label: "Dataset Testing", icon: Database },
+  { id: "dataset", path: "dataset", label: "Rule Testing", icon: Database },
   { id: "user-log", path: "user-log", label: "User Log Testing", icon: FileText },
-  { id: "replay", path: "replay", label: "Attack Replay Engine", icon: RotateCcw },
   { id: "coverage", path: "coverage", label: "Detection Coverage Mapping", icon: BarChart3 },
-  { id: "aws-simulation", path: "aws-simulation", label: "Real AWS Attack Simulation", icon: Server },
 ];
 
 export default function DetectionLab() {
@@ -43,13 +39,12 @@ export default function DetectionLab() {
             <h1 className="text-3xl font-bold">Detection Lab</h1>
           </div>
           <p className="text-muted-foreground max-w-2xl">
-            Test, validate, and measure the effectiveness of your detection rules. Upload logs, replay attack telemetry,
-            and simulate attacks in real AWS environments.
+            Test, validate, and measure the effectiveness of your detection rules. Upload logs and run detection rules against your telemetry.
           </p>
         </div>
 
         <Tabs value={activeSection} onValueChange={handleTabChange} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-5 h-auto flex-wrap gap-2">
+          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-3 h-auto flex-wrap gap-2">
             {sections.map((s) => (
               <TabsTrigger key={s.id} value={s.id} className="flex items-center gap-2">
                 <s.icon className="h-4 w-4" />
@@ -64,14 +59,8 @@ export default function DetectionLab() {
           <TabsContent value="user-log" className="mt-0">
             <UserLogTesting />
           </TabsContent>
-          <TabsContent value="replay" className="mt-0">
-            <AttackReplayEngine />
-          </TabsContent>
           <TabsContent value="coverage" className="mt-0">
             <DetectionCoverageMapping />
-          </TabsContent>
-          <TabsContent value="aws-simulation" className="mt-0">
-            <RealAwsSimulation />
           </TabsContent>
         </Tabs>
 

@@ -38,7 +38,7 @@ import {
   Github,
   Twitter,
   FlaskConical,
-  RotateCcw,
+  Lightbulb,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { attackPaths, attackObjectiveLabels, type AttackObjective } from "@/data/attackPaths";
@@ -204,11 +204,21 @@ function buildSections(): SidebarSection[] {
       icon: FlaskConical,
       to: "/detection-lab",
       children: [
-        { key: "dl-dataset", label: "Dataset Testing", icon: Database, to: "/detection-lab/dataset" },
+        { key: "dl-dataset", label: "Rule Testing", icon: Database, to: "/detection-lab/dataset" },
         { key: "dl-user-log", label: "User Log Testing", icon: ShieldCheck, to: "/detection-lab/user-log" },
-        { key: "dl-replay", label: "Attack Replay Engine", icon: RotateCcw, to: "/detection-lab/replay" },
         { key: "dl-coverage", label: "Detection Coverage Mapping", icon: BarChart3, to: "/detection-lab/coverage" },
-        { key: "dl-aws-sim", label: "Real AWS Attack Simulation", icon: Server, to: "/detection-lab/aws-simulation" },
+      ],
+    },
+    {
+      key: "detection-analysis",
+      label: "Detection Analysis",
+      icon: BarChart3,
+      to: "/detection-analysis",
+      children: [
+        { key: "da-results", label: "Detection Results", icon: ShieldCheck, to: "/detection-analysis/results" },
+        { key: "da-fp", label: "False Positive Analysis", icon: ShieldOff, to: "/detection-analysis/false-positives" },
+        { key: "da-confidence", label: "Confidence Scores", icon: TrendingUp, to: "/detection-analysis/confidence" },
+        { key: "da-explanation", label: "Detection Explanation", icon: Lightbulb, to: "/detection-analysis/explanation" },
       ],
     },
     {

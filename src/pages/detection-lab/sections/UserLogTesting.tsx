@@ -6,9 +6,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { detections } from "@/data/detections";
 import { normalizeEvents } from "@/lib/detection-lab/normalize";
-import { evaluateRules } from "@/lib/detection-lab/ruleEvaluator";
+import { runDetectionPipeline } from "@/lib/detection-lab/detectionPipeline";
 import { useDetectionLab } from "../DetectionLabContext";
+import { useDetectionAnalysis } from "@/context/DetectionAnalysisContext";
 import { Play, FileJson, Clipboard, Upload } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export function UserLogTesting() {
   const [inputMode, setInputMode] = useState<"paste" | "upload">("paste");
@@ -17,8 +19,12 @@ export function UserLogTesting() {
     matchingRules: { id: string; title: string; severity: string; confidence: string }[];
     matchedEvents: number;
     totalEvents: number;
+    validDetections: number;
+    possibleFalsePositives: number;
+    misconfiguredRules: number;
   } | null>(null);
   const lab = useDetectionLab();
+  const analysis = useDetectionAnalysis();
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -44,25 +50,30 @@ export function UserLogTesting() {
     }
 
     const events = normalizeEvents(raw);
-    const evalResults = evaluateRules(detections, events);
-    const matched = evalResults.filter((r) => r.matched);
+    const pipelineResult = runDetectionPipeline(detections, events);
+    analysis?.setResult(pipelineResult);
+
+    const matched = pipelineResult.matches.filter((m) => m.matchedEvents.length > 0);
 
     setResult({
       matchingRules: matched.map((m) => ({
-        id: m.detectionId,
-        title: m.detectionTitle,
-        severity: m.severity,
-        confidence: m.confidence,
+        id: m.detection.id,
+        title: m.detection.title,
+        severity: m.detection.severity,
+        confidence: m.confidenceLabel,
       })),
       matchedEvents: matched.reduce((sum, m) => sum + m.matchedEvents.length, 0),
       totalEvents: events.length,
+      validDetections: pipelineResult.validDetections,
+      possibleFalsePositives: pipelineResult.possibleFalsePositives,
+      misconfiguredRules: pipelineResult.misconfiguredRules,
     });
 
     lab?.addResult({
       type: "user-log",
       rulesEvaluated: detections.length,
       detectionsTriggered: matched.length,
-      details: { totalEvents: events.length, matchedEvents: matched.reduce((s, m) => s + m.matchedEvents.length, 0) },
+      details: { totalEvents: events.length, validDetections: pipelineResult.validDetections },
     });
   };
 
@@ -116,10 +127,17 @@ export function UserLogTesting() {
             </TabsContent>
           </Tabs>
 
-          <Button onClick={handleRunTest} disabled={!pastedLog.trim()}>
-            <Play className="h-4 w-4 mr-2" />
-            Run Analysis
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleRunTest} disabled={!pastedLog.trim()}>
+              <Play className="h-4 w-4 mr-2" />
+              Run Analysis
+            </Button>
+            {result && (
+              <Button variant="outline" asChild>
+                <Link to="/detection-analysis/results">View Detection Analysis</Link>
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -130,7 +148,7 @@ export function UserLogTesting() {
             <CardDescription>Matching detection rules and confidence levels</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
               <div>
                 <p className="text-sm text-muted-foreground">Matched Rules</p>
                 <p className="text-2xl font-bold">{result.matchingRules.length}</p>
@@ -143,6 +161,22 @@ export function UserLogTesting() {
                 <p className="text-sm text-muted-foreground">Total Events</p>
                 <p className="text-2xl font-bold">{result.totalEvents}</p>
               </div>
+              {result.validDetections !== undefined && (
+                <>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Valid</p>
+                    <p className="text-2xl font-bold text-green-600">{result.validDetections}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Possible FP</p>
+                    <p className="text-2xl font-bold text-amber-600">{result.possibleFalsePositives}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Misconfigured</p>
+                    <p className="text-2xl font-bold text-red-600">{result.misconfiguredRules}</p>
+                  </div>
+                </>
+              )}
             </div>
             {result.matchingRules.length > 0 ? (
               <div>

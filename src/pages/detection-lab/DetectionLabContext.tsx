@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 
 export interface LabTestResult {
   id: string;
-  type: "dataset" | "user-log" | "replay" | "coverage" | "aws-simulation";
+  type: "dataset" | "user-log" | "coverage";
   timestamp: Date;
   datasetsTested?: number;
   rulesEvaluated?: number;

@@ -7,9 +7,11 @@ import { Label } from "@/components/ui/label";
 import { datasets, getDatasetById } from "@/data/detection-lab/datasets";
 import { detections } from "@/data/detections";
 import { normalizeEvents } from "@/lib/detection-lab/normalize";
-import { evaluateRules } from "@/lib/detection-lab/ruleEvaluator";
+import { runDetectionPipeline } from "@/lib/detection-lab/detectionPipeline";
 import { useDetectionLab } from "../DetectionLabContext";
+import { useDetectionAnalysis } from "@/context/DetectionAnalysisContext";
 import { Play, CheckCircle, XCircle, Upload } from "lucide-react";
+import { Link } from "react-router-dom";
 
 export function DatasetTesting() {
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>("");
@@ -22,6 +24,7 @@ export function DatasetTesting() {
     matchedDetections: { id: string; title: string; severity: string }[];
   } | null>(null);
   const lab = useDetectionLab();
+  const analysis = useDetectionAnalysis();
 
   const handleRunTest = () => {
     const dataset = getDatasetById(selectedDatasetId);
@@ -56,10 +59,12 @@ export function DatasetTesting() {
       }
     }
 
-    const evalResults = evaluateRules(rulesToEval, events);
-    const matched = evalResults.filter((r) => r.matched);
+    const pipelineResult = runDetectionPipeline(rulesToEval, events);
+    analysis?.setResult(pipelineResult);
+
+    const matched = pipelineResult.matches.filter((m) => m.matchedEvents.length > 0);
     const expectedIds = dataset.metadata.expectedDetections;
-    const expectedMatched = expectedIds.some((id) => matched.some((m) => m.detectionId === id));
+    const expectedMatched = expectedIds.some((id) => matched.some((m) => m.detection.id === id));
     const passed = expectedMatched || matched.length > 0;
 
     setResult({
@@ -68,9 +73,9 @@ export function DatasetTesting() {
       matchesFound: matched.length,
       passed,
       matchedDetections: matched.map((m) => ({
-        id: m.detectionId,
-        title: m.detectionTitle,
-        severity: m.severity,
+        id: m.detection.id,
+        title: m.detection.title,
+        severity: m.detection.severity,
       })),
     });
 
@@ -88,7 +93,7 @@ export function DatasetTesting() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Dataset Testing</CardTitle>
+          <CardTitle>Rule Testing</CardTitle>
           <CardDescription>
             Test detection rules against curated datasets. Select a dataset, optionally upload a custom rule, and run the test.
           </CardDescription>
@@ -123,10 +128,17 @@ export function DatasetTesting() {
             />
           </div>
 
-          <Button onClick={handleRunTest} disabled={!selectedDatasetId}>
-            <Play className="h-4 w-4 mr-2" />
-            Run Test
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button onClick={handleRunTest} disabled={!selectedDatasetId}>
+              <Play className="h-4 w-4 mr-2" />
+              Run Test
+            </Button>
+            {result && (
+              <Button variant="outline" asChild>
+                <Link to="/detection-analysis/results">View Detection Analysis</Link>
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -139,7 +151,7 @@ export function DatasetTesting() {
               ) : (
                 <XCircle className="h-5 w-5 text-amber-500" />
               )}
-              Dataset Test Result
+              Rule Test Result
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
