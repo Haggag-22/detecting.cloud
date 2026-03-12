@@ -12,6 +12,7 @@ import { analyzeFalsePositive, type FalsePositiveFinding } from "./falsePositive
 import { deduplicateDetections } from "./deduplication";
 import { explainDetection, type DetectionExplanation } from "./explanationEngine";
 import type { RuleType } from "./ruleTypes";
+import { evaluateDetectionWithSigma } from "./sigmaRuleEvaluator";
 
 export interface RuleEvaluationStatus {
   skipped: boolean;
@@ -57,30 +58,31 @@ export function runDetectionPipeline(
   let rulesSkipped = 0;
 
   for (const detection of detections) {
-    const parsed = parseRule(detection);
     const ruleType = getRuleType(detection);
 
+    // Prefer Sigma rule evaluation when available (full selection/filter/condition logic)
+    const sigmaResult = evaluateDetectionWithSigma(detection, events);
+    if (sigmaResult) {
+      matches.push({
+        detection,
+        matchedEvents: sigmaResult.matchedEvents,
+        confidenceScore: sigmaResult.confidence === "high" ? 85 : sigmaResult.confidence === "medium" ? 70 : 55,
+        confidenceLabel: sigmaResult.confidence,
+        fpFinding: null,
+        explanation: sigmaResult.explanation,
+        evaluationStatus: { skipped: false },
+      });
+      continue;
+    }
+
+    // Fallback: EventBridge/CloudTrail rule evaluation
+    const parsed = parseRule(detection);
     if (!parsed) {
       rulesSkipped++;
       continue;
     }
 
-    // Sequence rules with single event: skip
     if (ruleType === "sequence" && events.length < 2) {
-      matches.push({
-        detection,
-        matchedEvents: [],
-        confidenceScore: 0,
-        confidenceLabel: "skipped",
-        fpFinding: {
-          detectionId: detection.id,
-          detectionTitle: detection.title,
-          result: "rule_misconfigured",
-          reason: "Sequence rule requires multiple events",
-        },
-        explanation: { detectionId: detection.id, detectionTitle: detection.title, fieldMatches: [], summary: "Skipped: sequence rule requires multiple events." },
-        evaluationStatus: { skipped: true, reason: "sequence_requires_multiple_events" },
-      });
       rulesSkipped++;
       continue;
     }
@@ -89,13 +91,8 @@ export function runDetectionPipeline(
 
     for (const event of events) {
       const validation = validateRequiredFields(event, parsed);
-      if (!validation.valid) {
-        continue;
-      }
-
-      if (evaluateStrict(event, parsed)) {
-        matchedEvents.push(event);
-      }
+      if (!validation.valid) continue;
+      if (evaluateStrict(event, parsed)) matchedEvents.push(event);
     }
 
     if (matchedEvents.length === 0) continue;

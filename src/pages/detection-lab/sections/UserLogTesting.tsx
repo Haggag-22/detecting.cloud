@@ -9,8 +9,8 @@ import { normalizeEvents } from "@/lib/detection-lab/normalize";
 import { runDetectionPipeline } from "@/lib/detection-lab/detectionPipeline";
 import { useDetectionLab } from "../DetectionLabContext";
 import { useDetectionAnalysis } from "@/context/DetectionAnalysisContext";
-import { Play, FileJson, Clipboard, Upload } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Play, Clipboard, Upload } from "lucide-react";
+import { ExplainDetectionDialog } from "../ExplainDetectionDialog";
 
 export function UserLogTesting() {
   const [inputMode, setInputMode] = useState<"paste" | "upload">("paste");
@@ -132,11 +132,7 @@ export function UserLogTesting() {
               <Play className="h-4 w-4 mr-2" />
               Run Analysis
             </Button>
-            {result && (
-              <Button variant="outline" asChild>
-                <Link to="/detection-analysis/results">View Detection Analysis</Link>
-              </Button>
-            )}
+            {result && result.matchingRules.length > 0 && <ExplainDetectionDialog />}
           </div>
         </CardContent>
       </Card>

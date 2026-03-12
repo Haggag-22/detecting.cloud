@@ -10,8 +10,8 @@ import { normalizeEvents } from "@/lib/detection-lab/normalize";
 import { runDetectionPipeline } from "@/lib/detection-lab/detectionPipeline";
 import { useDetectionLab } from "../DetectionLabContext";
 import { useDetectionAnalysis } from "@/context/DetectionAnalysisContext";
-import { Play, CheckCircle, XCircle, Upload } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Play, CheckCircle, XCircle } from "lucide-react";
+import { ExplainDetectionDialog } from "../ExplainDetectionDialog";
 
 export function DatasetTesting() {
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>("");
@@ -133,11 +133,7 @@ export function DatasetTesting() {
               <Play className="h-4 w-4 mr-2" />
               Run Test
             </Button>
-            {result && (
-              <Button variant="outline" asChild>
-                <Link to="/detection-analysis/results">View Detection Analysis</Link>
-              </Button>
-            )}
+            {result && result.matchedDetections.length > 0 && <ExplainDetectionDialog />}
           </div>
         </CardContent>
       </Card>

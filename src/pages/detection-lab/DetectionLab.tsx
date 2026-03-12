@@ -2,17 +2,15 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FlaskConical, Database, FileText, BarChart3 } from "lucide-react";
+import { FlaskConical, Database, FileText } from "lucide-react";
 import { DatasetTesting } from "./sections/DatasetTesting";
 import { UserLogTesting } from "./sections/UserLogTesting";
-import { DetectionCoverageMapping } from "./sections/DetectionCoverageMapping";
 import { ResultDashboard } from "./ResultDashboard";
 import { DetectionLabProvider } from "./DetectionLabContext";
 
 const sections = [
   { id: "dataset", path: "dataset", label: "Rule Testing", icon: Database },
   { id: "user-log", path: "user-log", label: "User Log Testing", icon: FileText },
-  { id: "coverage", path: "coverage", label: "Detection Coverage Mapping", icon: BarChart3 },
 ];
 
 export default function DetectionLab() {
@@ -44,7 +42,7 @@ export default function DetectionLab() {
         </div>
 
         <Tabs value={activeSection} onValueChange={handleTabChange} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 lg:grid-cols-3 h-auto flex-wrap gap-2">
+          <TabsList className="grid w-full grid-cols-2 h-auto flex-wrap gap-2">
             {sections.map((s) => (
               <TabsTrigger key={s.id} value={s.id} className="flex items-center gap-2">
                 <s.icon className="h-4 w-4" />
@@ -58,9 +56,6 @@ export default function DetectionLab() {
           </TabsContent>
           <TabsContent value="user-log" className="mt-0">
             <UserLogTesting />
-          </TabsContent>
-          <TabsContent value="coverage" className="mt-0">
-            <DetectionCoverageMapping />
           </TabsContent>
         </Tabs>
 

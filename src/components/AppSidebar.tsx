@@ -38,7 +38,6 @@ import {
   Github,
   Twitter,
   FlaskConical,
-  Lightbulb,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { attackPaths, attackObjectiveLabels, type AttackObjective } from "@/data/attackPaths";
@@ -206,19 +205,6 @@ function buildSections(): SidebarSection[] {
       children: [
         { key: "dl-dataset", label: "Rule Testing", icon: Database, to: "/detection-lab/dataset" },
         { key: "dl-user-log", label: "User Log Testing", icon: ShieldCheck, to: "/detection-lab/user-log" },
-        { key: "dl-coverage", label: "Detection Coverage Mapping", icon: BarChart3, to: "/detection-lab/coverage" },
-      ],
-    },
-    {
-      key: "detection-analysis",
-      label: "Detection Analysis",
-      icon: BarChart3,
-      to: "/detection-analysis",
-      children: [
-        { key: "da-results", label: "Detection Results", icon: ShieldCheck, to: "/detection-analysis/results" },
-        { key: "da-fp", label: "False Positive Analysis", icon: ShieldOff, to: "/detection-analysis/false-positives" },
-        { key: "da-confidence", label: "Confidence Scores", icon: TrendingUp, to: "/detection-analysis/confidence" },
-        { key: "da-explanation", label: "Detection Explanation", icon: Lightbulb, to: "/detection-analysis/explanation" },
       ],
     },
     {
