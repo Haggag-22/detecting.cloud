@@ -37,6 +37,8 @@ import {
   BarChart3,
   Github,
   Twitter,
+  FlaskConical,
+  RotateCcw,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { attackPaths, attackObjectiveLabels, type AttackObjective } from "@/data/attackPaths";
@@ -195,6 +197,19 @@ function buildSections(): SidebarSection[] {
       label: "Attack Simulator",
       icon: Route,
       to: "/simulator",
+    },
+    {
+      key: "detection-lab",
+      label: "Detection Lab",
+      icon: FlaskConical,
+      to: "/detection-lab",
+      children: [
+        { key: "dl-dataset", label: "Dataset Testing", icon: Database, to: "/detection-lab/dataset" },
+        { key: "dl-user-log", label: "User Log Testing", icon: ShieldCheck, to: "/detection-lab/user-log" },
+        { key: "dl-replay", label: "Attack Replay Engine", icon: RotateCcw, to: "/detection-lab/replay" },
+        { key: "dl-coverage", label: "Detection Coverage Mapping", icon: BarChart3, to: "/detection-lab/coverage" },
+        { key: "dl-aws-sim", label: "Real AWS Attack Simulation", icon: Server, to: "/detection-lab/aws-simulation" },
+      ],
     },
     {
       key: "coverage",
