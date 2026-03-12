@@ -1,5 +1,24 @@
 import React from "react";
 
+import iconIAM from "@/assets/icons/IAM.png";
+import iconLambda from "@/assets/icons/Lambda.png";
+import iconEC2 from "@/assets/icons/EC2.png";
+import iconS3 from "@/assets/icons/S3.png";
+import iconEBS from "@/assets/icons/EBS.png";
+import iconDynamoDB from "@/assets/icons/DynamoDB.png";
+import iconCloudTrail from "@/assets/icons/CloudTrail.png";
+import iconKMS from "@/assets/icons/KMS.png";
+import iconEKS from "@/assets/icons/EKS.png";
+import iconECS from "@/assets/icons/ECS.png";
+import iconSecretsManager from "@/assets/icons/SecretsManager.png";
+import iconSSM from "@/assets/icons/SSM.png";
+import iconOrganizations from "@/assets/icons/Organizations.png";
+import iconSageMaker from "@/assets/icons/SageMaker.png";
+import iconSES from "@/assets/icons/SES.png";
+import iconCodeBuild from "@/assets/icons/CodeBuild.png";
+import iconElasticBeanstalk from "@/assets/icons/ElasticBeanstalk.png";
+import iconCloudFront from "@/assets/icons/CloudFront.png";
+
 interface IconProps {
   className?: string;
   size?: number;
@@ -7,26 +26,26 @@ interface IconProps {
 
 const defaultSize = 24;
 
-/** Map service names to icon filenames in /icons/ */
+/** Map service names to bundled icon URLs (Vite resolves paths) */
 const awsIconPaths: Record<string, string> = {
-  IAM: "/icons/IAM%20Identity%20Center.png",
-  Lambda: "/icons/Lambda.png",
-  EC2: "/icons/EC2.png",
-  S3: "/icons/Simple%20Storage%20Service.png",
-  EBS: "/icons/Elastic%20Block%20Store.png",
-  DynamoDB: "/icons/DynamoDB.png",
-  CloudTrail: "/icons/CloudTrail.png",
-  KMS: "/icons/Key%20Management%20Service.png",
-  EKS: "/icons/EKS%20Cloud.png",
-  ECS: "/icons/ECS%20Anywhere.png",
-  "Secrets Manager": "/icons/Secrets%20Manager.png",
-  SSM: "/icons/Systems%20Manager.png",
-  Organizations: "/icons/Organizations.png",
-  SageMaker: "/icons/SageMaker.png",
-  SES: "/icons/Simple%20Email%20Service.png",
-  CodeBuild: "/icons/CodeBuild.png",
-  "Elastic Beanstalk": "/icons/Elastic%20Beanstalk.png",
-  CloudFront: "/icons/CloudFront.png",
+  IAM: iconIAM,
+  Lambda: iconLambda,
+  EC2: iconEC2,
+  S3: iconS3,
+  EBS: iconEBS,
+  DynamoDB: iconDynamoDB,
+  CloudTrail: iconCloudTrail,
+  KMS: iconKMS,
+  EKS: iconEKS,
+  ECS: iconECS,
+  "Secrets Manager": iconSecretsManager,
+  SSM: iconSSM,
+  Organizations: iconOrganizations,
+  SageMaker: iconSageMaker,
+  SES: iconSES,
+  CodeBuild: iconCodeBuild,
+  "Elastic Beanstalk": iconElasticBeanstalk,
+  CloudFront: iconCloudFront,
 };
 
 /** Fallback SVG for STS (no icon file) */
