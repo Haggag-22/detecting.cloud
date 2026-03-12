@@ -7,82 +7,30 @@ interface IconProps {
 
 const defaultSize = 24;
 
-export const AwsIamIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
-  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
-    <path d="M20 4L6 10v12c0 8.5 5.5 16 14 18 8.5-2 14-9.5 14-18V10L20 4z" fill="#DD344C" />
-    <path d="M20 8l-10 4.5v9c0 6.4 4.1 12 10 13.5V8z" fill="#DD344C" opacity="0.6" />
-    <circle cx="20" cy="18" r="4" fill="#fff" />
-    <path d="M16 24h8v3H16z" fill="#fff" />
-  </svg>
-);
+/** Map service names to icon filenames in /icons/ */
+const awsIconPaths: Record<string, string> = {
+  IAM: "/icons/IAM%20Identity%20Center.png",
+  Lambda: "/icons/Lambda.png",
+  EC2: "/icons/EC2.png",
+  S3: "/icons/Simple%20Storage%20Service.png",
+  EBS: "/icons/Elastic%20Block%20Store.png",
+  DynamoDB: "/icons/DynamoDB.png",
+  CloudTrail: "/icons/CloudTrail.png",
+  KMS: "/icons/Key%20Management%20Service.png",
+  EKS: "/icons/EKS%20Cloud.png",
+  ECS: "/icons/ECS%20Anywhere.png",
+  "Secrets Manager": "/icons/Secrets%20Manager.png",
+  SSM: "/icons/Systems%20Manager.png",
+  Organizations: "/icons/Organizations.png",
+  SageMaker: "/icons/SageMaker.png",
+  SES: "/icons/Simple%20Email%20Service.png",
+  CodeBuild: "/icons/CodeBuild.png",
+  "Elastic Beanstalk": "/icons/Elastic%20Beanstalk.png",
+  CloudFront: "/icons/CloudFront.png",
+};
 
-export const AwsLambdaIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
-  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
-    <rect x="4" y="4" width="32" height="32" rx="2" fill="#E7A33E" />
-    <path d="M14 30L20 10l6 20H14z" fill="#fff" />
-    <path d="M16.5 28L20 16l3.5 12h-7z" fill="#E7A33E" />
-  </svg>
-);
-
-export const AwsEc2Icon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
-  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
-    <rect x="4" y="4" width="32" height="32" rx="2" fill="#ED7100" />
-    <rect x="12" y="12" width="16" height="16" rx="1" fill="none" stroke="#fff" strokeWidth="2" />
-    <rect x="16" y="16" width="8" height="8" fill="#fff" />
-  </svg>
-);
-
-export const AwsS3Icon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
-  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
-    <rect x="4" y="4" width="32" height="32" rx="2" fill="#3F8624" />
-    <path d="M12 14h16l-2 14H14L12 14z" fill="#fff" />
-    <ellipse cx="20" cy="14" rx="8" ry="3" fill="#fff" />
-  </svg>
-);
-
-export const AwsEbsIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
-  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
-    <rect x="4" y="4" width="32" height="32" rx="2" fill="#3F8624" />
-    <rect x="13" y="10" width="14" height="20" rx="2" fill="none" stroke="#fff" strokeWidth="2" />
-    <path d="M16 14h8M16 18h8M16 22h5" stroke="#fff" strokeWidth="1.5" />
-  </svg>
-);
-
-export const AwsDynamoDbIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
-  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
-    <rect x="4" y="4" width="32" height="32" rx="2" fill="#2E73B8" />
-    <ellipse cx="20" cy="13" rx="8" ry="3" fill="none" stroke="#fff" strokeWidth="2" />
-    <path d="M12 13v14c0 1.7 3.6 3 8 3s8-1.3 8-3V13" fill="none" stroke="#fff" strokeWidth="2" />
-    <ellipse cx="20" cy="20" rx="8" ry="3" fill="none" stroke="#fff" strokeWidth="1.5" />
-  </svg>
-);
-
-export const AwsCloudTrailIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
-  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
-    <rect x="4" y="4" width="32" height="32" rx="2" fill="#E7157B" />
-    <path d="M10 26l5-8 4 4 6-10 5 8" fill="none" stroke="#fff" strokeWidth="2" strokeLinejoin="round" />
-    <circle cx="10" cy="26" r="2" fill="#fff" />
-    <circle cx="30" cy="20" r="2" fill="#fff" />
-  </svg>
-);
-
-export const AwsKmsIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
-  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
-    <rect x="4" y="4" width="32" height="32" rx="2" fill="#DD344C" />
-    <circle cx="18" cy="18" r="5" fill="none" stroke="#fff" strokeWidth="2" />
-    <path d="M22 22l8 8M27 27l3-3M27 27l3 3" stroke="#fff" strokeWidth="2" />
-  </svg>
-);
-
-export const AwsEksIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
-  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
-    <rect x="4" y="4" width="32" height="32" rx="2" fill="#ED7100" />
-    <circle cx="20" cy="20" r="6" fill="none" stroke="#fff" strokeWidth="2" />
-    <path d="M20 14v-4M20 30v-4M26 20h4M10 20h4M25 15l3-3M12 28l3-3M25 25l3 3M12 12l3 3" stroke="#fff" strokeWidth="1.5" />
-  </svg>
-);
-
-export const AwsStsIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
+/** Fallback SVG for STS (no icon file) */
+const AwsStsIconFallback: React.FC<IconProps> = ({ className, size = defaultSize }) => (
   <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
     <rect x="4" y="4" width="32" height="32" rx="2" fill="#DD344C" />
     <path d="M14 16h12v10H14z" fill="none" stroke="#fff" strokeWidth="2" />
@@ -91,58 +39,55 @@ export const AwsStsIcon: React.FC<IconProps> = ({ className, size = defaultSize 
   </svg>
 );
 
-export const AwsEcsIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
-  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
-    <rect x="4" y="4" width="32" height="32" rx="2" fill="#ED7100" />
-    <rect x="11" y="11" width="7" height="7" rx="1" fill="#fff" />
-    <rect x="22" y="11" width="7" height="7" rx="1" fill="#fff" />
-    <rect x="11" y="22" width="7" height="7" rx="1" fill="#fff" />
-    <rect x="22" y="22" width="7" height="7" rx="1" fill="#fff" />
-  </svg>
-);
+function createAwsIconComponent(iconPath: string): React.FC<IconProps> {
+  return ({ className, size = defaultSize }) => (
+    <img src={iconPath} alt="" width={size} height={size} className={className} style={{ objectFit: "contain" }} />
+  );
+}
 
-export const AwsSecretsManagerIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
-  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
-    <rect x="4" y="4" width="32" height="32" rx="2" fill="#DD344C" />
-    <path d="M20 10v4M20 26v4M14 14l2.8 2.8M23.2 23.2l2.8 2.8M10 20h4M26 20h4M14 26l2.8-2.8M23.2 16.8L26 14" stroke="#fff" strokeWidth="2" />
-    <circle cx="20" cy="20" r="4" fill="#fff" />
-  </svg>
-);
-
-export const AwsSsmIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
-  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
-    <rect x="4" y="4" width="32" height="32" rx="2" fill="#E7157B" />
-    <rect x="10" y="14" width="20" height="12" rx="2" fill="none" stroke="#fff" strokeWidth="2" />
-    <path d="M14 20l3 3 6-6" stroke="#fff" strokeWidth="2" fill="none" />
-  </svg>
-);
-
-export const AwsOrganizationsIcon: React.FC<IconProps> = ({ className, size = defaultSize }) => (
-  <svg viewBox="0 0 40 40" width={size} height={size} className={className} xmlns="http://www.w3.org/2000/svg">
-    <rect x="4" y="4" width="32" height="32" rx="2" fill="#E7157B" />
-    <circle cx="20" cy="12" r="3" fill="#fff" />
-    <circle cx="12" cy="26" r="3" fill="#fff" />
-    <circle cx="28" cy="26" r="3" fill="#fff" />
-    <path d="M20 15v4M16 22l-3 2M24 22l3 2" stroke="#fff" strokeWidth="1.5" />
-  </svg>
-);
-
-export const awsServiceIcons: Record<string, React.FC<IconProps>> = {
-  IAM: AwsIamIcon,
-  Lambda: AwsLambdaIcon,
-  EC2: AwsEc2Icon,
-  S3: AwsS3Icon,
-  EBS: AwsEbsIcon,
-  DynamoDB: AwsDynamoDbIcon,
-  CloudTrail: AwsCloudTrailIcon,
-  KMS: AwsKmsIcon,
-  EKS: AwsEksIcon,
-  STS: AwsStsIcon,
-  ECS: AwsEcsIcon,
-  "Secrets Manager": AwsSecretsManagerIcon,
-  SSM: AwsSsmIcon,
-  Organizations: AwsOrganizationsIcon,
+const iconComponents: Record<string, React.FC<IconProps>> = {
+  IAM: createAwsIconComponent(awsIconPaths.IAM ?? ""),
+  Lambda: createAwsIconComponent(awsIconPaths.Lambda ?? ""),
+  EC2: createAwsIconComponent(awsIconPaths.EC2 ?? ""),
+  S3: createAwsIconComponent(awsIconPaths.S3 ?? ""),
+  EBS: createAwsIconComponent(awsIconPaths.EBS ?? ""),
+  DynamoDB: createAwsIconComponent(awsIconPaths.DynamoDB ?? ""),
+  CloudTrail: createAwsIconComponent(awsIconPaths.CloudTrail ?? ""),
+  KMS: createAwsIconComponent(awsIconPaths.KMS ?? ""),
+  EKS: createAwsIconComponent(awsIconPaths.EKS ?? ""),
+  ECS: createAwsIconComponent(awsIconPaths.ECS ?? ""),
+  "Secrets Manager": createAwsIconComponent(awsIconPaths["Secrets Manager"] ?? ""),
+  SSM: createAwsIconComponent(awsIconPaths.SSM ?? ""),
+  Organizations: createAwsIconComponent(awsIconPaths.Organizations ?? ""),
+  SageMaker: createAwsIconComponent(awsIconPaths.SageMaker ?? ""),
+  SES: createAwsIconComponent(awsIconPaths.SES ?? ""),
+  CodeBuild: createAwsIconComponent(awsIconPaths.CodeBuild ?? ""),
+  "Elastic Beanstalk": createAwsIconComponent(awsIconPaths["Elastic Beanstalk"] ?? ""),
+  CloudFront: createAwsIconComponent(awsIconPaths.CloudFront ?? ""),
+  STS: AwsStsIconFallback,
 };
+
+export const awsServiceIcons: Record<string, React.FC<IconProps>> = iconComponents;
+
+export const AwsIamIcon = iconComponents.IAM;
+export const AwsLambdaIcon = iconComponents.Lambda;
+export const AwsEc2Icon = iconComponents.EC2;
+export const AwsS3Icon = iconComponents.S3;
+export const AwsEbsIcon = iconComponents.EBS;
+export const AwsDynamoDbIcon = iconComponents.DynamoDB;
+export const AwsCloudTrailIcon = iconComponents.CloudTrail;
+export const AwsKmsIcon = iconComponents.KMS;
+export const AwsEksIcon = iconComponents.EKS;
+export const AwsStsIcon = iconComponents.STS;
+export const AwsEcsIcon = iconComponents.ECS;
+export const AwsSecretsManagerIcon = iconComponents["Secrets Manager"];
+export const AwsSsmIcon = iconComponents.SSM;
+export const AwsOrganizationsIcon = iconComponents.Organizations;
+export const AwsSageMakerIcon = iconComponents.SageMaker;
+export const AwsSesIcon = iconComponents.SES;
+export const AwsCodeBuildIcon = iconComponents.CodeBuild;
+export const AwsElasticBeanstalkIcon = iconComponents["Elastic Beanstalk"];
+export const AwsCloudFrontIcon = iconComponents.CloudFront;
 
 export function getAwsServiceIcon(service: string): React.FC<IconProps> | null {
   return awsServiceIcons[service] || null;
