@@ -1141,7 +1141,9 @@ export const techniques: Technique[] = [
       "An attacker with ssm:StartSession can establish an interactive shell session to EC2 instances that have the SSM agent and are registered with Systems Manager. No SSH keys or open port 22 are required. The session runs through the SSM service. The attacker gains the same access as the instance's OS user (often ec2-user or Administrator). Instances must have the appropriate IAM instance profile and be in the SSM managed instance inventory. Required permission is ssm:StartSession.",
     services: ["SSM", "EC2"],
     permissions: ["ssm:StartSession"],
-    detectionIds: [],
+    detectionIds: ["det-075", "det-076", "det-077", "det-078"],
+    detectionStrategy:
+      "StartSession is visible in CloudTrail and useful as a lateral movement signal. The best detections add actor and target context and correlate the session with sensitive follow-on API activity, because CloudTrail does not expose shell commands executed inside the session.",
     mitigations: ["Restrict StartSession", "Enable session logging", "Use least-privilege instance profiles"],
     category: "lateral-movement",
     commands: [
@@ -1172,7 +1174,9 @@ export const techniques: Technique[] = [
       "An attacker with ec2:CreateSnapshot creates a snapshot of an EC2 instance's EBS volume (root or data). They use ec2:ModifySnapshotAttribute to share the snapshot with their account or make it temporarily public. In their account, they use ec2:CopySnapshot and ec2:CreateVolume to create a volume from the snapshot, attach it to an instance they control, mount it, and extract credentials (e.g., from ~/.aws/credentials) or sensitive data. Unencrypted volumes are fully readable. Required permissions include ec2:CreateSnapshot, ec2:ModifySnapshotAttribute, and ec2:CopySnapshot.",
     services: ["EC2"],
     permissions: ["ec2:CreateSnapshot", "ec2:ModifySnapshotAttribute", "ec2:CreateVolume"],
-    detectionIds: [],
+    detectionIds: ["det-079", "det-080", "det-081", "det-082", "det-083"],
+    detectionStrategy:
+      "Snapshot abuse is best detected as a chain: snapshot creation is noisy, but sharing externally, making public, copying, and rehydrating the snapshot dramatically raises confidence. ModifySnapshotAttribute on createVolumePermission is a critical signal.",
     mitigations: ["Restrict snapshot creation", "Encrypt volumes", "Monitor cross-account snapshot sharing"],
     category: "credential-access",
     commands: [
@@ -1189,7 +1193,9 @@ export const techniques: Technique[] = [
       "Organizations sometimes share EBS snapshots publicly for collaboration or backup. An attacker uses ec2:DescribeSnapshots to find snapshots with createVolumePermission for 'all' or specific accounts. They use ec2:CopySnapshot to copy the snapshot to their account, create a volume, attach and mount it, and extract data. Unencrypted snapshots expose all volume contents including credentials and application data. No permissions in the source account are required; only the ability to copy public snapshots in the attacker's account.",
     services: ["EC2"],
     permissions: ["ec2:CopySnapshot", "ec2:DescribeSnapshots"],
-    detectionIds: [],
+    detectionIds: ["det-084", "det-085", "det-086", "det-087"],
+    detectionStrategy:
+      "Public snapshot loot has split visibility: the owner account can best detect the snapshot being made public (ModifySnapshotAttribute with Group=all). The consumer/attacker account can best detect the copy and rehydration chain (CopySnapshot, CreateVolume, AttachVolume).",
     mitigations: ["Avoid public snapshots", "Encrypt all volumes", "Use SCPs to block public sharing"],
     category: "credential-access",
     commands: [
@@ -1221,7 +1227,9 @@ export const techniques: Technique[] = [
       "EC2 Instance Connect allows pushing a temporary SSH public key to an instance for 60 seconds. An attacker with ec2-instance-connect:SendSSHPublicKey specifies their public key and the instance ID. The key is added to the ec2-user's authorized_keys. The attacker then SSHes into the instance using their private key. The instance must have the EC2 Instance Connect agent and allow SSH (port 22) from the attacker's IP. Required permission is ec2-instance-connect:SendSSHPublicKey.",
     services: ["EC2"],
     permissions: ["ec2-instance-connect:SendSSHPublicKey"],
-    detectionIds: [],
+    detectionIds: ["det-088", "det-089", "det-090", "det-091"],
+    detectionStrategy:
+      "EC2 Instance Connect is best detected at the moment the temporary key is pushed (SendSSHPublicKey), then correlated with suspicious host or cloud activity. The temporary key lasts about 60 seconds, so the push event is the key control-plane indicator.",
     mitigations: ["Restrict SendSSHPublicKey", "Use SSM Session Manager", "Audit instance connect usage"],
     category: "lateral-movement",
     commands: [
@@ -1237,7 +1245,9 @@ export const techniques: Technique[] = [
       "EC2 Serial Console provides direct serial port access to instances, bypassing network and SSH. An attacker with ec2-instance-connect:SendSerialConsoleSSHPublicKey can add their SSH key for serial console access. They connect via the EC2 Serial Console endpoint. This bypasses security groups, NACLs, and SSH configuration. Useful when the instance is otherwise unreachable. Serial console must be enabled at the account level. Required permission is ec2-instance-connect:SendSerialConsoleSSHPublicKey.",
     services: ["EC2"],
     permissions: ["ec2-instance-connect:SendSerialConsoleSSHPublicKey"],
-    detectionIds: [],
+    detectionIds: ["det-092", "det-093", "det-094", "det-095"],
+    detectionStrategy:
+      "Serial console access is highly sensitive because it operates outside the normal VPC path and bypasses security-group/NACL authorization. Since it is usually rare and requires account-level enablement, detections should treat it as high-signal and correlate with follow-on persistence or credential-access activity.",
     mitigations: ["Restrict serial console", "Audit serial console access", "Use account-level serial console settings"],
     category: "lateral-movement",
     commands: [
@@ -1362,7 +1372,9 @@ export const techniques: Technique[] = [
       "An attacker with s3:PutObjectAcl or s3:PutBucketAcl can set ACLs that grant them or their principal access to objects or the bucket. For example, they add an ACL grant that gives their account or user full control. Even if IAM policies are later modified to revoke access, the ACL grant may still allow access. Object ACLs (e.g., bucket-owner-full-control) can persist cross-account access. Required permissions are s3:PutObjectAcl for objects or s3:PutBucketAcl for the bucket. ACLs must be enabled (not BucketOwnerEnforced).",
     services: ["S3"],
     permissions: ["s3:PutObjectAcl", "s3:PutBucketAcl"],
-    detectionIds: [],
+    detectionIds: ["det-131", "det-132", "det-133", "det-134", "det-135"],
+    detectionStrategy:
+      "S3 ACL persistence is a legacy but still dangerous access path. The best detections focus on successful ACL changes in ACL-enabled environments, especially cross-account or broad grants and subsequent access by the granted principal.",
     mitigations: ["Disable ACLs (Object Ownership: BucketOwnerEnforced)", "Monitor ACL changes", "Use bucket policies"],
     category: "persistence",
     commands: [
@@ -1377,7 +1389,9 @@ export const techniques: Technique[] = [
       "CodeBuild projects can have environment variables that contain credentials or reference Parameter Store/Secrets Manager. An attacker who can trigger a build (or modify the buildspec) injects code that exfiltrates these credentials during the build. The build runs with the CodeBuild service role; environment variables are available to the build process. The attacker may use a malicious buildspec or modify an existing project's build to run curl or similar to send credentials to an external server. No additional AWS permissions if they can trigger builds; otherwise codebuild:StartBuild.",
     services: ["CodeBuild", "IAM"],
     permissions: [],
-    detectionIds: [],
+    detectionIds: ["det-126", "det-127", "det-128", "det-129", "det-130"],
+    detectionStrategy:
+      "CodeBuild environment credential theft is best detected by looking for StartBuild executions that use dangerous overrides (buildspecOverride, environmentVariablesOverride), are initiated by unexpected actors, or are followed by secret access or IAM pivot behavior by the CodeBuild service role. Plaintext environment variables and buildspec overrides are especially risky.",
     mitigations: ["Avoid secrets in env vars", "Use Secrets Manager with least-privilege", "Audit CodeBuild projects"],
     category: "credential-access",
     commands: [
@@ -1393,7 +1407,9 @@ export const techniques: Technique[] = [
       "Elastic Beanstalk environment configurations store environment variables that may contain database credentials, API keys, or IAM credentials. An attacker with elasticbeanstalk:DescribeConfigurationSettings retrieves the configuration for an environment, including option settings that contain sensitive values. The RDS connection string and other secrets are often stored here. Required permission is elasticbeanstalk:DescribeConfigurationSettings. The attacker specifies the application and environment names.",
     services: ["Elastic Beanstalk", "IAM"],
     permissions: ["elasticbeanstalk:DescribeConfigurationSettings"],
-    detectionIds: [],
+    detectionIds: ["det-122", "det-123", "det-124", "det-125"],
+    detectionStrategy:
+      "Beanstalk environment credential theft is fundamentally a sensitive configuration read. The strongest detections watch for unusual configuration retrieval, broad enumeration behavior, and rapid follow-on privileged actions suggesting harvested credentials or secrets were used.",
     mitigations: ["Avoid secrets in env config", "Use Secrets Manager", "Restrict DescribeConfigurationSettings"],
     category: "credential-access",
     commands: [
@@ -1408,7 +1424,9 @@ export const techniques: Technique[] = [
       "After stealing credentials from an Elastic Beanstalk environment (e.g., the instance profile or IAM user credentials in env vars), the attacker uses those credentials to perform privileged actions. If the credentials have iam:CreateAccessKey, the attacker creates access keys for themselves or a backdoor user. If they have sts:AssumeRole, they assume higher-privilege roles. This pivots from read-only environment access to persistent or escalated access. Required permissions depend on what the stolen credentials allow; commonly iam:CreateAccessKey.",
     services: ["Elastic Beanstalk", "IAM"],
     permissions: ["iam:CreateAccessKey"],
-    detectionIds: [],
+    detectionIds: ["det-118", "det-119", "det-120", "det-121"],
+    detectionStrategy:
+      "Beanstalk Credential Pivot is best detected as a sequence: Beanstalk configuration access or credential exposure followed by CreateAccessKey, AssumeRole, or other privilege-changing actions. The downstream IAM/STS behavior is the high-confidence pivot signal.",
     mitigations: ["Least-privilege instance profiles", "Restrict CreateAccessKey", "Audit Beanstalk role usage"],
     category: "lateral-movement",
     commands: [
@@ -1468,7 +1486,9 @@ export const techniques: Technique[] = [
       "When a CloudFront distribution uses an S3 bucket as its origin and that bucket is deleted, the distribution becomes orphaned. The origin domain (e.g., bucket.s3.amazonaws.com) may still resolve. An attacker creates a new S3 bucket with the same name. CloudFront will then serve content from the attacker's bucket to visitors of the distribution. The attacker can serve phishing pages, malware, or capture credentials. Required permission is s3:CreateBucket. The bucket name must be available (the original was deleted).",
     services: ["CloudFront", "S3"],
     permissions: ["s3:CreateBucket"],
-    detectionIds: [],
+    detectionIds: ["det-136", "det-137", "det-138", "det-139", "det-140"],
+    detectionStrategy:
+      "Orphaned-origin takeover is a multi-step exposure pattern, not a single API abuse event. The strongest detections focus on (1) bucket deletion while still referenced by CloudFront, (2) identifying orphaned CloudFront origins as a posture condition, and (3) detecting matching bucket recreation or behavior changes if visibility exists. Bucket-name reuse risk exists because deleted S3 bucket names can later be reused by other accounts.",
     mitigations: ["Use custom domain origins", "Reserve bucket names", "Audit CloudFront distributions"],
     category: "initial-access",
     commands: [
@@ -1743,7 +1763,9 @@ export const techniques: Technique[] = [
       "A member account can leave an AWS Organization by calling organizations:LeaveOrganization from the member account's root user. This removes the account from SCP coverage, allowing previously blocked actions. The account retains its resources but escapes organizational guardrails. Required permission is organizations:LeaveOrganization; only the member account root can call it. The management account must have enabled account leave in the organization settings.",
     services: ["Organizations"],
     permissions: ["organizations:LeaveOrganization"],
-    detectionIds: [],
+    detectionIds: ["det-114", "det-115", "det-116", "det-117"],
+    detectionStrategy:
+      "LeaveOrganization is a rare, high-signal defense-evasion action because it can remove an account from SCP and organization policy control. The strongest detections watch both successful and failed leave attempts and correlate them with subsequent sensitive activity once the account is no longer under organizational guardrails.",
     mitigations: ["Restrict LeaveOrganization", "Use SCPs to deny leave", "Alert on leave attempts"],
     category: "defense-evasion",
     commands: [
@@ -1758,7 +1780,9 @@ export const techniques: Technique[] = [
       "An attacker with ec2:DeleteFlowLogs deletes VPC flow log configurations. Flow logs capture network traffic (accepted/rejected) for VPCs, subnets, or ENIs. Deleting them evades network-based detection of malicious traffic (e.g., C2, data exfiltration). Required permission is ec2:DeleteFlowLogs. The attacker specifies the flow log ID. Flow logs may be in CloudWatch Logs or S3.",
     services: ["EC2"],
     permissions: ["ec2:DeleteFlowLogs"],
-    detectionIds: [],
+    detectionIds: ["det-110", "det-111", "det-112", "det-113"],
+    detectionStrategy:
+      "VPC Flow Logs deletion is a high-signal defense-evasion event because it removes network telemetry. The strongest detections combine DeleteFlowLogs with actor context, critical target context (prod VPCs, egress, security tooling), and suspicious follow-on changes indicating exfiltration or stealthy network operations.",
     mitigations: ["Restrict DeleteFlowLogs", "Use organization-level flow logs", "Alert on flow log deletion"],
     category: "defense-evasion",
     commands: [
@@ -1773,7 +1797,9 @@ export const techniques: Technique[] = [
       "An attacker with ses:ListIdentities and ses:GetIdentityVerificationAttributes enumerates verified email addresses and domains in the account. This reconnaissance supports phishing campaigns (targeting known identities) or credential theft (identifying high-value targets). The attacker may also use ses:ListIdentities to find identities used in other attacks. Required permissions are ses:ListIdentities and ses:GetIdentityVerificationAttributes.",
     services: ["SES"],
     permissions: ["ses:ListIdentities", "ses:GetIdentityVerificationAttributes"],
-    detectionIds: [],
+    detectionIds: ["det-106", "det-107", "det-108", "det-109"],
+    detectionStrategy:
+      "SES identity enumeration is a reconnaissance technique. The best detections focus on rare or bursty enumeration, unexpected actors, and correlation with subsequent SES abuse, phishing preparation, or identity-related actions.",
     mitigations: ["Restrict SES enumeration", "Audit ListIdentities usage", "Use least-privilege"],
     category: "credential-access",
     commands: [
@@ -1789,7 +1815,9 @@ export const techniques: Technique[] = [
       "SageMaker notebook instances and training jobs can run lifecycle scripts at startup. An attacker with sagemaker:CreateNotebookInstance or sagemaker:UpdateNotebookInstance sets a lifecycle config that runs malicious code (e.g., to exfiltrate credentials or run reverse shell). The code runs with the notebook/training role's permissions. Required permissions are sagemaker:CreateNotebookInstance or sagemaker:UpdateNotebookInstance with a custom lifecycle config.",
     services: ["SageMaker"],
     permissions: ["sagemaker:CreateNotebookInstance", "sagemaker:UpdateNotebookInstance"],
-    detectionIds: [],
+    detectionIds: ["det-101", "det-102", "det-103", "det-104", "det-105"],
+    detectionStrategy:
+      "SageMaker lifecycle configs execute at notebook startup with root access and the notebook execution role's privileges. The strongest detections watch lifecycle config create/update events, notebook association events, and subsequent execution-related activity or sensitive AWS API usage.",
     mitigations: ["Restrict lifecycle config", "Audit notebook instances", "Use approved lifecycle scripts"],
     category: "privilege-escalation",
     commands: [
@@ -1805,7 +1833,9 @@ export const techniques: Technique[] = [
       "EKS access entries (replacing aws-auth ConfigMap) control which IAM principals can access the cluster. An attacker with eks:CreateAccessEntry and eks:AssociateAccessPolicy creates an access entry for their principal and associates a policy that grants cluster access (e.g., cluster-admin). They can then use kubectl or the Kubernetes API with their IAM credentials. Required permissions are eks:CreateAccessEntry and eks:AssociateAccessPolicy.",
     services: ["EKS"],
     permissions: ["eks:CreateAccessEntry", "eks:AssociateAccessPolicy"],
-    detectionIds: [],
+    detectionIds: ["det-096", "det-097", "det-098", "det-099", "det-100"],
+    detectionStrategy:
+      "EKS access entries are a cluster access control surface that can replace aws-auth-style access control. The most useful detections combine CreateAccessEntry with AssociateAccessPolicy, especially when the target principal is suspicious, the policy is broad, or the actor is not an expected EKS administrator.",
     mitigations: ["Restrict CreateAccessEntry", "Audit access entries", "Use IRSA with least-privilege"],
     category: "privilege-escalation",
     commands: [
