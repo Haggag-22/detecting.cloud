@@ -14,18 +14,15 @@ import Coverage from "./pages/Coverage";
 import TechniqueDetail from "./pages/TechniqueDetail";
 import TechniquesLibrary from "./pages/TechniquesLibrary";
 import AttackSimulator from "./pages/AttackSimulator";
-import DetectionLab from "./pages/detection-lab/DetectionLab";
 import CommunityRules from "./pages/CommunityRules";
 import AdminSubscribers from "./pages/AdminSubscribers";
 import NotFound from "./pages/NotFound";
 import { AiAssistant } from "./components/AiAssistant";
-import { DetectionAnalysisProvider } from "./context/DetectionAnalysisContext";
 
 const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <DetectionAnalysisProvider>
     <TooltipProvider>
       <Toaster />
       <Sonner />
@@ -41,9 +38,6 @@ const App = () => (
           <Route path="/attack-graph" element={<AttackGraph />} />
           <Route path="/coverage" element={<Coverage />} />
           <Route path="/simulator" element={<AttackSimulator />} />
-          <Route path="/detection-lab" element={<Navigate to="/detection-lab/dataset" replace />} />
-          <Route path="/detection-lab/dataset" element={<DetectionLab />} />
-          <Route path="/detection-lab/user-log" element={<DetectionLab />} />
           <Route path="/community-rules" element={<CommunityRules />} />
           <Route path="/admin/subscribers" element={<AdminSubscribers />} />
           <Route path="/about" element={<About />} />
@@ -52,7 +46,6 @@ const App = () => (
         <AiAssistant />
       </BrowserRouter>
     </TooltipProvider>
-    </DetectionAnalysisProvider>
   </QueryClientProvider>
 );
 
