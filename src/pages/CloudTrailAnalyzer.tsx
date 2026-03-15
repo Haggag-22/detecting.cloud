@@ -1,10 +1,24 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -24,6 +38,10 @@ import {
   XCircle,
   ChevronDown,
   ChevronRight,
+  Search,
+  Filter,
+  ArrowUpDown,
+  X,
 } from "lucide-react";
 import {
   handlePasteInput,
@@ -34,11 +52,20 @@ import {
 } from "@/features/cloudtrail-analyzer";
 import { useToast } from "@/hooks/use-toast";
 
+type SortField = "event_time" | "event_name" | "event_source" | "aws_region" | "principal_arn" | "source_ip";
+type SortOrder = "asc" | "desc";
+
 export default function CloudTrailAnalyzer() {
   const [pasteValue, setPasteValue] = useState("");
   const [result, setResult] = useState<IngestionResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedEventNames, setSelectedEventNames] = useState<Set<string>>(new Set());
+  const [selectedEventSources, setSelectedEventSources] = useState<Set<string>>(new Set());
+  const [selectedRegions, setSelectedRegions] = useState<Set<string>>(new Set());
+  const [sortField, setSortField] = useState<SortField>("event_time");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const { toast } = useToast();
 
   const processPaste = useCallback(() => {
@@ -91,6 +118,91 @@ export default function CloudTrailAnalyzer() {
     },
     [toast]
   );
+
+  const { filteredEvents, uniqueEventNames, uniqueEventSources, uniqueRegions } = useMemo(() => {
+    const events = result?.parsed_events ?? [];
+    const eventNames = [...new Set(events.map((e) => e.event_name).filter(Boolean))].sort();
+    const eventSources = [...new Set(events.map((e) => e.event_source).filter(Boolean))].sort();
+    const regions = [...new Set(events.map((e) => e.aws_region).filter(Boolean))].sort();
+
+    const q = searchQuery.toLowerCase().trim();
+    const filtered = events.filter((ev) => {
+      if (selectedEventNames.size > 0 && !selectedEventNames.has(ev.event_name)) return false;
+      if (selectedEventSources.size > 0 && !selectedEventSources.has(ev.event_source)) return false;
+      if (selectedRegions.size > 0 && !selectedRegions.has(ev.aws_region)) return false;
+      if (q) {
+        const searchable =
+          [ev.event_name, ev.event_source, ev.principal_arn, ev.source_ip, ev.aws_region, ev.principal_type]
+            .filter(Boolean)
+            .join(" ")
+            .toLowerCase();
+        if (!searchable.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+      const aVal = a[sortField] ?? "";
+      const bVal = b[sortField] ?? "";
+      const cmp = String(aVal).localeCompare(String(bVal), undefined, { numeric: true });
+      return sortOrder === "asc" ? cmp : -cmp;
+    });
+
+    return {
+      filteredEvents: sorted,
+      uniqueEventNames: eventNames,
+      uniqueEventSources: eventSources,
+      uniqueRegions: regions,
+    };
+  }, [
+    result?.parsed_events,
+    searchQuery,
+    selectedEventNames,
+    selectedEventSources,
+    selectedRegions,
+    sortField,
+    sortOrder,
+  ]);
+
+  const toggleEventName = (name: string) => {
+    setSelectedEventNames((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const toggleEventSource = (src: string) => {
+    setSelectedEventSources((prev) => {
+      const next = new Set(prev);
+      if (next.has(src)) next.delete(src);
+      else next.add(src);
+      return next;
+    });
+  };
+
+  const toggleRegion = (r: string) => {
+    setSelectedRegions((prev) => {
+      const next = new Set(prev);
+      if (next.has(r)) next.delete(r);
+      else next.add(r);
+      return next;
+    });
+  };
+
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedEventNames(new Set());
+    setSelectedEventSources(new Set());
+    setSelectedRegions(new Set());
+  };
+
+  const hasActiveFilters =
+    searchQuery.trim() ||
+    selectedEventNames.size > 0 ||
+    selectedEventSources.size > 0 ||
+    selectedRegions.size > 0;
 
   return (
     <Layout>
@@ -204,25 +316,25 @@ export default function CloudTrailAnalyzer() {
           <Card className="mt-8">
             <CardHeader>
               <div className="flex flex-wrap items-center gap-4">
-                <CardTitle className="text-lg">Ingestion Results</CardTitle>
+                <CardTitle className="text-lg font-semibold tracking-tight">Ingestion Results</CardTitle>
                 <div className="flex gap-2">
-                  <Badge variant="secondary" className="gap-1">
-                    <CheckCircle2 className="h-3 w-3" />
+                  <Badge variant="secondary" className="gap-1.5 text-sm font-medium">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
                     Valid: {result.valid_count}
                   </Badge>
                   {result.malformed_count > 0 && (
-                    <Badge variant="destructive" className="gap-1">
-                      <XCircle className="h-3 w-3" />
+                    <Badge variant="destructive" className="gap-1.5 text-sm font-medium">
+                      <XCircle className="h-3.5 w-3.5" />
                       Malformed: {result.malformed_count}
                     </Badge>
                   )}
-                  <Badge variant="outline">Total: {result.total_count}</Badge>
+                  <Badge variant="outline" className="text-sm font-medium">Total: {result.total_count}</Badge>
                 </div>
               </div>
               {result.errors.length > 0 && (
                 <div className="space-y-1 mt-2">
                   {result.errors.slice(0, 5).map((err, i) => (
-                    <p key={i} className="text-sm text-destructive flex items-center gap-2">
+                    <p key={i} className="text-sm font-medium text-destructive flex items-center gap-2">
                       <AlertTriangle className="h-4 w-4 shrink-0" />
                       {err.index != null ? `Event #${err.index}: ` : ""}{err.message}
                     </p>
@@ -233,13 +345,42 @@ export default function CloudTrailAnalyzer() {
                 </div>
               )}
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               {result.parsed_events.length > 0 ? (
-                <EventsTable
-                  events={result.parsed_events}
-                  expandedId={expandedEventId}
-                  onToggleExpand={setExpandedEventId}
-                />
+                <>
+                  <EventFilters
+                    searchQuery={searchQuery}
+                    onSearchChange={setSearchQuery}
+                    uniqueEventNames={uniqueEventNames}
+                    uniqueEventSources={uniqueEventSources}
+                    uniqueRegions={uniqueRegions}
+                    selectedEventNames={selectedEventNames}
+                    selectedEventSources={selectedEventSources}
+                    selectedRegions={selectedRegions}
+                    onToggleEventName={toggleEventName}
+                    onToggleEventSource={toggleEventSource}
+                    onToggleRegion={toggleRegion}
+                    sortField={sortField}
+                    sortOrder={sortOrder}
+                    onSortFieldChange={setSortField}
+                    onSortOrderChange={setSortOrder}
+                    hasActiveFilters={hasActiveFilters}
+                    onClearFilters={clearFilters}
+                    filteredCount={filteredEvents.length}
+                    totalCount={result.parsed_events.length}
+                  />
+                  {filteredEvents.length > 0 ? (
+                    <EventsTable
+                      events={filteredEvents}
+                      expandedId={expandedEventId}
+                      onToggleExpand={setExpandedEventId}
+                    />
+                  ) : (
+                    <p className="text-muted-foreground text-center py-8">
+                      No events match your filters. Try adjusting or clearing filters.
+                    </p>
+                  )}
+                </>
               ) : (
                 <p className="text-muted-foreground text-center py-8">No valid events to display.</p>
               )}
@@ -248,6 +389,203 @@ export default function CloudTrailAnalyzer() {
         )}
       </div>
     </Layout>
+  );
+}
+
+function EventFilters({
+  searchQuery,
+  onSearchChange,
+  uniqueEventNames,
+  uniqueEventSources,
+  uniqueRegions,
+  selectedEventNames,
+  selectedEventSources,
+  selectedRegions,
+  onToggleEventName,
+  onToggleEventSource,
+  onToggleRegion,
+  sortField,
+  sortOrder,
+  onSortFieldChange,
+  onSortOrderChange,
+  hasActiveFilters,
+  onClearFilters,
+  filteredCount,
+  totalCount,
+}: {
+  searchQuery: string;
+  onSearchChange: (v: string) => void;
+  uniqueEventNames: string[];
+  uniqueEventSources: string[];
+  uniqueRegions: string[];
+  selectedEventNames: Set<string>;
+  selectedEventSources: Set<string>;
+  selectedRegions: Set<string>;
+  onToggleEventName: (name: string) => void;
+  onToggleEventSource: (src: string) => void;
+  onToggleRegion: (r: string) => void;
+  sortField: SortField;
+  sortOrder: SortOrder;
+  onSortFieldChange: (v: SortField) => void;
+  onSortOrderChange: (v: SortOrder) => void;
+  hasActiveFilters: boolean;
+  onClearFilters: () => void;
+  filteredCount: number;
+  totalCount: number;
+}) {
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search events..."
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <Filter className="h-3.5 w-3.5" />
+              Event Names
+              {selectedEventNames.size > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                  {selectedEventNames.size}
+                </Badge>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-2" align="start">
+            <div className="max-h-56 overflow-y-auto space-y-2">
+              {uniqueEventNames.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">No event names</p>
+              ) : (
+                uniqueEventNames.map((name) => (
+                  <label
+                    key={name}
+                    className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-2 py-1.5 text-sm"
+                  >
+                    <Checkbox
+                      checked={selectedEventNames.has(name)}
+                      onCheckedChange={() => onToggleEventName(name)}
+                    />
+                    <span className="font-mono truncate">{name}</span>
+                  </label>
+                ))
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-2 px-2">
+              {selectedEventNames.size === 0 ? "All events" : `${selectedEventNames.size} selected`}
+            </p>
+          </PopoverContent>
+        </Popover>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <Filter className="h-3.5 w-3.5" />
+              Sources
+              {selectedEventSources.size > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                  {selectedEventSources.size}
+                </Badge>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-64 p-2" align="start">
+            <div className="max-h-56 overflow-y-auto space-y-2">
+              {uniqueEventSources.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">No sources</p>
+              ) : (
+                uniqueEventSources.map((src) => (
+                  <label
+                    key={src}
+                    className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-2 py-1.5 text-sm"
+                  >
+                    <Checkbox
+                      checked={selectedEventSources.has(src)}
+                      onCheckedChange={() => onToggleEventSource(src)}
+                    />
+                    <span className="font-mono text-xs truncate">{src}</span>
+                  </label>
+                ))
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-1.5">
+              <Filter className="h-3.5 w-3.5" />
+              Regions
+              {selectedRegions.size > 0 && (
+                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
+                  {selectedRegions.size}
+                </Badge>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 p-2" align="start">
+            <div className="max-h-56 overflow-y-auto space-y-2">
+              {uniqueRegions.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-2">No regions</p>
+              ) : (
+                uniqueRegions.map((r) => (
+                  <label
+                    key={r}
+                    className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 rounded px-2 py-1.5 text-sm"
+                  >
+                    <Checkbox checked={selectedRegions.has(r)} onCheckedChange={() => onToggleRegion(r)} />
+                    <span>{r}</span>
+                  </label>
+                ))
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <Select value={sortField} onValueChange={(v) => onSortFieldChange(v as SortField)}>
+          <SelectTrigger className="w-[140px]">
+            <ArrowUpDown className="h-3.5 w-3.5 mr-1.5" />
+            <SelectValue placeholder="Sort by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="event_time">Time</SelectItem>
+            <SelectItem value="event_name">Event Name</SelectItem>
+            <SelectItem value="event_source">Source</SelectItem>
+            <SelectItem value="aws_region">Region</SelectItem>
+            <SelectItem value="principal_arn">Principal</SelectItem>
+            <SelectItem value="source_ip">IP Address</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select value={sortOrder} onValueChange={(v) => onSortOrderChange(v as SortOrder)}>
+          <SelectTrigger className="w-[120px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="asc">Ascending</SelectItem>
+            <SelectItem value="desc">Descending</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={onClearFilters} className="gap-1 text-muted-foreground">
+            <X className="h-3.5 w-3.5" />
+            Clear filters
+          </Button>
+        )}
+      </div>
+      {(hasActiveFilters || filteredCount !== totalCount) && (
+        <p className="text-sm text-muted-foreground">
+          Showing {filteredCount} of {totalCount} events
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -266,13 +604,13 @@ function EventsTable({
         <TableHeader>
           <TableRow>
             <TableHead className="w-8" />
-            <TableHead>Time</TableHead>
-            <TableHead>Source</TableHead>
-            <TableHead>Event</TableHead>
-            <TableHead>Region</TableHead>
-            <TableHead>Principal</TableHead>
-            <TableHead>IP</TableHead>
-            <TableHead className="w-20">Status</TableHead>
+            <TableHead className="text-sm font-semibold tracking-tight">Time</TableHead>
+            <TableHead className="text-sm font-semibold tracking-tight">Source</TableHead>
+            <TableHead className="text-sm font-semibold tracking-tight">Event</TableHead>
+            <TableHead className="text-sm font-semibold tracking-tight">Region</TableHead>
+            <TableHead className="text-sm font-semibold tracking-tight">Principal</TableHead>
+            <TableHead className="text-sm font-semibold tracking-tight">IP</TableHead>
+            <TableHead className="w-24 text-sm font-semibold tracking-tight">Status</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -290,26 +628,26 @@ function EventsTable({
                     <ChevronRight className="h-4 w-4" />
                   )}
                 </TableCell>
-                <TableCell className="font-mono text-xs whitespace-nowrap">{ev.event_time}</TableCell>
-                <TableCell className="font-mono text-xs">{ev.event_source}</TableCell>
-                <TableCell className="font-mono text-xs">{ev.event_name}</TableCell>
-                <TableCell className="text-xs">{ev.aws_region}</TableCell>
-                <TableCell className="font-mono text-xs max-w-[120px] truncate" title={ev.principal_arn}>
+                <TableCell className="font-mono text-sm antialiased whitespace-nowrap">{ev.event_time}</TableCell>
+                <TableCell className="font-mono text-sm antialiased">{ev.event_source}</TableCell>
+                <TableCell className="font-mono text-sm antialiased font-medium">{ev.event_name}</TableCell>
+                <TableCell className="text-sm font-medium">{ev.aws_region}</TableCell>
+                <TableCell className="font-mono text-sm antialiased max-w-[140px] truncate" title={ev.principal_arn}>
                   {ev.principal_arn || ev.principal_type || "-"}
                 </TableCell>
-                <TableCell className="font-mono text-xs">{ev.source_ip || "-"}</TableCell>
+                <TableCell className="font-mono text-sm antialiased">{ev.source_ip || "-"}</TableCell>
                 <TableCell>
                   {ev.is_fully_structured ? (
-                    <Badge variant="secondary" className="text-xs">Valid</Badge>
+                    <Badge variant="secondary" className="text-sm font-medium">Valid</Badge>
                   ) : (
-                    <Badge variant="outline" className="text-xs text-amber-600">Partial</Badge>
+                    <Badge variant="outline" className="text-sm font-medium text-amber-600">Partial</Badge>
                   )}
                 </TableCell>
               </TableRow>
               {expandedId === ev.event_id && (
                 <TableRow>
                   <TableCell colSpan={8} className="bg-muted/30 p-4">
-                    <pre className="text-xs overflow-auto max-h-64 font-mono whitespace-pre-wrap break-words">
+                    <pre className="text-sm font-mono antialiased overflow-auto max-h-64 whitespace-pre-wrap break-words leading-relaxed">
                       {JSON.stringify(
                         {
                           event_id: ev.event_id,
