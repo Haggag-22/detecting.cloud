@@ -33,6 +33,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   FileJson,
@@ -263,7 +268,7 @@ export default function CloudTrailAnalyzer() {
 
   return (
     <Layout>
-      <div className="container py-10">
+      <div className="container max-w-[1800px] py-10">
         <div className="mb-8">
           <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
             <FileJson className="h-8 w-8 text-primary" />
@@ -909,30 +914,30 @@ function EventsTable({
   detectionMatches?: Map<string, DetectionResult[]>;
 }) {
   return (
-    <ScrollArea className="w-full rounded-md border">
-      <Table className="table-fixed min-w-[1495px]">
+    <ScrollArea className="w-full rounded-lg border">
+      <Table className="w-full min-w-[1200px] table-fixed">
         <colgroup>
           <col style={{ width: 40 }} />
-          <col style={{ width: 185 }} />
-          <col style={{ width: 200 }} />
-          <col style={{ width: 240 }} />
-          <col style={{ width: 100 }} />
-          <col style={{ width: 300 }} />
-          <col style={{ width: 130 }} />
-          <col style={{ width: 100 }} />
-          <col style={{ width: 200 }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "7%" }} />
+          <col style={{ width: "22%" }} />
+          <col style={{ width: "10%" }} />
+          <col style={{ width: "8%" }} />
+          <col style={{ width: "14%" }} />
         </colgroup>
         <TableHeader>
-          <TableRow>
-            <TableHead className="w-10 px-6 py-4" />
-            <TableHead className="min-w-[185px] px-6 py-4 text-sm font-semibold tracking-tight">Time</TableHead>
-            <TableHead className="min-w-[200px] px-6 py-4 text-sm font-semibold tracking-tight">Source</TableHead>
-            <TableHead className="min-w-[240px] px-6 py-4 text-sm font-semibold tracking-tight">Event</TableHead>
-            <TableHead className="min-w-[100px] px-6 py-4 text-sm font-semibold tracking-tight">Region</TableHead>
-            <TableHead className="min-w-[300px] px-6 py-4 text-sm font-semibold tracking-tight">Principal</TableHead>
-            <TableHead className="min-w-[130px] px-6 py-4 text-sm font-semibold tracking-tight">IP</TableHead>
-            <TableHead className="min-w-[100px] px-6 py-4 text-sm font-semibold tracking-tight">Status</TableHead>
-            <TableHead className="min-w-[200px] px-6 py-4 text-sm font-semibold tracking-tight">Detections</TableHead>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="w-10 px-5 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground" />
+            <TableHead className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Time</TableHead>
+            <TableHead className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Source</TableHead>
+            <TableHead className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Event</TableHead>
+            <TableHead className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Region</TableHead>
+            <TableHead className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Principal</TableHead>
+            <TableHead className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">IP</TableHead>
+            <TableHead className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</TableHead>
+            <TableHead className="px-5 py-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Detections</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -940,33 +945,76 @@ function EventsTable({
             <React.Fragment key={ev.event_id}>
               <TableRow
                 key={ev.event_id}
-                className="cursor-pointer"
+                className="cursor-pointer transition-colors"
                 onClick={() => onToggleExpand(expandedId === ev.event_id ? null : ev.event_id)}
               >
-                <TableCell className="w-10 px-6 py-4">
+                <TableCell className="w-10 px-5 py-5 align-middle">
                   {expandedId === ev.event_id ? (
-                    <ChevronDown className="h-4 w-4" />
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
                   ) : (
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   )}
                 </TableCell>
-                <TableCell className="min-w-[185px] px-6 py-4 font-mono text-sm antialiased whitespace-nowrap">{ev.event_time}</TableCell>
-                <TableCell className="min-w-[200px] px-6 py-4 font-mono text-sm antialiased break-all">{ev.event_source}</TableCell>
-                <TableCell className="min-w-[240px] px-6 py-4 font-mono text-sm antialiased font-medium break-all">{ev.event_name}</TableCell>
-                <TableCell className="min-w-[100px] px-6 py-4 text-sm font-medium">{ev.aws_region}</TableCell>
-                <TableCell className="min-w-[300px] px-6 py-4 font-mono text-sm antialiased break-all" title={ev.principal_arn || ev.principal_type || undefined}>
-                  {ev.principal_arn || ev.principal_type || "-"}
+                <TableCell className="px-5 py-5 font-mono text-sm whitespace-nowrap align-middle">
+                  {ev.event_time}
                 </TableCell>
-                <TableCell className="min-w-[130px] px-6 py-4 font-mono text-sm antialiased">{ev.source_ip || "-"}</TableCell>
-                <TableCell className="min-w-[100px] px-6 py-4">
+                <TableCell className="px-5 py-5 align-middle overflow-hidden">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="block font-mono text-sm truncate cursor-default">
+                        {ev.event_source}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-md break-all font-mono text-xs">
+                      {ev.event_source}
+                    </TooltipContent>
+                  </Tooltip>
+                </TableCell>
+                <TableCell className="px-5 py-5 align-middle overflow-hidden">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="block font-mono text-sm font-medium truncate cursor-default">
+                        {ev.event_name}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-md break-all font-mono text-xs">
+                      {ev.event_name}
+                    </TooltipContent>
+                  </Tooltip>
+                </TableCell>
+                <TableCell className="px-5 py-5 text-sm whitespace-nowrap align-middle">
+                  {ev.aws_region}
+                </TableCell>
+                <TableCell className="px-5 py-5 align-middle overflow-hidden">
+                  {(ev.principal_arn || ev.principal_type) ? (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="block font-mono text-sm truncate cursor-default">
+                          {ev.principal_arn || ev.principal_type}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-md break-all font-mono text-xs">
+                        {ev.principal_arn || ev.principal_type}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </TableCell>
+                <TableCell className="px-5 py-5 font-mono text-sm whitespace-nowrap align-middle">
+                  {ev.source_ip || <span className="text-muted-foreground">—</span>}
+                </TableCell>
+                <TableCell className="px-5 py-5 align-middle">
                   {ev.is_fully_structured ? (
-                    <Badge variant="secondary" className="text-sm font-medium">Valid</Badge>
+                    <Badge variant="secondary" className="text-xs font-medium">Valid</Badge>
                   ) : (
-                    <Badge variant="outline" className="text-sm font-medium text-amber-600">Partial</Badge>
+                    <Badge variant="outline" className="text-xs font-medium text-amber-600">Partial</Badge>
                   )}
                 </TableCell>
-                <TableCell className="min-w-[200px] px-6 py-4">
-                  <DetectionBadges results={detectionMatches.get(ev.event_id) ?? []} />
+                <TableCell className="px-5 py-5 align-middle">
+                  <div className="min-w-0">
+                    <DetectionBadges results={detectionMatches.get(ev.event_id) ?? []} />
+                  </div>
                 </TableCell>
               </TableRow>
               {expandedId === ev.event_id && (
