@@ -866,9 +866,6 @@ function DetectionBadges({ results }: { results: DetectionResult[] }) {
           className={`text-xs px-2.5 py-1 min-w-0 max-w-full shrink cursor-default overflow-hidden ${severityColors[r.severity] ?? ""}`}
         >
           <span className="block truncate min-w-0">
-            {r.ruleType === "correlation" && (
-              <span className="mr-1 opacity-70">[corr]</span>
-            )}
             {r.ruleName}
           </span>
         </Badge>
@@ -951,8 +948,10 @@ function EventExpandedDetail({ event: ev, results }: { event: NormalizedCloudTra
           {results.map((r) => (
             <div key={r.ruleId} className="rounded border border-border/50 p-3 space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] uppercase tracking-wider text-muted-foreground/80 px-1.5 py-0.5 rounded border border-border/50 shrink-0">
+                  {r.ruleType === "correlation" ? "Correlation" : "Single"}
+                </span>
                 <Badge variant="outline" className={`text-xs ${severityColors[r.severity] ?? ""}`}>
-                  {r.ruleType === "correlation" ? "[Correlation]" : "[Single]"}{" "}
                   {r.ruleName}
                 </Badge>
                 {r.resource && (
