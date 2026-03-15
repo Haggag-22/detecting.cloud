@@ -56,13 +56,12 @@ import {
   handlePasteInput,
   handleFileUpload,
   handleDatasetUpload,
-  matchEventsAgainstDetections,
-  getTechniquesForDetections,
-  getAttackPathsForDetections,
   type IngestionResult,
   type NormalizedCloudTrailEvent,
-  type MatchResult,
 } from "@/features/cloudtrail-analyzer";
+import { runCorrelationEngine } from "@/features/detection-engine";
+import type { DetectionResult } from "@/features/detection-engine";
+import { getTechniquesForDetections, getAttackPathsForDetections } from "@/features/cloudtrail-analyzer";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "react-router-dom";
 
@@ -251,13 +250,13 @@ export default function CloudTrailAnalyzer() {
     selectedRegions.size > 0;
 
   const detectionMatches = useMemo(() => {
-    return matchEventsAgainstDetections(filteredEvents);
+    return runCorrelationEngine(filteredEvents);
   }, [filteredEvents]);
 
   const detectionSummary = useMemo(() => {
     let matchedCount = 0;
-    for (const [, matches] of detectionMatches) {
-      if (matches.length > 0) matchedCount++;
+    for (const [, results] of detectionMatches) {
+      if (results.length > 0) matchedCount++;
     }
     return { matchedCount, total: filteredEvents.length };
   }, [detectionMatches, filteredEvents.length]);
@@ -728,20 +727,23 @@ const severityColors: Record<string, string> = {
   Low: "bg-muted text-muted-foreground",
 };
 
-function DetectionBadges({ matches }: { matches: MatchResult[] }) {
-  if (matches.length === 0) return <span className="text-xs text-muted-foreground">No matches</span>;
+function DetectionBadges({ results }: { results: DetectionResult[] }) {
+  if (results.length === 0) return <span className="text-sm text-muted-foreground">No matches</span>;
   return (
-    <div className="flex flex-wrap gap-1">
-      {matches.slice(0, 3).map((m) => (
-        <Link key={m.detectionId} to={`/detection-engineering?rule=${m.detectionId}`}>
-          <Badge variant="outline" className={`text-xs cursor-pointer hover:opacity-80 ${severityColors[m.severity] ?? ""}`}>
-            {m.title.length > 25 ? m.title.slice(0, 25) + "…" : m.title}
-          </Badge>
-        </Link>
+    <div className="flex flex-wrap gap-2">
+      {results.map((r) => (
+        <Badge
+          key={r.ruleId}
+          variant="outline"
+          title={r.reason}
+          className={`text-xs px-2.5 py-1 max-w-[320px] truncate cursor-default ${severityColors[r.severity] ?? ""}`}
+        >
+          {r.ruleType === "correlation" && (
+            <span className="mr-1 opacity-70">[corr]</span>
+          )}
+          {r.ruleName}
+        </Badge>
       ))}
-      {matches.length > 3 && (
-        <Badge variant="secondary" className="text-xs">+{matches.length - 3}</Badge>
-      )}
     </div>
   );
 }
@@ -755,36 +757,36 @@ function EventsTimeline({
   events: NormalizedCloudTrailEvent[];
   expandedId: string | null;
   onToggleExpand: (id: string | null) => void;
-  detectionMatches?: Map<string, MatchResult[]>;
+  detectionMatches?: Map<string, DetectionResult[]>;
 }) {
   return (
     <ScrollArea className="w-full rounded-md border">
-      <div className="p-4 space-y-0">
+      <div className="p-5">
         {events.map((ev) => (
           <React.Fragment key={ev.event_id}>
             <div
-              className="flex gap-4 py-3 border-b last:border-b-0 cursor-pointer hover:bg-muted/30 transition-colors"
+              className="flex gap-6 py-4 px-3 border-b last:border-b-0 cursor-pointer hover:bg-muted/30 transition-colors rounded-sm"
               onClick={() => onToggleExpand(expandedId === ev.event_id ? null : ev.event_id)}
             >
-              <div className="shrink-0 w-32 font-mono text-xs text-muted-foreground whitespace-nowrap">
+              <div className="shrink-0 w-40 font-mono text-sm text-muted-foreground whitespace-nowrap pt-0.5">
                 {ev.event_time}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-sm font-medium">{ev.event_name}</span>
-                  <span className="text-muted-foreground text-sm">·</span>
-                  <span className="font-mono text-xs text-muted-foreground">{ev.event_source}</span>
-                  <span className="text-muted-foreground text-sm">·</span>
+              <div className="flex-1 min-w-0 space-y-2">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <span className="font-mono text-sm font-semibold">{ev.event_name}</span>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="font-mono text-sm text-muted-foreground">{ev.event_source}</span>
+                  <span className="text-muted-foreground">·</span>
                   <span className="text-sm">{ev.aws_region}</span>
                 </div>
-                <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                <div className="text-sm text-muted-foreground break-all">
                   {ev.principal_arn || ev.principal_type || ev.source_ip || "-"}
                 </div>
-                <div className="mt-1.5">
-                  <DetectionBadges matches={detectionMatches.get(ev.event_id) ?? []} />
+                <div className="pt-1">
+                  <DetectionBadges results={detectionMatches.get(ev.event_id) ?? []} />
                 </div>
               </div>
-              <div className="shrink-0">
+              <div className="shrink-0 self-center">
                 {expandedId === ev.event_id ? (
                   <ChevronDown className="h-4 w-4" />
                 ) : (
@@ -793,8 +795,8 @@ function EventsTimeline({
               </div>
             </div>
             {expandedId === ev.event_id && (
-              <div className="pl-36 pr-4 pb-4 bg-muted/30 rounded-md -mt-1 space-y-3">
-                <EventExpandedDetail event={ev} matches={detectionMatches.get(ev.event_id) ?? []} />
+              <div className="ml-40 mr-3 mb-4 px-4 py-4 bg-muted/30 rounded-md space-y-4">
+                <EventExpandedDetail event={ev} results={detectionMatches.get(ev.event_id) ?? []} />
               </div>
             )}
           </React.Fragment>
@@ -805,23 +807,47 @@ function EventsTimeline({
   );
 }
 
-function EventExpandedDetail({ event: ev, matches }: { event: NormalizedCloudTrailEvent; matches: MatchResult[] }) {
-  const techniques = getTechniquesForDetections(matches.map((m) => m.detectionId));
-  const attackPaths = getAttackPathsForDetections(matches.map((m) => m.detectionId));
+function EventExpandedDetail({ event: ev, results }: { event: NormalizedCloudTrailEvent; results: DetectionResult[] }) {
+  const platformIds = results.filter((r) => r.ruleId.startsWith("det-")).map((r) => r.ruleId);
+  const techniques = getTechniquesForDetections(platformIds);
+  const attackPaths = getAttackPathsForDetections(platformIds);
+
   return (
     <>
-      {matches.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground">Matching detections</p>
-          <div className="flex flex-wrap gap-1">
-            {matches.map((m) => (
-              <Link key={m.detectionId} to={`/detection-engineering?rule=${m.detectionId}`}>
-                <Badge variant="outline" className={`text-xs cursor-pointer ${severityColors[m.severity] ?? ""}`}>
-                  {m.title}
+      {results.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-xs font-semibold text-muted-foreground">Detection results</p>
+          {results.map((r) => (
+            <div key={r.ruleId} className="rounded border border-border/50 p-3 space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className={`text-xs ${severityColors[r.severity] ?? ""}`}>
+                  {r.ruleType === "correlation" ? "[Correlation]" : "[Single]"}{" "}
+                  {r.ruleName}
                 </Badge>
-              </Link>
-            ))}
-          </div>
+                {r.resource && (
+                  <span className="text-xs text-muted-foreground">Resource: {r.resource}</span>
+                )}
+              </div>
+              {r.matchedEvents && r.matchedEvents.length > 1 && (
+                <div className="text-xs">
+                  <span className="font-medium text-muted-foreground">Matched events: </span>
+                  {r.matchedEvents.map((me, i) => (
+                    <span key={me.event_id}>
+                      {i > 0 && " → "}
+                      <span className="font-mono">{me.event_name}</span>
+                      {me.resource && ` (${me.resource})`}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {r.timeWindow && (
+                <div className="text-xs text-muted-foreground">
+                  Window: {r.timeWindow.start} to {r.timeWindow.end}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">{r.reason}</p>
+            </div>
+          ))}
           {techniques.length > 0 && (
             <>
               <p className="text-xs font-semibold text-muted-foreground mt-2">Techniques</p>
@@ -880,7 +906,7 @@ function EventsTable({
   events: NormalizedCloudTrailEvent[];
   expandedId: string | null;
   onToggleExpand: (id: string | null) => void;
-  detectionMatches?: Map<string, MatchResult[]>;
+  detectionMatches?: Map<string, DetectionResult[]>;
 }) {
   return (
     <ScrollArea className="w-full rounded-md border">
@@ -940,13 +966,13 @@ function EventsTable({
                   )}
                 </TableCell>
                 <TableCell className="min-w-[200px] px-6 py-4">
-                  <DetectionBadges matches={detectionMatches.get(ev.event_id) ?? []} />
+                  <DetectionBadges results={detectionMatches.get(ev.event_id) ?? []} />
                 </TableCell>
               </TableRow>
               {expandedId === ev.event_id && (
                 <TableRow>
                   <TableCell colSpan={9} className="bg-muted/30 p-4">
-                    <EventExpandedDetail event={ev} matches={detectionMatches.get(ev.event_id) ?? []} />
+                    <EventExpandedDetail event={ev} results={detectionMatches.get(ev.event_id) ?? []} />
                   </TableCell>
                 </TableRow>
               )}
