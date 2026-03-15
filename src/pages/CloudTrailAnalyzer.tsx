@@ -18,6 +18,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
@@ -42,18 +48,57 @@ import {
   Filter,
   ArrowUpDown,
   X,
+  Download,
+  Table2,
+  List,
 } from "lucide-react";
 import {
   handlePasteInput,
   handleFileUpload,
   handleDatasetUpload,
+  matchEventsAgainstDetections,
+  getTechniquesForDetections,
+  getAttackPathsForDetections,
   type IngestionResult,
   type NormalizedCloudTrailEvent,
+  type MatchResult,
 } from "@/features/cloudtrail-analyzer";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "react-router-dom";
 
 type SortField = "event_time" | "event_name" | "event_source" | "aws_region" | "principal_arn" | "source_ip";
 type SortOrder = "asc" | "desc";
+type ViewMode = "table" | "timeline";
+
+function downloadFile(content: string, filename: string, mimeType: string = "text/plain;charset=utf-8") {
+  const blob = new Blob([content], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportEventsAsJson(events: NormalizedCloudTrailEvent[]): string {
+  const exportData = events.map((e) => {
+    const { _raw, ...rest } = e;
+    return rest;
+  });
+  return JSON.stringify(exportData, null, 2);
+}
+
+function exportEventsAsCsv(events: NormalizedCloudTrailEvent[]): string {
+  const headers = ["event_id", "event_time", "event_source", "event_name", "aws_region", "source_ip", "principal_type", "principal_arn"];
+  const rows = events.map((e) =>
+    headers.map((h) => {
+      const v = (e as Record<string, unknown>)[h];
+      const s = String(v ?? "");
+      return s.includes(",") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
+    }).join(",")
+  );
+  return [headers.join(","), ...rows].join("\n");
+}
 
 export default function CloudTrailAnalyzer() {
   const [pasteValue, setPasteValue] = useState("");
@@ -66,6 +111,7 @@ export default function CloudTrailAnalyzer() {
   const [selectedRegions, setSelectedRegions] = useState<Set<string>>(new Set());
   const [sortField, setSortField] = useState<SortField>("event_time");
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const { toast } = useToast();
 
   const processPaste = useCallback(() => {
@@ -204,6 +250,18 @@ export default function CloudTrailAnalyzer() {
     selectedEventSources.size > 0 ||
     selectedRegions.size > 0;
 
+  const detectionMatches = useMemo(() => {
+    return matchEventsAgainstDetections(filteredEvents);
+  }, [filteredEvents]);
+
+  const detectionSummary = useMemo(() => {
+    let matchedCount = 0;
+    for (const [, matches] of detectionMatches) {
+      if (matches.length > 0) matchedCount++;
+    }
+    return { matchedCount, total: filteredEvents.length };
+  }, [detectionMatches, filteredEvents.length]);
+
   return (
     <Layout>
       <div className="container py-10">
@@ -329,6 +387,11 @@ export default function CloudTrailAnalyzer() {
                     </Badge>
                   )}
                   <Badge variant="outline" className="text-sm font-medium">Total: {result.total_count}</Badge>
+                  {filteredEvents.length > 0 && (
+                    <Badge variant="outline" className="text-sm font-medium">
+                      Matched: {detectionSummary.matchedCount}/{detectionSummary.total}
+                    </Badge>
+                  )}
                 </div>
               </div>
               {result.errors.length > 0 && (
@@ -368,13 +431,36 @@ export default function CloudTrailAnalyzer() {
                     onClearFilters={clearFilters}
                     filteredCount={filteredEvents.length}
                     totalCount={result.parsed_events.length}
+                    viewMode={viewMode}
+                    onViewModeChange={setViewMode}
+                    onExportJson={() => {
+                      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+                      downloadFile(exportEventsAsJson(filteredEvents), `cloudtrail-events-${ts}.json`, "application/json");
+                      toast.success("Exported as JSON");
+                    }}
+                    onExportCsv={() => {
+                      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+                      downloadFile(exportEventsAsCsv(filteredEvents), `cloudtrail-events-${ts}.csv`, "text/csv");
+                      toast.success("Exported as CSV");
+                    }}
+                    canExport={filteredEvents.length > 0}
                   />
                   {filteredEvents.length > 0 ? (
-                    <EventsTable
-                      events={filteredEvents}
-                      expandedId={expandedEventId}
-                      onToggleExpand={setExpandedEventId}
-                    />
+                    viewMode === "table" ? (
+                      <EventsTable
+                        events={filteredEvents}
+                        expandedId={expandedEventId}
+                        onToggleExpand={setExpandedEventId}
+                        detectionMatches={detectionMatches}
+                      />
+                    ) : (
+                      <EventsTimeline
+                        events={filteredEvents}
+                        expandedId={expandedEventId}
+                        onToggleExpand={setExpandedEventId}
+                        detectionMatches={detectionMatches}
+                      />
+                    )
                   ) : (
                     <p className="text-muted-foreground text-center py-8">
                       No events match your filters. Try adjusting or clearing filters.
@@ -412,6 +498,11 @@ function EventFilters({
   onClearFilters,
   filteredCount,
   totalCount,
+  viewMode = "table",
+  onViewModeChange,
+  onExportJson,
+  onExportCsv,
+  canExport = false,
 }: {
   searchQuery: string;
   onSearchChange: (v: string) => void;
@@ -432,6 +523,11 @@ function EventFilters({
   onClearFilters: () => void;
   filteredCount: number;
   totalCount: number;
+  viewMode?: ViewMode;
+  onViewModeChange?: (mode: ViewMode) => void;
+  onExportJson?: () => void;
+  onExportCsv?: () => void;
+  canExport?: boolean;
 }) {
   return (
     <div className="space-y-3">
@@ -579,6 +675,42 @@ function EventFilters({
             Clear filters
           </Button>
         )}
+
+        {onViewModeChange && (
+          <div className="flex border rounded-md">
+            <Button
+              variant={viewMode === "table" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => onViewModeChange("table")}
+              className="rounded-r-none"
+            >
+              <Table2 className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant={viewMode === "timeline" ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => onViewModeChange("timeline")}
+              className="rounded-l-none"
+            >
+              <List className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
+
+        {canExport && onExportJson && onExportCsv && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Download className="h-3.5 w-3.5" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onExportJson}>Export as JSON</DropdownMenuItem>
+              <DropdownMenuItem onClick={onExportCsv}>Export as CSV</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
       {(hasActiveFilters || filteredCount !== totalCount) && (
         <p className="text-sm text-muted-foreground">
@@ -589,18 +721,170 @@ function EventFilters({
   );
 }
 
-function EventsTable({
+const severityColors: Record<string, string> = {
+  Critical: "bg-red-500/20 text-red-400 border-red-500/30",
+  High: "bg-orange-500/20 text-orange-400 border-orange-500/30",
+  Medium: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+  Low: "bg-muted text-muted-foreground",
+};
+
+function DetectionBadges({ matches }: { matches: MatchResult[] }) {
+  if (matches.length === 0) return <span className="text-xs text-muted-foreground">No matches</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {matches.slice(0, 3).map((m) => (
+        <Link key={m.detectionId} to={`/detection-engineering?rule=${m.detectionId}`}>
+          <Badge variant="outline" className={`text-xs cursor-pointer hover:opacity-80 ${severityColors[m.severity] ?? ""}`}>
+            {m.title.length > 25 ? m.title.slice(0, 25) + "…" : m.title}
+          </Badge>
+        </Link>
+      ))}
+      {matches.length > 3 && (
+        <Badge variant="secondary" className="text-xs">+{matches.length - 3}</Badge>
+      )}
+    </div>
+  );
+}
+
+function EventsTimeline({
   events,
   expandedId,
   onToggleExpand,
+  detectionMatches = new Map(),
 }: {
   events: NormalizedCloudTrailEvent[];
   expandedId: string | null;
   onToggleExpand: (id: string | null) => void;
+  detectionMatches?: Map<string, MatchResult[]>;
 }) {
   return (
     <ScrollArea className="w-full rounded-md border">
-      <Table className="table-fixed min-w-[1295px]">
+      <div className="p-4 space-y-0">
+        {events.map((ev) => (
+          <React.Fragment key={ev.event_id}>
+            <div
+              className="flex gap-4 py-3 border-b last:border-b-0 cursor-pointer hover:bg-muted/30 transition-colors"
+              onClick={() => onToggleExpand(expandedId === ev.event_id ? null : ev.event_id)}
+            >
+              <div className="shrink-0 w-32 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                {ev.event_time}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-sm font-medium">{ev.event_name}</span>
+                  <span className="text-muted-foreground text-sm">·</span>
+                  <span className="font-mono text-xs text-muted-foreground">{ev.event_source}</span>
+                  <span className="text-muted-foreground text-sm">·</span>
+                  <span className="text-sm">{ev.aws_region}</span>
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                  {ev.principal_arn || ev.principal_type || ev.source_ip || "-"}
+                </div>
+                <div className="mt-1.5">
+                  <DetectionBadges matches={detectionMatches.get(ev.event_id) ?? []} />
+                </div>
+              </div>
+              <div className="shrink-0">
+                {expandedId === ev.event_id ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </div>
+            </div>
+            {expandedId === ev.event_id && (
+              <div className="pl-36 pr-4 pb-4 bg-muted/30 rounded-md -mt-1 space-y-3">
+                <EventExpandedDetail event={ev} matches={detectionMatches.get(ev.event_id) ?? []} />
+              </div>
+            )}
+          </React.Fragment>
+        ))}
+      </div>
+      <ScrollBar orientation="horizontal" />
+    </ScrollArea>
+  );
+}
+
+function EventExpandedDetail({ event: ev, matches }: { event: NormalizedCloudTrailEvent; matches: MatchResult[] }) {
+  const techniques = getTechniquesForDetections(matches.map((m) => m.detectionId));
+  const attackPaths = getAttackPathsForDetections(matches.map((m) => m.detectionId));
+  return (
+    <>
+      {matches.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">Matching detections</p>
+          <div className="flex flex-wrap gap-1">
+            {matches.map((m) => (
+              <Link key={m.detectionId} to={`/detection-engineering?rule=${m.detectionId}`}>
+                <Badge variant="outline" className={`text-xs cursor-pointer ${severityColors[m.severity] ?? ""}`}>
+                  {m.title}
+                </Badge>
+              </Link>
+            ))}
+          </div>
+          {techniques.length > 0 && (
+            <>
+              <p className="text-xs font-semibold text-muted-foreground mt-2">Techniques</p>
+              <div className="flex flex-wrap gap-1">
+                {techniques.map((t) => (
+                  <Link key={t.techniqueId} to={`/attack-paths/technique/${t.techniqueId}`}>
+                    <Badge variant="secondary" className="text-xs cursor-pointer">{t.name}</Badge>
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+          {attackPaths.length > 0 && (
+            <>
+              <p className="text-xs font-semibold text-muted-foreground mt-2">Attack paths</p>
+              <div className="flex flex-wrap gap-1">
+                {attackPaths.map((p) => (
+                  <Link key={p.slug} to={`/attack-paths?technique=${p.slug}`}>
+                    <Badge variant="secondary" className="text-xs cursor-pointer">{p.title}</Badge>
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      <pre className="text-sm font-mono antialiased overflow-auto max-h-64 whitespace-pre-wrap break-words leading-relaxed">
+        {JSON.stringify(
+          {
+            event_id: ev.event_id,
+            event_time: ev.event_time,
+            event_source: ev.event_source,
+            event_name: ev.event_name,
+            aws_region: ev.aws_region,
+            source_ip: ev.source_ip,
+            principal_type: ev.principal_type,
+            principal_arn: ev.principal_arn,
+            request_parameters: ev.request_parameters,
+            response_elements: ev.response_elements,
+            resources: ev.resources,
+          },
+          null,
+          2
+        )}
+      </pre>
+    </>
+  );
+}
+
+function EventsTable({
+  events,
+  expandedId,
+  onToggleExpand,
+  detectionMatches = new Map(),
+}: {
+  events: NormalizedCloudTrailEvent[];
+  expandedId: string | null;
+  onToggleExpand: (id: string | null) => void;
+  detectionMatches?: Map<string, MatchResult[]>;
+}) {
+  return (
+    <ScrollArea className="w-full rounded-md border">
+      <Table className="table-fixed min-w-[1495px]">
         <colgroup>
           <col style={{ width: 40 }} />
           <col style={{ width: 185 }} />
@@ -610,6 +894,7 @@ function EventsTable({
           <col style={{ width: 300 }} />
           <col style={{ width: 130 }} />
           <col style={{ width: 100 }} />
+          <col style={{ width: 200 }} />
         </colgroup>
         <TableHeader>
           <TableRow>
@@ -621,6 +906,7 @@ function EventsTable({
             <TableHead className="min-w-[300px] px-6 py-4 text-sm font-semibold tracking-tight">Principal</TableHead>
             <TableHead className="min-w-[130px] px-6 py-4 text-sm font-semibold tracking-tight">IP</TableHead>
             <TableHead className="min-w-[100px] px-6 py-4 text-sm font-semibold tracking-tight">Status</TableHead>
+            <TableHead className="min-w-[200px] px-6 py-4 text-sm font-semibold tracking-tight">Detections</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -653,29 +939,14 @@ function EventsTable({
                     <Badge variant="outline" className="text-sm font-medium text-amber-600">Partial</Badge>
                   )}
                 </TableCell>
+                <TableCell className="min-w-[200px] px-6 py-4">
+                  <DetectionBadges matches={detectionMatches.get(ev.event_id) ?? []} />
+                </TableCell>
               </TableRow>
               {expandedId === ev.event_id && (
                 <TableRow>
-                  <TableCell colSpan={8} className="bg-muted/30 p-4">
-                    <pre className="text-sm font-mono antialiased overflow-auto max-h-64 whitespace-pre-wrap break-words leading-relaxed">
-                      {JSON.stringify(
-                        {
-                          event_id: ev.event_id,
-                          event_time: ev.event_time,
-                          event_source: ev.event_source,
-                          event_name: ev.event_name,
-                          aws_region: ev.aws_region,
-                          source_ip: ev.source_ip,
-                          principal_type: ev.principal_type,
-                          principal_arn: ev.principal_arn,
-                          request_parameters: ev.request_parameters,
-                          response_elements: ev.response_elements,
-                          resources: ev.resources,
-                        },
-                        null,
-                        2
-                      )}
-                    </pre>
+                  <TableCell colSpan={9} className="bg-muted/30 p-4">
+                    <EventExpandedDetail event={ev} matches={detectionMatches.get(ev.event_id) ?? []} />
                   </TableCell>
                 </TableRow>
               )}
