@@ -600,17 +600,27 @@ function EventsTable({
 }) {
   return (
     <ScrollArea className="w-full rounded-md border">
-      <Table>
+      <Table className="table-fixed min-w-[1295px]">
+        <colgroup>
+          <col style={{ width: 40 }} />
+          <col style={{ width: 185 }} />
+          <col style={{ width: 200 }} />
+          <col style={{ width: 240 }} />
+          <col style={{ width: 100 }} />
+          <col style={{ width: 300 }} />
+          <col style={{ width: 130 }} />
+          <col style={{ width: 100 }} />
+        </colgroup>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-8" />
-            <TableHead className="text-sm font-semibold tracking-tight">Time</TableHead>
-            <TableHead className="text-sm font-semibold tracking-tight">Source</TableHead>
-            <TableHead className="text-sm font-semibold tracking-tight">Event</TableHead>
-            <TableHead className="text-sm font-semibold tracking-tight">Region</TableHead>
-            <TableHead className="text-sm font-semibold tracking-tight">Principal</TableHead>
-            <TableHead className="text-sm font-semibold tracking-tight">IP</TableHead>
-            <TableHead className="w-24 text-sm font-semibold tracking-tight">Status</TableHead>
+            <TableHead className="w-10 px-6 py-4" />
+            <TableHead className="min-w-[185px] px-6 py-4 text-sm font-semibold tracking-tight">Time</TableHead>
+            <TableHead className="min-w-[200px] px-6 py-4 text-sm font-semibold tracking-tight">Source</TableHead>
+            <TableHead className="min-w-[240px] px-6 py-4 text-sm font-semibold tracking-tight">Event</TableHead>
+            <TableHead className="min-w-[100px] px-6 py-4 text-sm font-semibold tracking-tight">Region</TableHead>
+            <TableHead className="min-w-[300px] px-6 py-4 text-sm font-semibold tracking-tight">Principal</TableHead>
+            <TableHead className="min-w-[130px] px-6 py-4 text-sm font-semibold tracking-tight">IP</TableHead>
+            <TableHead className="min-w-[100px] px-6 py-4 text-sm font-semibold tracking-tight">Status</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -621,22 +631,22 @@ function EventsTable({
                 className="cursor-pointer"
                 onClick={() => onToggleExpand(expandedId === ev.event_id ? null : ev.event_id)}
               >
-                <TableCell className="w-8">
+                <TableCell className="w-10 px-6 py-4">
                   {expandedId === ev.event_id ? (
                     <ChevronDown className="h-4 w-4" />
                   ) : (
                     <ChevronRight className="h-4 w-4" />
                   )}
                 </TableCell>
-                <TableCell className="font-mono text-sm antialiased whitespace-nowrap">{ev.event_time}</TableCell>
-                <TableCell className="font-mono text-sm antialiased">{ev.event_source}</TableCell>
-                <TableCell className="font-mono text-sm antialiased font-medium">{ev.event_name}</TableCell>
-                <TableCell className="text-sm font-medium">{ev.aws_region}</TableCell>
-                <TableCell className="font-mono text-sm antialiased max-w-[140px] truncate" title={ev.principal_arn}>
+                <TableCell className="min-w-[185px] px-6 py-4 font-mono text-sm antialiased whitespace-nowrap">{ev.event_time}</TableCell>
+                <TableCell className="min-w-[200px] px-6 py-4 font-mono text-sm antialiased break-all">{ev.event_source}</TableCell>
+                <TableCell className="min-w-[240px] px-6 py-4 font-mono text-sm antialiased font-medium break-all">{ev.event_name}</TableCell>
+                <TableCell className="min-w-[100px] px-6 py-4 text-sm font-medium">{ev.aws_region}</TableCell>
+                <TableCell className="min-w-[300px] px-6 py-4 font-mono text-sm antialiased break-all" title={ev.principal_arn || ev.principal_type || undefined}>
                   {ev.principal_arn || ev.principal_type || "-"}
                 </TableCell>
-                <TableCell className="font-mono text-sm antialiased">{ev.source_ip || "-"}</TableCell>
-                <TableCell>
+                <TableCell className="min-w-[130px] px-6 py-4 font-mono text-sm antialiased">{ev.source_ip || "-"}</TableCell>
+                <TableCell className="min-w-[100px] px-6 py-4">
                   {ev.is_fully_structured ? (
                     <Badge variant="secondary" className="text-sm font-medium">Valid</Badge>
                   ) : (
