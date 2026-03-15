@@ -35,6 +35,7 @@ import {
   Home,
   Info,
   BarChart3,
+  FileJson,
   Github,
   Twitter,
 } from "lucide-react";
@@ -203,6 +204,12 @@ function buildSections(): SidebarSection[] {
       to: "/coverage",
     },
     {
+      key: "cloudtrail-analyzer",
+      label: "CloudTrail Analyzer",
+      icon: FileJson,
+      to: "/cloudtrail-analyzer",
+    },
+    {
       key: "community-rules",
       label: "Community Rules",
       icon: Bug,
@@ -248,6 +255,7 @@ export function AppSidebar() {
   techniques.forEach((t) => allSearchItems.push({ label: t.name, to: `/attack-paths/technique/${t.id}`, type: "Technique" }));
   detections.forEach((d) => allSearchItems.push({ label: d.title, to: `/detection-engineering?rule=${d.id}`, type: "Detection" }));
   researchPosts.forEach((p) => allSearchItems.push({ label: p.title, to: `/research/${p.slug}`, type: "Research" }));
+  allSearchItems.push({ label: "CloudTrail Analyzer", to: "/cloudtrail-analyzer", type: "Tool" });
 
   const searchResults = search.trim()
     ? allSearchItems.filter((item) => item.label.toLowerCase().includes(search.toLowerCase()))

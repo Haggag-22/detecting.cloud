@@ -14,6 +14,7 @@ import Coverage from "./pages/Coverage";
 import TechniqueDetail from "./pages/TechniqueDetail";
 import TechniquesLibrary from "./pages/TechniquesLibrary";
 import AttackSimulator from "./pages/AttackSimulator";
+import CloudTrailAnalyzer from "./pages/CloudTrailAnalyzer";
 import CommunityRules from "./pages/CommunityRules";
 import AdminSubscribers from "./pages/AdminSubscribers";
 import NotFound from "./pages/NotFound";
@@ -38,6 +39,7 @@ const App = () => (
           <Route path="/attack-graph" element={<AttackGraph />} />
           <Route path="/coverage" element={<Coverage />} />
           <Route path="/simulator" element={<AttackSimulator />} />
+          <Route path="/cloudtrail-analyzer" element={<CloudTrailAnalyzer />} />
           <Route path="/community-rules" element={<CommunityRules />} />
           <Route path="/admin/subscribers" element={<AdminSubscribers />} />
           <Route path="/about" element={<About />} />
