@@ -290,25 +290,27 @@ export function DetectionLifecycleSections({
   );
 }
 
+const sectionLabelClass = "text-xs font-semibold uppercase tracking-wider mb-1 text-amber-400";
+
 function ThreatContextSection({ context }: { context: ThreatContext }) {
   return (
     <div className="space-y-4 text-sm">
       <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Attacker Behavior</p>
+        <p className={sectionLabelClass}>Attacker Behavior</p>
         <p className="text-muted-foreground">{context.attackerBehavior}</p>
       </div>
       {context.realWorldUsage && (
         <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Real-World Usage</p>
+          <p className={sectionLabelClass}>Real-World Usage</p>
           <p className="text-muted-foreground">{context.realWorldUsage}</p>
         </div>
       )}
       <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Why It Matters</p>
+        <p className={sectionLabelClass}>Why It Matters</p>
         <p className="text-muted-foreground">{context.whyItMatters}</p>
       </div>
       <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Risk and Impact</p>
+        <p className={sectionLabelClass}>Risk and Impact</p>
         <p className="text-muted-foreground">{context.riskAndImpact}</p>
       </div>
     </div>
@@ -319,7 +321,7 @@ function TelemetryValidationSection({ validation }: { validation: TelemetryValid
   return (
     <div className="space-y-4 text-sm">
       <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Required Log Sources</p>
+        <p className={`${sectionLabelClass} mb-2`}>Required Log Sources</p>
         <ul className="list-disc list-inside text-muted-foreground space-y-1">
           {validation.requiredLogSources.map((s, i) => (
             <li key={i}>{s}</li>
@@ -327,7 +329,7 @@ function TelemetryValidationSection({ validation }: { validation: TelemetryValid
         </ul>
       </div>
       <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Required Fields</p>
+        <p className={`${sectionLabelClass} mb-2`}>Required Fields</p>
         <div className="flex flex-wrap gap-2">
           {validation.requiredFields.map((f) => (
             <Badge key={f} variant="outline" className="text-xs font-mono border-border/70">
@@ -337,7 +339,7 @@ function TelemetryValidationSection({ validation }: { validation: TelemetryValid
         </div>
       </div>
       <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Logging Requirements</p>
+        <p className={`${sectionLabelClass} mb-2`}>Logging Requirements</p>
         <ul className="list-disc list-inside text-muted-foreground space-y-1">
           {validation.loggingRequirements.map((r, i) => (
             <li key={i}>{r}</li>
@@ -346,7 +348,7 @@ function TelemetryValidationSection({ validation }: { validation: TelemetryValid
       </div>
       {validation.limitations && validation.limitations.length > 0 && (
         <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Known Limitations</p>
+          <p className={`${sectionLabelClass} mb-2`}>Known Limitations</p>
           <ul className="list-disc list-inside text-muted-foreground space-y-1">
             {validation.limitations.map((l, i) => (
               <li key={i}>{l}</li>
@@ -370,7 +372,7 @@ function DataModelingSection({
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Field Mappings (Raw → Normalized)</p>
+        <p className={`${sectionLabelClass} mb-2`}>Field Mappings (Raw → Normalized)</p>
         <div className="rounded-lg border border-border overflow-hidden">
           <table className="w-full text-sm">
             <thead>
@@ -393,7 +395,7 @@ function DataModelingSection({
         </div>
       </div>
       <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Example Normalized Event</p>
+        <p className={`${sectionLabelClass} mb-2`}>Example Normalized Event</p>
         <CodeBlockWithCopy content={modeling.exampleNormalizedEvent} language="json" copiedId={copiedId} setCopiedId={setCopiedId} copyKey="normalized" />
       </div>
     </div>
@@ -405,7 +407,7 @@ function EnrichmentSection({ enrichment }: { enrichment: EnrichmentContext[] }) 
     <div className="space-y-4">
       {enrichment.map((e, i) => (
         <div key={i} className="rounded-lg border border-border/50 p-4 space-y-2">
-          <p className="font-medium text-sm">{e.dimension}</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">{e.dimension}</p>
           <p className="text-sm text-muted-foreground">{e.description}</p>
           <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1">
             {e.examples.map((ex, j) => (
@@ -444,7 +446,7 @@ function DetectionTestingSection({
   return (
     <div className="space-y-4 text-sm">
       <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Simulation</p>
+        <p className={`${sectionLabelClass} mb-2`}>Simulation</p>
         <p className="text-muted-foreground mb-2">Use the following command to simulate the attack in a lab environment:</p>
         <pre className="rounded-lg border border-border bg-muted/30 p-4 font-mono text-xs overflow-x-auto">
           {simulationCommand ?? "Run the relevant API call or CLI command for this detection."}
@@ -452,14 +454,14 @@ function DetectionTestingSection({
       </div>
       {exampleEvent && (
         <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Expected Log Output</p>
+          <p className={`${sectionLabelClass} mb-2`}>Expected Log Output</p>
           <pre className="rounded-lg border border-border bg-muted/30 p-4 font-mono text-xs overflow-x-auto">
             {exampleEvent}
           </pre>
         </div>
       )}
       <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Validation Steps</p>
+        <p className={`${sectionLabelClass} mb-2`}>Validation Steps</p>
         <ol className="list-decimal list-inside text-muted-foreground space-y-1">
           {(detection.testingSteps ?? []).map((step, i) => (
             <li key={i}>{step}</li>
@@ -484,26 +486,26 @@ function DetectionQualitySection({
       {quality && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="rounded-lg border border-border/50 p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Signal Quality</p>
+            <p className={sectionLabelClass}>Signal Quality</p>
             <p className="font-semibold text-lg">{quality.signalQuality}/10</p>
           </div>
           <div className="rounded-lg border border-border/50 p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">False Positive Rate</p>
+            <p className={sectionLabelClass}>False Positive Rate</p>
             <p className="font-medium text-sm">{quality.falsePositiveRate}</p>
           </div>
           <div className="rounded-lg border border-border/50 p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Expected Volume</p>
+            <p className={sectionLabelClass}>Expected Volume</p>
             <p className="font-medium text-sm">{quality.expectedVolume}</p>
           </div>
           <div className="rounded-lg border border-border/50 p-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Production Readiness</p>
+            <p className={sectionLabelClass}>Production Readiness</p>
             <Badge variant="outline" className="capitalize">{quality.productionReadiness}</Badge>
           </div>
         </div>
       )}
 
       <div>
-        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-3">Community Confidence</p>
+        <p className={`${sectionLabelClass} mb-3`}>Community Confidence</p>
         <div className="flex flex-wrap gap-4 items-center">
           <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("accurate")}>
             <ThumbsUp className="h-3.5 w-3.5" />
