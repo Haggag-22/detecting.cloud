@@ -9,6 +9,7 @@ import { getAwsServiceIcon } from "@/components/AwsIcons";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { DetectionLifecycleSections } from "@/components/DetectionLifecycleSections";
 
 const severityColors: Record<string, string> = {
   Critical: "bg-severity-critical/15 text-severity-critical",
@@ -121,6 +122,7 @@ const DetectionEngineeringPage = () => {
     const relatedAttackPaths = getAttackPathsForDetection(selectedDetection.id);
     const availableFormats = Object.entries(selectedDetection.rules).filter(([, v]) => !!v);
     const telemetry = selectedDetection.telemetry ?? getDefaultTelemetry(selectedDetection);
+    const hasLifecycle = !!selectedDetection.lifecycle;
 
     return (
       <Layout>
@@ -141,7 +143,7 @@ const DetectionEngineeringPage = () => {
             <span className="text-foreground">{selectedDetection.title}</span>
           </div>
 
-          {/* Header + Export Buttons */}
+          {/* 1. Detection Overview */}
           <div className="flex items-start gap-4 mb-8">
             {ServiceIcon && <ServiceIcon size={40} />}
             <div className="flex-1">
@@ -151,7 +153,7 @@ const DetectionEngineeringPage = () => {
           </div>
 
           {/* Export & Share Bar */}
-          <div className="flex flex-wrap gap-2 mb-8">
+          <div className="flex flex-wrap gap-2 mb-6">
             {selectedDetection.rules.sigma && (
               <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10"
                 onClick={() => downloadFile(selectedDetection.rules.sigma!, `${selectedDetection.id}.yml`)}>
@@ -173,8 +175,8 @@ const DetectionEngineeringPage = () => {
             </Button>
           </div>
 
-          {/* Metadata */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {/* Metadata + MITRE */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="rounded-lg border border-border/50 bg-card p-4">
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Primary Service</p>
               <div className="flex items-center gap-2">
@@ -198,9 +200,23 @@ const DetectionEngineeringPage = () => {
             </div>
           </div>
 
+          {/* MITRE ATT&CK mapping (lifecycle) */}
+          {hasLifecycle && selectedDetection.lifecycle?.mitre && selectedDetection.lifecycle.mitre.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-6">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider w-full mb-1">MITRE ATT&CK</p>
+              {selectedDetection.lifecycle.mitre.map((m, i) => (
+                <Badge key={i} variant="outline" className="text-xs border-border/70">
+                  {m.tactic}
+                  {m.techniqueId && ` — ${m.techniqueId}`}
+                  {m.techniqueName && ` (${m.techniqueName})`}
+                </Badge>
+              ))}
+            </div>
+          )}
+
           {/* Related AWS Services */}
           {selectedDetection.relatedServices.length > 0 && (
-            <div className="mb-8">
+            <div className="mb-6">
               <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">Related AWS Services</h2>
               <div className="flex flex-wrap gap-2">
                 {selectedDetection.relatedServices.map((svc) => {
@@ -226,166 +242,212 @@ const DetectionEngineeringPage = () => {
             ))}
           </div>
 
-          {/* Rule Formats Tabs with Copy & Syntax Highlighting */}
-          <DetectionSectionCard title="Detection Rules">
-            <Tabs defaultValue={availableFormats[0]?.[0] || "sigma"}>
-              <TabsList className="bg-muted border border-border/50">
-                {availableFormats.map(([key]) => (
-                  <TabsTrigger key={key} value={key} className="text-xs">
-                    {formatLabels[key] || key}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              {availableFormats.map(([key, value]) => (
-                <TabsContent key={key} value={key}>
-                  <div className="rounded-lg border border-border overflow-hidden">
-                    <div className="px-4 py-2 bg-muted text-xs text-muted-foreground font-mono border-b border-border flex items-center justify-between">
-                      <span>{formatLabels[key]}</span>
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                        onClick={() => {
-                          navigator.clipboard.writeText(value as string);
-                          setCopiedId(key);
-                          setTimeout(() => setCopiedId(null), 2000);
-                        }}>
-                        {copiedId === key ? <><Check className="h-3 w-3 mr-1" /> Copied</> : <><Copy className="h-3 w-3 mr-1" /> Copy</>}
-                      </Button>
-                    </div>
-                    <pre className="p-4 overflow-x-auto bg-muted/30 text-sm font-mono leading-relaxed">
-                      <code>{highlightCode(value as string, key)}</code>
-                    </pre>
+          {hasLifecycle && selectedDetection.lifecycle ? (
+            <DetectionLifecycleSections
+              detection={selectedDetection}
+              lifecycle={selectedDetection.lifecycle}
+              severityColors={severityColors}
+              copiedId={copiedId}
+              setCopiedId={setCopiedId}
+            />
+          ) : (
+            <>
+              {/* Legacy: Rule Formats Tabs */}
+              <DetectionSectionCard title="Detection Rules">
+                <Tabs defaultValue={availableFormats[0]?.[0] || "sigma"}>
+                  <TabsList className="bg-muted border border-border/50">
+                    {availableFormats.map(([key]) => (
+                      <TabsTrigger key={key} value={key} className="text-xs">
+                        {formatLabels[key] || key}
+                      </TabsTrigger>
+                    ))}
+                  </TabsList>
+                  {availableFormats.map(([key, value]) => (
+                    <TabsContent key={key} value={key}>
+                      <div className="rounded-lg border border-border overflow-hidden">
+                        <div className="px-4 py-2 bg-muted text-xs text-muted-foreground font-mono border-b border-border flex items-center justify-between">
+                          <span>{formatLabels[key]}</span>
+                          <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={() => {
+                              navigator.clipboard.writeText(value as string);
+                              setCopiedId(key);
+                              setTimeout(() => setCopiedId(null), 2000);
+                            }}>
+                            {copiedId === key ? <><Check className="h-3 w-3 mr-1" /> Copied</> : <><Copy className="h-3 w-3 mr-1" /> Copy</>}
+                          </Button>
+                        </div>
+                        <pre className="p-4 overflow-x-auto bg-muted/30 text-sm font-mono leading-relaxed">
+                          <code>{highlightCode(value as string, key)}</code>
+                        </pre>
+                      </div>
+                    </TabsContent>
+                  ))}
+                </Tabs>
+              </DetectionSectionCard>
+
+              <DetectionSectionCard title="False Positives">
+                <ul className="space-y-2">
+                  {selectedDetection.falsePositives.map((fp, i) => (
+                    <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                      <span className="text-primary mt-0.5">•</span> {fp}
+                    </li>
+                  ))}
+                </ul>
+              </DetectionSectionCard>
+
+              <DetectionSectionCard title="Telemetry Source">
+                <p className="text-sm text-muted-foreground mb-4">
+                  This section helps engineers understand what telemetry the detection depends on.
+                </p>
+                <div className="space-y-3 mb-4">
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Primary Log Source</p>
+                    <p className="font-medium text-sm">{telemetry.primaryLogSource}</p>
                   </div>
-                </TabsContent>
-              ))}
-            </Tabs>
-          </DetectionSectionCard>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Generating Service</p>
+                    <p className="font-medium text-sm">{telemetry.generatingService}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Important Fields</p>
+                    <ul className="flex flex-wrap gap-2">
+                      {telemetry.importantFields.map((f) => (
+                        <Badge key={f} variant="outline" className="text-xs font-mono border-border/70">
+                          {f}
+                        </Badge>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Example Event (JSON)</p>
+                  <CodeBlockWithCopy content={telemetry.exampleEvent} language="json" copiedId={copiedId} setCopiedId={setCopiedId} copyKey="telemetry" />
+                </div>
+              </DetectionSectionCard>
 
-          {/* False Positives */}
-          <DetectionSectionCard title="False Positives">
-            <ul className="space-y-2">
-              {selectedDetection.falsePositives.map((fp, i) => (
-                <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                  <span className="text-primary mt-0.5">•</span> {fp}
-                </li>
-              ))}
-            </ul>
-          </DetectionSectionCard>
+              <DetectionSectionCard title="Investigation Guide">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Steps an analyst should take to investigate the alert after the detection triggers.
+                </p>
+                <ol className="space-y-2 list-decimal list-inside text-sm text-muted-foreground">
+                  {(selectedDetection.investigationSteps ?? [
+                    "Identify the IAM user or role that executed the action.",
+                    "Verify whether the action was expected in the context of normal operations.",
+                    "Review recent activity from the same identity across AWS services.",
+                    "Check for related events in CloudTrail from the same source IP.",
+                    "Correlate with other detections or alerts for the same identity.",
+                  ]).map((step, i) => (
+                    <li key={i}>{step}</li>
+                  ))}
+                </ol>
+              </DetectionSectionCard>
 
-          {/* Telemetry Source */}
-          <DetectionSectionCard title="Telemetry Source">
-            <p className="text-sm text-muted-foreground mb-4">
-              This section helps engineers understand what telemetry the detection depends on.
-            </p>
-            <div className="space-y-3 mb-4">
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Primary Log Source</p>
-                <p className="font-medium text-sm">{telemetry.primaryLogSource}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Generating Service</p>
-                <p className="font-medium text-sm">{telemetry.generatingService}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Important Fields</p>
-                <ul className="flex flex-wrap gap-2">
-                  {telemetry.importantFields.map((f) => (
-                    <Badge key={f} variant="outline" className="text-xs font-mono border-border/70">
-                      {f}
-                    </Badge>
+              <DetectionSectionCard title="Detection Coverage">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Techniques and attack paths covered by this detection from the platform knowledge graph.
+                </p>
+                {coveredTechniques.length > 0 ? (
+                  <>
+                    <div className="mb-4">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Techniques Detected</p>
+                      <ul className="space-y-2">
+                        {coveredTechniques.map((t) => (
+                          <li key={t.id}>
+                            <Link
+                              to={`/attack-paths/technique/${t.id}`}
+                              className="text-sm font-medium text-primary hover:underline"
+                            >
+                              {t.name}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    {relatedAttackPaths.length > 0 && (
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Related Attack Paths</p>
+                        <div className="space-y-3">
+                          {relatedAttackPaths.map((ap) => (
+                            <Link
+                              key={ap.slug}
+                              to={`/attack-paths?technique=${ap.slug}`}
+                              className="block rounded-lg border border-border/50 bg-card p-4 hover:border-primary/30 transition-colors"
+                            >
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge className={`text-xs border-0 ${severityColors[ap.severity]}`}>
+                                  {ap.severity}
+                                </Badge>
+                                <span className="font-medium text-sm">{ap.title}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">{ap.description.substring(0, 120)}…</p>
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No techniques or attack paths are linked to this detection yet.</p>
+                )}
+              </DetectionSectionCard>
+
+              <DetectionSectionCard title="Detection Testing">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Safe lab testing procedures to validate the detection rule.
+                </p>
+                <ol className="space-y-2 list-decimal list-inside text-sm text-muted-foreground">
+                  {(selectedDetection.testingSteps ?? [
+                    "Set up an isolated AWS account or lab environment.",
+                    "Simulate the behavior that triggers the detection.",
+                    "Ensure CloudTrail (or relevant log source) is enabled and capturing events.",
+                    "Run the detection query to confirm the alert triggers.",
+                    "Document results and tune the rule if needed.",
+                  ]).map((step, i) => (
+                    <li key={i}>{step}</li>
+                  ))}
+                </ol>
+              </DetectionSectionCard>
+            </>
+          )}
+
+          {/* Detection Coverage - show for both layouts when techniques exist */}
+          {hasLifecycle && coveredTechniques.length > 0 && (
+            <DetectionSectionCard title="Detection Coverage">
+              <p className="text-sm text-muted-foreground mb-4">
+                Techniques and attack paths covered by this detection from the platform knowledge graph.
+              </p>
+              <div className="mb-4">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Techniques Detected</p>
+                <ul className="space-y-2">
+                  {coveredTechniques.map((t) => (
+                    <Link key={t.id} to={`/attack-paths/technique/${t.id}`} className="block text-sm font-medium text-primary hover:underline">
+                      {t.name}
+                    </Link>
                   ))}
                 </ul>
               </div>
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Example Event (JSON)</p>
-              <CodeBlockWithCopy content={telemetry.exampleEvent} language="json" copiedId={copiedId} setCopiedId={setCopiedId} copyKey="telemetry" />
-            </div>
-          </DetectionSectionCard>
-
-          {/* Investigation Guide */}
-          <DetectionSectionCard title="Investigation Guide">
-            <p className="text-sm text-muted-foreground mb-4">
-              Steps an analyst should take to investigate the alert after the detection triggers.
-            </p>
-            <ol className="space-y-2 list-decimal list-inside text-sm text-muted-foreground">
-              {(selectedDetection.investigationSteps ?? [
-                "Identify the IAM user or role that executed the action.",
-                "Verify whether the action was expected in the context of normal operations.",
-                "Review recent activity from the same identity across AWS services.",
-                "Check for related events in CloudTrail from the same source IP.",
-                "Correlate with other detections or alerts for the same identity.",
-              ]).map((step, i) => (
-                <li key={i}>{step}</li>
-              ))}
-            </ol>
-          </DetectionSectionCard>
-
-          {/* Detection Coverage */}
-          <DetectionSectionCard title="Detection Coverage">
-            <p className="text-sm text-muted-foreground mb-4">
-              Techniques and attack paths covered by this detection from the platform knowledge graph.
-            </p>
-            {coveredTechniques.length > 0 ? (
-              <>
-                <div className="mb-4">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Techniques Detected</p>
-                  <ul className="space-y-2">
-                    {coveredTechniques.map((t) => (
-                      <li key={t.id}>
-                        <Link
-                          to={`/attack-paths/technique/${t.id}`}
-                          className="text-sm font-medium text-primary hover:underline"
-                        >
-                          {t.name}
-                        </Link>
-                      </li>
+              {relatedAttackPaths.length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Related Attack Paths</p>
+                  <div className="space-y-3">
+                    {relatedAttackPaths.map((ap) => (
+                      <Link
+                        key={ap.slug}
+                        to={`/attack-paths?technique=${ap.slug}`}
+                        className="block rounded-lg border border-border/50 bg-card p-4 hover:border-primary/30 transition-colors"
+                      >
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge className={`text-xs border-0 ${severityColors[ap.severity]}`}>{ap.severity}</Badge>
+                          <span className="font-medium text-sm">{ap.title}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{ap.description.substring(0, 120)}…</p>
+                      </Link>
                     ))}
-                  </ul>
-                </div>
-                {relatedAttackPaths.length > 0 && (
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Related Attack Paths</p>
-                    <div className="space-y-3">
-                      {relatedAttackPaths.map((ap) => (
-                        <Link
-                          key={ap.slug}
-                          to={`/attack-paths?technique=${ap.slug}`}
-                          className="block rounded-lg border border-border/50 bg-card p-4 hover:border-primary/30 transition-colors"
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <Badge className={`text-xs border-0 ${severityColors[ap.severity]}`}>
-                              {ap.severity}
-                            </Badge>
-                            <span className="font-medium text-sm">{ap.title}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground">{ap.description.substring(0, 120)}…</p>
-                        </Link>
-                      ))}
-                    </div>
                   </div>
-                )}
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">No techniques or attack paths are linked to this detection yet.</p>
-            )}
-          </DetectionSectionCard>
-
-          {/* Detection Testing */}
-          <DetectionSectionCard title="Detection Testing">
-            <p className="text-sm text-muted-foreground mb-4">
-              Safe lab testing procedures to validate the detection rule.
-            </p>
-            <ol className="space-y-2 list-decimal list-inside text-sm text-muted-foreground">
-              {(selectedDetection.testingSteps ?? [
-                "Set up an isolated AWS account or lab environment.",
-                "Simulate the behavior that triggers the detection.",
-                "Ensure CloudTrail (or relevant log source) is enabled and capturing events.",
-                "Run the detection query to confirm the alert triggers.",
-                "Document results and tune the rule if needed.",
-              ]).map((step, i) => (
-                <li key={i}>{step}</li>
-              ))}
-            </ol>
-          </DetectionSectionCard>
+                </div>
+              )}
+            </DetectionSectionCard>
+          )}
         </div>
       </Layout>
     );

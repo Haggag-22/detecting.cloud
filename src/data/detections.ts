@@ -21,6 +21,85 @@ export interface TelemetrySource {
   exampleEvent: string;
 }
 
+/** MITRE ATT&CK mapping for detection lifecycle */
+export interface MitreMapping {
+  tactic: string;
+  techniqueId?: string;
+  techniqueName?: string;
+}
+
+/** Threat context (Phase 1) */
+export interface ThreatContext {
+  attackerBehavior: string;
+  realWorldUsage?: string;
+  whyItMatters: string;
+  riskAndImpact: string;
+}
+
+/** Telemetry validation (Phase 2) */
+export interface TelemetryValidation {
+  requiredLogSources: string[];
+  requiredFields: string[];
+  loggingRequirements: string[];
+  limitations?: string[];
+}
+
+/** Field mapping for normalization */
+export interface FieldMapping {
+  rawPath: string;
+  normalizedPath: string;
+  notes?: string;
+}
+
+/** Data modeling (Phase 3) */
+export interface DataModeling {
+  rawToNormalized: FieldMapping[];
+  exampleNormalizedEvent: string;
+}
+
+/** Enrichment context (Phase 4) */
+export interface EnrichmentContext {
+  dimension: string;
+  description: string;
+  examples: string[];
+  falsePositiveReduction?: string;
+}
+
+/** Human-readable detection logic explanation */
+export interface DetectionLogicExplanation {
+  humanReadable: string;
+}
+
+/** Detection quality metrics */
+export interface DetectionQuality {
+  signalQuality: number;
+  falsePositiveRate: string;
+  expectedVolume: string;
+  productionReadiness: "experimental" | "validated" | "production";
+}
+
+/** Community confidence voting */
+export interface CommunityConfidence {
+  accurate: number;
+  needsTuning: number;
+  noisy: number;
+  feedback?: string[];
+}
+
+/** Full detection lifecycle metadata */
+export interface DetectionLifecycle {
+  mitre?: MitreMapping[];
+  threatContext?: ThreatContext;
+  telemetryValidation?: TelemetryValidation;
+  dataModeling?: DataModeling;
+  enrichment?: EnrichmentContext[];
+  logicExplanation?: DetectionLogicExplanation;
+  /** Example CLI/API command to simulate the attack (for testing section) */
+  simulationCommand?: string;
+  quality?: DetectionQuality;
+  communityConfidence?: CommunityConfidence;
+}
+
 export interface Detection {
   id: string;
   title: string;
@@ -41,6 +120,8 @@ export interface Detection {
   investigationSteps?: string[];
   /** Safe lab testing procedures */
   testingSteps?: string[];
+  /** Full detection lifecycle metadata (8-section page) */
+  lifecycle?: DetectionLifecycle;
 }
 
 export const detections: Detection[] = [
@@ -5380,6 +5461,54 @@ ORDER BY eventTime DESC`,
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.flowLogIds", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "DeleteFlowLogs", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/admin" }, requestParameters: { flowLogIds: ["fl-0abc123"] }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the actor and deleted flow log IDs.", "Verify if deletion was authorized.", "Check for follow-on network or exfiltration activity."],
     testingSteps: ["Call DeleteFlowLogs.", "Verify CloudTrail captures the event.", "Run the detection."],
+    lifecycle: {
+      mitre: [{ tactic: "Defense Evasion", techniqueId: "T1562.001", techniqueName: "Impair Defenses: Disable or Modify Tools" }],
+      threatContext: {
+        attackerBehavior: "An attacker with ec2:DeleteFlowLogs deletes VPC flow log configurations to evade network-based detection. Flow logs capture accepted/rejected traffic for VPCs, subnets, or ENIs; deletion blinds defenders to C2, exfiltration, and lateral movement.",
+        realWorldUsage: "Common in post-compromise defense evasion; observed in cloud-focused threat campaigns where attackers reduce logging before exfiltration.",
+        whyItMatters: "Removing telemetry is a high-signal event—few legitimate operations require deleting flow logs at scale.",
+        riskAndImpact: "Loss of network visibility enables undetected data exfiltration, C2 traffic, and lateral movement.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events)"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.arn", "userIdentity.type", "requestParameters.flowLogIds", "sourceIPAddress", "eventTime"],
+        loggingRequirements: ["CloudTrail must be enabled with EC2 management events", "No Data Events required"],
+        limitations: ["Flow log IDs in requestParameters.flowLogIds require enrichment (DescribeFlowLogs) to map to VPC/subnet", "Cross-account deletion may have delayed propagation"],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "CloudTrail event source" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "API action" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor identity" },
+          { rawPath: "requestParameters.flowLogIds", normalizedPath: "aws.ec2.flowLogIds", notes: "Target flow log IDs" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "DeleteFlowLogs", outcome: "success", provider: "aws" },
+          user: { name: "arn:aws:iam::123456789012:user/admin", type: "IAMUser" },
+          cloud: { provider: "aws", account: { id: "123456789012" } },
+          aws: { ec2: { flowLogIds: ["fl-0abc123"] } },
+          source: { ip: "203.0.113.10" },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Identity Context", description: "User/role metadata, owner, department; service account age, last-used.", examples: ["user.email from HR/Okta", "service_account.age_days", "service_account.last_used"], falsePositiveReduction: "Filter known network/platform admins" },
+        { dimension: "IP Reputation", description: "Threat intelligence and geolocation for source IP.", examples: ["Tor exit node detection", "Known C2 infrastructure", "GeoIP for impossible travel"], falsePositiveReduction: "Escalate when source IP has threat intel hits" },
+        { dimension: "Asset Metadata", description: "Flow log to VPC/subnet tags for target sensitivity.", examples: ["VPC tags: prod, egress, security", "Data classification", "DescribeFlowLogs → VPC mapping"], falsePositiveReduction: "Higher severity for prod/egress/security VPCs" },
+        { dimension: "Behavioral Baselines", description: "Historical behavior patterns for this identity.", examples: ["First-time DeleteFlowLogs for this identity", "Deviation from typical network-admin roles"], falsePositiveReduction: "Alert when non-privileged actor performs deletion" },
+      ],
+      logicExplanation: {
+        humanReadable: "Detection fires when CloudTrail records eventSource=ec2.amazonaws.com and eventName=DeleteFlowLogs. No additional filters—baseline visibility. For higher fidelity, combine with actor allowlists (det-111) or target sensitivity (det-112).",
+      },
+      simulationCommand: "aws ec2 delete-flow-logs --flow-log-ids fl-0abc123",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low (legitimate cleanup is rare)",
+        expectedVolume: "1–10 events/month (org-dependent)",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+    },
   },
   {
     id: "det-111",
