@@ -99,7 +99,7 @@ function exportEventsAsCsv(events: NormalizedCloudTrailEvent[]): string {
   const headers = ["event_id", "event_time", "event_source", "event_name", "aws_region", "source_ip", "principal_type", "principal_arn"];
   const rows = events.map((e) =>
     headers.map((h) => {
-      const v = (e as Record<string, unknown>)[h];
+      const v = (e as unknown as Record<string, unknown>)[h];
       const s = String(v ?? "");
       return s.includes(",") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
     }).join(",")
@@ -142,9 +142,9 @@ export default function CloudTrailAnalyzer() {
       const r = handlePasteInput(pasteValue);
       setResult(r);
       if (r.valid_count > 0) {
-        toast.success(`Parsed ${r.valid_count} event(s)`);
+        toast({ title: `Parsed ${r.valid_count} event(s)` });
       } else if (r.errors.length > 0) {
-        toast.error(r.errors[0].message);
+        toast({ title: r.errors[0].message, variant: "destructive" });
       }
     } finally {
       setIsLoading(false);
@@ -158,9 +158,9 @@ export default function CloudTrailAnalyzer() {
         const r = await handleFileUpload(file);
         setResult(r);
         if (r.valid_count > 0) {
-          toast.success(`Parsed ${r.valid_count} event(s) from ${file.name}`);
+          toast({ title: `Parsed ${r.valid_count} event(s) from ${file.name}` });
         } else if (r.errors.length > 0) {
-          toast.error(r.errors[0].message);
+          toast({ title: r.errors[0].message, variant: "destructive" });
         }
       } finally {
         setIsLoading(false);
@@ -176,9 +176,9 @@ export default function CloudTrailAnalyzer() {
         const r = await handleDatasetUpload(file);
         setResult(r);
         if (r.valid_count > 0) {
-          toast.success(`Parsed ${r.valid_count} event(s) from dataset`);
+          toast({ title: `Parsed ${r.valid_count} event(s) from dataset` });
         } else if (r.errors.length > 0) {
-          toast.error(r.errors[0].message);
+          toast({ title: r.errors[0].message, variant: "destructive" });
         }
       } finally {
         setIsLoading(false);
@@ -449,7 +449,7 @@ export default function CloudTrailAnalyzer() {
                     sortOrder={sortOrder}
                     onSortFieldChange={setSortField}
                     onSortOrderChange={setSortOrder}
-                    hasActiveFilters={hasActiveFilters}
+                    hasActiveFilters={!!hasActiveFilters}
                     onClearFilters={clearFilters}
                     filteredCount={filteredEvents.length}
                     totalCount={result.parsed_events.length}
@@ -460,12 +460,12 @@ export default function CloudTrailAnalyzer() {
                     onExportJson={() => {
                       const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
                       downloadFile(exportEventsAsJson(filteredEvents), `cloudtrail-events-${ts}.json`, "application/json");
-                      toast.success("Exported as JSON");
+                      toast({ title: "Exported as JSON" });
                     }}
                     onExportCsv={() => {
                       const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
                       downloadFile(exportEventsAsCsv(filteredEvents), `cloudtrail-events-${ts}.csv`, "text/csv");
-                      toast.success("Exported as CSV");
+                      toast({ title: "Exported as CSV" });
                     }}
                     canExport={filteredEvents.length > 0}
                   />
@@ -523,7 +523,7 @@ export default function CloudTrailAnalyzer() {
                             sortOrder={sortOrder}
                             onSortFieldChange={setSortField}
                             onSortOrderChange={setSortOrder}
-                            hasActiveFilters={hasActiveFilters}
+                            hasActiveFilters={!!hasActiveFilters}
                             onClearFilters={clearFilters}
                             filteredCount={filteredEvents.length}
                             totalCount={result.parsed_events.length}
@@ -534,12 +534,12 @@ export default function CloudTrailAnalyzer() {
                             onExportJson={() => {
                               const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
                               downloadFile(exportEventsAsJson(filteredEvents), `cloudtrail-events-${ts}.json`, "application/json");
-                              toast.success("Exported as JSON");
+                              toast({ title: "Exported as JSON" });
                             }}
                             onExportCsv={() => {
                               const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
                               downloadFile(exportEventsAsCsv(filteredEvents), `cloudtrail-events-${ts}.csv`, "text/csv");
-                              toast.success("Exported as CSV");
+                              toast({ title: "Exported as CSV" });
                             }}
                             canExport={filteredEvents.length > 0}
                           />

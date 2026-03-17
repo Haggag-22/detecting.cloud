@@ -5,6 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ChevronDown, ChevronRight, ThumbsUp, AlertTriangle, ThumbsDown, Copy, Check } from "lucide-react";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
+import { QualityMetricsVisual } from "@/components/DetectionVisuals";
 import type {
   Detection,
   DetectionLifecycle,
@@ -483,26 +484,7 @@ function DetectionQualitySection({
 }) {
   return (
     <div className="space-y-6">
-      {quality && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="rounded-lg border border-border/50 p-4">
-            <p className={sectionLabelClass}>Signal Quality</p>
-            <p className="font-semibold text-lg">{quality.signalQuality}/10</p>
-          </div>
-          <div className="rounded-lg border border-border/50 p-4">
-            <p className={sectionLabelClass}>False Positive Rate</p>
-            <p className="font-medium text-sm">{quality.falsePositiveRate}</p>
-          </div>
-          <div className="rounded-lg border border-border/50 p-4">
-            <p className={sectionLabelClass}>Expected Volume</p>
-            <p className="font-medium text-sm">{quality.expectedVolume}</p>
-          </div>
-          <div className="rounded-lg border border-border/50 p-4">
-            <p className={sectionLabelClass}>Production Readiness</p>
-            <Badge variant="outline" className="capitalize">{quality.productionReadiness}</Badge>
-          </div>
-        </div>
-      )}
+      {quality && <QualityMetricsVisual quality={quality} />}
 
       <div>
         <p className={`${sectionLabelClass} mb-3`}>Community Confidence</p>
