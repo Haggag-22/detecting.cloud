@@ -449,7 +449,7 @@ export default function CloudTrailAnalyzer() {
                     sortOrder={sortOrder}
                     onSortFieldChange={setSortField}
                     onSortOrderChange={setSortOrder}
-                    hasActiveFilters={hasActiveFilters}
+                    hasActiveFilters={!!hasActiveFilters}
                     onClearFilters={clearFilters}
                     filteredCount={filteredEvents.length}
                     totalCount={result.parsed_events.length}
