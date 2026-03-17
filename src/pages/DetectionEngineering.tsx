@@ -202,18 +202,9 @@ const DetectionEngineeringPage = () => {
             </div>
           </div>
 
-          {/* MITRE ATT&CK mapping (lifecycle) */}
+          {/* MITRE ATT&CK Kill Chain Timeline */}
           {hasLifecycle && selectedDetection.lifecycle?.mitre && selectedDetection.lifecycle.mitre.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-6">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider w-full mb-1">MITRE ATT&CK</p>
-              {selectedDetection.lifecycle.mitre.map((m, i) => (
-                <Badge key={i} variant="outline" className="text-xs border-border/70">
-                  {m.tactic}
-                  {m.techniqueId && ` — ${m.techniqueId}`}
-                  {m.techniqueName && ` (${m.techniqueName})`}
-                </Badge>
-              ))}
-            </div>
+            <MitreTimeline mappings={selectedDetection.lifecycle.mitre} />
           )}
 
           {/* Related AWS Services */}
