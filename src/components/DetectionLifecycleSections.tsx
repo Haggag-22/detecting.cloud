@@ -502,10 +502,12 @@ function DetectionQualitySection({
   quality,
   communityVotes,
   onVote,
+  hasVoted,
 }: {
   quality?: DetectionQuality;
   communityVotes: CommunityConfidence;
   onVote: (vote: "accurate" | "needsTuning" | "noisy") => void;
+  hasVoted: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -513,16 +515,19 @@ function DetectionQualitySection({
 
       <div>
         <p className={`${sectionLabelClass} mb-3`}>Community Confidence</p>
+        {hasVoted && (
+          <p className="text-xs text-muted-foreground mb-2">Thanks for voting!</p>
+        )}
         <div className="flex flex-wrap gap-4 items-center">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("accurate")}>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("accurate")} disabled={hasVoted}>
             <ThumbsUp className="h-3.5 w-3.5" />
             Accurate ({communityVotes.accurate})
           </Button>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("needsTuning")}>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("needsTuning")} disabled={hasVoted}>
             <AlertTriangle className="h-3.5 w-3.5" />
             Needs tuning ({communityVotes.needsTuning})
           </Button>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("noisy")}>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("noisy")} disabled={hasVoted}>
             <ThumbsDown className="h-3.5 w-3.5" />
             Noisy ({communityVotes.noisy})
           </Button>
