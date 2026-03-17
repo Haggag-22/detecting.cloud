@@ -10,7 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { DetectionLifecycleSections } from "@/components/DetectionLifecycleSections";
-import { SeverityGauge, MitreTimeline } from "@/components/DetectionVisuals";
+import { SeverityGauge } from "@/components/DetectionVisuals";
 
 const severityColors: Record<string, string> = {
   Critical: "bg-severity-critical/15 text-severity-critical",

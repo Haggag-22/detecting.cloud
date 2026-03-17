@@ -148,6 +148,7 @@ function CodeBlockWithCopy({
 }
 
 const COMMUNITY_VOTES_KEY = "detecting-cloud-community-votes";
+const COMMUNITY_VOTED_KEY = "detecting-cloud-community-voted";
 
 function getCommunityVotes(detectionId: string): CommunityConfidence {
   try {
@@ -162,14 +163,34 @@ function getCommunityVotes(detectionId: string): CommunityConfidence {
   return { accurate: 0, needsTuning: 0, noisy: 0 };
 }
 
+function hasUserVoted(detectionId: string): boolean {
+  try {
+    const stored = localStorage.getItem(COMMUNITY_VOTED_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as Record<string, boolean>;
+      return !!parsed[detectionId];
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
 function setCommunityVote(detectionId: string, vote: "accurate" | "needsTuning" | "noisy") {
   try {
+    // Save vote
     const stored = localStorage.getItem(COMMUNITY_VOTES_KEY);
     const parsed: Record<string, CommunityConfidence> = stored ? JSON.parse(stored) : {};
     const current = parsed[detectionId] ?? { accurate: 0, needsTuning: 0, noisy: 0 };
     current[vote] = (current[vote] ?? 0) + 1;
     parsed[detectionId] = current;
     localStorage.setItem(COMMUNITY_VOTES_KEY, JSON.stringify(parsed));
+
+    // Mark as voted
+    const votedStored = localStorage.getItem(COMMUNITY_VOTED_KEY);
+    const votedParsed: Record<string, boolean> = votedStored ? JSON.parse(votedStored) : {};
+    votedParsed[detectionId] = true;
+    localStorage.setItem(COMMUNITY_VOTED_KEY, JSON.stringify(votedParsed));
   } catch {
     // ignore
   }
