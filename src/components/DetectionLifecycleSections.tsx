@@ -309,6 +309,7 @@ export function DetectionLifecycleSections({
           quality={lifecycle.quality}
           communityVotes={communityVotes}
           onVote={handleVote}
+          hasVoted={hasVoted}
         />
       </SectionCard>
     </>
