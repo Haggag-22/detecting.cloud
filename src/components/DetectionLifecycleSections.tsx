@@ -15,6 +15,8 @@ import type {
   EnrichmentContext,
   DetectionQuality,
   CommunityConfidence,
+  DeploymentInfo,
+  DetectionFlowStep,
 } from "@/data/detections";
 
 const formatLabels: Record<string, string> = {
@@ -74,21 +76,29 @@ function highlightCode(code: string, format: string): React.ReactNode {
 
 function SectionCard({
   title,
+  phase,
   children,
   collapsible = false,
   defaultOpen = true,
 }: {
   title: string;
+  phase?: number;
   children: React.ReactNode;
   collapsible?: boolean;
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
+  const header = phase != null ? (
+    <span className="flex items-center gap-2">
+      <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">Phase {phase}</span>
+      {title}
+    </span>
+  ) : title;
 
   if (!collapsible) {
     return (
       <div className="mb-8 rounded-lg border border-border/50 bg-card p-6">
-        <h2 className="font-display text-lg font-semibold mb-4">{title}</h2>
+        <h2 className="font-display text-lg font-semibold mb-4">{header}</h2>
         {children}
       </div>
     );
@@ -99,7 +109,7 @@ function SectionCard({
       <div className="rounded-lg border border-border/50 bg-card overflow-hidden">
         <CollapsibleTrigger className="w-full flex items-center gap-2 px-6 py-4 text-left hover:bg-muted/30 transition-colors">
           {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-          <h2 className="font-display text-lg font-semibold">{title}</h2>
+          <h2 className="font-display text-lg font-semibold">{header}</h2>
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="px-6 pb-6 pt-0">{children}</div>
@@ -228,38 +238,38 @@ export function DetectionLifecycleSections({
 
   return (
     <>
-      {/* 1. Detection Overview - not collapsible, rendered by parent with MITRE from lifecycle */}
+      {/* 1. Detection Overview - not collapsible, rendered by parent */}
 
-      {/* 2. Threat Context */}
+      {/* Phase 1: Threat Context */}
       {lifecycle.threatContext && (
-        <SectionCard title="Threat Context" collapsible defaultOpen>
+        <SectionCard title="Threat Research and Prioritization" phase={1} collapsible defaultOpen>
           <ThreatContextSection context={lifecycle.threatContext} />
         </SectionCard>
       )}
 
-      {/* 3. Telemetry & Data Validation */}
+      {/* Phase 2: Telemetry & Data Validation */}
       {lifecycle.telemetryValidation && (
-        <SectionCard title="Telemetry & Data Validation" collapsible defaultOpen>
+        <SectionCard title="Telemetry and Data Analysis" phase={2} collapsible defaultOpen>
           <TelemetryValidationSection validation={lifecycle.telemetryValidation} />
         </SectionCard>
       )}
 
-      {/* 4. Data Modeling & Normalization */}
+      {/* Phase 3: Data Modeling & Normalization */}
       {lifecycle.dataModeling && (
-        <SectionCard title="Data Modeling & Normalization" collapsible defaultOpen>
+        <SectionCard title="Data Modeling and Log Normalization" phase={3} collapsible defaultOpen>
           <DataModelingSection modeling={lifecycle.dataModeling} copiedId={copiedId} setCopiedId={setCopiedId} />
         </SectionCard>
       )}
 
-      {/* 5. Enrichment & Context */}
+      {/* Phase 4: Enrichment & Context */}
       {lifecycle.enrichment && lifecycle.enrichment.length > 0 && (
-        <SectionCard title="Enrichment & Context" collapsible defaultOpen>
+        <SectionCard title="Enrichment and Context" phase={4} collapsible defaultOpen>
           <EnrichmentSection enrichment={lifecycle.enrichment} />
         </SectionCard>
       )}
 
-      {/* 6. Detection Logic - not collapsible */}
-      <SectionCard title="Detection Logic" collapsible={false}>
+      {/* Phase 5: Detection Logic - not collapsible */}
+      <SectionCard title="Writing the Detection Rule" phase={5} collapsible={false}>
         {lifecycle.logicExplanation && (
           <p className="text-sm text-muted-foreground mb-4">{lifecycle.logicExplanation.humanReadable}</p>
         )}
@@ -298,12 +308,26 @@ export function DetectionLifecycleSections({
         </Tabs>
       </SectionCard>
 
-      {/* 7. Detection Testing */}
-      <SectionCard title="Detection Testing" collapsible defaultOpen>
+      {/* Phase 6: Detection Testing */}
+      <SectionCard title="Testing the Detection" phase={6} collapsible defaultOpen>
         <DetectionTestingSection detection={detection} simulationCommand={lifecycle.simulationCommand} />
       </SectionCard>
 
-      {/* 8. Detection Quality & Community */}
+      {/* Phase 7: Deployment */}
+      {lifecycle.deployment && (
+        <SectionCard title="Deployment and CI/CD" phase={7} collapsible defaultOpen>
+          <DeploymentSection deployment={lifecycle.deployment} />
+        </SectionCard>
+      )}
+
+      {/* Detection Flow */}
+      {lifecycle.detectionFlow && lifecycle.detectionFlow.length > 0 && (
+        <SectionCard title="Detection Flow" collapsible defaultOpen>
+          <DetectionFlowSection steps={lifecycle.detectionFlow} />
+        </SectionCard>
+      )}
+
+      {/* Detection Quality & Community */}
       <SectionCard title="Detection Quality & Community" collapsible defaultOpen>
         <DetectionQualitySection
           quality={lifecycle.quality}
@@ -494,6 +518,58 @@ function DetectionTestingSection({
           ))}
         </ol>
       </div>
+    </div>
+  );
+}
+
+function DeploymentSection({ deployment }: { deployment: DeploymentInfo }) {
+  return (
+    <div className="space-y-4 text-sm">
+      <div>
+        <p className={`${sectionLabelClass} mb-2`}>Where It Runs</p>
+        <ul className="list-disc list-inside text-muted-foreground space-y-1">
+          {deployment.whereItRuns.map((w, i) => (
+            <li key={i}>{w}</li>
+          ))}
+        </ul>
+      </div>
+      {deployment.scheduling && (
+        <div>
+          <p className={`${sectionLabelClass} mb-2`}>Scheduling</p>
+          <p className="text-muted-foreground">{deployment.scheduling}</p>
+        </div>
+      )}
+      {deployment.considerations && deployment.considerations.length > 0 && (
+        <div>
+          <p className={`${sectionLabelClass} mb-2`}>Practical Considerations</p>
+          <ul className="list-disc list-inside text-muted-foreground space-y-1">
+            {deployment.considerations.map((c, i) => (
+              <li key={i}>{c}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetectionFlowSection({ steps }: { steps: DetectionFlowStep[] }) {
+  const typeColors: Record<string, string> = {
+    source: "bg-blue-500/20 text-blue-400 border-blue-500/40",
+    transform: "bg-amber-500/20 text-amber-400 border-amber-500/40",
+    rule: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
+    alert: "bg-red-500/20 text-red-400 border-red-500/40",
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {steps.map((step, i) => (
+        <span key={step.id} className="flex items-center gap-2">
+          <span className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${typeColors[step.type] ?? "bg-muted text-muted-foreground"}`}>
+            {step.label}
+          </span>
+          {i < steps.length - 1 && <span className="text-muted-foreground">→</span>}
+        </span>
+      ))}
     </div>
   );
 }

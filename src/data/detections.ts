@@ -21,13 +21,6 @@ export interface TelemetrySource {
   exampleEvent: string;
 }
 
-/** MITRE ATT&CK mapping for detection lifecycle */
-export interface MitreMapping {
-  tactic: string;
-  techniqueId?: string;
-  techniqueName?: string;
-}
-
 /** Threat context (Phase 1) */
 export interface ThreatContext {
   attackerBehavior: string;
@@ -86,9 +79,24 @@ export interface CommunityConfidence {
   feedback?: string[];
 }
 
+/** Deployment and execution context (Phase 7) */
+export interface DeploymentInfo {
+  whereItRuns: string[];
+  scheduling?: string;
+  considerations?: string[];
+}
+
+/** Detection pipeline step for flow visualization */
+export interface DetectionFlowStep {
+  id: string;
+  label: string;
+  type: "source" | "transform" | "rule" | "alert";
+}
+
 /** Full detection lifecycle metadata */
 export interface DetectionLifecycle {
-  mitre?: MitreMapping[];
+  /** Short statement for overview: why this detection matters */
+  whyItMatters?: string;
   threatContext?: ThreatContext;
   telemetryValidation?: TelemetryValidation;
   dataModeling?: DataModeling;
@@ -96,6 +104,8 @@ export interface DetectionLifecycle {
   logicExplanation?: DetectionLogicExplanation;
   /** Example CLI/API command to simulate the attack (for testing section) */
   simulationCommand?: string;
+  deployment?: DeploymentInfo;
+  detectionFlow?: DetectionFlowStep[];
   quality?: DetectionQuality;
   communityConfidence?: CommunityConfidence;
 }
@@ -5462,7 +5472,7 @@ ORDER BY eventTime DESC`,
     investigationSteps: ["Identify the actor and deleted flow log IDs.", "Verify if deletion was authorized.", "Check for follow-on network or exfiltration activity."],
     testingSteps: ["Call DeleteFlowLogs.", "Verify CloudTrail captures the event.", "Run the detection."],
     lifecycle: {
-      mitre: [{ tactic: "Defense Evasion", techniqueId: "T1562.001", techniqueName: "Impair Defenses: Disable or Modify Tools" }],
+      whyItMatters: "Flow log deletion removes network telemetry—a high-signal defense-evasion event. Few legitimate operations require deleting flow logs; attackers use it to blind defenders before exfiltration or C2.",
       threatContext: {
         attackerBehavior: "An attacker with ec2:DeleteFlowLogs deletes VPC flow log configurations to evade network-based detection. Flow logs capture accepted/rejected traffic for VPCs, subnets, or ENIs; deletion blinds defenders to C2, exfiltration, and lateral movement.",
         realWorldUsage: "Common in post-compromise defense evasion; observed in cloud-focused threat campaigns where attackers reduce logging before exfiltration.",
@@ -5508,6 +5518,17 @@ ORDER BY eventTime DESC`,
         productionReadiness: "validated",
       },
       communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena (scheduled query)", "CloudWatch Logs Insights", "Splunk", "Datadog", "Panther", "Chronicle"],
+        scheduling: "Batch: every 5–15 minutes; Real-time: EventBridge rule + Lambda or SIEM streaming",
+        considerations: ["Ensure CloudTrail log group/bucket has appropriate retention", "Consider correlation with det-113 for follow-on behavior (DeleteFlowLogs → exfiltration)", "No Data Events required—management events only"],
+      },
+      detectionFlow: [
+        { id: "1", label: "CloudTrail Event (ec2.amazonaws.com)", type: "source" },
+        { id: "2", label: "DeleteFlowLogs API Call", type: "transform" },
+        { id: "3", label: "Detection Rule (eventSource + eventName match)", type: "rule" },
+        { id: "4", label: "Alert", type: "alert" },
+      ],
     },
   },
   {

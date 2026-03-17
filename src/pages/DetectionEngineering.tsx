@@ -150,6 +150,11 @@ const DetectionEngineeringPage = () => {
             <div className="flex-1">
               <h1 className="font-display text-2xl font-bold mb-2">{selectedDetection.title}</h1>
               <p className="text-muted-foreground">{selectedDetection.description}</p>
+              {hasLifecycle && selectedDetection.lifecycle?.whyItMatters && (
+                <p className="mt-3 text-sm text-primary/90 font-medium">
+                  Why it matters: {selectedDetection.lifecycle.whyItMatters}
+                </p>
+              )}
             </div>
             <SeverityGauge severity={selectedDetection.severity} />
           </div>
@@ -177,7 +182,7 @@ const DetectionEngineeringPage = () => {
             </Button>
           </div>
 
-          {/* Metadata + MITRE */}
+          {/* Metadata */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div className="rounded-lg border border-border/50 bg-card p-4">
               <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Primary Service</p>
@@ -201,20 +206,6 @@ const DetectionEngineeringPage = () => {
               <p className="text-sm font-medium">{availableFormats.length} formats</p>
             </div>
           </div>
-
-          {/* MITRE ATT&CK badges */}
-          {hasLifecycle && selectedDetection.lifecycle?.mitre && selectedDetection.lifecycle.mitre.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-6">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider w-full mb-1">MITRE ATT&CK</p>
-              {selectedDetection.lifecycle.mitre.map((m, i) => (
-                <Badge key={i} variant="outline" className="text-xs border-border/70">
-                  {m.tactic}
-                  {m.techniqueId && ` — ${m.techniqueId}`}
-                  {m.techniqueName && ` (${m.techniqueName})`}
-                </Badge>
-              ))}
-            </div>
-          )}
 
           {/* Related AWS Services */}
           {selectedDetection.relatedServices.length > 0 && (
