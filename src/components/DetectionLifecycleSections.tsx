@@ -5,6 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ChevronDown, ChevronRight, ThumbsUp, AlertTriangle, ThumbsDown, Copy, Check } from "lucide-react";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
+import { QualityMetricsVisual } from "@/components/DetectionVisuals";
 import type {
   Detection,
   DetectionLifecycle,
