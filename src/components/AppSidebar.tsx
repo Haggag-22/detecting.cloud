@@ -70,6 +70,8 @@ const objectiveColors: Record<AttackObjective, string> = {
   "persistence": "text-orange-400",
   "lateral-movement": "text-blue-400",
   "exfiltration": "text-emerald-400",
+  "initial-access": "text-cyan-400",
+  "defense-evasion": "text-yellow-400",
 };
 
 const techniqueCategoryColors: Record<string, string> = {
