@@ -148,6 +148,7 @@ function CodeBlockWithCopy({
 }
 
 const COMMUNITY_VOTES_KEY = "detecting-cloud-community-votes";
+const COMMUNITY_VOTED_KEY = "detecting-cloud-community-voted";
 
 function getCommunityVotes(detectionId: string): CommunityConfidence {
   try {
@@ -162,14 +163,34 @@ function getCommunityVotes(detectionId: string): CommunityConfidence {
   return { accurate: 0, needsTuning: 0, noisy: 0 };
 }
 
+function hasUserVoted(detectionId: string): boolean {
+  try {
+    const stored = localStorage.getItem(COMMUNITY_VOTED_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored) as Record<string, boolean>;
+      return !!parsed[detectionId];
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
 function setCommunityVote(detectionId: string, vote: "accurate" | "needsTuning" | "noisy") {
   try {
+    // Save vote
     const stored = localStorage.getItem(COMMUNITY_VOTES_KEY);
     const parsed: Record<string, CommunityConfidence> = stored ? JSON.parse(stored) : {};
     const current = parsed[detectionId] ?? { accurate: 0, needsTuning: 0, noisy: 0 };
     current[vote] = (current[vote] ?? 0) + 1;
     parsed[detectionId] = current;
     localStorage.setItem(COMMUNITY_VOTES_KEY, JSON.stringify(parsed));
+
+    // Mark as voted
+    const votedStored = localStorage.getItem(COMMUNITY_VOTED_KEY);
+    const votedParsed: Record<string, boolean> = votedStored ? JSON.parse(votedStored) : {};
+    votedParsed[detectionId] = true;
+    localStorage.setItem(COMMUNITY_VOTED_KEY, JSON.stringify(votedParsed));
   } catch {
     // ignore
   }
@@ -191,13 +212,16 @@ export function DetectionLifecycleSections({
   const [communityVotes, setCommunityVotesState] = useState<CommunityConfidence>(() =>
     getCommunityVotes(detection.id)
   );
+  const [hasVoted, setHasVoted] = useState(() => hasUserVoted(detection.id));
 
   const handleVote = useCallback(
     (vote: "accurate" | "needsTuning" | "noisy") => {
+      if (hasVoted) return;
       setCommunityVote(detection.id, vote);
       setCommunityVotesState(getCommunityVotes(detection.id));
+      setHasVoted(true);
     },
-    [detection.id]
+    [detection.id, hasVoted]
   );
 
   const availableFormats = Object.entries(detection.rules).filter(([, v]) => !!v);
@@ -285,6 +309,7 @@ export function DetectionLifecycleSections({
           quality={lifecycle.quality}
           communityVotes={communityVotes}
           onVote={handleVote}
+          hasVoted={hasVoted}
         />
       </SectionCard>
     </>
@@ -477,10 +502,12 @@ function DetectionQualitySection({
   quality,
   communityVotes,
   onVote,
+  hasVoted,
 }: {
   quality?: DetectionQuality;
   communityVotes: CommunityConfidence;
   onVote: (vote: "accurate" | "needsTuning" | "noisy") => void;
+  hasVoted: boolean;
 }) {
   return (
     <div className="space-y-6">
@@ -488,16 +515,19 @@ function DetectionQualitySection({
 
       <div>
         <p className={`${sectionLabelClass} mb-3`}>Community Confidence</p>
+        {hasVoted && (
+          <p className="text-xs text-muted-foreground mb-2">Thanks for voting!</p>
+        )}
         <div className="flex flex-wrap gap-4 items-center">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("accurate")}>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("accurate")} disabled={hasVoted}>
             <ThumbsUp className="h-3.5 w-3.5" />
             Accurate ({communityVotes.accurate})
           </Button>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("needsTuning")}>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("needsTuning")} disabled={hasVoted}>
             <AlertTriangle className="h-3.5 w-3.5" />
             Needs tuning ({communityVotes.needsTuning})
           </Button>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("noisy")}>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("noisy")} disabled={hasVoted}>
             <ThumbsDown className="h-3.5 w-3.5" />
             Noisy ({communityVotes.noisy})
           </Button>

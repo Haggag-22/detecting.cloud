@@ -145,20 +145,12 @@ export function MitreTimeline({ mappings }: { mappings: MitreMapping[] }) {
   );
 }
 
-/** Animated quality metrics cards */
+/** Animated quality metrics cards — no readiness card */
 export function QualityMetricsVisual({ quality }: { quality: DetectionQuality }) {
   const signalPercent = (quality.signalQuality / 10) * 100;
 
-  const readinessConfig: Record<string, { color: string; label: string; icon: React.ReactNode }> = {
-    experimental: { color: "hsl(25, 95%, 53%)", label: "Experimental", icon: <Zap className="h-4 w-4" /> },
-    validated: { color: "hsl(43, 96%, 56%)", label: "Validated", icon: <ShieldCheck className="h-4 w-4" /> },
-    production: { color: "hsl(142, 71%, 45%)", label: "Production", icon: <Shield className="h-4 w-4" /> },
-  };
-
-  const readiness = readinessConfig[quality.productionReadiness] ?? readinessConfig.experimental;
-
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {/* Signal Quality - circular progress */}
       <div className="rounded-lg border border-border/50 p-4 flex flex-col items-center gap-2">
         <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">Signal Quality</p>
@@ -201,22 +193,6 @@ export function QualityMetricsVisual({ quality }: { quality: DetectionQuality })
       <div className="rounded-lg border border-border/50 p-4">
         <p className="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-2">Expected Volume</p>
         <p className="font-medium text-sm text-foreground">{quality.expectedVolume}</p>
-      </div>
-
-      {/* Production Readiness */}
-      <div className="rounded-lg border border-border/50 p-4 flex flex-col items-center gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">Readiness</p>
-        <motion.div
-          className="flex items-center gap-2 mt-1"
-          initial={{ opacity: 0, y: 5 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-        >
-          <span style={{ color: readiness.color }}>{readiness.icon}</span>
-          <Badge variant="outline" className="capitalize text-xs" style={{ borderColor: readiness.color, color: readiness.color }}>
-            {readiness.label}
-          </Badge>
-        </motion.div>
       </div>
     </div>
   );
