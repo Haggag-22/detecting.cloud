@@ -9,7 +9,7 @@ export interface AttackPathStep {
   context?: string;
 }
 
-export type AttackObjective = "credential-access" | "privilege-escalation" | "persistence" | "lateral-movement" | "exfiltration";
+export type AttackObjective = "credential-access" | "privilege-escalation" | "persistence" | "lateral-movement" | "exfiltration" | "initial-access" | "defense-evasion";
 
 export interface AttackPath {
   slug: string;
