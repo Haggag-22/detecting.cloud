@@ -133,7 +133,7 @@ export const techniques: Technique[] = [
       "IAM roles define which principals can assume them via a trust policy. If a trust policy is overly permissive (e.g., allows any principal in the account or a wide range of external accounts), an attacker with valid credentials can call sts:AssumeRole to obtain temporary credentials scoped to that role. This enables lateral movement within an account or cross-account access. The attacker uses the assumed role's credentials to perform actions with elevated permissions. Required permission is sts:AssumeRole. The role's trust policy must allow the attacker's principal.",
     services: ["STS", "IAM"],
     permissions: ["sts:AssumeRole"],
-    detectionIds: ["det-004"],
+    detectionIds: ["det-130"],
     mitigations: [
       "Use strict trust policy conditions (ExternalId, MFA)",
       "Limit which principals can assume sensitive roles",
