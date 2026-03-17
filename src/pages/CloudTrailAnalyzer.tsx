@@ -534,7 +534,7 @@ export default function CloudTrailAnalyzer() {
                             onExportJson={() => {
                               const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
                               downloadFile(exportEventsAsJson(filteredEvents), `cloudtrail-events-${ts}.json`, "application/json");
-                              toast.success("Exported as JSON");
+                              toast({ title: "Exported as JSON" });
                             }}
                             onExportCsv={() => {
                               const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
