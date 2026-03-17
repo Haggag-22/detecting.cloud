@@ -212,13 +212,16 @@ export function DetectionLifecycleSections({
   const [communityVotes, setCommunityVotesState] = useState<CommunityConfidence>(() =>
     getCommunityVotes(detection.id)
   );
+  const [hasVoted, setHasVoted] = useState(() => hasUserVoted(detection.id));
 
   const handleVote = useCallback(
     (vote: "accurate" | "needsTuning" | "noisy") => {
+      if (hasVoted) return;
       setCommunityVote(detection.id, vote);
       setCommunityVotesState(getCommunityVotes(detection.id));
+      setHasVoted(true);
     },
-    [detection.id]
+    [detection.id, hasVoted]
   );
 
   const availableFormats = Object.entries(detection.rules).filter(([, v]) => !!v);
