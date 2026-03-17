@@ -99,7 +99,7 @@ function exportEventsAsCsv(events: NormalizedCloudTrailEvent[]): string {
   const headers = ["event_id", "event_time", "event_source", "event_name", "aws_region", "source_ip", "principal_type", "principal_arn"];
   const rows = events.map((e) =>
     headers.map((h) => {
-      const v = (e as Record<string, unknown>)[h];
+      const v = (e as unknown as Record<string, unknown>)[h];
       const s = String(v ?? "");
       return s.includes(",") || s.includes('"') ? `"${s.replace(/"/g, '""')}"` : s;
     }).join(",")
