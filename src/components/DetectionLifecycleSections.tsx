@@ -583,17 +583,35 @@ function DetectionCoverageSection({
       {techniques.length > 0 && (
         <div>
           <p className={`${sectionLabelClass} mb-2`}>Techniques Detected</p>
-          <div className="flex flex-wrap gap-2">
-            {techniques.map((t) => (
-              <Link
-                key={t.id}
-                to={`/attack-paths/technique/${t.id}`}
-                className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/30 px-2.5 py-1 text-xs font-medium text-primary hover:bg-muted/50 hover:border-primary/30 transition-colors"
-              >
-                {t.name}
-                <ExternalLink className="h-3 w-3 opacity-60" />
-              </Link>
-            ))}
+          <div className="rounded-lg border border-border/50 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">Technique</th>
+                  <th className="px-4 py-2 w-12" />
+                </tr>
+              </thead>
+              <tbody>
+                {techniques.map((t) => (
+                  <tr key={t.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20">
+                    <td className="px-4 py-2">
+                      <Link to={`/attack-paths/technique/${t.id}`} className="font-medium text-primary hover:underline">
+                        {t.name}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-2">
+                      <Link
+                        to={`/attack-paths/technique/${t.id}`}
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label={`View ${t.name}`}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
