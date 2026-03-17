@@ -1,4 +1,4 @@
-export type RuleFormat = "sigma" | "splunk" | "cloudtrail" | "cloudwatch" | "eventbridge";
+export type RuleFormat = "sigma" | "splunk" | "cloudtrail" | "cloudwatch" | "eventbridge" | "lambda";
 
 export interface RuleFormats {
   sigma?: string;
@@ -7,6 +7,8 @@ export interface RuleFormats {
   cloudwatch?: string;
   /** EventBridge rule pattern (detection logic, not deployment) */
   eventbridge?: string;
+  /** AWS Lambda / Python implementation for real-time or enriched detections */
+  lambda?: string;
 }
 
 /** Telemetry source metadata for detection engineering context */
@@ -58,9 +60,15 @@ export interface EnrichmentContext {
   falsePositiveReduction?: string;
 }
 
-/** Human-readable detection logic explanation */
+/** Human-readable detection logic explanation (Phase 5 Detection Logic tab) */
 export interface DetectionLogicExplanation {
   humanReadable: string;
+  /** Exact conditions that trigger the detection */
+  conditions?: string[];
+  /** Optional tuning guidance for reducing false positives */
+  tuningGuidance?: string;
+  /** Context about when the detection should fire */
+  whenToFire?: string;
 }
 
 /** Detection quality metrics */
@@ -5466,6 +5474,46 @@ ORDER BY eventTime DESC`,
 | filter eventName = "DeleteFlowLogs"
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["DeleteFlowLogs"] } }, null, 2),
+      lambda: `"""
+VPC Flow Logs Deleted - Lambda/EventBridge Handler
+Trigger: EventBridge rule matching CloudTrail DeleteFlowLogs events.
+Use for: Real-time alerting, enrichment (DescribeFlowLogs, identity lookup), or integration with SOAR.
+"""
+import json
+import boto3
+from datetime import datetime
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    event_source = detail.get("eventSource", "")
+    event_name = detail.get("eventName", "")
+
+    # Detection logic: ec2.amazonaws.com + DeleteFlowLogs
+    if event_source != "ec2.amazonaws.com" or event_name != "DeleteFlowLogs":
+        return {"matched": False}
+
+    user_identity = detail.get("userIdentity", {})
+    flow_log_ids = detail.get("requestParameters", {}).get("flowLogIds", [])
+
+    alert = {
+        "rule_id": "det-110",
+        "title": "VPC Flow Logs Deleted",
+        "severity": "High",
+        "timestamp": detail.get("eventTime", datetime.utcnow().isoformat() + "Z"),
+        "actor": user_identity.get("arn", "unknown"),
+        "source_ip": detail.get("sourceIPAddress", ""),
+        "flow_log_ids": flow_log_ids,
+        "account_id": detail.get("recipientAccountId", ""),
+    }
+
+    # Optional: Enrich with DescribeFlowLogs to get VPC/subnet context
+    # ec2 = boto3.client("ec2")
+    # for fl_id in flow_log_ids:
+    #     resp = ec2.describe_flow_logs(FlowLogIds=[fl_id])
+    #     ...
+
+    return {"matched": True, "alert": alert}
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.flowLogIds", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "DeleteFlowLogs", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/admin" }, requestParameters: { flowLogIds: ["fl-0abc123"] }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
@@ -5508,7 +5556,17 @@ ORDER BY eventTime DESC`,
         { dimension: "Behavioral Baselines", description: "Historical behavior patterns for this identity.", examples: ["First-time DeleteFlowLogs for this identity", "Deviation from typical network-admin roles"], falsePositiveReduction: "Alert when non-privileged actor performs deletion" },
       ],
       logicExplanation: {
-        humanReadable: "Detection fires when CloudTrail records eventSource=ec2.amazonaws.com and eventName=DeleteFlowLogs. No additional filters—baseline visibility. For higher fidelity, combine with actor allowlists (det-111) or target sensitivity (det-112).",
+        humanReadable:
+          "This detection identifies deletion of VPC flow log configurations via the DeleteFlowLogs API. Flow logs capture network traffic (accepted/rejected) for VPCs, subnets, or ENIs; their removal eliminates visibility into lateral movement, C2, and exfiltration. The rule is intentionally broad to provide baseline coverage—every DeleteFlowLogs event is in scope. In production, layer enrichment (identity context, asset criticality) or downstream correlation to reduce noise.",
+        conditions: [
+          "eventSource equals ec2.amazonaws.com",
+          "eventName equals DeleteFlowLogs",
+          "No additional filters—all DeleteFlowLogs events match",
+        ],
+        tuningGuidance:
+          "To reduce false positives: (1) Add an actor allowlist—exclude IAM roles used by network/platform automation (e.g., roles containing 'Network', 'Platform', 'Infra'). (2) Enrich with DescribeFlowLogs to map flow log IDs to VPC/subnet tags—escalate when target VPCs are tagged prod, egress, or security. (3) Correlate with det-111 (Flow Logs Deletion by Unexpected Actor) for higher-fidelity alerts.",
+        whenToFire:
+          "Fire on every DeleteFlowLogs event in CloudTrail. Legitimate flow log deletion is rare; most environments see fewer than 10 events per month. If volume is high, apply tuning before suppressing.",
       },
       simulationCommand: "aws ec2 delete-flow-logs --flow-log-ids fl-0abc123",
       quality: {

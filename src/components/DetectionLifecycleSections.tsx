@@ -3,11 +3,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ChevronDown, ChevronRight, ThumbsUp, AlertTriangle, ThumbsDown, Copy, Check, ExternalLink } from "lucide-react";
+import { ChevronDown, ChevronRight, ThumbsUp, AlertTriangle, ThumbsDown, Copy, Check, ExternalLink, MoreHorizontal } from "lucide-react";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
 import { QualityMetricsVisual } from "@/components/DetectionVisuals";
 import { Link } from "react-router-dom";
 import { techniqueCategories } from "@/data/techniques";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import type {
   Detection,
   DetectionLifecycle,
@@ -18,14 +24,17 @@ import type {
   DetectionQuality,
   CommunityConfidence,
   DeploymentInfo,
+  DetectionLogicExplanation,
 } from "@/data/detections";
 
 const formatLabels: Record<string, string> = {
-  sigma: "Sigma Rule",
-  splunk: "Splunk Query",
-  cloudtrail: "CloudTrail Athena",
+  "detection-logic": "Detection Logic",
+  sigma: "Sigma",
+  cloudtrail: "SQL (Athena)",
+  splunk: "Splunk",
+  lambda: "Lambda",
   cloudwatch: "CloudWatch Insights",
-  eventbridge: "EventBridge Rule Pattern",
+  eventbridge: "EventBridge",
 };
 
 function highlightCode(code: string, format: string): React.ReactNode {
@@ -72,7 +81,176 @@ function highlightCode(code: string, format: string): React.ReactNode {
   if (format === "eventbridge") {
     return renderCodeWithColoredKeys(code, "json");
   }
+  if (format === "lambda") {
+    const highlighted = code
+      .replace(/\b(def|import|from|return|if|else|for|in|and|or|not|True|False|None)\b/g, '<span class="text-yellow-400">$1</span>')
+      .replace(/\b(lambda_handler|event|context|detail|get)\b/g, '<span class="text-blue-400">$1</span>')
+      .replace(/#[^\n]*/g, '<span class="text-muted-foreground">$&</span>');
+    return <span dangerouslySetInnerHTML={{ __html: highlighted }} />;
+  }
   return code;
+}
+
+const CORE_TAB_ORDER = ["detection-logic", "sigma", "cloudtrail", "splunk", "lambda"] as const;
+const MORE_TAB_KEYS = ["cloudwatch", "eventbridge"] as const;
+
+function DetectionRuleSection({
+  detection,
+  lifecycle,
+  formatLabels,
+  highlightCode,
+  copiedId,
+  setCopiedId,
+}: {
+  detection: Detection;
+  lifecycle: DetectionLifecycle;
+  formatLabels: Record<string, string>;
+  highlightCode: (code: string, format: string) => React.ReactNode;
+  copiedId: string | null;
+  setCopiedId: (id: string | null) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<string>("");
+  const logic = lifecycle.logicExplanation;
+  const rules = detection.rules;
+
+  const coreTabs = CORE_TAB_ORDER.filter((key) => {
+    if (key === "detection-logic") return !!logic;
+    return !!rules[key as keyof typeof rules];
+  });
+  const moreTabs = MORE_TAB_KEYS.filter((key) => !!rules[key as keyof typeof rules]);
+  const defaultTab = coreTabs[0] ?? "sigma";
+  const effectiveTab = activeTab || defaultTab;
+
+  return (
+    <Tabs value={effectiveTab} onValueChange={setActiveTab} className="mt-4">
+      <div className="flex flex-wrap items-center gap-1 border-b border-border/50 pb-2 mb-4">
+        <TabsList className="bg-muted border border-border/50 h-auto p-1 flex-wrap">
+          {coreTabs.map((key) => (
+            <TabsTrigger key={key} value={key} className="text-xs">
+              {formatLabels[key] || key}
+            </TabsTrigger>
+          ))}
+          {moreTabs.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant={moreTabs.includes(effectiveTab) ? "secondary" : "ghost"}
+                  size="sm"
+                  className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground gap-1"
+                >
+                  <MoreHorizontal className="h-3.5 w-3.5" />
+                  {moreTabs.includes(effectiveTab) ? formatLabels[effectiveTab] || effectiveTab : "More"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start">
+                {moreTabs.map((key) => (
+                  <DropdownMenuItem key={key} onSelect={() => setActiveTab(key)}>
+                    {formatLabels[key] || key}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </TabsList>
+      </div>
+
+      {/* Detection Logic tab */}
+      {logic && (
+        <TabsContent value="detection-logic" className="mt-0">
+          <DetectionLogicTab logic={logic} copiedId={copiedId} setCopiedId={setCopiedId} />
+        </TabsContent>
+      )}
+
+      {/* Rule format tabs */}
+      {[...coreTabs.filter((k) => k !== "detection-logic"), ...moreTabs].map((key) => {
+        const value = rules[key as keyof typeof rules];
+        if (!value || typeof value !== "string") return null;
+        return (
+          <TabsContent key={key} value={key} className="mt-0">
+            <div className="rounded-lg border border-border overflow-hidden">
+              <div className="px-4 py-2 bg-muted text-xs text-muted-foreground font-mono border-b border-border flex items-center justify-between">
+                <span>{formatLabels[key] || key}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => {
+                    navigator.clipboard.writeText(value);
+                    setCopiedId(key);
+                    setTimeout(() => setCopiedId(null), 2000);
+                  }}
+                >
+                  {copiedId === key ? <><Check className="h-3 w-3 mr-1" /> Copied</> : <><Copy className="h-3 w-3 mr-1" /> Copy</>}
+                </Button>
+              </div>
+              <pre className="p-4 overflow-x-auto bg-muted/30 text-sm font-mono leading-relaxed">
+                <code>{highlightCode(value, key)}</code>
+              </pre>
+            </div>
+          </TabsContent>
+        );
+      })}
+    </Tabs>
+  );
+}
+
+function DetectionLogicTab({
+  logic,
+  copiedId,
+  setCopiedId,
+}: {
+  logic: DetectionLogicExplanation;
+  copiedId: string | null;
+  setCopiedId: (id: string | null) => void;
+}) {
+  const fullText = [
+    logic.humanReadable,
+    logic.conditions?.length ? "\n\nConditions:\n" + logic.conditions.map((c) => `• ${c}`).join("\n") : "",
+    logic.tuningGuidance ? `\n\nTuning:\n${logic.tuningGuidance}` : "",
+    logic.whenToFire ? `\n\nWhen to fire:\n${logic.whenToFire}` : "",
+  ].join("");
+  return (
+    <div className="space-y-4 text-sm">
+      <p className="text-muted-foreground leading-relaxed">{logic.humanReadable}</p>
+      {logic.conditions && logic.conditions.length > 0 && (
+        <div>
+          <p className={sectionLabelClass}>Exact Conditions</p>
+          <ul className="list-disc list-inside text-muted-foreground space-y-1">
+            {logic.conditions.map((c, i) => (
+              <li key={i}>{c}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {logic.tuningGuidance && (
+        <div>
+          <p className={sectionLabelClass}>Tuning Guidance</p>
+          <p className="text-muted-foreground">{logic.tuningGuidance}</p>
+        </div>
+      )}
+      {logic.whenToFire && (
+        <div>
+          <p className={sectionLabelClass}>When to Fire</p>
+          <p className="text-muted-foreground">{logic.whenToFire}</p>
+        </div>
+      )}
+      <div className="pt-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs"
+          onClick={() => {
+            navigator.clipboard.writeText(fullText);
+            setCopiedId("detection-logic");
+            setTimeout(() => setCopiedId(null), 2000);
+          }}
+        >
+          {copiedId === "detection-logic" ? <><Check className="h-3 w-3 mr-1" /> Copied</> : <><Copy className="h-3 w-3 mr-1" /> Copy</>}
+          Copy full explanation
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 function SectionCard({
@@ -275,42 +453,14 @@ export function DetectionLifecycleSections({
 
       {/* Phase 5: Detection Logic */}
       <SectionCard title="Writing the Detection Rule" phase={5} collapsible defaultOpen>
-        {lifecycle.logicExplanation && (
-          <p className="text-sm text-muted-foreground mb-4">{lifecycle.logicExplanation.humanReadable}</p>
-        )}
-        <Tabs defaultValue={availableFormats[0]?.[0] || "sigma"}>
-          <TabsList className="bg-muted border border-border/50">
-            {availableFormats.map(([key]) => (
-              <TabsTrigger key={key} value={key} className="text-xs">
-                {formatLabels[key] || key}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-          {availableFormats.map(([key, value]) => (
-            <TabsContent key={key} value={key}>
-              <div className="rounded-lg border border-border overflow-hidden mt-4">
-                <div className="px-4 py-2 bg-muted text-xs text-muted-foreground font-mono border-b border-border flex items-center justify-between">
-                  <span>{formatLabels[key]}</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => {
-                      navigator.clipboard.writeText(value as string);
-                      setCopiedId(key);
-                      setTimeout(() => setCopiedId(null), 2000);
-                    }}
-                  >
-                    {copiedId === key ? <><Check className="h-3 w-3 mr-1" /> Copied</> : <><Copy className="h-3 w-3 mr-1" /> Copy</>}
-                  </Button>
-                </div>
-                <pre className="p-4 overflow-x-auto bg-muted/30 text-sm font-mono leading-relaxed">
-                  <code>{highlightCode(value as string, key)}</code>
-                </pre>
-              </div>
-            </TabsContent>
-          ))}
-        </Tabs>
+        <DetectionRuleSection
+          detection={detection}
+          lifecycle={lifecycle}
+          formatLabels={formatLabels}
+          highlightCode={highlightCode}
+          copiedId={copiedId}
+          setCopiedId={setCopiedId}
+        />
       </SectionCard>
 
       {/* Phase 6: Detection Testing */}
