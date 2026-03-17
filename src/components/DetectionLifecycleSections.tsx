@@ -7,6 +7,7 @@ import { ChevronDown, ChevronRight, ThumbsUp, AlertTriangle, ThumbsDown, Copy, C
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
 import { QualityMetricsVisual } from "@/components/DetectionVisuals";
 import { Link } from "react-router-dom";
+import { techniqueCategories } from "@/data/techniques";
 import type {
   Detection,
   DetectionLifecycle,
@@ -220,7 +221,7 @@ export function DetectionLifecycleSections({
   severityColors: Record<string, string>;
   copiedId: string | null;
   setCopiedId: (id: string | null) => void;
-  coveredTechniques?: Array<{ id: string; name: string }>;
+  coveredTechniques?: Array<{ id: string; name: string; description: string; category: string }>;
   relatedAttackPaths?: Array<{ slug: string; title: string; severity: string; description: string }>;
 }) {
   const [communityVotes, setCommunityVotesState] = useState<CommunityConfidence>(() =>
@@ -566,7 +567,7 @@ function DetectionCoverageSection({
   attackPaths,
   severityColors,
 }: {
-  techniques: Array<{ id: string; name: string }>;
+  techniques: Array<{ id: string; name: string; description: string; category: string }>;
   attackPaths: Array<{ slug: string; title: string; severity: string; description: string }>;
   severityColors: Record<string, string>;
 }) {
@@ -575,35 +576,25 @@ function DetectionCoverageSection({
       {techniques.length > 0 && (
         <div>
           <p className={`${sectionLabelClass} mb-2`}>Techniques Detected</p>
-          <div className="rounded-lg border border-border/50 overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/30">
-                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">Technique</th>
-                  <th className="px-4 py-2 w-12" />
-                </tr>
-              </thead>
-              <tbody>
-                {techniques.map((t) => (
-                  <tr key={t.id} className="border-b border-border/50 last:border-0 hover:bg-muted/20">
-                    <td className="px-4 py-2">
-                      <Link to={`/attack-paths/technique/${t.id}`} className="font-medium text-primary hover:underline">
-                        {t.name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-2">
-                      <Link
-                        to={`/attack-paths/technique/${t.id}`}
-                        className="text-muted-foreground hover:text-foreground"
-                        aria-label={`View ${t.name}`}
-                      >
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="space-y-3">
+            {techniques.map((t) => {
+              const categoryLabel = techniqueCategories[t.category as keyof typeof techniqueCategories]?.label ?? t.category;
+              return (
+                <Link
+                  key={t.id}
+                  to={`/attack-paths/technique/${t.id}`}
+                  className="block rounded-lg border border-border/50 bg-card p-4 hover:border-primary/30 transition-colors"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge className="text-xs border-0 rounded-full bg-severity-critical/15 text-severity-critical">
+                      {categoryLabel}
+                    </Badge>
+                    <span className="font-medium text-sm">{t.name}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{t.description}</p>
+                </Link>
+              );
+            })}
           </div>
         </div>
       )}
