@@ -17,7 +17,6 @@ import type {
   DetectionQuality,
   CommunityConfidence,
   DeploymentInfo,
-  DetectionFlowStep,
 } from "@/data/detections";
 
 const formatLabels: Record<string, string> = {
@@ -322,13 +321,6 @@ export function DetectionLifecycleSections({
       {lifecycle.deployment && (
         <SectionCard title="Deployment and CI/CD" phase={7} collapsible defaultOpen>
           <DeploymentSection deployment={lifecycle.deployment} />
-        </SectionCard>
-      )}
-
-      {/* Detection Flow */}
-      {lifecycle.detectionFlow && lifecycle.detectionFlow.length > 0 && (
-        <SectionCard title="Detection Flow" collapsible defaultOpen>
-          <DetectionFlowSection steps={lifecycle.detectionFlow} />
         </SectionCard>
       )}
 
@@ -655,27 +647,6 @@ function DetectionCoverageSection({
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-function DetectionFlowSection({ steps }: { steps: DetectionFlowStep[] }) {
-  const typeColors: Record<string, string> = {
-    source: "bg-blue-500/20 text-blue-400 border-blue-500/40",
-    transform: "bg-amber-500/20 text-amber-400 border-amber-500/40",
-    rule: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
-    alert: "bg-red-500/20 text-red-400 border-red-500/40",
-  };
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      {steps.map((step, i) => (
-        <span key={step.id} className="flex items-center gap-2">
-          <span className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium ${typeColors[step.type] ?? "bg-muted text-muted-foreground"}`}>
-            {step.label}
-          </span>
-          {i < steps.length - 1 && <span className="text-muted-foreground">→</span>}
-        </span>
-      ))}
     </div>
   );
 }
