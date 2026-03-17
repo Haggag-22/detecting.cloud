@@ -30,7 +30,7 @@ import type {
 const formatLabels: Record<string, string> = {
   "detection-logic": "Detection Logic",
   sigma: "Sigma",
-  cloudtrail: "SQL (Athena)",
+  cloudtrail: "CloudTrail Athena",
   splunk: "Splunk",
   lambda: "Lambda",
   cloudwatch: "CloudWatch Insights",
