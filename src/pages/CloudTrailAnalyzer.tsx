@@ -176,9 +176,9 @@ export default function CloudTrailAnalyzer() {
         const r = await handleDatasetUpload(file);
         setResult(r);
         if (r.valid_count > 0) {
-          toast.success(`Parsed ${r.valid_count} event(s) from dataset`);
+          toast({ title: `Parsed ${r.valid_count} event(s) from dataset` });
         } else if (r.errors.length > 0) {
-          toast.error(r.errors[0].message);
+          toast({ title: r.errors[0].message, variant: "destructive" });
         }
       } finally {
         setIsLoading(false);
