@@ -145,12 +145,13 @@ const DetectionEngineeringPage = () => {
           </div>
 
           {/* 1. Detection Overview */}
-          <div className="flex items-start gap-4 mb-8">
+          <div className="flex items-start gap-5 mb-8">
             {ServiceIcon && <ServiceIcon size={40} />}
             <div className="flex-1">
               <h1 className="font-display text-2xl font-bold mb-2">{selectedDetection.title}</h1>
               <p className="text-muted-foreground">{selectedDetection.description}</p>
             </div>
+            <SeverityGauge severity={selectedDetection.severity} />
           </div>
 
           {/* Export & Share Bar */}
