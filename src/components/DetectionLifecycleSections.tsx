@@ -3,9 +3,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ChevronDown, ChevronRight, ThumbsUp, AlertTriangle, ThumbsDown, Copy, Check } from "lucide-react";
+import { ChevronDown, ChevronRight, ThumbsUp, AlertTriangle, ThumbsDown, Copy, Check, ExternalLink } from "lucide-react";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
 import { QualityMetricsVisual } from "@/components/DetectionVisuals";
+import { Link } from "react-router-dom";
 import type {
   Detection,
   DetectionLifecycle,
@@ -212,12 +213,16 @@ export function DetectionLifecycleSections({
   severityColors,
   copiedId,
   setCopiedId,
+  coveredTechniques = [],
+  relatedAttackPaths = [],
 }: {
   detection: Detection;
   lifecycle: DetectionLifecycle;
   severityColors: Record<string, string>;
   copiedId: string | null;
   setCopiedId: (id: string | null) => void;
+  coveredTechniques?: Array<{ id: string; name: string }>;
+  relatedAttackPaths?: Array<{ slug: string; title: string; severity: string; description: string }>;
 }) {
   const [communityVotes, setCommunityVotesState] = useState<CommunityConfidence>(() =>
     getCommunityVotes(detection.id)
@@ -268,8 +273,8 @@ export function DetectionLifecycleSections({
         </SectionCard>
       )}
 
-      {/* Phase 5: Detection Logic - not collapsible */}
-      <SectionCard title="Writing the Detection Rule" phase={5} collapsible={false}>
+      {/* Phase 5: Detection Logic */}
+      <SectionCard title="Writing the Detection Rule" phase={5} collapsible defaultOpen>
         {lifecycle.logicExplanation && (
           <p className="text-sm text-muted-foreground mb-4">{lifecycle.logicExplanation.humanReadable}</p>
         )}
@@ -336,6 +341,17 @@ export function DetectionLifecycleSections({
           hasVoted={hasVoted}
         />
       </SectionCard>
+
+      {/* Detection Coverage */}
+      {(coveredTechniques.length > 0 || relatedAttackPaths.length > 0) && (
+        <SectionCard title="Detection Coverage" collapsible defaultOpen>
+          <DetectionCoverageSection
+            techniques={coveredTechniques}
+            attackPaths={relatedAttackPaths}
+            severityColors={severityColors}
+          />
+        </SectionCard>
+      )}
     </>
   );
 }
@@ -547,6 +563,78 @@ function DeploymentSection({ deployment }: { deployment: DeploymentInfo }) {
               <li key={i}>{c}</li>
             ))}
           </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetectionCoverageSection({
+  techniques,
+  attackPaths,
+  severityColors,
+}: {
+  techniques: Array<{ id: string; name: string }>;
+  attackPaths: Array<{ slug: string; title: string; severity: string; description: string }>;
+  severityColors: Record<string, string>;
+}) {
+  return (
+    <div className="space-y-4 text-sm">
+      {techniques.length > 0 && (
+        <div>
+          <p className={`${sectionLabelClass} mb-2`}>Techniques Detected</p>
+          <div className="flex flex-wrap gap-2">
+            {techniques.map((t) => (
+              <Link
+                key={t.id}
+                to={`/attack-paths/technique/${t.id}`}
+                className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-muted/30 px-2.5 py-1 text-xs font-medium text-primary hover:bg-muted/50 hover:border-primary/30 transition-colors"
+              >
+                {t.name}
+                <ExternalLink className="h-3 w-3 opacity-60" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+      {attackPaths.length > 0 && (
+        <div>
+          <p className={`${sectionLabelClass} mb-2`}>Related Attack Paths</p>
+          <div className="rounded-lg border border-border/50 overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border bg-muted/30">
+                  <th className="px-4 py-2 text-left font-medium text-muted-foreground">Path</th>
+                  <th className="px-4 py-2 text-left font-medium text-muted-foreground w-24">Severity</th>
+                  <th className="px-4 py-2 w-12" />
+                </tr>
+              </thead>
+              <tbody>
+                {attackPaths.map((ap) => (
+                  <tr key={ap.slug} className="border-b border-border/50 last:border-0 hover:bg-muted/20">
+                    <td className="px-4 py-2">
+                      <Link to={`/attack-paths?technique=${ap.slug}`} className="font-medium text-primary hover:underline">
+                        {ap.title}
+                      </Link>
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{ap.description.substring(0, 80)}…</p>
+                    </td>
+                    <td className="px-4 py-2">
+                      <Badge className={`text-xs border-0 ${severityColors[ap.severity] ?? ""}`}>{ap.severity}</Badge>
+                    </td>
+                    <td className="px-4 py-2">
+                      <Link
+                        to={`/attack-paths?technique=${ap.slug}`}
+                        className="text-muted-foreground hover:text-foreground"
+                        aria-label={`View ${ap.title}`}
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

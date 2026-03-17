@@ -242,6 +242,8 @@ const DetectionEngineeringPage = () => {
               severityColors={severityColors}
               copiedId={copiedId}
               setCopiedId={setCopiedId}
+              coveredTechniques={coveredTechniques}
+              relatedAttackPaths={relatedAttackPaths}
             />
           ) : (
             <>
@@ -401,45 +403,6 @@ const DetectionEngineeringPage = () => {
                 </ol>
               </DetectionSectionCard>
             </>
-          )}
-
-          {/* Detection Coverage - show for both layouts when techniques exist */}
-          {hasLifecycle && coveredTechniques.length > 0 && (
-            <DetectionSectionCard title="Detection Coverage">
-              <p className="text-sm text-muted-foreground mb-4">
-                Techniques and attack paths covered by this detection from the platform knowledge graph.
-              </p>
-              <div className="mb-4">
-                <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Techniques Detected</p>
-                <ul className="space-y-2">
-                  {coveredTechniques.map((t) => (
-                    <Link key={t.id} to={`/attack-paths/technique/${t.id}`} className="block text-sm font-medium text-primary hover:underline">
-                      {t.name}
-                    </Link>
-                  ))}
-                </ul>
-              </div>
-              {relatedAttackPaths.length > 0 && (
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Related Attack Paths</p>
-                  <div className="space-y-3">
-                    {relatedAttackPaths.map((ap) => (
-                      <Link
-                        key={ap.slug}
-                        to={`/attack-paths?technique=${ap.slug}`}
-                        className="block rounded-lg border border-border/50 bg-card p-4 hover:border-primary/30 transition-colors"
-                      >
-                        <div className="flex items-center gap-2 mb-1">
-                          <Badge className={`text-xs border-0 ${severityColors[ap.severity]}`}>{ap.severity}</Badge>
-                          <span className="font-medium text-sm">{ap.title}</span>
-                        </div>
-                        <p className="text-xs text-muted-foreground">{ap.description.substring(0, 120)}…</p>
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </DetectionSectionCard>
           )}
         </div>
       </Layout>
