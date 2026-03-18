@@ -2,7 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Shield, ShieldAlert, ShieldCheck, Activity, Zap } from "lucide-react";
-import type { DetectionQuality, MitreMapping } from "@/data/detections";
+import type { DetectionQuality } from "@/data/detections";
 
 /** Animated severity gauge with arc visual */
 export function SeverityGauge({ severity }: { severity: string }) {
@@ -72,79 +72,6 @@ export function SeverityGauge({ severity }: { severity: string }) {
 }
 
 /** MITRE ATT&CK kill chain timeline */
-const KILL_CHAIN_ORDER = [
-  "Reconnaissance",
-  "Resource Development",
-  "Initial Access",
-  "Execution",
-  "Persistence",
-  "Privilege Escalation",
-  "Defense Evasion",
-  "Credential Access",
-  "Discovery",
-  "Lateral Movement",
-  "Collection",
-  "Command and Control",
-  "Exfiltration",
-  "Impact",
-];
-
-export function MitreTimeline({ mappings }: { mappings: MitreMapping[] }) {
-  const activeTactics = new Set(mappings.map((m) => m.tactic));
-
-  return (
-    <div className="rounded-lg border border-border/50 bg-card p-5 mb-8">
-      <p className="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-4">MITRE ATT&CK Kill Chain</p>
-      <div className="flex items-center gap-0.5 overflow-x-auto pb-2">
-        {KILL_CHAIN_ORDER.map((tactic, i) => {
-          const isActive = activeTactics.has(tactic);
-          const mapping = mappings.find((m) => m.tactic === tactic);
-
-          return (
-            <React.Fragment key={tactic}>
-              <motion.div
-                className={`relative flex-shrink-0 px-2.5 py-2 rounded text-[10px] font-medium leading-tight text-center transition-colors cursor-default ${
-                  isActive
-                    ? "bg-primary/20 text-primary border border-primary/40 shadow-[0_0_12px_-3px_hsl(var(--primary)/0.4)]"
-                    : "bg-muted/30 text-muted-foreground/50 border border-border/30"
-                }`}
-                style={{ minWidth: 72 }}
-                initial={isActive ? { scale: 0.9, opacity: 0 } : {}}
-                animate={isActive ? { scale: 1, opacity: 1 } : {}}
-                transition={{ delay: 0.1 * i, duration: 0.4 }}
-                title={mapping ? `${mapping.techniqueId ?? ""} ${mapping.techniqueName ?? ""}`.trim() : tactic}
-              >
-                <span className="block">{tactic}</span>
-                {isActive && mapping?.techniqueId && (
-                  <motion.span
-                    className="block text-[9px] text-primary/70 mt-0.5 font-mono"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.1 * i + 0.3 }}
-                  >
-                    {mapping.techniqueId}
-                  </motion.span>
-                )}
-                {isActive && (
-                  <motion.div
-                    className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-primary"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.1 * i + 0.2, type: "spring", stiffness: 300 }}
-                  />
-                )}
-              </motion.div>
-              {i < KILL_CHAIN_ORDER.length - 1 && (
-                <div className={`w-3 h-px flex-shrink-0 ${isActive ? "bg-primary/40" : "bg-border/30"}`} />
-              )}
-            </React.Fragment>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 /** Animated quality metrics cards — no readiness card */
 export function QualityMetricsVisual({ quality }: { quality: DetectionQuality }) {
   const signalPercent = (quality.signalQuality / 10) * 100;

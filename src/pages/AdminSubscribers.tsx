@@ -5,30 +5,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Users, Mail, Download, Trash2, Search, Lock } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const ADMIN_PIN = "detecting2026";
-const STORAGE_KEY = "detecting-cloud-subscribers";
 
-export interface Subscriber {
+interface Subscriber {
+  id: string;
   email: string;
-  subscribedAt: string;
-}
-
-export function getSubscribers(): Subscriber[] {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-export function addSubscriber(email: string): boolean {
-  const subs = getSubscribers();
-  if (subs.some((s) => s.email === email)) return false;
-  subs.push({ email, subscribedAt: new Date().toISOString() });
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(subs));
-  return true;
+  subscribed_at: string;
 }
 
 export default function AdminSubscribers() {
@@ -36,10 +21,24 @@ export default function AdminSubscribers() {
   const [pin, setPin] = useState("");
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const fetchSubscribers = async () => {
+    setLoading(true);
+    const { data, error } = await supabase.functions.invoke("admin-subscribers", {
+      headers: { "x-admin-pin": ADMIN_PIN },
+    });
+    if (error) {
+      toast.error("Failed to load subscribers");
+    } else {
+      setSubscribers(data || []);
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
     if (authenticated) {
-      setSubscribers(getSubscribers());
+      fetchSubscribers();
     }
   }, [authenticated]);
 
@@ -52,15 +51,22 @@ export default function AdminSubscribers() {
     }
   };
 
-  const handleDelete = (email: string) => {
-    const updated = subscribers.filter((s) => s.email !== email);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    setSubscribers(updated);
-    toast.success("Subscriber removed");
+  const handleDelete = async (email: string) => {
+    const { error } = await supabase.functions.invoke("admin-subscribers", {
+      method: "DELETE",
+      headers: { "x-admin-pin": ADMIN_PIN },
+      body: { email },
+    });
+    if (error) {
+      toast.error("Failed to remove subscriber");
+    } else {
+      setSubscribers((prev) => prev.filter((s) => s.email !== email));
+      toast.success("Subscriber removed");
+    }
   };
 
   const handleExport = () => {
-    const csv = "Email,Subscribed At\n" + subscribers.map((s) => `${s.email},${s.subscribedAt}`).join("\n");
+    const csv = "Email,Subscribed At\n" + subscribers.map((s) => `${s.email},${s.subscribed_at}`).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -129,7 +135,7 @@ export default function AdminSubscribers() {
               <Mail className="h-8 w-8 text-emerald-400 mx-auto mb-2" />
               <p className="text-3xl font-bold text-foreground">
                 {subscribers.filter((s) => {
-                  const d = new Date(s.subscribedAt);
+                  const d = new Date(s.subscribed_at);
                   const now = new Date();
                   return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
                 }).length}
@@ -142,7 +148,7 @@ export default function AdminSubscribers() {
               <Mail className="h-8 w-8 text-orange-400 mx-auto mb-2" />
               <p className="text-3xl font-bold text-foreground">
                 {subscribers.filter((s) => {
-                  const d = new Date(s.subscribedAt);
+                  const d = new Date(s.subscribed_at);
                   const now = new Date();
                   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
                   return d >= weekAgo;
@@ -165,7 +171,13 @@ export default function AdminSubscribers() {
         </div>
 
         {/* Table */}
-        {subscribers.length === 0 ? (
+        {loading ? (
+          <Card>
+            <CardContent className="py-16 text-center">
+              <p className="text-muted-foreground">Loading subscribers...</p>
+            </CardContent>
+          </Card>
+        ) : subscribers.length === 0 ? (
           <Card>
             <CardContent className="py-16 text-center">
               <Mail className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -184,10 +196,10 @@ export default function AdminSubscribers() {
               </TableHeader>
               <TableBody>
                 {filtered.map((sub) => (
-                  <TableRow key={sub.email}>
+                  <TableRow key={sub.id}>
                     <TableCell className="font-medium text-foreground">{sub.email}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {new Date(sub.subscribedAt).toLocaleDateString("en-US", {
+                      {new Date(sub.subscribed_at).toLocaleDateString("en-US", {
                         year: "numeric", month: "short", day: "numeric",
                       })}
                     </TableCell>
