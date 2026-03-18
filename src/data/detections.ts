@@ -1239,23 +1239,135 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: lambda.amazonaws.com
     eventName: CreateFunction20150331
-    requestParameters.role|contains: 'Admin'
-  condition: selection
+  high_risk_role:
+    requestParameters.role|contains:
+      - 'Admin'
+      - 'AdministratorAccess'
+      - 'PowerUser'
+      - 'OrganizationAccountAccessRole'
+      - 'Security'
+  condition: selection and high_risk_role
 level: critical`,
-      splunk: `index=aws sourcetype=aws:cloudtrail eventName=CreateFunction*
-| where like(requestParameters.role, "%AdministratorAccess%") OR like(requestParameters.role, "%Admin%")
-| table _time, userIdentity.arn, requestParameters.functionName, requestParameters.role`,
-      cloudtrail: `SELECT eventTime, userIdentity.arn, requestParameters.functionName, requestParameters.role
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=lambda.amazonaws.com eventName=CreateFunction20150331
+| where like(requestParameters.role, "%AdministratorAccess%") OR like(requestParameters.role, "%Admin%") OR like(requestParameters.role, "%PowerUser%") OR like(requestParameters.role, "%OrganizationAccountAccessRole%") OR like(requestParameters.role, "%Security%")
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.functionName, requestParameters.role, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, requestParameters.functionName, requestParameters.role, sourceIPAddress
 FROM cloudtrail_logs
-WHERE eventName = 'CreateFunction20150331'
-  AND requestParameters.role LIKE '%Admin%'`,
-      eventbridge: JSON.stringify({ source: ["aws.lambda"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateFunction20150331"] } }, null, 2),
+WHERE eventSource = 'lambda.amazonaws.com'
+  AND eventName = 'CreateFunction20150331'
+  AND (
+    requestParameters.role LIKE '%Admin%'
+    OR requestParameters.role LIKE '%AdministratorAccess%'
+    OR requestParameters.role LIKE '%PowerUser%'
+    OR requestParameters.role LIKE '%OrganizationAccountAccessRole%'
+    OR requestParameters.role LIKE '%Security%'
+  )
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.functionName, requestParameters.role, sourceIPAddress
+| filter eventSource = "lambda.amazonaws.com"
+| filter eventName = "CreateFunction20150331"
+| filter requestParameters.role like /Admin|AdministratorAccess|PowerUser|OrganizationAccountAccessRole|Security/
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.lambda"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["lambda.amazonaws.com"], eventName: ["CreateFunction20150331"] } }, null, 2),
+      lambda: `"""
+Lambda Function Created with Admin Role
+Trigger: EventBridge rule matching CloudTrail CreateFunction20150331 events.
+Use for: Real-time alerting on Lambda creation with high-risk execution roles.
+"""
+
+HIGH_RISK_ROLE_MARKERS = ("Admin", "AdministratorAccess", "PowerUser", "OrganizationAccountAccessRole", "Security")
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "lambda.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "CreateFunction20150331":
+        return {"matched": False}
+
+    role_arn = detail.get("requestParameters", {}).get("role", "")
+    if not any(marker in role_arn for marker in HIGH_RISK_ROLE_MARKERS):
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-012",
+            "title": "Lambda Function Created with Admin Role",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "function_name": detail.get("requestParameters", {}).get("functionName"),
+            "role_arn": role_arn,
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: ["aws-passrole-abuse", "lambda-privilege-escalation"],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "lambda.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.role", "requestParameters.functionName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "lambda.amazonaws.com", eventName: "CreateFunction20150331", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { functionName: "my-function", role: "arn:aws:iam::123456789012:role/AdministratorAccess" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who created the Lambda and which role was passed.", "Inspect the role for AdministratorAccess or similar.", "Verify if the creation was from a deployment pipeline.", "Review Lambda execution history for suspicious invocations."],
-    testingSteps: ["Create a Lambda with a role containing 'Admin' or 'AdministratorAccess'.", "Observe CloudTrail CreateFunction event.", "Run the detection query to confirm the alert triggers."],},
+    testingSteps: ["Create a Lambda with a role containing 'Admin' or 'AdministratorAccess'.", "Observe CloudTrail CreateFunction event.", "Run the detection query to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Creating a Lambda function is common; creating one with a materially over-privileged execution role is not. This is a classic hidden PassRole escalation path because the dangerous action is embedded inside CreateFunction.",
+      threatContext: {
+        attackerBehavior: "An attacker with lambda:CreateFunction and iam:PassRole can create a new Lambda function and attach a powerful execution role. Once the function is invoked, the attacker gains code execution under that role's permissions, which can provide administrative access, secret retrieval, or access to sensitive data stores.",
+        realWorldUsage: "PassRole abuse through service creation is a well-established AWS privilege-escalation pattern in red-team tradecraft, pentest writeups, and cloud attack-path research. Lambda is one of the most practical abuse paths because it lets an attacker operationalize a more privileged role immediately.",
+        whyItMatters: "This event should be treated as high signal when the execution role being attached is classified as high risk, especially if the caller is not part of an approved deployment workflow.",
+        riskAndImpact: "If missed, the attacker can gain durable execution under a stronger role, access secrets or KMS-protected data, modify IAM or logging controls, and establish serverless persistence.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for Lambda)", "IAM role inventory for role sensitivity enrichment"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "requestParameters.functionName", "requestParameters.role", "sourceIPAddress", "awsRegion", "recipientAccountId", "eventTime"],
+        loggingRequirements: ["CloudTrail management events must be enabled for Lambda API activity.", "The pipeline must preserve requestParameters.role because the passed execution role ARN lives there.", "Maintain an enrichment table that classifies IAM roles by effective privilege and business sensitivity."],
+        limitations: ["CloudTrail does not emit iam:PassRole as a separate API event; the detection must infer role passing from CreateFunction.", "High-fidelity alerting depends on role sensitivity enrichment; raw role-name matching is only a fallback.", "This covers new function creation, not later role changes through UpdateFunctionConfiguration."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "CloudTrail service that handled the request" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Lambda CreateFunction API action" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Caller identity" },
+          { rawPath: "requestParameters.functionName", normalizedPath: "aws.lambda.function.name", notes: "New Lambda function name" },
+          { rawPath: "requestParameters.role", normalizedPath: "aws.iam.passed_role.arn", notes: "Execution role attached during CreateFunction" },
+          { rawPath: "sourceIPAddress", normalizedPath: "source.ip", notes: "Network origin of the request" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "CreateFunction20150331", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { lambda: { function: { name: "my-function" } }, iam: { passed_role: { arn: "arn:aws:iam::123456789012:role/AdministratorAccess" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Execution Role Sensitivity", description: "Classify the passed role by attached permissions, allowed actions, and whether it grants administrative, secrets, IAM, KMS, or security-tool access.", examples: ["Role has AdministratorAccess attached", "Role can call iam:* or organizations:*", "Role can access secretsmanager:GetSecretValue"], falsePositiveReduction: "Separates genuinely dangerous role delegation from ordinary low-privilege function deployments." },
+        { dimension: "Identity Context", description: "Add ownership and identity metadata for the caller to determine whether the actor is expected to deploy Lambda functions with sensitive roles.", examples: ["SSO permission set name", "CI/CD bot inventory", "Session issuer ARN for assumed roles"], falsePositiveReduction: "Suppresses approved deployment identities while escalating developer, workload, or unusual assumed-role activity." },
+        { dimension: "Deployment Provenance", description: "Track whether the function creation came from an approved pipeline, IaC system, or known deployment account.", examples: ["Created by Terraform runner", "CodePipeline execution ID", "Known deployment account"], falsePositiveReduction: "Makes routine platform deployments easier to suppress without losing high-risk ad hoc creations." },
+        { dimension: "Behavioral Baseline", description: "Measure whether the caller has previously created functions or passed this role before.", examples: ["First time this actor used CreateFunction", "First time this role was passed to Lambda", "Out-of-hours deployment"], falsePositiveReduction: "Raises priority when the event is novel for the identity or environment." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection identifies Lambda CreateFunction requests where the passed execution role is classified as high risk, rather than relying only on fragile role-name keywords. The correct engineering approach is to inspect requestParameters.role from the Lambda API event and enrich that ARN with authoritative IAM role sensitivity data such as attached policies, privilege level, and access to security-critical services.",
+        conditions: ["eventSource equals lambda.amazonaws.com", "eventName equals CreateFunction20150331", "requestParameters.role exists", "passed execution role is classified as high risk by enrichment or policy analysis"],
+        tuningGuidance: "1. Replace simple string matching with a maintained role-sensitivity inventory built from IAM policy analysis. 2. Allowlist approved CI/CD, Terraform, CloudFormation, and platform deployment identities. 3. Increase severity when the passed role enables IAM, Secrets Manager, KMS, cross-account access, or production data access.",
+        whenToFire: "Fire when a Lambda function is created with a role classified as high risk, especially in production accounts or when performed by a developer, workload role, or unusual source IP.",
+      },
+      simulationCommand: "aws lambda create-function --function-name backdoor-fn --runtime python3.12 --handler lambda_function.lambda_handler --zip-file fileb://function.zip --role arn:aws:iam::123456789012:role/AdminRole",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium (mostly approved platform deployment activity after actor and role-sensitivity tuning)",
+        expectedVolume: "Low in mature environments; bursty during deployment windows",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena (scheduled query with IAM role enrichment)", "Splunk", "Panther", "Chronicle", "Datadog", "EventBridge + Lambda enrichment function"],
+        scheduling: "Batch: every 5-15 minutes in Athena or SIEM pipelines. Real-time: EventBridge on CreateFunction20150331 with downstream enrichment of the passed role ARN.",
+        considerations: ["This rule is substantially better when role sensitivity is computed from IAM policies instead of inferred from role names.", "Preserve requestParameters.role through parsing and normalization.", "Pair with detections for UpdateFunctionConfiguration, UpdateFunctionCode, and unusual Lambda invocation to catch full abuse chains."],
+      },
+    },
+  },
   {
     id: "det-013",
     title: "Lambda Event Source Mapping Created",
@@ -1273,17 +1385,113 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: lambda.amazonaws.com
     eventName: CreateEventSourceMapping
   condition: selection
 level: medium`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventName=CreateEventSourceMapping
-| table _time, userIdentity.arn, requestParameters.functionName, requestParameters.eventSourceArn`,
-      eventbridge: JSON.stringify({ source: ["aws.lambda"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateEventSourceMapping"] } }, null, 2),
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.functionName, requestParameters.eventSourceArn, requestParameters.enabled, requestParameters.batchSize, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, requestParameters.functionName, requestParameters.eventSourceArn, requestParameters.enabled, requestParameters.batchSize, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'lambda.amazonaws.com'
+  AND eventName = 'CreateEventSourceMapping'
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.functionName, requestParameters.eventSourceArn, requestParameters.enabled, requestParameters.batchSize, sourceIPAddress
+| filter eventSource = "lambda.amazonaws.com"
+| filter eventName = "CreateEventSourceMapping"
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.lambda"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["lambda.amazonaws.com"], eventName: ["CreateEventSourceMapping"] } }, null, 2),
+      lambda: `"""
+Lambda Event Source Mapping Created
+Trigger: EventBridge rule matching CloudTrail CreateEventSourceMapping events.
+Use for: Real-time enrichment of new source-to-function relationships.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "lambda.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "CreateEventSourceMapping":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-enrichment",
+        "alert": {
+            "rule_id": "det-013",
+            "title": "Lambda Event Source Mapping Created",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "function_name": detail.get("requestParameters", {}).get("functionName"),
+            "event_source_arn": detail.get("requestParameters", {}).get("eventSourceArn"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: ["lambda-persistence"],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "lambda.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.functionName", "requestParameters.eventSourceArn", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "lambda.amazonaws.com", eventName: "CreateEventSourceMapping", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { functionName: "my-function", eventSourceArn: "arn:aws:dynamodb:us-east-1:123456789012:table/MyTable/stream/xxx" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the Lambda and event source (DynamoDB, S3, etc.).", "Verify if the mapping was part of a legitimate deployment.", "Review the Lambda's execution role and triggers.", "Check for persistence via scheduled or event-driven execution."],
-    testingSteps: ["Create an event source mapping (e.g., DynamoDB stream to Lambda).", "Verify CloudTrail captures CreateEventSourceMapping.", "Run the detection to confirm the alert triggers."],},
+    testingSteps: ["Create an event source mapping (e.g., DynamoDB stream to Lambda).", "Verify CloudTrail captures CreateEventSourceMapping.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Creating an event source mapping establishes a durable auto-execution path between a data source and Lambda. The important signal is not every mapping creation, but mappings that are unexpected for the actor, the function, or the source resource.",
+      threatContext: {
+        attackerBehavior: "An attacker with lambda:CreateEventSourceMapping can attach a Lambda function they control, or a legitimate function they have modified, to a queue or stream such as SQS, DynamoDB Streams, or Kinesis. This gives them trigger-based execution whenever new records arrive and can quietly wire malicious or repurposed code into an existing event-driven workflow.",
+        realWorldUsage: "Serverless persistence and trigger abuse are common in cloud attack-path research and red-team operations because integration changes often receive less scrutiny than IAM or compute changes.",
+        whyItMatters: "A new mapping can fundamentally change what code executes in response to business events. If the mapping links a sensitive stream or queue to an unexpected function, defenders can miss both the persistence mechanism and the downstream data exposure.",
+        riskAndImpact: "Undetected malicious mappings can enable covert persistence, unauthorized invocation on every new event, exfiltration of records from queues or streams, and operational disruption by redirecting or over-consuming production event flows.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for Lambda)", "Configuration inventory for approved function-to-source relationships"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "requestParameters.functionName", "requestParameters.eventSourceArn", "requestParameters.enabled", "requestParameters.startingPosition", "requestParameters.batchSize", "sourceIPAddress", "awsRegion", "recipientAccountId", "eventTime"],
+        loggingRequirements: ["CloudTrail management events must be enabled for Lambda API activity.", "The pipeline must preserve requestParameters.eventSourceArn and requestParameters.functionName.", "Maintain an inventory of approved source-to-function mappings and approved deployer identities."],
+        limitations: ["CreateEventSourceMapping covers streams, queues, and Kafka-style sources, but not all Lambda trigger types such as S3 notifications or EventBridge rules.", "UpdateEventSourceMapping is a separate API and should be covered independently.", "CloudTrail alone cannot determine whether the new mapping is expected; baseline and ownership context are required for high fidelity."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "CloudTrail service that received the request" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Lambda event source mapping API action" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Caller identity" },
+          { rawPath: "requestParameters.functionName", normalizedPath: "aws.lambda.function.name", notes: "Lambda function receiving records from the mapping" },
+          { rawPath: "requestParameters.eventSourceArn", normalizedPath: "aws.lambda.event_source.arn", notes: "Queue, stream, or Kafka source connected to the function" },
+          { rawPath: "requestParameters.batchSize", normalizedPath: "aws.lambda.event_source.batch_size", notes: "Can indicate operational intent or abuse" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "CreateEventSourceMapping", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { lambda: { function: { name: "my-function" }, event_source: { arn: "arn:aws:dynamodb:us-east-1:123456789012:table/MyTable/stream/xxx", batch_size: 100 } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Identity Context", description: "Classify the caller by role family, ownership, deployment authority, and whether the identity is approved to manage Lambda triggers.", examples: ["CI/CD runner role", "Terraform execution role", "Developer SSO permission set"], falsePositiveReduction: "Suppresses approved deployment workflows and elevates mappings created by unexpected human or workload identities." },
+        { dimension: "Function Criticality", description: "Add business ownership, environment, execution role sensitivity, and whether the target function is production or security-relevant.", examples: ["Function tags: env=prod", "Execution role can access customer data", "Recently modified function code"], falsePositiveReduction: "Prioritizes mappings that attach new triggers to sensitive or high-impact functions." },
+        { dimension: "Source Resource Context", description: "Classify the event source by service type, data sensitivity, owner, and whether the source ARN is approved for this function.", examples: ["DynamoDB stream for CustomerPII table", "SQS dead-letter queue", "Kinesis stream owned by a different team"], falsePositiveReduction: "Distinguishes normal app wiring from suspicious linkage to sensitive or cross-team data sources." },
+        { dimension: "Relationship Baseline", description: "Track whether this exact source-to-function pair or actor has been seen before.", examples: ["First time this function was mapped to any DynamoDB stream", "First time this source ARN was used with Lambda", "Change occurred outside normal release window"], falsePositiveReduction: "Turns a noisy API event into a novelty-based detection that highlights unexpected integrations." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection should not alert on every CreateEventSourceMapping event because application teams legitimately create mappings during normal deployments. The better approach is to treat the CloudTrail API call as the starting point and then alert only when the new source-to-function relationship is suspicious: the actor is not an approved deployer, the mapping is novel for the environment, or the source or target is sensitive.",
+        conditions: ["eventSource equals lambda.amazonaws.com", "eventName equals CreateEventSourceMapping", "requestParameters.functionName exists", "requestParameters.eventSourceArn exists", "and at least one suspicious predicate is true: actor not in approved deployment inventory, source-to-function pair not in approved mapping inventory, or source or target marked sensitive"],
+        tuningGuidance: "1. Maintain an allowlist of approved deployment roles and IaC identities. 2. Build an inventory of approved source-to-function relationships. 3. Escalate when the source ARN belongs to a sensitive queue, stream, or cross-team resource, or when the target Lambda is production or security-critical.",
+        whenToFire: "Fire when a new event source mapping is created outside expected deployment context or when it establishes a new or sensitive source-to-function relationship.",
+      },
+      simulationCommand: "aws lambda create-event-source-mapping --function-name payment-export-fn --event-source-arn arn:aws:dynamodb:us-east-1:123456789012:table/CustomerPII/stream/2026-03-17T00:00:00.000 --starting-position LATEST --enabled",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Medium (normal app deployments create mappings unless actor and mapping baselines are modeled)",
+        expectedVolume: "Low in stable production environments; bursty during application releases",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena (scheduled query with approved-mapping inventory join)", "Splunk", "Panther", "Chronicle", "Datadog", "EventBridge + Lambda enrichment function"],
+        scheduling: "Batch: every 5-15 minutes for centralized CloudTrail analytics. Real-time: EventBridge on CreateEventSourceMapping with enrichment against approved deployers and mapping inventory.",
+        considerations: ["This rule is only high fidelity when backed by approved actor and approved mapping inventories.", "Treat CreateEventSourceMapping as one part of the lifecycle; also monitor UpdateEventSourceMapping and Lambda code or role changes.", "Remember that S3 notifications and EventBridge triggers are configured through different APIs and need separate coverage."],
+      },
+    },
+  },
 
   // --- EC2 ---
   {
@@ -1303,24 +1511,136 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: ec2.amazonaws.com
     eventName: RunInstances
-    requestParameters.iamInstanceProfile.arn|contains: 'Admin'
-  condition: selection
+  high_risk_profile:
+    requestParameters.iamInstanceProfile.arn|contains:
+      - 'Admin'
+      - 'Administrator'
+      - 'PowerUser'
+      - 'Security'
+      - 'OrganizationAccountAccessRole'
+  condition: selection and high_risk_profile
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventName=RunInstances
-| where like(requestParameters.iamInstanceProfile.arn, "%Admin%")
-| table _time, userIdentity.arn, requestParameters.instanceType`,
-      cloudtrail: `SELECT eventTime, userIdentity.arn, requestParameters.instanceType,
-       requestParameters.iamInstanceProfile.arn
+| where like(requestParameters.iamInstanceProfile.arn, "%Admin%") OR like(requestParameters.iamInstanceProfile.arn, "%Administrator%") OR like(requestParameters.iamInstanceProfile.arn, "%PowerUser%") OR like(requestParameters.iamInstanceProfile.arn, "%Security%") OR like(requestParameters.iamInstanceProfile.arn, "%OrganizationAccountAccessRole%")
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.instanceType, requestParameters.iamInstanceProfile.arn, requestParameters.subnetId, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, requestParameters.instanceType,
+       requestParameters.iamInstanceProfile.arn, requestParameters.subnetId, sourceIPAddress
 FROM cloudtrail_logs
-WHERE eventName = 'RunInstances'
-  AND requestParameters.iamInstanceProfile.arn LIKE '%Admin%'`,
-      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RunInstances"] } }, null, 2),
+WHERE eventSource = 'ec2.amazonaws.com'
+  AND eventName = 'RunInstances'
+  AND (
+    requestParameters.iamInstanceProfile.arn LIKE '%Admin%'
+    OR requestParameters.iamInstanceProfile.arn LIKE '%Administrator%'
+    OR requestParameters.iamInstanceProfile.arn LIKE '%PowerUser%'
+    OR requestParameters.iamInstanceProfile.arn LIKE '%Security%'
+    OR requestParameters.iamInstanceProfile.arn LIKE '%OrganizationAccountAccessRole%'
+  )
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.instanceType, requestParameters.iamInstanceProfile.arn, requestParameters.subnetId, sourceIPAddress
+| filter eventSource = "ec2.amazonaws.com"
+| filter eventName = "RunInstances"
+| filter requestParameters.iamInstanceProfile.arn like /Admin|Administrator|PowerUser|Security|OrganizationAccountAccessRole/
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["RunInstances"] } }, null, 2),
+      lambda: `"""
+EC2 Instance with Highly Privileged IAM Role
+Trigger: EventBridge rule matching RunInstances.
+Use for: Real-time alerting on EC2 launches with high-risk instance profiles.
+"""
+
+HIGH_RISK_PROFILE_MARKERS = ("Admin", "Administrator", "PowerUser", "Security", "OrganizationAccountAccessRole")
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "RunInstances":
+        return {"matched": False}
+
+    profile_arn = detail.get("requestParameters", {}).get("iamInstanceProfile", {}).get("arn", "")
+    if not any(marker in profile_arn for marker in HIGH_RISK_PROFILE_MARKERS):
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-014",
+            "title": "EC2 Instance with Highly Privileged IAM Role",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "profile_arn": profile_arn,
+            "instance_type": detail.get("requestParameters", {}).get("instanceType"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: ["ec2-metadata-abuse"],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.iamInstanceProfile.arn", "requestParameters.instanceType", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "RunInstances", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { instanceType: "t3.micro", iamInstanceProfile: { arn: "arn:aws:iam::123456789012:instance-profile/AdminRole" } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who launched the instance and which IAM profile was used.", "Inspect the instance profile for Admin or high-privilege policies.", "Verify if the instance is a management host with legitimate elevated access.", "Review IMDS configuration for credential theft risk."],
-    testingSteps: ["Launch an EC2 instance with an IAM profile containing 'Admin'.", "Verify CloudTrail captures RunInstances.", "Run the detection to confirm the alert triggers."],},
+    testingSteps: ["Launch an EC2 instance with an IAM profile containing 'Admin'.", "Verify CloudTrail captures RunInstances.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Launching EC2 with a sensitive instance profile is a practical AWS privilege-escalation path because the attacker does not need to assume the role directly. They can create compute they control and retrieve the attached role credentials from IMDS.",
+      threatContext: {
+        attackerBehavior: "An attacker with ec2:RunInstances and the ability to pass or select an IAM instance profile launches a new EC2 instance using a role that is more privileged than the caller. After the instance starts, the attacker can access the host through SSM, SSH, user data, or a startup script and query IMDS to obtain temporary credentials for the attached role.",
+        realWorldUsage: "This is a well-established AWS privilege-escalation pattern in cloud red-team tradecraft, IAM escalation research, and incident-response guidance. It commonly appears when developer, CI/CD, or platform identities can launch instances and attach roles that have broad admin, secrets, KMS, or data-plane access.",
+        whyItMatters: "CloudTrail does not emit a standalone iam:PassRole event for this path, so the escalation has to be detected from the EC2 API request itself.",
+        riskAndImpact: "If this goes undetected, an attacker can gain administrative control, access secrets and data stores, move laterally with the instance role, establish persistence through SSM or bootstrapped code, and continue operating even after the original user session is revoked.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for EC2)", "IAM role / instance profile inventory for enrichment"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "requestParameters.iamInstanceProfile.arn", "requestParameters.iamInstanceProfile.name", "requestParameters.imageId", "requestParameters.instanceType", "requestParameters.subnetId", "requestParameters.metadataOptions.httpTokens", "responseElements.instancesSet.items{}.instanceId", "sourceIPAddress", "eventTime", "recipientAccountId", "awsRegion"],
+        loggingRequirements: ["CloudTrail management events must be enabled for EC2 API activity.", "The log pipeline must preserve the full requestParameters object because the instance profile reference is embedded there.", "A separate enrichment source must resolve instance profile ARN/name to the underlying IAM role and attached policies."],
+        limitations: ["The CloudTrail event shows that a profile was attached, not whether the attacker successfully retrieved credentials from IMDS.", "String matching on profile names is weak; true signal quality depends on authoritative role sensitivity classification.", "Legitimate platform automation and management hosts can generate real but expected events."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "CloudTrail service that processed the request" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Primary trigger is RunInstances" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor launching the instance" },
+          { rawPath: "requestParameters.iamInstanceProfile.arn", normalizedPath: "aws.iam.instance_profile.arn", notes: "Profile attached at launch" },
+          { rawPath: "responseElements.instancesSet.items{}.instanceId", normalizedPath: "cloud.instance.id", notes: "Launched instance identifier" },
+          { rawPath: "requestParameters.metadataOptions.httpTokens", normalizedPath: "aws.ec2.metadata.http_tokens", notes: "Helps assess IMDS abuse friction" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["creation"], action: "RunInstances", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1", instance: { id: "i-0abc123" } },
+          aws: { iam: { instance_profile: { arn: "arn:aws:iam::123456789012:instance-profile/AdminRole" } }, ec2: { metadata: { http_tokens: "required" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Instance Profile Sensitivity", description: "Resolve the instance profile to its backing role and classify that role by effective permissions, not by name alone.", examples: ["Role has AdministratorAccess or equivalent wildcard actions", "Role can call iam:* or organizations:*", "Role can access secretsmanager:GetSecretValue"], falsePositiveReduction: "Turns a weak name-based match into a permission-sensitive signal and suppresses launches that use ordinary workload roles." },
+        { dimension: "Privilege Delta", description: "Compare the caller's effective permissions with the instance profile's effective permissions.", examples: ["Developer role launches instance with org-admin profile", "CI role launches instance with security tooling role"], falsePositiveReduction: "Legitimate platform teams often launch privileged instances; the risky cases are unexpected callers or a large privilege jump." },
+        { dimension: "Launch and Access Context", description: "Add context about how reachable and controllable the launched instance is, including subnet type, public IP assignment, user data, SSM manageability, and IMDS settings.", examples: ["Public subnet with auto-assigned public IP", "SSM-enabled instance", "IMDS httpTokens optional"], falsePositiveReduction: "A privileged role on an unreachable, tightly controlled instance is lower urgency than one that is easy for an attacker to access." },
+        { dimension: "Workload and Business Context", description: "Map the instance to owner, environment, workload type, and expected role catalog.", examples: ["Known patching host", "Prod database maintenance instance", "Unowned instance in dev account"], falsePositiveReduction: "Expected management or automation launches can be allowlisted, while unowned or novel privileged instances stay high priority." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection should identify RunInstances events where the attached IAM instance profile is classified as sensitive based on its effective permissions, not just its name. The engineering rationale is the same as other PassRole detections: the privilege transfer is visible only inside the downstream service API request, so EC2 launch telemetry is the correct detection point.",
+        conditions: ["eventSource equals ec2.amazonaws.com", "eventName equals RunInstances", "requestParameters.iamInstanceProfile.arn or name is present", "resolved instance profile is classified as high risk based on attached permissions, role path, tags, or access to admin, security, secrets, or data-plane capabilities"],
+        tuningGuidance: "1. Maintain an inventory of approved privileged instance profiles and the automation identities allowed to use them. 2. Score severity based on privilege delta. 3. Escalate when the instance is internet-reachable, SSM-manageable by broad principals, or launched with permissive IMDS settings.",
+        whenToFire: "Fire whenever a new EC2 instance is launched with an instance profile classified as sensitive, especially when the actor is unexpected, the instance is reachable, or the role grants admin, secrets, or org-management access.",
+      },
+      simulationCommand: "aws ec2 run-instances --image-id ami-1234567890abcdef0 --instance-type t3.micro --iam-instance-profile Name=AdminInstanceProfile --subnet-id subnet-0abc123456789def0 --metadata-options \"HttpTokens=required,HttpEndpoint=enabled\"",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Medium (approved management hosts and platform automation can trigger until profile sensitivity and actor allowlists are in place)",
+        expectedVolume: "Low in mature environments; moderate in infrastructure-heavy accounts during provisioning windows",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena (scheduled query)", "Splunk", "Panther", "Chronicle", "Datadog", "EventBridge + Lambda"],
+        scheduling: "Batch: every 5-15 minutes for CloudTrail analytics; Real-time: EventBridge on RunInstances with Lambda enrichment against IAM and EC2 inventories.",
+        considerations: ["Authoritative role sensitivity classification is the key dependency.", "Pair with adjacent coverage for AssociateIamInstanceProfile and ReplaceIamInstanceProfileAssociation.", "Correlate with IMDS exposure, SSM session starts, and unusual API use by the attached role."],
+      },
+    },
+  },
   {
     id: "det-015",
     title: "EC2 IMDSv1 Usage Detected",
@@ -1505,23 +1825,120 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: ec2.amazonaws.com
     eventName: AuthorizeSecurityGroupIngress
     requestParameters.ipPermissions.items{}.ipRanges.items{}.cidrIp: '0.0.0.0/0'
   condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventName=AuthorizeSecurityGroupIngress
 | where like(requestParameters, "%0.0.0.0/0%")
-| table _time, userIdentity.arn, requestParameters.groupId`,
-      cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.groupId
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.groupId, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, requestParameters.groupId, requestParameters.ipPermissions, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'ec2.amazonaws.com'
+  AND eventName = 'AuthorizeSecurityGroupIngress'
+  AND requestParameters LIKE '%0.0.0.0/0%'
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.groupId, requestParameters.ipPermissions, sourceIPAddress
 | filter eventName = "AuthorizeSecurityGroupIngress"
 | filter requestParameters like /0\\.0\\.0\\.0\\/0/
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["AuthorizeSecurityGroupIngress"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["AuthorizeSecurityGroupIngress"] } }, null, 2),
+      lambda: `"""
+EC2 Security Group Opened to 0.0.0.0/0
+Trigger: EventBridge rule matching AuthorizeSecurityGroupIngress.
+Use for: Real-time alerting on public IPv4 ingress exposure.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "AuthorizeSecurityGroupIngress":
+        return {"matched": False}
+
+    permissions = str(detail.get("requestParameters", {}).get("ipPermissions", ""))
+    if "0.0.0.0/0" not in permissions:
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-016",
+            "title": "EC2 Security Group Opened to 0.0.0.0/0",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "group_id": detail.get("requestParameters", {}).get("groupId"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.groupId", "requestParameters.ipPermissions", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "AuthorizeSecurityGroupIngress", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { groupId: "sg-xxx", ipPermissions: { items: [{ ipRanges: { items: [{ cidrIp: "0.0.0.0/0" }] } }] } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who modified the security group.", "Verify if 0.0.0.0/0 was intentionally added (e.g., web server).", "Review the affected instances and exposed ports.", "Check for lateral movement or data exfiltration risk."],
-    testingSteps: ["Add an ingress rule with 0.0.0.0/0 to a security group.", "Verify CloudTrail captures AuthorizeSecurityGroupIngress.", "Run the detection to confirm the alert triggers."],},
+    testingSteps: ["Add an ingress rule with 0.0.0.0/0 to a security group.", "Verify CloudTrail captures AuthorizeSecurityGroupIngress.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Opening a security group to 0.0.0.0/0 is a high-value network exposure signal because it can instantly make existing workloads reachable from the entire internet. The real risk depends on what port and protocol were opened and whether the security group is attached to internet-reachable assets.",
+      threatContext: {
+        attackerBehavior: "An attacker with ec2:AuthorizeSecurityGroupIngress adds an ingress rule that allows traffic from 0.0.0.0/0 to a security group. This is commonly used to expose SSH, RDP, database, cache, or internal application ports so the attacker can gain direct access or stage follow-on exploitation and persistence.",
+        realWorldUsage: "Security-group exposure changes are a common post-compromise and misconfiguration pattern in cloud environments. Attackers and red teams frequently open port 22 or 3389 for direct access, while exposure of database and application ports is used to enable lateral movement or public exploitation of previously internal services.",
+        whyItMatters: "CloudTrail records the exact moment the exposure is created, which gives defenders a reliable control-plane signal before internet scanning or exploitation begins.",
+        riskAndImpact: "If the affected security group is attached to instances, ENIs, or load balancers on reachable network paths, the change can expose management services, sensitive applications, or data-plane ports to the internet.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for EC2)", "EC2 / VPC inventory for security-group attachment enrichment"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "requestParameters.groupId", "requestParameters.groupName", "requestParameters.ipPermissions.items{}.ipProtocol", "requestParameters.ipPermissions.items{}.fromPort", "requestParameters.ipPermissions.items{}.toPort", "requestParameters.ipPermissions.items{}.ipRanges.items{}.cidrIp", "sourceIPAddress", "eventTime", "recipientAccountId", "awsRegion"],
+        loggingRequirements: ["CloudTrail management events must be enabled for EC2 API activity.", "The logging pipeline must preserve nested ipPermissions arrays.", "To distinguish benign public services from dangerous exposure, enrichment should resolve the security group to attached ENIs, instances, and load balancers."],
+        limitations: ["The CloudTrail event shows a configuration change, not whether a service was actually listening or reachable from the internet.", "A rule opened to 0.0.0.0/0 may be low risk if the security group is unattached or only protects an approved public web service.", "The current baseline scope does not cover IPv6 ::/0 unless explicitly added."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "EC2 API source" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Primary trigger is AuthorizeSecurityGroupIngress" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor who opened the rule" },
+          { rawPath: "requestParameters.groupId", normalizedPath: "aws.ec2.security_group.id", notes: "Target security group" },
+          { rawPath: "requestParameters.ipPermissions.items{}.fromPort", normalizedPath: "aws.ec2.security_group.ingress[].port_start", notes: "Beginning of exposed port range" },
+          { rawPath: "requestParameters.ipPermissions.items{}.toPort", normalizedPath: "aws.ec2.security_group.ingress[].port_end", notes: "End of exposed port range" },
+          { rawPath: "requestParameters.ipPermissions.items{}.ipRanges.items{}.cidrIp", normalizedPath: "aws.ec2.security_group.ingress[].cidr_ipv4", notes: "Detect 0.0.0.0/0 exposure" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "AuthorizeSecurityGroupIngress", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { ec2: { security_group: { id: "sg-xxx", ingress: [{ port_start: 22, port_end: 22, cidr_ipv4: "0.0.0.0/0" }] } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Port and Protocol Risk", description: "Classify the added rule by protocol and port range so the alert reflects the difference between expected public web traffic and dangerous exposure of admin or data ports.", examples: ["tcp/22 SSH", "tcp/3389 RDP", "tcp/5432 PostgreSQL", "ipProtocol=-1 all traffic"], falsePositiveReduction: "Reduces noise from approved 80/443 exposure and raises urgency for management, database, and all-traffic rules." },
+        { dimension: "Asset Attachment and Reachability", description: "Resolve the security group to attached ENIs, instances, and load balancers, then determine whether those assets are actually internet-reachable.", examples: ["SG attached to instance with public IP", "SG attached only to private ENIs", "SG currently unattached"], falsePositiveReduction: "A public CIDR on an unattached or private-only SG is less urgent than the same rule on a public EC2 or internet-facing ALB." },
+        { dimension: "Asset Criticality and Workload Context", description: "Add business and workload metadata so exposure of production admin hosts, databases, or regulated applications is prioritized above sandbox or edge web tiers.", examples: ["Tag env=prod", "CMDB service owner payments-api", "Database node in regulated environment"], falsePositiveReduction: "Known public-facing web tiers can be tuned differently from sensitive internal systems that should never be internet-exposed." },
+        { dimension: "Identity and Change Context", description: "Characterize who made the change and whether it came from expected automation or suspicious ad hoc modification.", examples: ["Terraform execution role", "Network admin SSO role", "Developer IAM user from unusual IP"], falsePositiveReduction: "Expected IaC and network-admin changes can be allowlisted, while manual one-off exposure changes remain high signal." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection should identify EC2 security-group ingress rules that introduce 0.0.0.0/0 as a source CIDR, because that change can immediately expose protected services to the internet. The baseline CloudTrail match is intentionally simple, but production value comes from interpreting the nested ipPermissions structure so analysts know exactly which protocol and ports were opened.",
+        conditions: ["eventSource equals ec2.amazonaws.com", "eventName equals AuthorizeSecurityGroupIngress", "requestParameters.ipPermissions contains an IPv4 CIDR of 0.0.0.0/0", "severity should be adjusted using protocol, port range, and whether the affected security group is attached to reachable assets"],
+        tuningGuidance: "1. Treat public exposure of management and data ports as high priority by default. 2. Maintain allowlists for approved public-facing services such as ALBs or web tiers exposing 80/443. 3. Enrich every alert with SG attachments, public-IP status, subnet routing, and service ownership before suppression.",
+        whenToFire: "Fire whenever a new ingress rule introduces 0.0.0.0/0, then prioritize based on protocol, port, and asset reachability.",
+      },
+      simulationCommand: "aws ec2 authorize-security-group-ingress --group-id sg-0abc123456789def0 --ip-permissions '[{\"IpProtocol\":\"tcp\",\"FromPort\":22,\"ToPort\":22,\"IpRanges\":[{\"CidrIp\":\"0.0.0.0/0\",\"Description\":\"lab-open-ssh\"}]}]'",
+      quality: {
+        signalQuality: 7,
+        falsePositiveRate: "Medium (approved public web services and IaC workflows can legitimately open 80/443, but exposure of admin or data ports is usually high signal)",
+        expectedVolume: "Low to moderate depending on infrastructure change frequency and how much public-facing infrastructure the environment runs",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena (scheduled query)", "CloudWatch Logs Insights", "Splunk", "Panther", "Chronicle", "Datadog", "EventBridge + Lambda"],
+        scheduling: "Batch: every 5-15 minutes for CloudTrail analytics; Real-time: EventBridge or SIEM streaming on AuthorizeSecurityGroupIngress with Lambda enrichment for SG attachments and reachability.",
+        considerations: ["Without enrichment, this is best treated as a configuration-exposure signal rather than confirmed internet exposure.", "Port and protocol parsing should be first-class in the detection pipeline.", "Extend coverage to IPv6 ::/0 and newer SG rule APIs to avoid blind spots."],
+      },
+    },
+  },
 
   // --- S3 ---
   {
@@ -1679,22 +2096,114 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: s3.amazonaws.com
     eventName:
       - PutBucketPolicy
       - DeleteBucketPolicy
   condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail (eventName=PutBucketPolicy OR eventName=DeleteBucketPolicy)
-| table _time, userIdentity.arn, requestParameters.bucketName`,
-      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.bucketName
+| table _time, userIdentity.type, userIdentity.arn, eventName, requestParameters.bucketName, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, eventName, requestParameters.bucketName, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 's3.amazonaws.com'
+  AND eventName IN ('PutBucketPolicy', 'DeleteBucketPolicy')
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, eventName, requestParameters.bucketName, requestParameters.policy, sourceIPAddress
 | filter eventName in ["PutBucketPolicy", "DeleteBucketPolicy"]
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutBucketPolicy", "DeleteBucketPolicy"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["s3.amazonaws.com"], eventName: ["PutBucketPolicy", "DeleteBucketPolicy"] } }, null, 2),
+      lambda: `"""
+S3 Bucket Policy Modified
+Trigger: EventBridge rule matching PutBucketPolicy or DeleteBucketPolicy.
+Use for: Real-time policy parsing and exposure analysis.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "s3.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("PutBucketPolicy", "DeleteBucketPolicy"):
+        return {"matched": False}
+
+    return {
+        "matched": "requires-policy-analysis",
+        "alert": {
+            "rule_id": "det-017",
+            "title": "S3 Bucket Policy Modified",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "bucket_name": detail.get("requestParameters", {}).get("bucketName"),
+            "event_name": detail.get("eventName"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: ["s3-data-exfiltration"],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "s3.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.bucketName", "requestParameters.policy", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "s3.amazonaws.com", eventName: "PutBucketPolicy", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { bucketName: "my-bucket", policy: '{"Statement":[{"Principal":{"AWS":"*"},"Action":"s3:GetObject"}]}' }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who modified the bucket policy.", "Inspect the new policy for public or cross-account access.", "Verify if the change was from IaC (Terraform/CloudFormation).", "Review recent S3 access from external principals."],
-    testingSteps: ["Modify an S3 bucket policy (PutBucketPolicy or DeleteBucketPolicy).", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],},
+    testingSteps: ["Modify an S3 bucket policy (PutBucketPolicy or DeleteBucketPolicy).", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "S3 bucket policy changes are common enough to create noise, but they become high signal when the new policy grants public access, introduces unapproved cross-account principals, or removes prior restrictions on sensitive buckets.",
+      threatContext: {
+        attackerBehavior: "An attacker with s3:PutBucketPolicy can rewrite a bucket policy to grant anonymous read access, delegate access to an attacker-controlled AWS account, or weaken restrictive conditions that previously constrained access by source VPC, source IP, organization, or role.",
+        realWorldUsage: "Bucket policy abuse is a well-established cloud exposure pattern: compromised admin roles, overprivileged automation, and misused CI/CD identities can all introduce public or external-account access during post-compromise collection and exfiltration.",
+        whyItMatters: "A generic PutBucketPolicy event is only a configuration-change signal, but a policy change that creates public or unapproved cross-account access is often a direct precursor to data exposure.",
+        riskAndImpact: "If this goes undetected, sensitive data can become readable by the internet or by external AWS accounts, often without obvious object-level activity at the moment of change.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "awsRegion", "recipientAccountId", "userIdentity.type", "userIdentity.arn", "sourceIPAddress", "userAgent", "requestParameters.bucketName", "requestParameters.policy", "errorCode"],
+        loggingRequirements: ["CloudTrail management events for S3 must be enabled and retained with full requestParameters.", "The pipeline must preserve the full policy document from requestParameters.policy where possible.", "No S3 data events are required for the policy-change signal itself, but follow-on access monitoring benefits from S3 data events on sensitive buckets."],
+        limitations: ["PutBucketPolicy is noisy in environments that use Terraform, CloudFormation, or deployment pipelines.", "DeleteBucketPolicy is not inherently public exposure; by itself it may remove access rather than widen it.", "Distinguishing true widening requires parsing principals, actions, resources, and conditions, then comparing them to the prior policy or an allowlist of approved external accounts."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "s3.amazonaws.com" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "PutBucketPolicy or DeleteBucketPolicy" },
+          { rawPath: "eventTime", normalizedPath: "@timestamp", notes: "CloudTrail event time" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor that changed the policy" },
+          { rawPath: "requestParameters.bucketName", normalizedPath: "aws.s3.bucket.name", notes: "Target bucket" },
+          { rawPath: "requestParameters.policy", normalizedPath: "aws.s3.bucket.policy.json", notes: "Full submitted policy body" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "PutBucketPolicy", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { s3: { bucket: { name: "my-bucket" }, policy: { exposure: { principal_scope: "public", access_level: "read" } } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Identity And Change Provenance", description: "Attach ownership and execution context for the actor, including whether the session came from Terraform, CloudFormation, GitHub Actions, SSO admin, or a human console session.", examples: ["session issuer ARN", "SSO permission set name", "CI/CD runner role"], falsePositiveReduction: "Known deployment identities can be downgraded unless the resulting policy widens access beyond approved principals." },
+        { dimension: "Policy Exposure Analysis", description: "Parse the new bucket policy to classify whether it introduces public access, wildcard principals, or external AWS accounts outside the allowlist or AWS Organization.", examples: ["Principal: *", "Principal.AWS contains arn:aws:iam::999999999999:root", "missing aws:PrincipalOrgID condition"], falsePositiveReduction: "This is the key separator between harmless policy churn and genuine exposure." },
+        { dimension: "Bucket Criticality And Data Sensitivity", description: "Join the bucket to asset inventory, tags, ownership, environment, and data classification.", examples: ["tags: env=prod", "bucket purpose: static website or backups", "contains PII or customer exports"], falsePositiveReduction: "Expected public-serving buckets or low-sensitivity assets can be scoped differently from sensitive storage." },
+        { dimension: "Post-Change Access Validation", description: "Validate whether the bucket is effectively public or externally accessible using bucket policy status, org-account allowlists, and Access Analyzer findings.", examples: ["GetBucketPolicyStatus.IsPublic", "IAM Access Analyzer external access finding", "approved partner account list"], falsePositiveReduction: "This prevents over-alerting on policy documents that changed syntax or internal delegation but did not create real exposure." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection should treat all PutBucketPolicy and DeleteBucketPolicy events as important configuration changes, but it should not promote every policy edit to a high-fidelity alert. The production-grade version parses the submitted policy and asks whether access was widened to the public or to unapproved external AWS principals, or whether restrictive conditions were removed from a sensitive bucket.",
+        conditions: ["eventSource equals s3.amazonaws.com", "eventName is PutBucketPolicy or DeleteBucketPolicy", "errorCode does not exist", "for high-fidelity alerting on PutBucketPolicy: parsed policy grants Principal * or unapproved external AWS principals, or removes prior restrictive conditions on a sensitive bucket"],
+        tuningGuidance: "1. Maintain an allowlist of approved automation identities and approved external account IDs or organization IDs. 2. Compare the new policy hash and principal set to the prior known-good version. 3. Score same-account delegation lower than external-account delegation, and public access highest.",
+        whenToFire: "Fire a baseline configuration event for every successful bucket policy change, but reserve high-severity alerting for PutBucketPolicy events that newly widen access to the public or to unapproved external accounts.",
+      },
+      simulationCommand: "tmp=$(mktemp) && cat > \"$tmp\" <<'EOF'\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [{\"Sid\":\"AllowExternalRead\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::999999999999:root\"},\"Action\":[\"s3:GetObject\"],\"Resource\":[\"arn:aws:s3:::my-bucket/*\"]}]\n}\nEOF\naws s3api put-bucket-policy --bucket my-bucket --policy \"file://$tmp\"",
+      quality: {
+        signalQuality: 7,
+        falsePositiveRate: "Medium for raw policy-change events; Medium-Low when parsed for public or unapproved cross-account exposure and scoped by identity provenance",
+        expectedVolume: "Low in smaller environments, but moderate in Terraform- or CloudFormation-heavy accounts unless deployment identities are recognized",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena over CloudTrail logs", "CloudTrail Lake", "Splunk", "Panther", "Chronicle", "Datadog", "EventBridge + Lambda for real-time parsing and enrichment"],
+        scheduling: "Batch: every 5-15 minutes in Athena, CloudTrail Lake, or SIEM. Real-time is practical with EventBridge plus a Lambda that parses requestParameters.policy and checks allowlists or prior-policy state.",
+        considerations: ["Keep the detection split conceptually into baseline audit coverage and escalated exposure alerts.", "Persist a prior-policy hash or normalized principal set if you want to reliably detect widening versus routine rewrites.", "Correlate with bucket sensitivity, IAM Access Analyzer findings, and S3 data-event reads for materially stronger signal."],
+      },
+    },
+  },
   {
     id: "det-018",
     title: "S3 Bucket Made Public",
@@ -1711,18 +2220,156 @@ status: experimental
 logsource:
   service: cloudtrail
 detection:
-  selection:
+  selection_delete:
+    eventSource: s3.amazonaws.com
     eventName: DeletePublicAccessBlock
-  condition: selection
+  selection_put:
+    eventSource: s3.amazonaws.com
+    eventName: PutPublicAccessBlock
+  weaken_policy:
+    requestParameters.PublicAccessBlockConfiguration.BlockPublicPolicy: false
+  weaken_restrict:
+    requestParameters.PublicAccessBlockConfiguration.RestrictPublicBuckets: false
+  weaken_acl_block:
+    requestParameters.PublicAccessBlockConfiguration.BlockPublicAcls: false
+  weaken_acl_ignore:
+    requestParameters.PublicAccessBlockConfiguration.IgnorePublicAcls: false
+  condition: selection_delete or (selection_put and 1 of weaken_*)
 level: critical`,
-      splunk: `index=aws sourcetype=aws:cloudtrail eventName=DeletePublicAccessBlock
-| table _time, userIdentity.arn, requestParameters.bucketName`,
-      eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["DeletePublicAccessBlock"] } }, null, 2),
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=s3.amazonaws.com (eventName=DeletePublicAccessBlock OR eventName=PutPublicAccessBlock)
+| where eventName="DeletePublicAccessBlock" OR requestParameters.PublicAccessBlockConfiguration.BlockPublicPolicy=false OR requestParameters.PublicAccessBlockConfiguration.RestrictPublicBuckets=false OR requestParameters.PublicAccessBlockConfiguration.BlockPublicAcls=false OR requestParameters.PublicAccessBlockConfiguration.IgnorePublicAcls=false
+| table _time, userIdentity.type, userIdentity.arn, eventName, requestParameters.bucketName, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, eventName, requestParameters.bucketName, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 's3.amazonaws.com'
+  AND (
+    eventName = 'DeletePublicAccessBlock'
+    OR (
+      eventName = 'PutPublicAccessBlock'
+      AND (
+        requestParameters.PublicAccessBlockConfiguration.BlockPublicPolicy = false
+        OR requestParameters.PublicAccessBlockConfiguration.RestrictPublicBuckets = false
+        OR requestParameters.PublicAccessBlockConfiguration.BlockPublicAcls = false
+        OR requestParameters.PublicAccessBlockConfiguration.IgnorePublicAcls = false
+      )
+    )
+  )
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, eventName, requestParameters.bucketName, sourceIPAddress
+| filter eventSource = "s3.amazonaws.com"
+| filter eventName = "DeletePublicAccessBlock" or (eventName = "PutPublicAccessBlock" and (requestParameters.PublicAccessBlockConfiguration.BlockPublicPolicy = false or requestParameters.PublicAccessBlockConfiguration.RestrictPublicBuckets = false or requestParameters.PublicAccessBlockConfiguration.BlockPublicAcls = false or requestParameters.PublicAccessBlockConfiguration.IgnorePublicAcls = false))
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["s3.amazonaws.com"], eventName: ["DeletePublicAccessBlock", "PutPublicAccessBlock"] } }, null, 2),
+      lambda: `"""
+S3 Bucket Made Public
+Trigger: EventBridge rule matching DeletePublicAccessBlock or PutPublicAccessBlock.
+Use for: Real-time alerting on weakened bucket-level public-access guardrails.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "s3.amazonaws.com":
+        return {"matched": False}
+
+    event_name = detail.get("eventName")
+    if event_name == "DeletePublicAccessBlock":
+        return {
+            "matched": True,
+            "alert": {
+                "rule_id": "det-018",
+                "title": "S3 Bucket Made Public",
+                "severity": "Critical",
+                "actor": detail.get("userIdentity", {}).get("arn"),
+                "bucket_name": detail.get("requestParameters", {}).get("bucketName"),
+                "source_ip": detail.get("sourceIPAddress"),
+                "event_time": detail.get("eventTime"),
+            },
+        }
+
+    if event_name == "PutPublicAccessBlock":
+        config = detail.get("requestParameters", {}).get("PublicAccessBlockConfiguration", {})
+        weakened = config.get("BlockPublicPolicy") is False or config.get("RestrictPublicBuckets") is False or config.get("BlockPublicAcls") is False or config.get("IgnorePublicAcls") is False
+        if weakened:
+            return {
+                "matched": True,
+                "alert": {
+                    "rule_id": "det-018",
+                    "title": "S3 Bucket Made Public",
+                    "severity": "Critical",
+                    "actor": detail.get("userIdentity", {}).get("arn"),
+                    "bucket_name": detail.get("requestParameters", {}).get("bucketName"),
+                    "source_ip": detail.get("sourceIPAddress"),
+                    "event_time": detail.get("eventTime"),
+                },
+            }
+
+    return {"matched": False}
+`,
     },
     relatedAttackSlugs: ["s3-data-exfiltration"],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "s3.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.bucketName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "s3.amazonaws.com", eventName: "DeletePublicAccessBlock", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { bucketName: "my-bucket" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who removed the public access block.", "Assess whether the bucket contains sensitive data.", "Verify if static website hosting was intended.", "Restore PublicAccessBlock if unauthorized."],
-    testingSteps: ["Remove PublicAccessBlock from a test bucket.", "Verify CloudTrail captures DeletePublicAccessBlock.", "Run the detection to confirm the alert triggers."],},
+    testingSteps: ["Remove PublicAccessBlock from a test bucket.", "Verify CloudTrail captures DeletePublicAccessBlock.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Changes to S3 Block Public Access are only high-value when they weaken effective protections or enable an already-public policy or ACL to take effect. The best version of this detection watches both DeletePublicAccessBlock and weakening PutPublicAccessBlock calls.",
+      threatContext: {
+        attackerBehavior: "An attacker with s3:PutBucketPublicAccessBlock removes or weakens bucket-level Block Public Access settings so that public ACLs, public bucket policies, or cross-account access embedded in a public policy can become effective.",
+        realWorldUsage: "Public exposure of S3 data often comes from configuration drift and automation mistakes, but the same control-plane changes are also useful to attackers because they quietly change who can access data without touching the objects themselves.",
+        whyItMatters: "DeletePublicAccessBlock and weakening PutPublicAccessBlock are strong precursor events, but the true risk depends on effective state after the change: account-level settings may still protect the bucket, or an existing public policy may suddenly become enforceable.",
+        riskAndImpact: "If effective protections are weakened and the bucket policy or ACLs allow external access, the bucket can become readable by the internet or by unauthorized AWS accounts with little additional attacker effort.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "awsRegion", "recipientAccountId", "userIdentity.type", "userIdentity.arn", "sourceIPAddress", "requestParameters.bucketName", "requestParameters.PublicAccessBlockConfiguration.BlockPublicAcls", "requestParameters.PublicAccessBlockConfiguration.IgnorePublicAcls", "requestParameters.PublicAccessBlockConfiguration.BlockPublicPolicy", "requestParameters.PublicAccessBlockConfiguration.RestrictPublicBuckets", "errorCode"],
+        loggingRequirements: ["CloudTrail management events for S3 must be enabled.", "The detection should ingest both DeletePublicAccessBlock and PutPublicAccessBlock events.", "To validate actual exposure, the workflow should enrich with GetPublicAccessBlock and GetBucketPolicyStatus."],
+        limitations: ["DeletePublicAccessBlock removes only the bucket-level setting; account-level settings may still protect the bucket.", "A PutPublicAccessBlock event only shows the submitted configuration; to determine true weakening, compare it to the previous known state.", "GetBucketPolicyStatus.IsPublic reflects policy-based public exposure, not ACL-only exposure."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "s3.amazonaws.com" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "DeletePublicAccessBlock or PutPublicAccessBlock" },
+          { rawPath: "eventTime", normalizedPath: "@timestamp", notes: "CloudTrail event time" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor that changed public access settings" },
+          { rawPath: "requestParameters.bucketName", normalizedPath: "aws.s3.bucket.name", notes: "Target bucket" },
+          { rawPath: "requestParameters.PublicAccessBlockConfiguration.BlockPublicPolicy", normalizedPath: "aws.s3.bucket.public_access_block.bucket.block_public_policy", notes: "Policy exposure control" },
+          { rawPath: "requestParameters.PublicAccessBlockConfiguration.RestrictPublicBuckets", normalizedPath: "aws.s3.bucket.public_access_block.bucket.restrict_public_buckets", notes: "Public bucket restriction control" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "DeletePublicAccessBlock", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { s3: { bucket: { name: "my-bucket" }, public_access_block: { bucket: { state: "removed" } } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Effective Exposure State", description: "Immediately after the control-plane change, evaluate whether the bucket is actually exposed by combining bucket-level PublicAccessBlock, account-level PublicAccessBlock, policy status, and ACL state.", examples: ["GetPublicAccessBlock", "account-level Block Public Access settings", "GetBucketPolicyStatus.IsPublic"], falsePositiveReduction: "This avoids treating every guardrail change as a confirmed public bucket incident." },
+        { dimension: "Previous Configuration And Drift Context", description: "Track the previous PublicAccessBlock values so the detector knows whether PutPublicAccessBlock truly weakened protections.", examples: ["previous bucket-level PAB hash", "last known BlockPublicPolicy=true to false transition", "recent prior event history"], falsePositiveReduction: "A true weakening transition is much more important than a no-op or repeated deployment write." },
+        { dimension: "Identity And Automation Context", description: "Determine whether the change came from a known website deployment, storage admin, Terraform pipeline, or an unusual human or assumed role session.", examples: ["CloudFormation execution role", "Terraform service role", "admin SSO session"], falsePositiveReduction: "Known storage automation can be down-ranked unless exposure state also changed to public or external." },
+        { dimension: "Bucket Intent And Criticality", description: "Classify whether the bucket is intended for public website hosting or content distribution versus internal backups, logs, or sensitive application data.", examples: ["website-hosting bucket tag", "bucket contains CloudTrail or backup data", "data classification"], falsePositiveReduction: "Legitimate public-serving buckets should be handled differently from sensitive internal buckets." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection should cover two related behaviors: complete removal of bucket-level Block Public Access through DeletePublicAccessBlock, and weakening of one or more bucket-level protections via PutPublicAccessBlock. The highest-fidelity implementation does not stop at the control-plane event; it validates whether protections were actually weakened relative to the previous state and whether the bucket is now effectively public or externally reachable.",
+        conditions: ["eventSource equals s3.amazonaws.com", "eventName is DeletePublicAccessBlock or PutPublicAccessBlock", "errorCode does not exist", "for PutPublicAccessBlock: one or more guardrails are set to false, especially BlockPublicPolicy=false or RestrictPublicBuckets=false"],
+        tuningGuidance: "1. Track previous bucket-level PublicAccessBlock values so weakening can be detected as a state transition. 2. Validate effective state with GetPublicAccessBlock plus account-level controls before escalating DeletePublicAccessBlock. 3. Use GetBucketPolicyStatus for policy-driven public exposure and ACL checks when ACL guardrails are weakened.",
+        whenToFire: "Fire a medium-severity control-plane alert for every successful DeletePublicAccessBlock and for PutPublicAccessBlock requests that set relevant fields to false, but reserve critical alerts for buckets whose effective state becomes public or externally reachable after the change.",
+      },
+      simulationCommand: "tmp=$(mktemp) && cat > \"$tmp\" <<'EOF'\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [{\"Sid\":\"PublicRead\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\"],\"Resource\":[\"arn:aws:s3:::my-bucket/*\"]}]\n}\nEOF\naws s3api put-public-access-block --bucket my-bucket --public-access-block-configuration BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false && aws s3api put-bucket-policy --bucket my-bucket --policy \"file://$tmp\"",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Medium-Low after effective-state validation and website-hosting allowlists; Medium if alerting on raw control-plane changes alone",
+        expectedVolume: "Low in most environments; usually sporadic administrative or automation-driven changes",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena over CloudTrail logs", "CloudTrail Lake", "Splunk", "Panther", "Chronicle", "Datadog", "EventBridge + Lambda with live S3 API enrichment"],
+        scheduling: "Near-real-time is preferred because the rule benefits from immediate post-change state validation. Batch execution every 5-15 minutes also works if the workflow can query current bucket posture during enrichment.",
+        considerations: ["Do not rely on DeletePublicAccessBlock alone as proof of exposure.", "Support both DeletePublicAccessBlock and PutPublicAccessBlock in the rule logic.", "Use post-change API enrichment to compute effective state and avoid paging on non-exploitable guardrail churn."],
+      },
+    },
+  },
 
   // --- CloudTrail ---
   {
@@ -1898,20 +2545,113 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: kms.amazonaws.com
     eventName: ScheduleKeyDeletion
   condition: selection
 level: critical`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventName=ScheduleKeyDeletion
-| table _time, userIdentity.arn, requestParameters.keyId, requestParameters.pendingWindowInDays`,
-      cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.keyId
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.keyId, requestParameters.pendingWindowInDays, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, requestParameters.keyId, requestParameters.pendingWindowInDays, responseElements.keyState, responseElements.deletionDate, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'kms.amazonaws.com'
+  AND eventName = 'ScheduleKeyDeletion'
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.keyId, requestParameters.pendingWindowInDays, responseElements.keyState, responseElements.deletionDate, sourceIPAddress
 | filter eventName = "ScheduleKeyDeletion"
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.kms"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["ScheduleKeyDeletion"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.kms"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["kms.amazonaws.com"], eventName: ["ScheduleKeyDeletion"] } }, null, 2),
+      lambda: `"""
+KMS Key Scheduled for Deletion
+Trigger: EventBridge rule matching ScheduleKeyDeletion.
+Use for: Real-time alerting on destructive KMS lifecycle actions.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "kms.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "ScheduleKeyDeletion":
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-019",
+            "title": "KMS Key Scheduled for Deletion",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "key_id": detail.get("requestParameters", {}).get("keyId"),
+            "pending_window_days": detail.get("requestParameters", {}).get("pendingWindowInDays"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "kms.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.keyId", "requestParameters.pendingWindowInDays", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "kms.amazonaws.com", eventName: "ScheduleKeyDeletion", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { keyId: "arn:aws:kms:us-east-1:123456789012:key/xxx", pendingWindowInDays: 7 }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who scheduled the key deletion.", "Verify if this was planned key rotation.", "Assess impact on encrypted resources (S3, EBS).", "Cancel deletion if unauthorized."],
-    testingSteps: ["Schedule key deletion for a test KMS key.", "Verify CloudTrail captures ScheduleKeyDeletion.", "Run the detection to confirm the alert triggers."],},
+    testingSteps: ["Schedule key deletion for a test KMS key.", "Verify CloudTrail captures ScheduleKeyDeletion.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Scheduling deletion of a customer managed KMS key is a destructive control-plane action that can permanently break access to encrypted data, secrets, volumes, snapshots, and application workflows.",
+      threatContext: {
+        attackerBehavior: "An attacker with kms:ScheduleKeyDeletion can target a customer managed KMS key to create delayed but severe impact. This is useful for sabotage, anti-recovery, or extortion because the key becomes unusable for cryptographic operations while pending deletion, and the final deletion permanently destroys access to ciphertext encrypted under that key.",
+        realWorldUsage: "This fits common cloud post-compromise tradecraft where operators tamper with identity, logging, backups, or encryption controls to weaken recovery and increase business impact.",
+        whyItMatters: "Most environments rarely schedule deletion for active keys, and legitimate cases are usually tightly change-controlled. The combination of destructive intent, delayed blast radius, and dependency on key criticality makes this one of the highest-value KMS management events to alert on.",
+        riskAndImpact: "If this goes undetected, affected workloads can lose decrypt capability, automated backups and restore paths can fail, secrets can become inaccessible, and encrypted business data can become unrecoverable.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events)", "KMS inventory or CMDB for key criticality and service dependencies"],
+        requiredFields: ["eventSource", "eventName", "readOnly", "errorCode", "userIdentity.type", "userIdentity.arn", "requestParameters.keyId", "requestParameters.pendingWindowInDays", "responseElements.keyState", "responseElements.deletionDate", "awsRegion", "recipientAccountId", "sourceIPAddress", "eventTime"],
+        loggingRequirements: ["CloudTrail management events must be enabled in every Region that hosts customer managed KMS keys.", "The pipeline must preserve both requestParameters and responseElements so the waiting period, resulting key state, and deletion date are available.", "A key inventory or enrichment source should map keyId to alias, tags, multi-Region status, and downstream resource dependencies."],
+        limitations: ["The CloudTrail event proves the deletion was scheduled, but not whether the key is low-value or business-critical; criticality requires enrichment.", "AWS managed keys and AWS owned keys cannot be scheduled for deletion.", "For a multi-Region primary key with existing replicas, the key can enter PendingReplicaDeletion and the actual deletion waiting period does not begin until the last replica key is deleted."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "Should equal kms.amazonaws.com" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "ScheduleKeyDeletion API call" },
+          { rawPath: "eventTime", normalizedPath: "@timestamp", notes: "Canonical event time" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor that scheduled deletion" },
+          { rawPath: "requestParameters.keyId", normalizedPath: "aws.kms.key.id", notes: "Target KMS key ARN or key ID" },
+          { rawPath: "requestParameters.pendingWindowInDays", normalizedPath: "aws.kms.key.deletion.pending_window_days", notes: "7-30 day waiting period" },
+          { rawPath: "responseElements.keyState", normalizedPath: "aws.kms.key.state", notes: "PendingDeletion or PendingReplicaDeletion" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "ScheduleKeyDeletion", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { kms: { key: { id: "arn:aws:kms:us-east-1:123456789012:key/xxx", deletion: { pending_window_days: 7 }, state: "PendingDeletion" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Key Criticality", description: "Classify the target key by business importance so alerts distinguish lab cleanup from destructive impact on production encryption.", examples: ["KMS alias patterns such as alias/prod-rds", "CMDB or tag values such as environment=prod", "Key manager metadata"], falsePositiveReduction: "Suppresses low-value sandbox retirements while escalating shared, prod, or security-bound keys." },
+        { dimension: "Resource Dependency Context", description: "Map the key to the services and resources that depend on it so responders understand potential blast radius.", examples: ["S3 buckets using the key", "EBS default encryption key", "Secrets Manager dependencies"], falsePositiveReduction: "Separates unused or retired keys from keys whose deletion would break active workloads and data access." },
+        { dimension: "Deletion Window and Recovery Context", description: "Track the responder time available before irreversible impact and whether recovery is straightforward.", examples: ["pendingWindowInDays set to 7 versus 30", "keyState PendingDeletion versus PendingReplicaDeletion", "presence of a follow-on CancelKeyDeletion event"], falsePositiveReduction: "Legitimate decommissions often use planned windows and documented rollback paths; short windows are more suspicious." },
+        { dimension: "Identity and Change Attribution", description: "Profile who made the change and whether the actor normally administers KMS lifecycle operations.", examples: ["Break-glass role", "Terraform execution role", "First-time key deletion by a developer"], falsePositiveReduction: "Approved platform automation can be allowlisted while unexpected human or workload actors remain high priority." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection should alert on successful ScheduleKeyDeletion calls against customer managed KMS keys because the API itself is rare and inherently destructive. The production-grade version should remain broad at the event layer, but severity should be enriched by key criticality, waiting period length, and whether the key enters PendingDeletion or PendingReplicaDeletion.",
+        conditions: ["eventSource equals kms.amazonaws.com", "eventName equals ScheduleKeyDeletion", "readOnly equals false", "errorCode is absent", "requestParameters.keyId is present"],
+        tuningGuidance: "1. Keep the base detection broad. 2. Maintain an allowlist only for approved KMS admin or IaC roles, and require a matching maintenance window or change ticket before downgrading. 3. Enrich every event with alias, tags, key manager, and dependent resource inventory so severity reflects actual blast radius.",
+        whenToFire: "Fire on every successful ScheduleKeyDeletion event. Page immediately when the key is production-critical, shared across services, or scheduled with a short waiting period.",
+      },
+      simulationCommand: "aws kms schedule-key-deletion --key-id arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab --pending-window-in-days 7",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low (legitimate key retirement exists but is uncommon and usually change-controlled)",
+        expectedVolume: "0-3 alerts/month per account in mature environments; higher during decommission or migration projects",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "CloudWatch Logs Insights", "Athena / CloudTrail Lake scheduled query", "Splunk or SIEM streaming pipeline"],
+        scheduling: "Real-time alerting is preferred because the shortest waiting period is 7 days and responders may need to cancel deletion quickly. Add a scheduled inventory check every 1-6 hours to track keys still in PendingDeletion or PendingReplicaDeletion.",
+        considerations: ["Treat this as a regional KMS management event and ensure coverage in every active AWS Region.", "Join the event with key inventory so the alert shows alias, tags, multi-Region status, and dependent services.", "Correlate with CancelKeyDeletion, DisableKey, PutKeyPolicy, and service outage signals to prioritize confirmed destructive chains."],
+      },
+    },
+  },
   {
     id: "det-020",
     title: "KMS Key Policy Modified",
@@ -1929,17 +2669,152 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: kms.amazonaws.com
     eventName: PutKeyPolicy
-  condition: selection
+  risky_principal:
+    requestParameters.policy|contains:
+      - '"Principal":"*"'
+      - '"Principal":{"AWS":"*"}'
+      - ':root"'
+  risky_access:
+    requestParameters.policy|contains:
+      - '"kms:*"'
+      - '"kms:Decrypt"'
+      - '"kms:GenerateDataKey'
+      - '"kms:CreateGrant"'
+      - '"kms:PutKeyPolicy"'
+      - '"kms:ScheduleKeyDeletion"'
+  lockout_bypass:
+    requestParameters.bypassPolicyLockoutSafetyCheck: true
+  condition: selection and (1 of risky_* or lockout_bypass)
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventName=PutKeyPolicy
-| table _time, userIdentity.arn, requestParameters.keyId`,
-      eventbridge: JSON.stringify({ source: ["aws.kms"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutKeyPolicy"] } }, null, 2),
+| where like(requestParameters.policy, "%\\"Principal\\":\\"*\\"%") OR like(requestParameters.policy, "%\\"Principal\\":{\\"AWS\\":\\"*\\"}%") OR like(requestParameters.policy, "%:root\\"%") OR like(requestParameters.policy, "%\\"kms:*\\"%") OR like(requestParameters.policy, "%\\"kms:Decrypt\\"%") OR like(requestParameters.policy, "%\\"kms:GenerateDataKey%") OR like(requestParameters.policy, "%\\"kms:CreateGrant\\"%") OR like(requestParameters.policy, "%\\"kms:PutKeyPolicy\\"%") OR like(requestParameters.policy, "%\\"kms:ScheduleKeyDeletion\\"%") OR requestParameters.bypassPolicyLockoutSafetyCheck=true
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.keyId, requestParameters.policyName, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, requestParameters.keyId, requestParameters.policyName, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'kms.amazonaws.com'
+  AND eventName = 'PutKeyPolicy'
+  AND (
+    requestParameters.policy LIKE '%"Principal":"*"%'
+    OR requestParameters.policy LIKE '%"Principal":{"AWS":"*"}%'
+    OR requestParameters.policy LIKE '%:root"%'
+    OR requestParameters.policy LIKE '%"kms:*"%'
+    OR requestParameters.policy LIKE '%"kms:Decrypt"%'
+    OR requestParameters.policy LIKE '%"kms:GenerateDataKey%'
+    OR requestParameters.policy LIKE '%"kms:CreateGrant"%'
+    OR requestParameters.policy LIKE '%"kms:PutKeyPolicy"%'
+    OR requestParameters.policy LIKE '%"kms:ScheduleKeyDeletion"%'
+    OR requestParameters.bypassPolicyLockoutSafetyCheck = true
+  )
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.keyId, requestParameters.policyName, requestParameters.policy, requestParameters.bypassPolicyLockoutSafetyCheck, sourceIPAddress
+| filter eventSource = "kms.amazonaws.com"
+| filter eventName = "PutKeyPolicy"
+| filter requestParameters.policy like /"Principal":"\*"|"Principal":\{"AWS":"\*"\}|:root"|kms:\*|kms:Decrypt|kms:GenerateDataKey|kms:CreateGrant|kms:PutKeyPolicy|kms:ScheduleKeyDeletion/ or requestParameters.bypassPolicyLockoutSafetyCheck = true
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.kms"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["kms.amazonaws.com"], eventName: ["PutKeyPolicy"] } }, null, 2),
+      lambda: `"""
+KMS Key Policy Modified
+Trigger: EventBridge rule matching PutKeyPolicy.
+Use for: Real-time parsing of risky KMS policy changes.
+"""
+
+RISKY_POLICY_MARKERS = ('"Principal":"*"', '"Principal":{"AWS":"*"}', ':root"', '"kms:*"', '"kms:Decrypt"', '"kms:GenerateDataKey', '"kms:CreateGrant"', '"kms:PutKeyPolicy"', '"kms:ScheduleKeyDeletion"')
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "kms.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "PutKeyPolicy":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    policy = request.get("policy", "")
+    bypass = request.get("bypassPolicyLockoutSafetyCheck", False)
+
+    if not bypass and not any(marker in policy for marker in RISKY_POLICY_MARKERS):
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-020",
+            "title": "KMS Key Policy Modified",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "key_id": request.get("keyId"),
+            "policy_name": request.get("policyName"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "kms.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.keyId", "requestParameters.policy", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "kms.amazonaws.com", eventName: "PutKeyPolicy", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { keyId: "arn:aws:kms:us-east-1:123456789012:key/xxx", policyName: "default" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who modified the key policy.", "Inspect the new policy for unauthorized principals.", "Verify if this was routine key management.", "Review key usage for anomalies."],
-    testingSteps: ["Modify a KMS key policy (PutKeyPolicy).", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],},
+    testingSteps: ["Modify a KMS key policy (PutKeyPolicy).", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "A KMS key policy is the primary authorization boundary for a customer managed key. When an attacker broadens principals, grants risky cryptographic or grant-management actions, or enables cross-account use, they can turn one policy change into durable data access, privilege expansion, or key-administration persistence.",
+      threatContext: {
+        attackerBehavior: "An attacker with kms:PutKeyPolicy can rewrite the key policy to add wildcard principals, external AWS accounts, overly broad actions such as kms:Decrypt or kms:GenerateDataKey*, or administrative actions such as kms:PutKeyPolicy, kms:CreateGrant, kms:ScheduleKeyDeletion, and kms:DisableKey.",
+        realWorldUsage: "KMS policy abuse appears in cloud intrusion tradecraft as part of post-compromise privilege expansion, persistence, and data-access enablement. It is especially relevant where the same customer managed keys protect Secrets Manager secrets, EBS snapshots, S3 objects, or shared application encryption paths.",
+        whyItMatters: "Not every PutKeyPolicy is malicious, but the dangerous subset is high signal: broad principals, root principals from other accounts, wildcard access, permissive grant creation, and cross-account use permissions materially change who can use or control the key.",
+        riskAndImpact: "If this goes undetected, attackers can enable decryption of protected data, allow external-account use of the key, create grants for downstream AWS service abuse, retain long-term control over a sensitive key, or make the key effectively unmanageable.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events)", "GetKeyPolicy or Config history for policy diffing"],
+        requiredFields: ["eventSource", "eventName", "readOnly", "errorCode", "userIdentity.type", "userIdentity.arn", "requestParameters.keyId", "requestParameters.policyName", "requestParameters.policy", "requestParameters.bypassPolicyLockoutSafetyCheck", "awsRegion", "recipientAccountId", "sourceIPAddress", "eventTime"],
+        loggingRequirements: ["CloudTrail management events must include KMS API activity in all relevant Regions.", "The pipeline must preserve the full requestParameters.policy string.", "Normalize escaped JSON consistently so wildcard principals, external account ARNs, root principals, and broad action lists can be parsed reliably."],
+        limitations: ["A raw PutKeyPolicy event by itself is too broad for paging in many environments; high-fidelity alerting requires parsing the submitted policy document.", "Formatting, escaping, or parser differences can make naive string matching brittle unless the policy is decoded into structured JSON.", "Cross-account use of a KMS key requires both the local key policy and IAM permission in the external account."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "Should equal kms.amazonaws.com" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "PutKeyPolicy API call" },
+          { rawPath: "eventTime", normalizedPath: "@timestamp", notes: "Canonical event time" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor who changed the key policy" },
+          { rawPath: "requestParameters.keyId", normalizedPath: "aws.kms.key.id", notes: "Target key ARN or key ID" },
+          { rawPath: "requestParameters.policy", normalizedPath: "aws.kms.key.policy.document", notes: "Submitted key policy JSON string" },
+          { rawPath: "requestParameters.bypassPolicyLockoutSafetyCheck", normalizedPath: "aws.kms.key.policy.bypass_lockout_safety_check", notes: "True is high risk" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "PutKeyPolicy", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { kms: { key: { id: "arn:aws:kms:us-east-1:123456789012:key/xxx", policy: { bypass_lockout_safety_check: false } } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Principal Exposure Analysis", description: "Parse the new key policy to identify who now has access or administrative control over the key.", examples: ["Principal = * without restrictive conditions", "Principal includes arn:aws:iam::444455556666:root", "Principal includes unfamiliar external roles"], falsePositiveReduction: "Separates approved KMS admins and known service integrations from risky wildcard, root, or external principals." },
+        { dimension: "Permission Breadth and Abuse Path", description: "Classify the actions granted so responders can distinguish narrow maintenance changes from access-expanding or destructive changes.", examples: ["kms:*", "kms:Decrypt", "kms:GenerateDataKey*", "kms:CreateGrant", "kms:ScheduleKeyDeletion"], falsePositiveReduction: "Reduces noise by focusing alerts on policy changes that materially increase data access, persistence, or destructive capability." },
+        { dimension: "Cross-Account and Organizational Trust Context", description: "Validate whether newly granted external principals are expected and constrained by organizational design.", examples: ["Approved DR account versus unknown third-party account", "Organization ID allowlist", "External role added without expected conditions"], falsePositiveReduction: "Prevents expected shared-services patterns from paging while highlighting unapproved external exposure." },
+        { dimension: "Key and Data Sensitivity", description: "Measure the blast radius of the policy change based on what the key protects.", examples: ["Alias indicates prod secrets or RDS", "Key used by Secrets Manager or S3 SSE-KMS", "Shared platform key"], falsePositiveReduction: "Keeps routine low-risk maintenance on isolated keys from looking equivalent to policy changes on highly sensitive shared keys." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection should not page on every successful PutKeyPolicy call because some KMS administration is legitimate. The production-grade version should parse the submitted key policy and alert only when the change introduces risky principals, broad permissions, cross-account exposure, or lockout-bypass behavior.",
+        conditions: ["eventSource equals kms.amazonaws.com", "eventName equals PutKeyPolicy", "readOnly equals false", "errorCode is absent", "requestParameters.policy is present and parseable", "alert if policy Principal contains wildcard or unapproved external principals, or if policy Action includes broad cryptographic or administrative permissions, or if bypassPolicyLockoutSafetyCheck equals true"],
+        tuningGuidance: "1. Decode and parse requestParameters.policy into structured JSON before matching. 2. Maintain allowlists for approved external accounts, service principals, and IaC roles. 3. Score risk by both permission breadth and key sensitivity.",
+        whenToFire: "Fire immediately when the policy introduces wildcard principals, unapproved external principals, broad cryptographic access, broad admin actions, or lockout-bypass behavior.",
+      },
+      simulationCommand: "KEY_ARN='arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab'; cat > /tmp/kms-policy-risky.json <<'EOF'\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [{\"Sid\":\"EnableIAMUserPermissions\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::111122223333:root\"},\"Action\":\"kms:*\",\"Resource\":\"*\"},{\"Sid\":\"AllowExternalDecrypt\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::444455556666:root\"},\"Action\":[\"kms:Decrypt\",\"kms:GenerateDataKey*\",\"kms:DescribeKey\"],\"Resource\":\"*\"}]\n}\nEOF\naws kms put-key-policy --key-id \"$KEY_ARN\" --policy-name default --policy file:///tmp/kms-policy-risky.json",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium when scoped to risky principals, broad access, cross-account exposure, or lockout bypass; High if every PutKeyPolicy event is alerted",
+        expectedVolume: "0-5 alerts/month per account in mature environments; org-dependent and higher in KMS-heavy platforms",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "CloudWatch Logs Insights", "Athena / CloudTrail Lake scheduled query", "Splunk or SIEM pipeline with JSON parsing"],
+        scheduling: "Prefer real-time streaming for high-risk policy changes, because new principals may be able to use the key immediately. If the analytics platform cannot parse the policy in-stream, run a short scheduled parser every 5-15 minutes.",
+        considerations: ["Store or reconstruct the previous policy so responders can diff old versus new principals, actions, and conditions.", "Keep explicit inventories of approved external accounts, service-integrated use cases, and expected KMS admins.", "Correlate with subsequent CreateGrant, Decrypt, GenerateDataKey, DisableKey, or ScheduleKeyDeletion activity for higher confidence."],
+      },
+    },
+  },
 
   // --- EBS ---
   {
@@ -1959,22 +2834,127 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: ec2.amazonaws.com
     eventName: ModifySnapshotAttribute
+  public_group:
     requestParameters.createVolumePermission.add.items{}.group: 'all'
-  condition: selection
+  public_group_legacy:
+    requestParameters.groupNames:
+      - all
+  condition: selection and (public_group or public_group_legacy)
 level: critical`,
-      splunk: `index=aws sourcetype=aws:cloudtrail eventName=ModifySnapshotAttribute
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com eventName=ModifySnapshotAttribute
 | where like(requestParameters, "%all%")
-| table _time, userIdentity.arn, requestParameters.snapshotId`,
-      cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.snapshotId
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.snapshotId, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, requestParameters.snapshotId, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'ec2.amazonaws.com'
+  AND eventName = 'ModifySnapshotAttribute'
+  AND (
+    requestParameters LIKE '%"group":"all"%'
+    OR requestParameters LIKE '%"groupNames"%all%'
+  )
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.snapshotId, requestParameters.createVolumePermission, sourceIPAddress
+| filter eventSource = "ec2.amazonaws.com"
 | filter eventName = "ModifySnapshotAttribute"
+| filter requestParameters like /all/
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["ModifySnapshotAttribute"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["ModifySnapshotAttribute"] } }, null, 2),
+      lambda: `"""
+EBS Snapshot Made Public
+Trigger: EventBridge rule matching ModifySnapshotAttribute.
+Use for: Real-time alerting on public EBS snapshot exposure.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "ModifySnapshotAttribute":
+        return {"matched": False}
+
+    request = str(detail.get("requestParameters", {}))
+    if '"group":"all"' not in request and "groupNames" not in request:
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-021",
+            "title": "EBS Snapshot Made Public",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "snapshot_id": detail.get("requestParameters", {}).get("snapshotId"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.snapshotId", "requestParameters.createVolumePermission", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "ModifySnapshotAttribute", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { snapshotId: "snap-xxx", createVolumePermission: { add: { items: [{ group: "all" }] } } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who made the snapshot public.", "Assess whether the snapshot contains sensitive data.", "Verify if this was for AMI sharing.", "Revoke public access if unauthorized."],
-    testingSteps: ["Modify snapshot attribute to add group 'all'.", "Verify CloudTrail captures ModifySnapshotAttribute.", "Run the detection to confirm the alert triggers."],},
+    testingSteps: ["Modify snapshot attribute to add group 'all'.", "Verify CloudTrail captures ModifySnapshotAttribute.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Making an EBS snapshot public is a high-impact exposure event because any AWS account can use that snapshot to create a volume and inspect its contents.",
+      threatContext: {
+        attackerBehavior: "An attacker with ec2:ModifySnapshotAttribute can add the public all group to a snapshot's createVolumePermission, turning a private backup into globally accessible storage.",
+        realWorldUsage: "Public snapshot exposure is more commonly seen as cloud data exposure, post-compromise collection, and red-team tradecraft than as a noisy day-to-day admin action.",
+        whyItMatters: "This is one of the clearest control-plane indicators that sensitive block-storage data may have been exposed outside intended trust boundaries.",
+        riskAndImpact: "If the snapshot contains application data, credentials, database files, or filesystem artifacts, public access can lead to broad unauthorized disclosure and follow-on compromise.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events)"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.arn", "userIdentity.type", "requestParameters.snapshotId", "requestParameters.groupNames", "requestParameters.createVolumePermission", "sourceIPAddress", "recipientAccountId", "eventTime", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled for EC2/EBS APIs.", "Preserve full requestParameters because public-sharing evidence may appear in either groupNames or nested createVolumePermission fields.", "Maintain regional awareness of EBS block-public-access state for investigation context."],
+        limitations: ["Already-public snapshots do not generate fresh events.", "If EBS block public access is enabled, the attempt may fail or the snapshot may not be publicly reachable, but the event still reflects dangerous intent.", "Approved AMI sharing to specific accounts should not be conflated with public snapshot sharing."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "CloudTrail provider; should be ec2.amazonaws.com" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "API action; ModifySnapshotAttribute" },
+          { rawPath: "eventTime", normalizedPath: "@timestamp", notes: "Primary event timestamp" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "requestParameters.snapshotId", normalizedPath: "aws.ec2.snapshot.id", notes: "Target snapshot" },
+          { rawPath: "requestParameters.createVolumePermission", normalizedPath: "aws.ec2.snapshot.createVolumePermission", notes: "Canonical permission mutation payload; parse for all" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "ModifySnapshotAttribute", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { ec2: { snapshot: { id: "snap-xxx", createVolumePermission: { exposure: "public" } } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Identity Context", description: "Adds owner, role purpose, federation source, and normal administrative scope for the actor that changed snapshot permissions.", examples: ["Okta group membership", "role owner from IAM catalog", "break-glass role indicator"], falsePositiveReduction: "Helps suppress known image-publishing or platform roles while escalating unexpected actors." },
+        { dimension: "Snapshot Sensitivity", description: "Adds source volume tags, attached instance metadata, data classification, and whether the snapshot is tied to production, security, or regulated workloads.", examples: ["source volume tags: prod, database", "attached instance name", "CMDB application criticality"], falsePositiveReduction: "Allows stronger alerting on sensitive snapshots and softer handling of low-risk lab artifacts." },
+        { dimension: "Image Publishing Context", description: "Distinguishes direct public snapshot exposure from sanctioned image-distribution workflows such as Image Builder pipelines or approved public AMI publication.", examples: ["EC2 Image Builder role", "golden-image pipeline tag", "AMI ID linked to snapshot"], falsePositiveReduction: "Prevents approved image pipeline activity from being treated as generic malicious exposure." },
+        { dimension: "Exposure Guardrails", description: "Adds the regional EBS block-public-access state, snapshot encryption state, and prior permission baseline.", examples: ["snapshot block public access enabled", "snapshot encrypted with CMK", "previous permission state private"], falsePositiveReduction: "Separates successful public exposure from blocked or already-known posture conditions." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection should identify the specific control-plane action that makes an EBS snapshot public: ModifySnapshotAttribute where the request adds the public all group. The rule should stay narrowly focused on public exposure, not broader sharing, because explicit account sharing and AMI workflows are materially different.",
+        conditions: ["eventSource equals ec2.amazonaws.com", "eventName equals ModifySnapshotAttribute", "request indicates public access by adding group all via requestParameters.groupNames or requestParameters.createVolumePermission", "prefer errorCode is null for the main alert"],
+        tuningGuidance: "1. Do not suppress approved private AMI sharing or snapshot sharing to specific account IDs under this rule. 2. Allowlist only well-governed image publishing roles after verifying they intentionally publish public artifacts. 3. Add a companion posture hunt for existing public snapshots because this rule only catches the permission-change event.",
+        whenToFire: "Fire on every successful transition to public snapshot access. In most environments this should be extremely rare to near-zero.",
+      },
+      simulationCommand: "aws ec2 modify-snapshot-attribute --snapshot-id snap-0abc123def4567890 --attribute createVolumePermission --operation-type add --group-names all --region us-east-1",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low (true public snapshot exposure is rare; most noise comes from niche image-publishing workflows)",
+        expectedVolume: "Near-zero in mature environments; occasional single events in image-publishing or testing accounts",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena (scheduled query)", "CloudWatch Logs Insights", "Splunk", "Datadog", "Panther", "Chronicle", "EventBridge + Lambda"],
+        scheduling: "Batch: every 5-15 minutes for centralized CloudTrail analytics. Real-time: EventBridge on CloudTrail management events for immediate alerting.",
+        considerations: ["Model public exposure separately from explicit external-account sharing.", "Keep a parallel inventory control for already-public snapshots.", "Correlate with CreateSnapshot and CopySnapshot to understand downstream use."],
+      },
+    },
+  },
   {
     id: "det-022",
     title: "EBS Volume Not Encrypted",
@@ -1992,19 +2972,125 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: ec2.amazonaws.com
     eventName: CreateVolume
     requestParameters.encrypted: false
   condition: selection
 level: medium`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventName=CreateVolume
-| where requestParameters.encrypted="false"
-| table _time, userIdentity.arn, responseElements.volumeId`,
-      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateVolume"] } }, null, 2),
+| where requestParameters.encrypted="false" OR responseElements.encrypted="false"
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.encrypted, responseElements.encrypted, responseElements.volumeId, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, requestParameters.encrypted, responseElements.encrypted, responseElements.volumeId, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'ec2.amazonaws.com'
+  AND eventName = 'CreateVolume'
+  AND (
+    requestParameters.encrypted = false
+    OR responseElements.encrypted = false
+  )
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.encrypted, responseElements.encrypted, responseElements.volumeId, sourceIPAddress
+| filter eventSource = "ec2.amazonaws.com"
+| filter eventName = "CreateVolume"
+| filter requestParameters.encrypted = false or responseElements.encrypted = false
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["CreateVolume"] } }, null, 2),
+      lambda: `"""
+EBS Volume Not Encrypted
+Trigger: EventBridge rule matching CreateVolume.
+Use for: Real-time alerting on confirmed or requested unencrypted volume creation.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "CreateVolume":
+        return {"matched": False}
+
+    request_encrypted = detail.get("requestParameters", {}).get("encrypted")
+    response_encrypted = detail.get("responseElements", {}).get("encrypted")
+    if request_encrypted is not False and response_encrypted is not False:
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-022",
+            "title": "EBS Volume Not Encrypted",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "volume_id": detail.get("responseElements", {}).get("volumeId"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
-    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.encrypted", "responseElements.volumeId", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "CreateVolume", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { encrypted: false, size: 100 }, responseElements: { volumeId: "vol-xxx" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.encrypted", "responseElements.volumeId", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "CreateVolume", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { encrypted: false, size: 100 }, responseElements: { volumeId: "vol-xxx", encrypted: false }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who created the unencrypted volume.", "Verify if the environment has encryption exceptions.", "Assess compliance impact.", "Consider enabling encryption by default."],
-    testingSteps: ["Create an EBS volume with encrypted: false.", "Verify CloudTrail captures CreateVolume.", "Run the detection to confirm the alert triggers."],},
+    testingSteps: ["Create an EBS volume with encrypted: false.", "Verify CloudTrail captures CreateVolume.", "Run the detection to confirm it triggers."],
+    lifecycle: {
+      whyItMatters: "Creating an unencrypted EBS volume weakens at-rest protections and can violate both security policy and compliance requirements. The important nuance is that requestParameters.encrypted=false is not enough by itself when regional EBS encryption-by-default is enabled.",
+      threatContext: {
+        attackerBehavior: "An attacker or negligent admin can create storage without encryption to avoid KMS governance, simplify downstream copying, or stage sensitive data on media with weaker policy controls.",
+        realWorldUsage: "In practice this pattern appears more often in posture failures, legacy automation, and exception-heavy environments than in named intrusion reporting.",
+        whyItMatters: "This rule is valuable as a security baseline detection, but only high-confidence when the created volume is actually unencrypted.",
+        riskAndImpact: "If sensitive data lands on an unencrypted volume, the organization loses an important control boundary around KMS access, auditability, and policy enforcement.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events)"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.arn", "userIdentity.type", "requestParameters.encrypted", "requestParameters.kmsKeyId", "requestParameters.snapshotId", "responseElements.volumeId", "responseElements.encrypted", "responseElements.kmsKeyId", "awsRegion", "sourceIPAddress", "eventTime", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled for EC2/EBS APIs.", "Retain both request and response fields; responseElements.encrypted is the most important confirmation field.", "Maintain regional/account-level enrichment for EBS encryption-by-default state."],
+        limitations: ["If EBS encryption by default is enabled in the Region, an explicit request for encrypted=false can still result in an encrypted volume.", "Some requests omit requestParameters.encrypted.", "This is often a posture/compliance signal rather than a direct intrusion indicator."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "CloudTrail provider; ec2.amazonaws.com" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "API action; CreateVolume" },
+          { rawPath: "eventTime", normalizedPath: "@timestamp", notes: "Primary event timestamp" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "requestParameters.encrypted", normalizedPath: "aws.ebs.volume.request.encrypted", notes: "Requested encryption state" },
+          { rawPath: "responseElements.encrypted", normalizedPath: "aws.ebs.volume.encrypted", notes: "Final volume encryption state; preferred high-confidence field" },
+          { rawPath: "responseElements.volumeId", normalizedPath: "aws.ebs.volume.id", notes: "Created volume ID" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["creation"], action: "CreateVolume", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { ebs: { volume: { id: "vol-xxx", encrypted: false } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Encryption Baseline Context", description: "Adds the regional EBS encryption-by-default setting and expected default KMS key.", examples: ["GetEbsEncryptionByDefault result", "default EBS KMS key ARN"], falsePositiveReduction: "Suppresses request-only matches when AWS still created an encrypted volume." },
+        { dimension: "Volume Purpose and Asset Metadata", description: "Adds tags, application ownership, environment, and whether the created volume is tied to production, CI, or legacy migration workflows.", examples: ["tags: prod, sandbox, migration", "application owner", "CMDB criticality"], falsePositiveReduction: "Separates real control failures on sensitive systems from tolerated lab or migration contexts." },
+        { dimension: "Identity and Change Context", description: "Adds role purpose, automation source, ticket/change window, and prior provisioning behavior for the caller.", examples: ["Terraform pipeline role", "approved CAB change", "first-time CreateVolume by this user"], falsePositiveReduction: "Reduces noise from known automation while highlighting unexpected manual activity." },
+        { dimension: "Snapshot and Lineage Context", description: "Adds whether the volume was created empty or from a snapshot, and whether the source snapshot itself was encrypted or sensitive.", examples: ["source snapshot encrypted=true", "golden AMI lineage", "database backup snapshot"], falsePositiveReduction: "Helps explain benign legacy restore scenarios and prioritize sensitive lineage." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection should be modeled as a two-tier rule. The high-confidence branch is actual unencrypted volume creation, confirmed by responseElements.encrypted=false on a successful CreateVolume event. A lower-confidence branch can capture intent when requestParameters.encrypted=false, but it should only escalate if the Region's EBS encryption-by-default setting is disabled.",
+        conditions: ["High-confidence branch: eventSource equals ec2.amazonaws.com", "eventName equals CreateVolume", "responseElements.encrypted equals false", "Optional lower-confidence branch: requestParameters.encrypted equals false and regional EBS encryption-by-default is disabled"],
+        tuningGuidance: "1. Prefer responseElements.encrypted=false over request-only logic. 2. Join the event to regional encryption-by-default state. 3. Maintain an exception list for approved legacy, lab, or migration workflows.",
+        whenToFire: "Fire immediately on confirmed unencrypted volume creation. Route request-only events to a lower-severity queue unless you have verified that default encryption was disabled in that Region.",
+      },
+      simulationCommand: "aws ec2 create-volume --availability-zone us-east-1a --size 20 --volume-type gp3 --no-encrypted --region us-east-1",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium (posture drift, legacy workflows, and request-only matches need context)",
+        expectedVolume: "Near-zero in mature encrypted-by-default orgs; bursty in legacy, dev, or migration-heavy accounts",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena (scheduled query)", "CloudWatch Logs Insights", "Splunk", "Datadog", "Panther", "Chronicle", "EventBridge + Lambda"],
+        scheduling: "Batch: every 5-15 minutes for posture reporting. Real-time: EventBridge or streaming SIEM ingestion if you want immediate policy-violation alerts.",
+        considerations: ["Do not rely on requestParameters.encrypted=false alone.", "This detection is often better owned jointly by security engineering and cloud governance.", "Use a separate control to detect disabled EBS encryption-by-default."],
+      },
+    },
+  },
 
   // --- DynamoDB ---
   {
@@ -2024,20 +3110,115 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: dynamodb.amazonaws.com
     eventName: ExportTableToPointInTime
   condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventName=ExportTableToPointInTime
-| table _time, userIdentity.arn, requestParameters.tableArn, requestParameters.s3Bucket`,
-      cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.tableArn
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.tableArn, requestParameters.s3Bucket, requestParameters.s3BucketOwner, requestParameters.s3Prefix, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, requestParameters.tableArn, requestParameters.s3Bucket, requestParameters.s3BucketOwner, requestParameters.s3Prefix, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'dynamodb.amazonaws.com'
+  AND eventName = 'ExportTableToPointInTime'
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.tableArn, requestParameters.s3Bucket, requestParameters.s3BucketOwner, requestParameters.s3Prefix, sourceIPAddress
 | filter eventName = "ExportTableToPointInTime"
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.dynamodb"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["ExportTableToPointInTime"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.dynamodb"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["dynamodb.amazonaws.com"], eventName: ["ExportTableToPointInTime"] } }, null, 2),
+      lambda: `"""
+DynamoDB Table Exported to S3
+Trigger: EventBridge rule matching ExportTableToPointInTime.
+Use for: Real-time triage of sensitive or unapproved table exports.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "dynamodb.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "ExportTableToPointInTime":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-destination-allowlist-check",
+        "alert": {
+            "rule_id": "det-023",
+            "title": "DynamoDB Table Exported to S3",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "table_arn": detail.get("requestParameters", {}).get("tableArn"),
+            "s3_bucket": detail.get("requestParameters", {}).get("s3Bucket"),
+            "s3_prefix": detail.get("requestParameters", {}).get("s3Prefix"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "dynamodb.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.tableArn", "requestParameters.s3Bucket", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "dynamodb.amazonaws.com", eventName: "ExportTableToPointInTime", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { tableArn: "arn:aws:dynamodb:us-east-1:123456789012:table/MyTable", s3Bucket: "export-bucket" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who initiated the export and the destination S3 bucket.", "Verify if this was a scheduled data lake or backup.", "Check the S3 bucket for unauthorized access.", "Review export frequency for exfiltration patterns."],
-    testingSteps: ["Export a DynamoDB table to S3.", "Verify CloudTrail captures ExportTableToPointInTime.", "Run the detection to confirm the alert triggers."],},
+    testingSteps: ["Export a DynamoDB table to S3.", "Verify CloudTrail captures ExportTableToPointInTime.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "A DynamoDB export to S3 creates a durable offline copy of an entire table outside the application's normal access path. The detection becomes especially valuable when paired with destination-bucket allowlisting and table sensitivity.",
+      threatContext: {
+        attackerBehavior: "An attacker with dynamodb:ExportTableToPointInTime and permission to write to an S3 bucket can export a full or incremental copy of a table without iterating through item reads.",
+        realWorldUsage: "Managed export features are commonly favored in cloud abuse because they create large-scale data copies through native control-plane APIs that blend with admin activity.",
+        whyItMatters: "This is a high-impact event for sensitive tables because it can move large datasets into S3 with one API call.",
+        riskAndImpact: "If a regulated or business-critical table is exported to an unapproved bucket, the organization may lose control over retention, sharing, replication, encryption, and downstream access.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events)"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.arn", "userIdentity.type", "requestParameters.tableArn", "requestParameters.s3Bucket", "requestParameters.s3BucketOwner", "requestParameters.s3Prefix", "requestParameters.exportType", "requestParameters.exportFormat", "requestParameters.s3SseAlgorithm", "requestParameters.s3SseKmsKeyId", "responseElements.exportDescription.exportArn", "sourceIPAddress", "awsRegion", "eventTime", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled for DynamoDB APIs.", "Maintain an allowlist of approved destination buckets, owners, and optional prefixes for analytics or backup workflows.", "Optionally enable S3 data events on high-risk destination buckets to observe follow-on object access after export."],
+        limitations: ["The export event shows initiation, not who later read, copied, or shared the generated S3 objects.", "Without bucket allowlists and table sensitivity metadata, the rule will be noisy in data-lake-heavy environments.", "Cross-account and cross-region exports are supported."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "CloudTrail provider; dynamodb.amazonaws.com" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "API action; ExportTableToPointInTime" },
+          { rawPath: "eventTime", normalizedPath: "@timestamp", notes: "Primary event timestamp" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "requestParameters.tableArn", normalizedPath: "aws.dynamodb.table.arn", notes: "Exported table" },
+          { rawPath: "requestParameters.s3Bucket", normalizedPath: "destination.bucket.name", notes: "Primary allowlist and exfiltration field" },
+          { rawPath: "requestParameters.s3BucketOwner", normalizedPath: "destination.bucket.account.id", notes: "Critical for cross-account export triage" },
+          { rawPath: "requestParameters.s3Prefix", normalizedPath: "destination.bucket.prefix", notes: "Useful for policy and allowlist scoping" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["creation"], action: "ExportTableToPointInTime", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { dynamodb: { table: { arn: "arn:aws:dynamodb:us-east-1:123456789012:table/MyTable" }, export: { destination_bucket: "export-bucket", destination_prefix: "ddb/" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Destination Bucket Allowlist", description: "Adds whether the bucket, owner account, and optional prefix are approved for DynamoDB exports in this environment.", examples: ["approved data lake bucket", "backup bucket owner account", "allowed prefix /ddb-exports/prod/"], falsePositiveReduction: "Suppresses routine exports to sanctioned destinations and highlights non-standard buckets immediately." },
+        { dimension: "Table Sensitivity and Ownership", description: "Adds data classification, business owner, regulatory flags, and whether the table contains credentials, PII, or customer records.", examples: ["classification: restricted", "owner: payments team", "contains customer PII"], falsePositiveReduction: "Lets low-risk analytics tables generate informational alerts while sensitive tables trigger high-priority incidents." },
+        { dimension: "Identity and Workflow Context", description: "Adds role purpose, expected export cadence, CI/data-engineering association, and whether the actor usually performs table exports.", examples: ["data lake pipeline role", "first-time export by IAM user", "approved ETL change window"], falsePositiveReduction: "Separates expected ETL activity from suspicious one-off exports by unusual principals." },
+        { dimension: "Bucket Security Posture", description: "Adds destination bucket policy posture, public exposure checks, replication settings, and whether the bucket lives in another account or Region.", examples: ["bucket public access block disabled", "cross-account owner present", "SSE-KMS missing"], falsePositiveReduction: "Raises fidelity by distinguishing controlled internal exports from destinations that increase exfiltration risk." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection should start broad by matching every ExportTableToPointInTime event, because the API itself represents creation of an offline S3 copy of table data. The production signal comes from prioritization: exports to non-allowlisted buckets, cross-account bucket owners, unusual prefixes, sensitive tables, or unexpected actors should score much higher than known analytics and backup workflows.",
+        conditions: ["eventSource equals dynamodb.amazonaws.com", "eventName equals ExportTableToPointInTime", "escalate when requestParameters.s3Bucket is not allowlisted", "escalate when requestParameters.s3BucketOwner is present and does not match the expected owning account", "escalate when the exported table is classified sensitive or the actor is not part of an approved export workflow"],
+        tuningGuidance: "1. Maintain an explicit allowlist of approved bucket names, owning accounts, and prefixes. 2. Join the event to table sensitivity metadata. 3. Allowlist known ETL, backup, and data lake roles by both identity and destination.",
+        whenToFire: "Fire on every export for visibility, but send highest-severity alerts when the destination bucket is unapproved, cross-account, weakly governed, or tied to a sensitive table.",
+      },
+      simulationCommand: "aws dynamodb export-table-to-point-in-time --table-arn arn:aws:dynamodb:us-east-1:123456789012:table/Customers --s3-bucket ddb-export-lab-123456789012 --s3-prefix suspicious/customers/$(date +%Y%m%d-%H%M%S) --export-format DYNAMODB_JSON --s3-sse-algorithm AES256 --region us-east-1",
+      quality: {
+        signalQuality: 7,
+        falsePositiveRate: "Medium (legitimate analytics, backup, and data lake exports are common in some environments)",
+        expectedVolume: "Low to moderate, highly org-dependent",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena (scheduled query)", "CloudWatch Logs Insights", "Splunk", "Datadog", "Panther", "Chronicle", "EventBridge + Lambda"],
+        scheduling: "Batch: every 5-15 minutes for centralized analytics. Real-time: EventBridge or streaming CloudTrail for immediate review of sensitive-table exports.",
+        considerations: ["PITR must be enabled on the table or the export will fail.", "Bucket allowlists should include bucket owner and prefix, not just bucket name.", "Add S3-side follow-up telemetry for the destination when the bucket is unapproved or the table is sensitive."],
+      },
+    },
+  },
   {
     id: "det-024",
     title: "DynamoDB Table Deletion Protection Disabled",
@@ -2055,18 +3236,117 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: dynamodb.amazonaws.com
     eventName: UpdateTable
+    requestParameters.deletionProtectionEnabled: false
   condition: selection
 level: medium`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventName=UpdateTable
 | where requestParameters.deletionProtectionEnabled="false"
-| table _time, userIdentity.arn, requestParameters.tableName`,
-      eventbridge: JSON.stringify({ source: ["aws.dynamodb"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["UpdateTable"] } }, null, 2),
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.tableName, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, requestParameters.tableName, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'dynamodb.amazonaws.com'
+  AND eventName = 'UpdateTable'
+  AND requestParameters.deletionProtectionEnabled = false
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.tableName, requestParameters.deletionProtectionEnabled, sourceIPAddress
+| filter eventSource = "dynamodb.amazonaws.com"
+| filter eventName = "UpdateTable"
+| filter requestParameters.deletionProtectionEnabled = false
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.dynamodb"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["dynamodb.amazonaws.com"], eventName: ["UpdateTable"] } }, null, 2),
+      lambda: `"""
+DynamoDB Table Deletion Protection Disabled
+Trigger: EventBridge rule matching UpdateTable.
+Use for: Real-time alerting on removal of DynamoDB deletion protection.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "dynamodb.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "UpdateTable":
+        return {"matched": False}
+    if detail.get("requestParameters", {}).get("deletionProtectionEnabled") is not False:
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-024",
+            "title": "DynamoDB Table Deletion Protection Disabled",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "table_name": detail.get("requestParameters", {}).get("tableName"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "dynamodb.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.tableName", "requestParameters.deletionProtectionEnabled", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "dynamodb.amazonaws.com", eventName: "UpdateTable", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { tableName: "MyTable", deletionProtectionEnabled: false }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who disabled deletion protection.", "Verify if this was part of table lifecycle management.", "Assess risk of accidental table deletion.", "Re-enable protection if unauthorized."],
-    testingSteps: ["Disable deletion protection on a test DynamoDB table.", "Verify CloudTrail captures UpdateTable.", "Run the detection to confirm the alert triggers."],},
+    testingSteps: ["Disable deletion protection on a test DynamoDB table.", "Verify CloudTrail captures UpdateTable.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Disabling DynamoDB deletion protection removes a safety control that blocks destructive table deletion even when an actor already has IAM permission to delete the table.",
+      threatContext: {
+        attackerBehavior: "An attacker with dynamodb:UpdateTable can disable deletion protection on a table before attempting DeleteTable or other disruptive changes.",
+        realWorldUsage: "This pattern aligns with common attacker behavior where safety controls, logging, or retention settings are weakened before destructive or extortion-driven actions.",
+        whyItMatters: "Most DynamoDB UpdateTable activity is operationally normal, but requestParameters.deletionProtectionEnabled=false is much rarer and more security-relevant.",
+        riskAndImpact: "If this goes undetected, an attacker or mistaken admin can later delete a business-critical table, causing service outage, data loss, and recovery work.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events)"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.arn", "userIdentity.type", "requestParameters.tableName", "requestParameters.deletionProtectionEnabled", "sourceIPAddress", "eventTime"],
+        loggingRequirements: ["CloudTrail must be enabled for DynamoDB management events.", "No CloudTrail data events are required.", "Detection should only fire when requestParameters.deletionProtectionEnabled is explicitly present and false."],
+        limitations: ["This does not detect tables that were created without deletion protection.", "It does not prove a subsequent delete occurred; correlate with DeleteTable for higher confidence.", "Infrastructure-as-code workflows may legitimately disable protection in lower environments."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "CloudTrail service source; should equal dynamodb.amazonaws.com" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "API action; should equal UpdateTable" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor performing the change" },
+          { rawPath: "requestParameters.tableName", normalizedPath: "aws.dynamodb.table.name", notes: "Target DynamoDB table name" },
+          { rawPath: "requestParameters.deletionProtectionEnabled", normalizedPath: "aws.dynamodb.deletion_protection_enabled", notes: "Boolean control-state change; alert when false" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "UpdateTable", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { dynamodb: { table: { name: "MyTable", deletion_protection_enabled: false } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Identity Context", description: "Identify whether the actor is a platform admin, break-glass role, CI/CD role, or unexpected workload identity.", examples: ["SSO owner metadata", "IAM role path and team tag", "session issuer ARN"], falsePositiveReduction: "Helps separate approved table admins from unusual actors modifying protection settings." },
+        { dimension: "Table Criticality", description: "Add business and data sensitivity context for the affected table.", examples: ["tags: prod, pci, customer-data", "CMDB owner", "application tier"], falsePositiveReduction: "Lets you downgrade low-risk dev tables and escalate production or regulated datasets." },
+        { dimension: "Change Provenance", description: "Determine whether the change came from Terraform, CloudFormation, deployment automation, or a manual console/CLI session.", examples: ["userAgent", "principalId containing terraform", "pipeline execution metadata"], falsePositiveReduction: "Known IaC change windows are much less suspicious than ad hoc admin changes." },
+        { dimension: "Behavioral Baseline", description: "Compare the actor and table against prior protection-state changes.", examples: ["first time actor touched this table", "rare UpdateTable from this role", "after-hours change"], falsePositiveReduction: "First-seen or off-hours changes by non-owners are stronger signals than routine maintenance." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should be concrete, not a generic UpdateTable baseline. The detection should match only when the event is a DynamoDB UpdateTable call and the request explicitly sets deletionProtectionEnabled to false.",
+        conditions: ["eventSource equals dynamodb.amazonaws.com", "eventName equals UpdateTable", "requestParameters.deletionProtectionEnabled exists", "requestParameters.deletionProtectionEnabled equals false"],
+        tuningGuidance: "1. Allowlist known platform automation that manages table lifecycle in non-production environments. 2. Escalate when the target table carries prod or customer tags. 3. Correlate with DeleteTable, backup deletion, or KMS key changes within a short time window.",
+        whenToFire: "Fire on every explicit disablement of DynamoDB deletion protection. In mature environments this should be low volume.",
+      },
+      simulationCommand: "aws dynamodb update-table --table-name MyTable --no-deletion-protection-enabled",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low to Medium (mostly legitimate only during table lifecycle or IaC changes)",
+        expectedVolume: "Very low in stable environments; usually sporadic and environment-dependent",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena", "CloudWatch Logs Insights", "Splunk", "Panther", "Chronicle", "Datadog", "EventBridge + Lambda"],
+        scheduling: "Real-time is practical with EventBridge on CloudTrail management events; batch SIEM/Athena queries every 5 to 15 minutes also work well.",
+        considerations: ["Management events are sufficient.", "A state-change rule is usually more useful than a count-based anomaly here.", "Correlating to later DeleteTable makes triage easier."],
+      },
+    },
+  },
 
   // --- EKS ---
   {
@@ -2086,51 +3366,278 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: eks.amazonaws.com
     eventName:
       - CreateCluster
       - UpdateClusterConfig
-  condition: selection
+  public_endpoint:
+    requestParameters.resourcesVpcConfig.endpointPublicAccess: true
+  wide_cidr:
+    requestParameters.resourcesVpcConfig.publicAccessCidrs:
+      - '0.0.0.0/0'
+  condition: selection and (public_endpoint or wide_cidr)
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail (eventName=CreateCluster OR eventName=UpdateClusterConfig)
-| where like(requestParameters, "%publicAccessCidrs%0.0.0.0/0%")
-| table _time, userIdentity.arn, requestParameters.name`,
-      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.name
+| where requestParameters.resourcesVpcConfig.endpointPublicAccess=true OR like(requestParameters, "%publicAccessCidrs%0.0.0.0/0%")
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.name, requestParameters.resourcesVpcConfig, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, requestParameters.name, requestParameters.resourcesVpcConfig, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'eks.amazonaws.com'
+  AND eventName IN ('CreateCluster', 'UpdateClusterConfig')
+  AND (
+    requestParameters.resourcesVpcConfig.endpointPublicAccess = true
+    OR requestParameters.resourcesVpcConfig.publicAccessCidrs LIKE '%0.0.0.0/0%'
+  )
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, eventName, requestParameters.name, requestParameters.resourcesVpcConfig, sourceIPAddress
 | filter eventName in ["CreateCluster", "UpdateClusterConfig"]
+| filter requestParameters.resourcesVpcConfig.endpointPublicAccess = true or requestParameters.resourcesVpcConfig.publicAccessCidrs like /0\.0\.0\.0\/0/
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.eks"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateCluster", "UpdateClusterConfig"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.eks"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["eks.amazonaws.com"], eventName: ["CreateCluster", "UpdateClusterConfig"] } }, null, 2),
+      lambda: `"""
+EKS Cluster Public Endpoint Enabled
+Trigger: EventBridge rule matching CreateCluster or UpdateClusterConfig.
+Use for: Real-time alerting on EKS control-plane exposure changes.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "eks.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("CreateCluster", "UpdateClusterConfig"):
+        return {"matched": False}
+
+    vpc = detail.get("requestParameters", {}).get("resourcesVpcConfig", {})
+    cidrs = str(vpc.get("publicAccessCidrs", ""))
+    if vpc.get("endpointPublicAccess") is not True and "0.0.0.0/0" not in cidrs:
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-025",
+            "title": "EKS Cluster Public Endpoint Enabled",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "cluster_name": detail.get("requestParameters", {}).get("name"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "eks.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.name", "requestParameters.resourcesVpcConfig", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "eks.amazonaws.com", eventName: "UpdateClusterConfig", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { name: "my-cluster", resourcesVpcConfig: { publicAccessCidrs: ["0.0.0.0/0"] } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who enabled public endpoint or expanded publicAccessCidrs.", "Verify if this was for development cluster access.", "Assess exposure of the API server.", "Restrict public access if unauthorized."],
-    testingSteps: ["Create or update an EKS cluster with public endpoint (0.0.0.0/0).", "Verify CloudTrail captures CreateCluster or UpdateClusterConfig.", "Run the detection to confirm the alert triggers."],},
+    testingSteps: ["Create or update an EKS cluster with public endpoint (0.0.0.0/0).", "Verify CloudTrail captures CreateCluster or UpdateClusterConfig.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Making the EKS Kubernetes API endpoint publicly reachable expands the cluster's external attack surface.",
+      threatContext: {
+        attackerBehavior: "An attacker or administrator can create or reconfigure an EKS cluster so the API server is internet reachable by setting resourcesVpcConfig.endpointPublicAccess=true or by broadening publicAccessCidrs.",
+        realWorldUsage: "Publicly reachable Kubernetes control planes are a recurring misconfiguration class in cloud security assessments and post-compromise attack paths.",
+        whyItMatters: "This is a meaningful exposure-change event, especially when the cluster was previously private-only or restricted to narrow CIDRs.",
+        riskAndImpact: "If this goes unnoticed, internet-originated access attempts against the cluster API become possible, and any later identity compromise has a much easier path to exploitation.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events)"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.arn", "userIdentity.type", "requestParameters.name", "requestParameters.resourcesVpcConfig.endpointPublicAccess", "requestParameters.resourcesVpcConfig.publicAccessCidrs", "sourceIPAddress", "eventTime"],
+        loggingRequirements: ["CloudTrail must capture EKS management events.", "Detection should evaluate both CreateCluster and UpdateClusterConfig.", "For widening logic, retain prior cluster endpoint configuration or enrich from DescribeCluster."],
+        limitations: ["A CreateCluster request may omit endpointPublicAccess while the service default remains public.", "Detecting CIDR widening accurately requires comparison against prior state.", "Public endpoint exposure is not the same as anonymous access."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "Should equal eks.amazonaws.com" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Should equal CreateCluster or UpdateClusterConfig" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor who changed endpoint access" },
+          { rawPath: "requestParameters.name", normalizedPath: "aws.eks.cluster.name", notes: "Cluster identifier in the request" },
+          { rawPath: "requestParameters.resourcesVpcConfig.endpointPublicAccess", normalizedPath: "aws.eks.endpoint_public_access", notes: "Boolean public API exposure flag" },
+          { rawPath: "requestParameters.resourcesVpcConfig.publicAccessCidrs", normalizedPath: "aws.eks.public_access_cidrs", notes: "Allowed source CIDRs for the public endpoint" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "UpdateClusterConfig", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { eks: { cluster: { name: "my-cluster", endpoint_public_access: true, public_access_cidrs: ["0.0.0.0/0"] } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Cluster Criticality", description: "Add the sensitivity and operational importance of the cluster.", examples: ["tags: prod, shared-services", "CMDB owner", "business criticality score"], falsePositiveReduction: "Keeps dev/test exposure changes from looking as urgent as production platform changes." },
+        { dimension: "Network Exposure Context", description: "Compare the new endpoint settings with prior state and with the cluster's private access posture.", examples: ["previous CIDR set", "private endpoint enabled/disabled"], falsePositiveReduction: "Distinguishes harmless narrowing changes from true internet exposure or widening." },
+        { dimension: "Change Provenance", description: "Identify whether the update came from infrastructure automation or an ad hoc operator session.", examples: ["Terraform principal patterns", "userAgent", "deployment window metadata"], falsePositiveReduction: "Known IaC-driven endpoint updates are less suspicious than manual console or CLI changes." },
+        { dimension: "Identity Context", description: "Profile the actor authorized to change EKS networking and cluster access settings.", examples: ["platform admin role", "SSO group membership", "session issuer ARN"], falsePositiveReduction: "Endpoint exposure by a non-platform actor is much higher signal than the same change by a trusted cluster admin." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should focus on explicit EKS API exposure changes rather than a broad CreateCluster or UpdateClusterConfig baseline. The strongest stateless matches are endpointPublicAccess=true and publicAccessCidrs including 0.0.0.0/0 or another obviously broad CIDR.",
+        conditions: ["eventSource equals eks.amazonaws.com", "eventName equals CreateCluster or UpdateClusterConfig", "requestParameters.resourcesVpcConfig.endpointPublicAccess equals true or requestParameters.resourcesVpcConfig.publicAccessCidrs contains 0.0.0.0/0"],
+        tuningGuidance: "1. Treat 0.0.0.0/0 as higher severity than a narrow corporate CIDR range. 2. Enrich with prior endpoint state so you can suppress narrowing changes. 3. Downgrade approved dev clusters while keeping prod and shared platform clusters high severity.",
+        whenToFire: "Fire on any explicit public endpoint enablement and on clearly broad public CIDR exposure.",
+      },
+      simulationCommand: "aws eks update-cluster-config --name my-cluster --resources-vpc-config endpointPublicAccess=true,endpointPrivateAccess=true,publicAccessCidrs=0.0.0.0/0",
+      quality: {
+        signalQuality: 7,
+        falsePositiveRate: "Medium (legitimate dev and migration use cases exist, especially without state comparison)",
+        expectedVolume: "Low in mature environments, but can spike during cluster migration or networking changes",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena", "CloudWatch Logs Insights", "Splunk", "Panther", "Chronicle", "Datadog", "EventBridge + Lambda"],
+        scheduling: "Real-time on CloudTrail management events is practical; a scheduled batch rule every 5 to 15 minutes is also sufficient.",
+        considerations: ["Use CloudTrail for change detection and DescribeCluster or config snapshots for prior-state comparison.", "This is best treated as an exposure-change rule, not as proof of successful unauthorized Kubernetes access."],
+      },
+    },
+  },
   {
     id: "det-026",
-    title: "EKS Anonymous Authentication Enabled",
-    description: "Detects EKS cluster configurations that may allow anonymous or unauthenticated access.",
+    title: "EKS Broad Access Policy Associated",
+    description: "Detects broad EKS access policies associated to principals through access entries, a concrete cluster access-weakening event.",
     awsService: "EKS",
     relatedServices: ["IAM"],
     severity: "Critical",
     tags: ["EKS", "Kubernetes", "Authentication"],
     logSources: ["AWS CloudTrail", "EKS Audit Logs"],
-    falsePositives: ["Rare legitimate use cases for anonymous access"],
+    falsePositives: ["Approved platform administration", "Expected cluster bootstrap or delegated admin workflows"],
     rules: {
-      sigma: `title: EKS Anonymous Auth
+      sigma: `title: EKS Broad Access Policy Associated
 status: experimental
 logsource:
   service: cloudtrail
 detection:
   selection:
-    eventName: UpdateClusterConfig
-  condition: selection
+    eventSource: eks.amazonaws.com
+    eventName: AssociateAccessPolicy
+  broad_policy:
+    requestParameters.policyArn|contains:
+      - 'AmazonEKSClusterAdminPolicy'
+      - 'AmazonEKSAdminPolicy'
+  cluster_scope:
+    requestParameters.accessScope.type: cluster
+  condition: selection and broad_policy and cluster_scope
 level: critical`,
-      splunk: `index=aws sourcetype=aws:cloudtrail eventName=UpdateClusterConfig
-| table _time, userIdentity.arn, requestParameters.name, requestParameters`,
-      eventbridge: JSON.stringify({ source: ["aws.eks"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["UpdateClusterConfig"] } }, null, 2),
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=eks.amazonaws.com eventName=AssociateAccessPolicy
+| where like(requestParameters.policyArn, "%AmazonEKSClusterAdminPolicy%") OR like(requestParameters.policyArn, "%AmazonEKSAdminPolicy%")
+| where requestParameters.accessScope.type="cluster"
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.clusterName, requestParameters.principalArn, requestParameters.policyArn, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, requestParameters.clusterName, requestParameters.principalArn, requestParameters.policyArn, requestParameters.accessScope.type, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'eks.amazonaws.com'
+  AND eventName = 'AssociateAccessPolicy'
+  AND (
+    requestParameters.policyArn LIKE '%AmazonEKSClusterAdminPolicy%'
+    OR requestParameters.policyArn LIKE '%AmazonEKSAdminPolicy%'
+  )
+  AND requestParameters.accessScope.type = 'cluster'
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.clusterName, requestParameters.principalArn, requestParameters.policyArn, requestParameters.accessScope.type, sourceIPAddress
+| filter eventSource = "eks.amazonaws.com"
+| filter eventName = "AssociateAccessPolicy"
+| filter requestParameters.policyArn like /AmazonEKSClusterAdminPolicy|AmazonEKSAdminPolicy/
+| filter requestParameters.accessScope.type = "cluster"
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.eks"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["eks.amazonaws.com"], eventName: ["AssociateAccessPolicy"] } }, null, 2),
+      lambda: `"""
+EKS Broad Access Policy Associated
+Trigger: EventBridge rule matching AssociateAccessPolicy.
+Use for: Real-time alerting on broad EKS authorization grants.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "eks.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "AssociateAccessPolicy":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    policy_arn = request.get("policyArn", "")
+    access_scope = request.get("accessScope", {}).get("type")
+    if access_scope != "cluster":
+        return {"matched": False}
+    if "AmazonEKSClusterAdminPolicy" not in policy_arn and "AmazonEKSAdminPolicy" not in policy_arn:
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-026",
+            "title": "EKS Broad Access Policy Associated",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "cluster_name": request.get("clusterName"),
+            "target_principal": request.get("principalArn"),
+            "policy_arn": policy_arn,
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
-    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "eks.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.name", "requestParameters.accessConfig", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "eks.amazonaws.com", eventName: "UpdateClusterConfig", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { name: "my-cluster", accessConfig: { authenticationMode: "API_AND_CONFIG_MAP", bootstrapClusterCreatorAdminPermissions: true } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify who updated the cluster config.", "Check for anonymous or permissive authentication.", "Verify RBAC and access controls.", "Restore secure auth if unauthorized."],
-    testingSteps: ["Update EKS cluster config with anonymous auth or permissive settings.", "Verify CloudTrail captures UpdateClusterConfig.", "Run the detection to confirm the alert triggers."],},
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "eks.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.clusterName", "requestParameters.principalArn", "requestParameters.policyArn", "requestParameters.accessScope", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "eks.amazonaws.com", eventName: "AssociateAccessPolicy", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { clusterName: "my-cluster", principalArn: "arn:aws:iam::123456789012:role/app-role", policyArn: "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy", accessScope: { type: "cluster" } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify who granted the EKS access policy.", "Inspect the target principal receiving cluster access.", "Verify whether the policy and scope were approved.", "Review recent CreateAccessEntry or AccessKubernetesApi activity for the same principal."],
+    testingSteps: ["Associate a broad access policy to an access entry in a lab cluster.", "Verify CloudTrail captures AssociateAccessPolicy.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Associating a broad EKS access policy to an access entry directly grants Kubernetes permissions to an IAM principal. This is a much more concrete access-weakening signal than vague anonymous-auth wording.",
+      threatContext: {
+        attackerBehavior: "An attacker with eks:AssociateAccessPolicy can grant Kubernetes permissions to an IAM principal that already has an access entry. When the policy is broad, such as AmazonEKSClusterAdminPolicy, or when the scope is cluster, the change can create or expand administrative control over the entire cluster.",
+        realWorldUsage: "This aligns with real cloud privilege-escalation behavior where attackers create durable administrative footholds after obtaining AWS credentials.",
+        whyItMatters: "Unlike a generic configuration update, this event changes who can actually administer Kubernetes resources.",
+        riskAndImpact: "If this goes undetected, an attacker can gain broad Kubernetes privileges, create backdoors, access secrets, deploy workloads, alter RBAC, and maintain long-term control of the cluster.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events)"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.arn", "userIdentity.type", "requestParameters.clusterName", "requestParameters.principalArn", "requestParameters.policyArn", "requestParameters.accessScope.type", "requestParameters.accessScope.namespaces", "sourceIPAddress", "eventTime"],
+        loggingRequirements: ["CloudTrail must capture EKS management events.", "Detection should match AssociateAccessPolicy events.", "Optional follow-on validation can use EKS audit logs or AccessKubernetesApi events to observe effective use."],
+        limitations: ["This does not detect access granted only through Kubernetes RBAC objects without EKS access policies.", "Some cluster-wide associations can be legitimate for platform engineering roles and bootstrap workflows.", "Best fidelity comes from correlating this event with actor allowlists, target-principal context, or recent CreateAccessEntry activity."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "Should equal eks.amazonaws.com" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Should equal AssociateAccessPolicy" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor granting the access policy" },
+          { rawPath: "requestParameters.clusterName", normalizedPath: "aws.eks.cluster.name", notes: "Target cluster" },
+          { rawPath: "requestParameters.principalArn", normalizedPath: "aws.eks.target_principal.arn", notes: "Principal receiving Kubernetes permissions" },
+          { rawPath: "requestParameters.policyArn", normalizedPath: "aws.eks.access_policy.arn", notes: "Associated EKS access policy" },
+          { rawPath: "requestParameters.accessScope.type", normalizedPath: "aws.eks.access_scope.type", notes: "Cluster or namespace scope" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "AssociateAccessPolicy", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { eks: { cluster: { name: "my-cluster" }, target_principal: { arn: "arn:aws:iam::123456789012:role/app-role" }, access_policy: { arn: "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy" }, access_scope: { type: "cluster" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Actor Context", description: "Determine whether the actor should ever manage EKS authorization.", examples: ["platform-admin role", "SSO team membership", "automation principal"], falsePositiveReduction: "Greatly reduces noise by separating approved cluster admins from unexpected actors." },
+        { dimension: "Target Principal Context", description: "Profile the IAM principal receiving access.", examples: ["IAM user vs assumed role", "application workload role", "human vs service identity"], falsePositiveReduction: "Broad access granted to app roles or IAM users is usually more suspicious than grants to approved admin roles." },
+        { dimension: "Policy and Scope Severity", description: "Rank the risk of the associated policy and its scope.", examples: ["AmazonEKSClusterAdminPolicy", "AmazonEKSAdminPolicy at cluster scope"], falsePositiveReduction: "Lets you prioritize truly dangerous grants and suppress narrower, expected namespace-scoped access." },
+        { dimension: "Cluster Criticality", description: "Add the business importance and sensitivity of the affected cluster.", examples: ["prod cluster", "shared platform cluster", "security tooling cluster"], falsePositiveReduction: "Namespace-scoped access on a dev cluster is not equivalent to cluster-wide admin on production." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect documented EKS authorization changes, not an ambiguous anonymous-auth concept. The most defensible match is AssociateAccessPolicy when the policy is clearly broad, the scope is cluster, or both.",
+        conditions: ["eventSource equals eks.amazonaws.com", "eventName equals AssociateAccessPolicy", "requestParameters.policyArn contains AmazonEKSClusterAdminPolicy or AmazonEKSAdminPolicy", "requestParameters.accessScope.type equals cluster"],
+        tuningGuidance: "1. Allowlist known platform automation and approved EKS admin roles. 2. Escalate when the target principal is an IAM user, a workload role, or a newly created role. 3. Correlate with CreateAccessEntry within 15 minutes for higher-confidence privilege-escalation detection.",
+        whenToFire: "Fire on broad EKS access policy associations, especially cluster-scoped admin-like policies.",
+      },
+      simulationCommand: "aws eks associate-access-policy --cluster-name prod-cluster --principal-arn arn:aws:iam::123456789012:role/app-role --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy --access-scope type=cluster",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low to Medium (legitimate platform administration exists, but the event is intrinsically security-sensitive)",
+        expectedVolume: "Low in most environments; usually sparse outside cluster bootstrap or access-management workflows",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena", "CloudWatch Logs Insights", "Splunk", "Panther", "Chronicle", "Datadog", "EventBridge + Lambda"],
+        scheduling: "Real-time is ideal because this is a direct authorization grant. Batch queries every 5 to 15 minutes are still workable.",
+        considerations: ["This overlaps conceptually with later EKS access-entry detections already in the repo.", "Consider correlating with CreateAccessEntry and AccessKubernetesApi for stronger context."],
+      },
+    },
+  },
   // --- ECS ---
   {
     id: "det-027",
@@ -2149,26 +3656,134 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: ecs.amazonaws.com
     eventName: RegisterTaskDefinition
-  filter:
+  suspicious_registry:
     requestParameters.containerDefinitions{}.image|contains:
-      - '.dkr.ecr.'
-  condition: selection and not filter
+      - 'docker.io/'
+      - 'index.docker.io/'
+      - 'ghcr.io/'
+      - 'quay.io/'
+  condition: selection and suspicious_registry
 level: high`,
-      splunk: `index=aws sourcetype=aws:cloudtrail eventName=RegisterTaskDefinition
-| where NOT like(requestParameters, "%.dkr.ecr.%")
-| table _time, userIdentity.arn, requestParameters.family`,
-      cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.family
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ecs.amazonaws.com eventName=RegisterTaskDefinition
+| where like(requestParameters, "%docker.io/%") OR like(requestParameters, "%ghcr.io/%") OR like(requestParameters, "%quay.io/%")
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.family, requestParameters.taskRoleArn, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, requestParameters.family, requestParameters.taskRoleArn, requestParameters.containerDefinitions, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'ecs.amazonaws.com'
+  AND eventName = 'RegisterTaskDefinition'
+  AND (
+    requestParameters.containerDefinitions LIKE '%docker.io/%'
+    OR requestParameters.containerDefinitions LIKE '%ghcr.io/%'
+    OR requestParameters.containerDefinitions LIKE '%quay.io/%'
+  )
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.family, requestParameters.taskRoleArn, requestParameters.containerDefinitions, sourceIPAddress
+| filter eventSource = "ecs.amazonaws.com"
 | filter eventName = "RegisterTaskDefinition"
+| filter requestParameters.containerDefinitions like /docker\.io\/|ghcr\.io\/|quay\.io\//
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.ecs"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RegisterTaskDefinition"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.ecs"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ecs.amazonaws.com"], eventName: ["RegisterTaskDefinition"] } }, null, 2),
+      lambda: `"""
+ECS Task Definition with External Image
+Trigger: EventBridge rule matching RegisterTaskDefinition.
+Use for: Real-time triage of unapproved registry usage in ECS task revisions.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ecs.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "RegisterTaskDefinition":
+        return {"matched": False}
+
+    containers = detail.get("requestParameters", {}).get("containerDefinitions", [])
+    images = [c.get("image", "") for c in containers if c.get("image")]
+    suspicious = [img for img in images if any(host in img for host in ["docker.io/", "ghcr.io/", "quay.io/"])]
+    if not suspicious:
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-027",
+            "title": "ECS Task Definition with External Image",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "task_family": detail.get("requestParameters", {}).get("family"),
+            "images": suspicious,
+            "task_role": detail.get("requestParameters", {}).get("taskRoleArn"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
-    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ecs.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.family", "requestParameters.containerDefinitions", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ecs.amazonaws.com", eventName: "RegisterTaskDefinition", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { family: "my-task", containerDefinitions: [{ image: "nginx:latest" }] }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify who registered the task definition.", "Inspect container images for non-ECR sources (supply chain risk).", "Verify if external registries are approved.", "Review task definitions for malicious code."],
-    testingSteps: ["Register an ECS task definition with an image from Docker Hub.", "Verify CloudTrail captures RegisterTaskDefinition.", "Run the detection to confirm it triggers on non-ECR images."],},
-
-  // --- Secrets Manager ---
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ecs.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.family", "requestParameters.containerDefinitions", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ecs.amazonaws.com", eventName: "RegisterTaskDefinition", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { family: "my-task", containerDefinitions: [{ image: "ghcr.io/example/app:latest" }] }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify who registered the task definition.", "Inspect the image source and whether the registry is approved.", "Review the task role for blast radius.", "Check whether the revision was later deployed with UpdateService or RunTask."],
+    testingSteps: ["Register an ECS task definition with an image from a non-approved registry.", "Verify CloudTrail captures RegisterTaskDefinition.", "Run the detection to confirm it triggers."],
+    lifecycle: {
+      whyItMatters: "Registering a new ECS task definition can quietly introduce attacker-controlled code into an otherwise legitimate service. The production-grade signal is not merely non-ECR usage, but image sources that violate the organization's approved-registry and provenance model.",
+      threatContext: {
+        attackerBehavior: "An attacker with ecs:RegisterTaskDefinition can create a new task definition revision that points a container to an image they control, a typosquatted repository, or an unreviewed public image.",
+        realWorldUsage: "Cloud and software supply-chain intrusions regularly abuse container images, package registries, and mutable tags as an execution path.",
+        whyItMatters: "CloudTrail shows who registered the task definition and which image strings were supplied, giving defenders a high-value point to catch untrusted workload code before or near deployment.",
+        riskAndImpact: "If this goes undetected, the attacker can deploy code that steals task-role credentials, accesses secrets, pivots to other AWS services, or establishes durable persistence in production workloads.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for Amazon ECS)", "Approved registry policy inventory", "Optional image provenance metadata from CI/CD or ECR scanning"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "sourceIPAddress", "requestParameters.family", "requestParameters.containerDefinitions[].image", "requestParameters.taskRoleArn", "requestParameters.executionRoleArn"],
+        loggingRequirements: ["CloudTrail management events must be enabled for ECS.", "Maintain an approved-registry policy that understands allowed registry hosts, namespaces, and repositories.", "If you want high-fidelity supply-chain decisions, ingest image-signing, attestation, or scan metadata from your registry or CI/CD pipeline."],
+        limitations: ["CloudTrail records the registration request, not whether the task definition was later deployed.", "The image field is just a string; CloudTrail does not validate whether the image was signed, scanned, or actually pulled successfully.", "A simple not-ECR filter is too weak because approved public registries and mirrors can be legitimate."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "Expected value ecs.amazonaws.com" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Expected value RegisterTaskDefinition" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Caller that registered the new revision" },
+          { rawPath: "requestParameters.family", normalizedPath: "aws.ecs.task_definition.family", notes: "Logical task-definition family" },
+          { rawPath: "requestParameters.containerDefinitions[].image", normalizedPath: "container.image.name", notes: "Parse into registry, namespace, repository, tag, and digest" },
+          { rawPath: "requestParameters.taskRoleArn", normalizedPath: "aws.ecs.task.role.arn", notes: "Role whose permissions the running task will inherit" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["creation"], action: "RegisterTaskDefinition", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { ecs: { task_definition: { family: "my-task" }, task: { role: { arn: "arn:aws:iam::123456789012:role/app-role" } } } },
+          container: { image: { name: "ghcr.io/example/app:latest" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Registry Approval Context", description: "Classify each image reference against an approved-registry policy keyed by workload and environment.", examples: ["private ECR only for prod", "ghcr.io/company-approved namespace allowed in dev"], falsePositiveReduction: "Prevents the detector from treating all non-ECR images as equally suspicious." },
+        { dimension: "Image Provenance and Integrity", description: "Add signing status, digest pinning, image age, scan verdicts, and attestation presence.", examples: ["missing signature", "mutable latest tag", "no provenance attestation"], falsePositiveReduction: "Separates a known approved third-party image from an unreviewed or unsigned image reference." },
+        { dimension: "Workload and Deployment Baseline", description: "Track which registries and repositories are normal for each task-definition family and ECS service.", examples: ["first time family payments-api used any registry outside private ECR", "registry newly introduced in production"], falsePositiveReduction: "Makes novelty meaningful by comparing the new image source to what the specific workload normally uses." },
+        { dimension: "Identity and Role Sensitivity", description: "Enrich the caller and embedded task roles with ownership and effective privilege.", examples: ["approved CI role", "task role can access secretsmanager:GetSecretValue"], falsePositiveReduction: "Suppresses expected pipeline-driven revisions while escalating image-source changes that could expose high-value task roles." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection should not page on every task definition that references an image outside private ECR. The production-grade pattern is to parse each container image into registry, namespace, repository, tag, and digest; compare that identity to an approved-registry policy for the workload; and then add supply-chain and workload-baseline context before deciding severity.",
+        conditions: ["eventSource equals ecs.amazonaws.com", "eventName equals RegisterTaskDefinition", "requestParameters.containerDefinitions contains at least one image reference", "for at least one normalized container image, registry or namespace is not approved for the workload or environment"],
+        tuningGuidance: "1. Maintain an explicit approved-registry inventory keyed by environment and workload. 2. Down-rank changes made by trusted CI/CD identities when the image also passes provenance checks. 3. Correlate RegisterTaskDefinition with UpdateService, CreateService, or RunTask.",
+        whenToFire: "Fire when a task definition introduces an image source that is unapproved for that workload or violates the organization's image-trust policy, especially in production or when the embedded task role is sensitive.",
+      },
+      simulationCommand: `aws ecs register-task-definition --family payments-api --network-mode awsvpc --requires-compatibilities FARGATE --cpu 256 --memory 512 --execution-role-arn arn:aws:iam::123456789012:role/ecsTaskExecutionRole --task-role-arn arn:aws:iam::123456789012:role/payments-app-role --container-definitions '[{"name":"app","image":"ghcr.io/example-unapproved/nginx:latest","essential":true,"portMappings":[{"containerPort":8080,"protocol":"tcp"}]}]'`,
+      quality: {
+        signalQuality: 7,
+        falsePositiveRate: "Medium-High with naive non-ECR logic; Low-Medium once approved-registry policy and provenance checks are in place",
+        expectedVolume: "Low in tightly controlled production estates; moderate in mixed dev environments until registry policy is mature",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena over CloudTrail logs", "Splunk", "Panther", "Chronicle", "Elastic", "Datadog"],
+        scheduling: "Near-real-time is practical because RegisterTaskDefinition is a CloudTrail management event. Batch analytics every 5-15 minutes is also acceptable.",
+        considerations: ["Do not ship this as a simple not-ECR rule if the goal is a production alert.", "Correlate with UpdateService, CreateService, or RunTask to understand whether the suspicious revision was actually activated."],
+      },
+    },
+  },
   {
     id: "det-028",
     title: "Secrets Manager Bulk Secret Retrieval",
@@ -2186,25 +3801,119 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: secretsmanager.amazonaws.com
     eventName: GetSecretValue
   condition: selection
-  timeframe: 5m
-  count: "> 10"
+  timeframe: 15m
+  count: "> 5 distinct secrets"
 level: high`,
-      splunk: `index=aws sourcetype=aws:cloudtrail eventName=GetSecretValue
-| stats count by userIdentity.arn, bin(_time, 5m)
-| where count > 10
-| sort -count`,
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=secretsmanager.amazonaws.com eventName=GetSecretValue
+| stats dc(requestParameters.secretId) as distinct_secrets count as retrievals values(requestParameters.secretId) as secrets by userIdentity.arn, bin(_time, 15m)
+| where distinct_secrets > 5
+| sort -distinct_secrets`,
+      cloudtrail: `SELECT userIdentity.arn, date_trunc('minute', from_iso8601_timestamp(eventTime)) AS minute_bucket, approx_distinct(requestParameters.secretId) AS distinct_secrets, count(*) AS retrievals
+FROM cloudtrail_logs
+WHERE eventSource = 'secretsmanager.amazonaws.com'
+  AND eventName = 'GetSecretValue'
+GROUP BY 1, 2
+HAVING approx_distinct(requestParameters.secretId) > 5
+ORDER BY minute_bucket DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.secretId
+| filter eventSource = "secretsmanager.amazonaws.com"
 | filter eventName = "GetSecretValue"
-| stats count(*) as retrievals by userIdentity.arn
-| filter retrievals > 10`,
-      eventbridge: JSON.stringify({ source: ["aws.secretsmanager"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["GetSecretValue"] } }, null, 2),
+| stats count_distinct(requestParameters.secretId) as distinct_secrets, count(*) as retrievals by userIdentity.arn, bin(15m)
+| filter distinct_secrets > 5`,
+      eventbridge: JSON.stringify({ source: ["aws.secretsmanager"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["secretsmanager.amazonaws.com"], eventName: ["GetSecretValue"] } }, null, 2),
+      lambda: `"""
+Secrets Manager Bulk Secret Retrieval
+Trigger: EventBridge rule matching GetSecretValue.
+Use for: Real-time aggregation of unusual breadth of secret access.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "secretsmanager.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "GetSecretValue":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-stateful-distinct-secret-counting",
+        "alert": {
+            "rule_id": "det-028",
+            "title": "Secrets Manager Bulk Secret Retrieval",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "secret_id": detail.get("requestParameters", {}).get("secretId"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "secretsmanager.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.secretId", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "secretsmanager.amazonaws.com", eventName: "GetSecretValue", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { secretId: "my-secret" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify who retrieved secrets and in what volume.", "Verify if bulk retrieval matches app startup or rotation.", "Check for credential harvesting patterns.", "Review secret access patterns for anomalies."],
-    testingSteps: ["Retrieve multiple secrets in quick succession (e.g., >10 in 5 min).", "Verify CloudTrail captures GetSecretValue.", "Run the detection to confirm volume-based alert triggers."],},
+    investigationSteps: ["Identify who retrieved secrets and how many distinct secrets were accessed.", "Verify if bulk retrieval matches app startup, rotation, or deployment behavior.", "Check for recent ListSecrets or discovery activity.", "Review secret classes and whether multiple applications or environments were touched."],
+    testingSteps: ["Retrieve multiple distinct secrets in quick succession.", "Verify CloudTrail captures GetSecretValue.", "Run the detection to confirm distinct-secret-based alerting triggers."],
+    lifecycle: {
+      whyItMatters: "Bulk secret access is rarely well-modeled by a flat threshold because many legitimate workloads repeatedly fetch the same few secrets while compromised identities tend to broaden into many distinct secrets.",
+      threatContext: {
+        attackerBehavior: "After obtaining an AWS principal with secretsmanager:GetSecretValue, an attacker retrieves secrets in bulk to steal database credentials, API keys, tokens, and other high-value plaintext.",
+        realWorldUsage: "Secrets retrieval is common post-compromise cloud tradecraft because Secrets Manager often concentrates privileged application credentials in one service.",
+        whyItMatters: "The strongest suspicious pattern is usually breadth and novelty: a human user, newly active role, or compromised workload suddenly touching many different secrets outside its normal access pattern.",
+        riskAndImpact: "If undetected, the attacker can exfiltrate a concentrated set of credentials that enables database access, lateral movement, and durable persistence.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for AWS Secrets Manager", "Secret inventory and metadata from Secrets Manager APIs or AWS Config", "Optional IAM inventory for principal classification"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "sourceIPAddress", "userAgent", "requestParameters.secretId", "requestParameters.secretIdList[]", "requestParameters.filters[]", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be retained centrally for Secrets Manager.", "Normalize secret identifiers because CloudTrail requests may use friendly names, partial ARNs, or full ARNs for the same secret.", "Maintain at least 30 days of historical access data if you want actor-specific baselines to be meaningful."],
+        limitations: ["CloudTrail shows that a secret was requested, but it does not log the plaintext secret value.", "A naive raw event count is unstable because repeated reads of the same secret can be legitimate.", "Legitimate startup, rotation, deployment, and break-glass workflows can touch many secrets quickly unless principals are classified separately."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "Expected value secretsmanager.amazonaws.com" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Track GetSecretValue and BatchGetSecretValue-derived access" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Primary actor key for baseline modeling" },
+          { rawPath: "userIdentity.type", normalizedPath: "user.type", notes: "Critical for separating humans from workload or automation roles" },
+          { rawPath: "requestParameters.secretId", normalizedPath: "secrets.id_canonical", notes: "Normalize name, partial ARN, and full ARN to one canonical secret identity" },
+          { rawPath: "sourceIPAddress", normalizedPath: "source.ip", notes: "Supports novelty and session-risk enrichment" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["access"], type: ["info"], action: "GetSecretValue", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          secrets: { id_canonical: "prod/payments/db-master" },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Behavioral Baseline", description: "Maintain baselines for each actor covering normal distinct secret count, normal secret families, and normal access windows.", examples: ["role usually reads 2-3 secrets tied to one application", "actor's 15-minute distinct-secret count is 6x its 30-day median"], falsePositiveReduction: "Converts noisy raw access volume into an anomaly anchored in how the principal normally behaves." },
+        { dimension: "Secret Sensitivity and Ownership", description: "Classify each secret by business criticality, application ownership, environment, and secret type.", examples: ["prod/payments/db-master", "breakglass/admin/api-token", "sandbox/test-secret"], falsePositiveReduction: "Prevents routine access to low-risk app secrets from looking equivalent to sudden reads across production or admin credentials." },
+        { dimension: "Identity and Execution Context", description: "Enrich the actor with principal class, owning team, runtime location, and whether the access path is expected.", examples: ["human IAM user using aws-cli from VPN", "Lambda execution role in prod", "break-glass role assumed outside maintenance window"], falsePositiveReduction: "Separates expected application secret reads from suspicious human or misused workload access paths." },
+        { dimension: "Session and Access Novelty", description: "Add source IP, user agent, recent ListSecrets activity, and batch-retrieval usage so alerting can emphasize novel or exploratory access.", examples: ["ListSecrets followed by first-time access to many secrets", "CLI usage where role normally uses SDK from ECS"], falsePositiveReduction: "Raises confidence when many secrets are retrieved from an unexpected session, discovery pattern, or toolchain." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection should not fire on a fixed raw count such as 10 GetSecretValue events in 5 minutes. The stronger production pattern is to canonicalize secret identifiers, count distinct secrets per actor within a bounded window, compare that breadth to the actor's historical baseline, and then require either a meaningful absolute floor or a supporting risk amplifier.",
+        conditions: ["eventSource equals secretsmanager.amazonaws.com", "event action is GetSecretValue or a BatchGetSecretValue-derived secret access", "secret identifiers are normalized before aggregation", "within a 15-minute or 1-hour window, the actor accesses an unusually high number of distinct canonical secrets relative to its own baseline"],
+        tuningGuidance: "1. Keep separate baselines for humans, workload roles, CI/CD roles, rotation Lambdas, and break-glass identities. 2. Canonicalize secret IDs before counting. 3. Prefer distinct-secret count and secret-family diversity over raw request count.",
+        whenToFire: "Fire when a principal reads an unusually large or novel set of distinct secrets for its role and the access meaningfully exceeds its own normal breadth.",
+      },
+      simulationCommand: "aws secretsmanager batch-get-secret-value --secret-id-list prod/payments/db prod/payments/api prod/payments/jwt prod/payments/stripe prod/shared/slack-webhook",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "High with a naive static threshold; Low-Medium once distinct-secret modeling, actor baselines, and automation classification are in place",
+        expectedVolume: "Low in mature environments; moderate in secret-heavy platform accounts before principal baselines and ownership metadata are tuned",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena over CloudTrail logs", "CloudTrail Lake", "Splunk", "Panther", "Chronicle", "Elastic", "Datadog", "EventBridge + Lambda + state store"],
+        scheduling: "Batch analytics every 5-15 minutes works well in Athena and SIEMs. Near-real-time alerting is practical only if the detector keeps state for distinct-secret windows and historical baselines.",
+        considerations: ["Do not ship this as a pure static threshold rule if the goal is production-grade secret-theft detection.", "Canonical secret identity and BatchGetSecretValue deduplication are mandatory.", "Correlate with ListSecrets, DescribeSecret, recent credential changes, or unusual source sessions for higher-confidence findings."],
+      },
+    },
+  },
 
   // --- SSM ---
   {
