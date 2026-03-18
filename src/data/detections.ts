@@ -3933,24 +3933,122 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: ssm.amazonaws.com
     eventName:
       - SendCommand
       - StartSession
-  condition: selection
+  risky_document:
+    requestParameters.documentName:
+      - AWS-RunShellScript
+      - AWS-RunPowerShellScript
+  condition: selection and risky_document
 level: high`,
-      splunk: `index=aws sourcetype=aws:cloudtrail (eventName=SendCommand OR eventName=StartSession)
-| table _time, userIdentity.arn, requestParameters.documentName, requestParameters.instanceIds{}`,
-      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.documentName
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ssm.amazonaws.com (eventName=SendCommand OR eventName=StartSession)
+| table _time, userIdentity.type, userIdentity.arn, eventName, requestParameters.documentName, requestParameters.instanceIds{}, requestParameters.target, requestParameters.parameters.commands{}, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, eventName, requestParameters.documentName, requestParameters.instanceIds, requestParameters.target, requestParameters.parameters, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'ssm.amazonaws.com'
+  AND eventName IN ('SendCommand', 'StartSession')
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, eventName, requestParameters.documentName, requestParameters.instanceIds, requestParameters.target, requestParameters.parameters, sourceIPAddress
+| filter eventSource = "ssm.amazonaws.com"
 | filter eventName in ["SendCommand", "StartSession"]
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.ssm"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["SendCommand", "StartSession"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.ssm"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ssm.amazonaws.com"], eventName: ["SendCommand", "StartSession"] } }, null, 2),
+      lambda: `"""
+SSM Run Command Execution
+Trigger: EventBridge rule matching SendCommand or StartSession.
+Use for: Real-time alerting on remote execution and interactive shell access via SSM.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ssm.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("SendCommand", "StartSession"):
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-029",
+            "title": "SSM Run Command Execution",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": detail.get("eventName"),
+            "document_name": detail.get("requestParameters", {}).get("documentName"),
+            "instance_ids": detail.get("requestParameters", {}).get("instanceIds"),
+            "target": detail.get("requestParameters", {}).get("target"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ssm.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.documentName", "requestParameters.instanceIds", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ssm.amazonaws.com", eventName: "SendCommand", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { documentName: "AWS-RunShellScript", instanceIds: ["i-xxx"] }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who ran the command and on which instances.", "Verify if this was automated patching or ops.", "Inspect the document name and parameters.", "Review for lateral movement indicators."],
-    testingSteps: ["Run SSM SendCommand or StartSession on an instance.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],},
-
-  // --- Organizations ---
+    testingSteps: ["Run SSM SendCommand or StartSession on an instance.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "SSM gives attackers remote access through the AWS control plane without needing SSH keys, bastions, or inbound admin ports. A tuned SendCommand or StartSession detection is valuable because it reveals who accessed which managed node and, for Run Command, often what they attempted to execute.",
+      threatContext: {
+        attackerBehavior: "An attacker with ssm:SendCommand can execute commands across one or many managed nodes using SSM documents such as AWS-RunShellScript or AWS-RunPowerShellScript. An attacker with ssm:StartSession can open an interactive shell to a managed instance through Session Manager.",
+        realWorldUsage: "This is a common post-compromise and red-team tradecraft pattern in AWS because SSM bypasses traditional remote-access choke points like key distribution, jump hosts, and security group port 22 exposure.",
+        whyItMatters: "A raw SendCommand or StartSession event is useful baseline visibility, but the highest-value signal comes from preserving command content, target identity, and actor context.",
+        riskAndImpact: "Successful abuse can lead to credential theft from the host, staging of malware, disabling local defenses, pivoting into more sensitive workloads, and use of the instance role for downstream AWS API abuse.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for Systems Manager)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "sourceIPAddress", "userAgent", "userIdentity.type", "userIdentity.arn", "requestParameters.documentName", "requestParameters.instanceIds", "requestParameters.targets", "requestParameters.parameters.commands", "requestParameters.target", "requestParameters.reason", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled for ssm.amazonaws.com in every region where managed nodes run.", "The ingestion pipeline must preserve nested requestParameters.parameters content.", "For StartSession, enable Session Manager session logging to CloudWatch Logs or S3 for investigations."],
+        limitations: ["StartSession in CloudTrail shows that an interactive session began, but it does not expose the shell commands executed inside the session.", "SendCommand command content is only available when the selected document and parameters expose it.", "Legitimate patching, fleet management, and break-glass administration can generate true events that require actor and target allowlisting."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "AWS service source; expected ssm.amazonaws.com" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "SSM API action such as SendCommand or StartSession" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Primary actor ARN" },
+          { rawPath: "requestParameters.documentName", normalizedPath: "aws.ssm.document.name", notes: "Run Command or Session document name" },
+          { rawPath: "requestParameters.instanceIds", normalizedPath: "aws.ssm.targets.instance_ids", notes: "Explicit managed-node targets for SendCommand" },
+          { rawPath: "requestParameters.parameters.commands", normalizedPath: "aws.ssm.command.commands", notes: "Most useful command payload for AWS-RunShellScript and AWS-RunPowerShellScript" },
+          { rawPath: "requestParameters.target", normalizedPath: "aws.ssm.session.target", notes: "Interactive session target for StartSession" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["execution"], type: ["start"], action: "SendCommand", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { ssm: { document: { name: "AWS-RunShellScript" }, targets: { instance_ids: ["i-xxx"] }, command: { commands: ["whoami", "hostname"] } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Identity Authorization Context", description: "Classify whether the caller is an approved SSM administrator, platform automation role, workload role, helpdesk role, or unexpected human or app identity.", examples: ["approved SSM admin role", "application role unexpectedly calling SendCommand"], falsePositiveReduction: "Separates expected fleet-management activity from suspicious SSM use by identities that should never administer hosts." },
+        { dimension: "Target Asset Criticality", description: "Resolve targeted instance IDs or tag selectors into hostnames, EC2 tags, business owner, environment, workload tier, and sensitivity.", examples: ["Environment=prod", "database tier", "shared services instance"], falsePositiveReduction: "Prevents every SSM event from looking equally important and elevates sessions or commands that touch crown-jewel systems." },
+        { dimension: "Command and Document Semantics", description: "Classify the SSM document and parameters to distinguish benign maintenance from suspicious remote execution.", examples: ["AWS-RunShellScript with curl | bash", "PowerShell with encoded command", "commands containing aws sts get-caller-identity"], falsePositiveReduction: "Keeps routine patching or inventory collection from generating the same priority as clearly suspicious command content." },
+        { dimension: "Behavioral Baselines and Access Path", description: "Compare the actor, source IP, document, and target against historical SSM behavior.", examples: ["first-ever StartSession by an application role", "known admin role connecting from a new geography"], falsePositiveReduction: "Historical baselines sharply reduce noise in SSM-heavy environments where some administrative use is normal." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection should move beyond simple baseline visibility and become a context-rich remote-execution signal. The strongest branch is SendCommand, where the event often exposes the target set, document, and command payload. The StartSession branch is still important for lateral-movement coverage, but because CloudTrail does not expose in-session shell commands, it should rely more heavily on actor allowlists, target criticality, and correlation with session logs.",
+        conditions: ["eventSource equals ssm.amazonaws.com", "eventName equals SendCommand or StartSession", "for SendCommand preserve documentName, instanceIds or targets, and parameters.commands", "for StartSession preserve target and reason", "actor is not in an approved SSM administration or automation allowlist, or the target or command context materially increases risk"],
+        tuningGuidance: "1. Maintain an explicit allowlist for approved SSM admin and automation identities. 2. Parse and score requestParameters.parameters.commands. 3. Enrich instance IDs and target selectors with EC2 tags, owner, and workload sensitivity. 4. For StartSession, combine CloudTrail with Session Manager logs.",
+        whenToFire: "Fire at high priority when SendCommand or StartSession is performed by an unexpected actor, against a sensitive host, or with suspicious command or document context.",
+      },
+      simulationCommand: `aws ssm send-command --instance-ids i-0abc123def4567890 --document-name AWS-RunShellScript --comment 'lab remote exec validation' --parameters '{"commands":["whoami","hostname","id"]}' --region us-east-1`,
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Medium-Low after actor allowlisting and target or command enrichment; Medium in SSM-heavy operations environments if deployed as a raw baseline",
+        expectedVolume: "Low to moderate depending on SSM adoption; typically low after approved admin and automation workflows are modeled",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena (scheduled query over CloudTrail)", "CloudWatch Logs Insights", "Splunk", "EventBridge + Lambda", "Panther / Chronicle / Datadog style cloud detections"],
+        scheduling: "Batch: every 5-15 minutes for CloudTrail-backed analytics. Real-time: EventBridge or SIEM streaming for immediate notification.",
+        considerations: ["Real-time pipelines must preserve nested requestParameters.parameters content or they will lose key command context.", "For StartSession, pair the alert with Session Manager log storage in CloudWatch Logs or S3.", "Target selectors in requestParameters.targets may require post-processing to identify actual affected instances."],
+      },
+    },
+  },
   {
     id: "det-030",
     title: "Organizations SCP Modified or Detached",
@@ -3968,33 +4066,123 @@ logsource:
   service: cloudtrail
 detection:
   selection:
+    eventSource: organizations.amazonaws.com
     eventName:
       - DetachPolicy
       - DeletePolicy
       - UpdatePolicy
-  filter:
-    eventSource: organizations.amazonaws.com
-  condition: selection and filter
+  condition: selection
 level: critical`,
-      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=organizations.amazonaws.com
-  (eventName=DetachPolicy OR eventName=DeletePolicy OR eventName=UpdatePolicy)
-| table _time, userIdentity.arn, eventName, requestParameters.policyId`,
-      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.policyId
+      splunk: `index=aws sourcetype=aws:cloudtrail eventSource=organizations.amazonaws.com (eventName=DetachPolicy OR eventName=DeletePolicy OR eventName=UpdatePolicy)
+| table _time, userIdentity.type, userIdentity.arn, eventName, requestParameters.policyId, requestParameters.targetId, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, eventName, requestParameters.policyId, requestParameters.targetId, requestParameters.content, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'organizations.amazonaws.com'
+  AND eventName IN ('DetachPolicy', 'DeletePolicy', 'UpdatePolicy')
+ORDER BY eventTime DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, eventName, requestParameters.policyId, requestParameters.targetId, sourceIPAddress
 | filter eventSource = "organizations.amazonaws.com"
 | filter eventName in ["DetachPolicy", "DeletePolicy", "UpdatePolicy"]
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.organizations"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["DetachPolicy", "DeletePolicy", "UpdatePolicy"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.organizations"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["organizations.amazonaws.com"], eventName: ["DetachPolicy", "DeletePolicy", "UpdatePolicy"] } }, null, 2),
+      lambda: `"""
+Organizations SCP Modified or Detached
+Trigger: EventBridge rule matching DetachPolicy, DeletePolicy, or UpdatePolicy.
+Use for: Real-time alerting on organization guardrail weakening events.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "organizations.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("DetachPolicy", "DeletePolicy", "UpdatePolicy"):
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-030",
+            "title": "Organizations SCP Modified or Detached",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": detail.get("eventName"),
+            "policy_id": detail.get("requestParameters", {}).get("policyId"),
+            "target_id": detail.get("requestParameters", {}).get("targetId"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "organizations.amazonaws.com", importantFields: ["eventName", "userIdentity.arn", "requestParameters.policyId", "eventSource", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "organizations.amazonaws.com", eventName: "DetachPolicy", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { policyId: "p-xxx", targetId: "ou-xxx" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who modified or detached the SCP.", "Assess impact on organization-wide guardrails.", "Verify if this was planned governance change.", "Restore SCP if unauthorized."],
-    testingSteps: ["Detach or update a Service Control Policy in Organizations.", "Verify CloudTrail captures DetachPolicy/DeletePolicy/UpdatePolicy.", "Run the detection to confirm the alert triggers."],},
+    testingSteps: ["Detach or update a Service Control Policy in Organizations.", "Verify CloudTrail captures DetachPolicy, DeletePolicy, or UpdatePolicy.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "SCP changes are organization-level guardrail events, not routine account-local administration. A high-fidelity detection should explain which policy was weakened, where in the org hierarchy it applied, and whether the affected root, OU, or account is security- or production-critical.",
+      threatContext: {
+        attackerBehavior: "An attacker operating in the management account or a delegated administrator context can weaken organizational guardrails by detaching, deleting, or updating a Service Control Policy.",
+        realWorldUsage: "This pattern is a classic cloud defense-evasion objective in both adversary emulation and real-world post-compromise tradecraft because SCPs are one of the few controls that shape permissions across many accounts at once.",
+        whyItMatters: "Not all Organizations policy activity is equally important; the high-value signal is specifically guardrail weakening.",
+        riskAndImpact: "If this goes undetected, attackers can convert a contained identity compromise into broad organizational freedom of action, including logging reduction, IAM privilege escalation, and widespread drift.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for AWS Organizations)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "sourceIPAddress", "userAgent", "userIdentity.type", "userIdentity.arn", "requestParameters.policyId", "requestParameters.targetId", "requestParameters.content", "responseElements.policy.policySummary.type", "responseElements.policy.policySummary.name", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be centralized from the management account and any delegated administrator accounts that can call Organizations APIs.", "Queries and validation workflows should include us-east-1.", "The detection pipeline should maintain a policy inventory keyed by policyId so DetachPolicy and DeletePolicy can be confirmed as SCP-related."],
+        limitations: ["DetachPolicy and DeletePolicy do not inherently prove in the raw request that the policy type is SERVICE_CONTROL_POLICY; enrichment from policy inventory is usually required.", "UpdatePolicy content shows the new policy text, but not whether the effective guardrail posture is stronger or weaker unless you diff against the previous version.", "Authorized platform engineering or Terraform workflows can generate true events that are operationally expected."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "AWS service source; expected organizations.amazonaws.com" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Organizations API action such as DetachPolicy, DeletePolicy, or UpdatePolicy" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Primary actor ARN" },
+          { rawPath: "requestParameters.policyId", normalizedPath: "aws.organizations.policy.id", notes: "Target policy identifier" },
+          { rawPath: "requestParameters.targetId", normalizedPath: "aws.organizations.target.id", notes: "Detached target root, OU, or account" },
+          { rawPath: "requestParameters.content", normalizedPath: "aws.organizations.policy.content", notes: "Updated policy JSON for UpdatePolicy branch" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "DetachPolicy", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { organizations: { policy: { id: "p-xxx" }, target: { id: "ou-xxx" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Org Hierarchy and Target Criticality", description: "Resolve targetId into root, OU, or account metadata and annotate business sensitivity.", examples: ["root affecting the entire organization", "production OU", "security OU", "low-risk sandbox account"], falsePositiveReduction: "Prevents low-impact org maintenance from being treated the same as a guardrail change affecting production or security-critical scopes." },
+        { dimension: "Policy Diff and Guardrail Semantics", description: "Classify what changed in the SCP itself, such as removed denies, narrowed conditions, or broadened actions.", examples: ["removed deny on cloudtrail:StopLogging", "dropped region restriction condition"], falsePositiveReduction: "Focuses the rule on materially dangerous policy weakening instead of every cosmetic update." },
+        { dimension: "Governance and Change Approval Context", description: "Correlate SCP changes with known Terraform runs, approved maintenance windows, CAB tickets, and break-glass procedures.", examples: ["approved change request", "Terraform pipeline run ID", "out-of-band console change with no ticket"], falsePositiveReduction: "Allows planned governance work to be downgraded while preserving visibility into unapproved guardrail weakening." },
+        { dimension: "Actor Trust and Access Path", description: "Profile who made the change and how: management-account admin, delegated admin role, federated console user, automation role, and source IP reputation.", examples: ["known platform engineering role from corporate VPN", "first-ever Organizations policy change by an IAM user"], falsePositiveReduction: "Separates expected governance operators from suspicious identities abusing rare, high-impact Organizations permissions." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection should focus on guardrail weakening, not generic Organizations administration. The highest-confidence branch is any DetachPolicy or DeletePolicy that affects an SCP, especially when the impacted target maps to the root, a production OU, a security OU, or shared-services accounts. The UpdatePolicy branch should only be considered high fidelity when the new SCP content weakens effective controls.",
+        conditions: ["eventSource equals organizations.amazonaws.com", "eventName equals DetachPolicy, DeletePolicy, or UpdatePolicy", "policyId resolves to a SERVICE_CONTROL_POLICY through response data or enrichment inventory", "highest severity when requestParameters.targetId maps to a root, security OU, production OU, or shared-services scope"],
+        tuningGuidance: "1. Maintain a policyId to policy type, name, and attached targets lookup. 2. Add an SCP diff classifier that detects removed deny statements, dropped conditions, or broadened actions. 3. Correlate with approved change windows, Terraform runs, and break-glass tickets rather than suppressing all platform-admin actors.",
+        whenToFire: "Fire immediately for any successful DetachPolicy or DeletePolicy involving an SCP, especially when the affected scope is the root or a critical OU or account. Fire for UpdatePolicy when the new content weakens the SCP.",
+      },
+      simulationCommand: "aws organizations detach-policy --policy-id p-abc123def456 --target-id ou-ab12-22222222 --profile management --region us-east-1",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low after approved governance workflows are modeled; Medium-Low in organizations with frequent Terraform-driven SCP maintenance",
+        expectedVolume: "Very low; typically near-zero to single digits per month even in large organizations",
+        productionReadiness: "production",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena (scheduled query over centralized CloudTrail)", "CloudWatch Logs Insights", "Splunk", "EventBridge + Lambda", "Panther / Chronicle / Datadog style cloud detections"],
+        scheduling: "Batch: every 5-15 minutes for centralized CloudTrail analytics. Real-time: EventBridge or SIEM streaming from the management account for immediate alerting on guardrail changes.",
+        considerations: ["Organizations activity should be collected and queried with us-east-1 visibility in mind.", "A policy inventory and org hierarchy lookup are essential for turning raw policyId and targetId values into meaningful guardrail-impact alerts.", "For UpdatePolicy, diff the previous and new policy JSON before suppressing anything."],
+      },
+    },
+  },
 
   // --- IAM Inline Policy Injection ---
   {
     id: "det-031",
     title: "IAM Inline Policy Modification",
-    description: "Detects when inline IAM policies are added or updated via PutRolePolicy or PutUserPolicy. Provides baseline visibility into IAM inline policy changes affecting roles and users. Important activity but not necessarily malicious — fires during normal operations (Terraform, CI/CD, manual admin tasks).",
+    description: "Baseline visibility for inline IAM policy creation or update on users and roles via PutUserPolicy or PutRolePolicy. This is an important IAM control-plane change that should be enriched with actor context, target criticality, and policy-content analysis before being treated as suspicious.",
     awsService: "IAM",
     relatedServices: [],
     severity: "Medium",
@@ -4015,7 +4203,7 @@ detection:
   condition: selection
 level: medium`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=PutRolePolicy OR eventName=PutUserPolicy)
-| table _time, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress`,
+| table _time, userIdentity.type, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.policyName, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
@@ -4025,7 +4213,36 @@ ORDER BY eventTime DESC`,
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName in ["PutRolePolicy", "PutUserPolicy"]
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePolicy", "PutUserPolicy"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["PutRolePolicy", "PutUserPolicy"] } }, null, 2),
+      lambda: `"""
+IAM Inline Policy Modification
+Trigger: EventBridge rule matching PutRolePolicy or PutUserPolicy.
+Use for: Real-time baseline visibility into inline policy changes.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("PutRolePolicy", "PutUserPolicy"):
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-031",
+            "title": "IAM Inline Policy Modification",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_role": request.get("roleName"),
+            "target_user": request.get("userName"),
+            "policy_name": request.get("policyName"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: {
@@ -4036,11 +4253,71 @@ ORDER BY eventTime DESC`,
     },
     investigationSteps: ["Identify the identity that modified the inline policy.", "Verify whether the change was authorized.", "Inspect the policy document for excessive permissions.", "Review userIdentity.sessionContext.sessionIssuer.arn for assumed roles."],
     testingSteps: ["Call PutRolePolicy or PutUserPolicy with a test policy.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Inline policy changes are a durable permission change on an existing principal. Even when legitimate, they are important to log and review because attackers commonly use inline policies for stealthy privilege expansion and persistence.",
+      threatContext: {
+        attackerBehavior: "An attacker with iam:PutUserPolicy or iam:PutRolePolicy can add or overwrite permissions directly on an IAM user or role they want to strengthen.",
+        realWorldUsage: "Inline policy abuse is a well-known IAM escalation path in AWS tradecraft because it does not require creating a new principal or changing trust relationships.",
+        whyItMatters: "Most environments have relatively few identities that should modify inline policies. That makes this a strong baseline engineering signal, even though it is not high-confidence malicious activity by itself.",
+        riskAndImpact: "If this activity is missed, an attacker can broaden access on an existing user or role, gain access to secrets or KMS material, assume additional roles, or establish durable persistence.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.userName", "requestParameters.roleName", "requestParameters.policyName", "requestParameters.policyDocument", "sourceIPAddress", "eventTime", "recipientAccountId"],
+        loggingRequirements: ["CloudTrail management events must be enabled for IAM activity.", "The pipeline must retain the full requestParameters.policyDocument field.", "If policyDocument is escaped or compacted, downstream parsing must normalize it before analysis."],
+        limitations: ["This event alone does not prove malicious intent.", "Broad admin and IaC workflows can generate true but expected events.", "Some pipelines truncate or mishandle large inline policy documents."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "IAM API source" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "PutUserPolicy or PutRolePolicy" },
+          { rawPath: "eventTime", normalizedPath: "@timestamp", notes: "CloudTrail event time" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Target user if PutUserPolicy" },
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.target_role.name", notes: "Target role if PutRolePolicy" },
+          { rawPath: "requestParameters.policyName", normalizedPath: "aws.iam.policy.name", notes: "Inline policy name" },
+          { rawPath: "requestParameters.policyDocument", normalizedPath: "aws.iam.policy.document", notes: "Inline policy JSON" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "PutRolePolicy", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { iam: { target_role: { name: "TargetRole" }, policy: { name: "EscalationPolicy" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Policy Content Risk", description: "Parse the inline document and score it for wildcard admin, high-risk IAM actions, sensitive data access, pass-role, and assume-role capability.", examples: ["Action:* + Resource:*", "iam:PassRole", "sts:AssumeRole"], falsePositiveReduction: "Separates routine permission maintenance from materially dangerous privilege expansion." },
+        { dimension: "Actor Trust and Change Channel", description: "Identify whether the caller is an approved IAM admin, break-glass identity, Terraform runner, or unexpected workload principal.", examples: ["AWSReservedSSO_AdministratorAccess", "terraform-prod-runner", "app-instance-role"], falsePositiveReduction: "Expected IAM operators can be downgraded without suppressing visibility." },
+        { dimension: "Target Principal Criticality", description: "Classify the affected user or role by environment, owner, sensitivity, and whether it is human, service, break-glass, or dormant.", examples: ["production deploy role", "legacy IAM user", "security response role"], falsePositiveReduction: "Helps prioritize risky changes on sensitive or unexpected targets." },
+        { dimension: "Behavioral Baseline", description: "Track who normally edits inline policies and whether this actor-target pair is common.", examples: ["first-ever inline policy change by this principal", "actor never modified this role before"], falsePositiveReduction: "Raises confidence for unusual IAM write patterns." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should be treated as a baseline IAM change detector, not a standalone privilege-escalation verdict. Fire on every successful PutUserPolicy and PutRolePolicy, then use enrichment to score the event based on policy content, actor trust, and target criticality.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals PutUserPolicy or PutRolePolicy", "errorCode is absent", "requestParameters.userName or requestParameters.roleName is present"],
+        tuningGuidance: "1. Keep this rule broad and baseline-oriented. 2. Do not hardcode severity escalation based only on the API call. 3. Add downstream scoring for dangerous policy content, unusual actor, and sensitive targets.",
+        whenToFire: "Fire on every successful inline policy modification. High-priority triage should occur only after enrichment shows dangerous content, risky actor context, or unusual targets.",
+      },
+      simulationCommand: "aws iam put-role-policy --role-name TargetRole --policy-name TestInlinePolicy --policy-document file://inline-policy.json",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium (expected IAM administration exists, but the event is still operationally important)",
+        expectedVolume: "Org-dependent; usually low to moderate",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena", "Splunk", "CloudWatch Logs Insights", "EventBridge + Lambda", "Panther / Chronicle / Datadog"],
+        scheduling: "Batch every 5-15 minutes or real-time via EventBridge and streaming SIEM ingestion.",
+        considerations: ["This is a foundational rule that other IAM detections should build on.", "Policy-document parsing quality matters more than API matching.", "Keep severity moderate unless enrichment shows dangerous content or suspicious actor context."],
+      },
+    },
   },
   {
     id: "det-032",
-    title: "Suspicious Inline Policy Privilege Escalation",
-    description: "Detects PutRolePolicy/PutUserPolicy calls where the inline policy grants suspicious privileges. Attackers often use inline policies to escalate privileges or gain access to sensitive resources. Suspicious content includes Action \"*\", Resource \"*\", or high-risk permissions like iam:*, sts:AssumeRole, iam:PassRole, kms:Decrypt, secretsmanager:GetSecretValue, s3:GetObject.",
+    title: "Dangerous Inline Policy Semantics Added",
+    description: "Detects PutRolePolicy and PutUserPolicy events where the submitted inline policy grants broad administrative access, privilege-escalation primitives, or high-risk secret and credential access. This detection evaluates policy semantics rather than brittle string fragments.",
     awsService: "IAM",
     relatedServices: [],
     severity: "Critical",
@@ -4058,7 +4335,7 @@ detection:
     eventName:
       - PutRolePolicy
       - PutUserPolicy
-  filter_policy:
+  risky_policy:
     requestParameters.policyDocument|contains:
       - '"Action":"*"'
       - '"Resource":"*"'
@@ -4068,7 +4345,7 @@ detection:
       - 'kms:Decrypt'
       - 'secretsmanager:GetSecretValue'
       - 's3:GetObject'
-  condition: selection and filter_policy
+  condition: selection and risky_policy
 level: critical`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=PutRolePolicy OR eventName=PutUserPolicy)
 | where like(requestParameters.policyDocument, "%*%") OR like(requestParameters.policyDocument, "%iam:*%") OR like(requestParameters.policyDocument, "%sts:AssumeRole%") OR like(requestParameters.policyDocument, "%iam:PassRole%") OR like(requestParameters.policyDocument, "%kms:Decrypt%") OR like(requestParameters.policyDocument, "%secretsmanager:GetSecretValue%") OR like(requestParameters.policyDocument, "%s3:GetObject%")
@@ -4093,7 +4370,40 @@ ORDER BY eventTime DESC`,
 | filter eventName in ["PutRolePolicy", "PutUserPolicy"]
 | filter requestParameters.policyDocument like /"Action":"\*"/ or requestParameters.policyDocument like /"Resource":"\*"/ or requestParameters.policyDocument like /iam:\*/ or requestParameters.policyDocument like /sts:AssumeRole/ or requestParameters.policyDocument like /iam:PassRole/
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePolicy", "PutUserPolicy"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["PutRolePolicy", "PutUserPolicy"] } }, null, 2),
+      lambda: `"""
+Dangerous Inline Policy Semantics Added
+Trigger: EventBridge rule matching PutRolePolicy or PutUserPolicy.
+Use for: Real-time scoring of dangerous inline IAM policy content.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("PutRolePolicy", "PutUserPolicy"):
+        return {"matched": False}
+
+    policy = str(detail.get("requestParameters", {}).get("policyDocument", ""))
+    risky_markers = ["iam:*", "sts:AssumeRole", "iam:PassRole", "kms:Decrypt", "secretsmanager:GetSecretValue", '"Action":"*"', '"Resource":"*"']
+    if not any(marker in policy for marker in risky_markers):
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-032",
+            "title": "Dangerous Inline Policy Semantics Added",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_role": detail.get("requestParameters", {}).get("roleName"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "policy_name": detail.get("requestParameters", {}).get("policyName"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: {
@@ -4104,11 +4414,68 @@ ORDER BY eventTime DESC`,
     },
     investigationSteps: ["Identify who added the inline policy and which principal was targeted.", "Inspect the policy document for excessive permissions.", "Verify if the actor is a known admin or automation.", "Check for self-modification (actor modifying their own role/user)."],
     testingSteps: ["Add an inline policy with Action * and Resource * to a test role.", "Verify CloudTrail captures the event with policyDocument.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Inline policies can be added directly to an existing user or role without creating a new managed policy, making them a fast and low-friction way to escalate privileges or establish persistence.",
+      threatContext: {
+        attackerBehavior: "An attacker with iam:PutRolePolicy or iam:PutUserPolicy can embed new permissions directly onto an existing principal they control or can later assume.",
+        realWorldUsage: "IAM abuse research consistently documents inline policy modification as a reliable escalation path because it does not require creating a new identity or changing trust relationships.",
+        whyItMatters: "A raw PutRolePolicy or PutUserPolicy event is only a change signal. The high-fidelity detection is whether the resulting inline policy materially expands the principal's power.",
+        riskAndImpact: "If missed, an attacker can silently add admin-like permissions to an existing principal, assume more privileged roles, exfiltrate secrets, tamper with IAM state, or maintain durable privileged access.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "requestParameters.policyName", "requestParameters.policyDocument", "sourceIPAddress", "eventTime", "recipientAccountId"],
+        loggingRequirements: ["CloudTrail management events for IAM must be enabled.", "The ingestion pipeline must preserve the full requestParameters.policyDocument payload.", "The detection pipeline must decode and parse policyDocument before evaluation in production."],
+        limitations: ["Inline policies are not versioned, so historical before/after comparison depends on separate state capture.", "CloudTrail shows the submitted document, not a precomputed effective-permissions result.", "Pure string-matching implementations will miss semantically equivalent but differently formatted documents."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventSource", normalizedPath: "event.source", notes: "IAM API source" },
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "PutRolePolicy or PutUserPolicy" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.target_role.name", notes: "Target role" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Target user" },
+          { rawPath: "requestParameters.policyDocument", normalizedPath: "aws.iam.policy.document", notes: "Inline policy JSON requiring parsing" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "PutRolePolicy", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          source: { ip: "203.0.113.10" },
+          cloud: { provider: "aws", account: { id: "123456789012" }, region: "us-east-1" },
+          aws: { iam: { target_role: { name: "TargetRole" }, policy: { name: "EscalationPolicy" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Policy Semantics", description: "Classify the inline policy by effect, action breadth, resource breadth, privilege-escalation primitives, and restrictive conditions.", examples: ["Allow Action * Resource *", "Allow iam:PassRole on *", "Allow sts:AssumeRole on broad resources"], falsePositiveReduction: "Separates genuinely dangerous permissions from benign inline policies that merely contain sensitive-looking strings." },
+        { dimension: "Target Principal Context", description: "Identify whether the target is a production workload role, dormant IAM user, break-glass account, or already privileged principal.", examples: ["Dormant IAM user receives new inline policy", "Application role in production gets PassRole"], falsePositiveReduction: "Raises priority for self-targeting, dormant, or sensitive principals." },
+        { dimension: "Actor and Session Provenance", description: "Correlate actor ARN, session issuer, MFA, source IP, and approved IAM admin roles.", examples: ["Known Terraform role", "Expected IAM admin role from corporate VPN"], falsePositiveReduction: "Allows tightly controlled admin and automation paths to be suppressed without weakening the semantic rule." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should alert on inline policies that are dangerous in substance, not on policies that happen to contain certain substrings. The production implementation should parse the policy document, evaluate Allow statements, normalize Action and Resource lists, and score the policy based on whether it grants wildcard admin, privilege-escalation primitives, or broad access to secrets and credentials.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals PutRolePolicy or PutUserPolicy", "requestParameters.policyDocument parses successfully as JSON", "at least one Allow statement grants wildcard admin, privilege-escalation actions, or broad secret and credential access"],
+        tuningGuidance: "1. Maintain a semantic action taxonomy instead of a keyword list. 2. Lower severity for narrowly scoped AssumeRole or PassRole statements with strong conditions. 3. Raise severity when the actor modifies its own role or user, or when the target principal is sensitive or dormant.",
+        whenToFire: "Fire when a newly added inline policy materially expands a principal's effective power through admin-like access, privilege-escalation actions, or broad secret and credential access.",
+      },
+      simulationCommand: "aws iam put-role-policy --role-name TargetRole --policy-name EscalationPolicy --policy-document file://dangerous-inline-policy.json",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Medium-Low after semantic parsing, target-context enrichment, and approved actor allowlisting",
+        expectedVolume: "Low in mature environments; higher where inline policies are still common",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Splunk or SIEM with JSON parsing", "Athena with preprocessing", "EventBridge + Lambda with policy parsing", "Panther, Chronicle, or Datadog"],
+        scheduling: "Real-time is practical if parsing happens in Lambda or SIEM ingestion; scheduled analytics also work if parsed policy fields are materialized.",
+        considerations: ["Do not rely on raw LIKE matching against policyDocument.", "Treat policy parsing as required for production fidelity.", "Preserve normalized semantic classification so multiple detections can reuse it."],
+      },
+    },
   },
   {
     id: "det-033",
-    title: "Inline Policy Modification by Unexpected Actor",
-    description: "Detects IAM policy changes (PutRolePolicy, PutUserPolicy) performed by actors that normally should not modify IAM permissions. IAM policy modifications are typically performed by limited administrative roles or infrastructure automation. Suspicious actors include IAM users, application roles, EC2 instance roles, and assumed roles outside normal IAM administration. Uses userIdentity.type, userIdentity.arn, and userIdentity.sessionContext.sessionIssuer.arn.",
+    title: "Inline Policy Modification Outside Authorized IAM Change Path",
+    description: "Detects inline IAM policy changes performed outside approved IAM administration workflows. The key signal is not actor naming, but whether identity, session provenance, and target ownership indicate the caller should be allowed to mutate IAM permissions.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
@@ -4126,34 +4493,47 @@ detection:
     eventName:
       - PutRolePolicy
       - PutUserPolicy
-  filter_known_admin:
-    userIdentity.principalId|contains:
-      - 'terraform'
-      - 'cloudformation'
-      - 'admin'
-      - 'Admin'
-      - 'IAMAdmin'
-  condition: selection and not filter_known_admin
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=PutRolePolicy OR eventName=PutUserPolicy)
-| where NOT (like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%") OR like(userIdentity.arn, "%admin%") OR like(userIdentity.arn, "%Admin%") OR like(userIdentity.arn, "%IAMAdmin%"))
-| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName`,
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
   AND eventName IN ('PutRolePolicy', 'PutUserPolicy')
-  AND userIdentity.principalId NOT LIKE '%terraform%'
-  AND userIdentity.principalId NOT LIKE '%cloudformation%'
-  AND userIdentity.arn NOT LIKE '%admin%'
-  AND userIdentity.arn NOT LIKE '%Admin%'
-  AND userIdentity.arn NOT LIKE '%IAMAdmin%'
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName in ["PutRolePolicy", "PutUserPolicy"]
-| filter userIdentity.principalId not like /terraform/ and userIdentity.principalId not like /cloudformation/ and userIdentity.arn not like /admin/i
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePolicy", "PutUserPolicy"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["PutRolePolicy", "PutUserPolicy"] } }, null, 2),
+      lambda: `"""
+Inline Policy Modification Outside Authorized IAM Change Path
+Trigger: EventBridge rule matching PutRolePolicy or PutUserPolicy.
+Use for: Real-time triage of IAM changes that require authorization-context enrichment.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("PutRolePolicy", "PutUserPolicy"):
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-iam-change-actor-check",
+        "alert": {
+            "rule_id": "det-033",
+            "title": "Inline Policy Modification Outside Authorized IAM Change Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_role": detail.get("requestParameters", {}).get("roleName"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "source_ip": detail.get("sourceIPAddress"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: {
@@ -4164,89 +4544,220 @@ ORDER BY eventTime DESC`,
     },
     investigationSteps: ["Identify the actor type (IAMUser, AssumedRole) and ARN.", "Verify if this identity is authorized to modify IAM policies.", "Check userIdentity.sessionContext.sessionIssuer.arn for assumed roles.", "Review whether the actor is an EC2 instance role or application role."],
     testingSteps: ["As a non-admin IAM user or assumed role, call PutRolePolicy.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
+    lifecycle: {
+      whyItMatters: "Inline policy changes made outside approved IAM administration workflows are strong indicators of privilege abuse, weak governance, or compromised identities operating beyond their intended scope.",
+      threatContext: {
+        attackerBehavior: "An attacker using a developer role, workload role, EC2 instance profile, or misused human identity may call PutRolePolicy or PutUserPolicy to grant access outside established IAM change processes.",
+        realWorldUsage: "Unexpected-actor IAM changes are common in cloud post-compromise tradecraft because workload identities or delegated roles often already have enough access to mutate IAM if guardrails are weak.",
+        whyItMatters: "The key decision is not whether the actor name contains admin, but whether the identity, session context, and workflow prove the caller is allowed to mutate IAM permissions for that target.",
+        riskAndImpact: "If missed, a compromised or out-of-scope identity can expand permissions, create persistence, or alter sensitive roles without going through normal approval and change channels.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "errorCode", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "userIdentity.sessionContext.sessionIssuer.arn", "userIdentity.invokedBy", "userIdentity.sessionContext.attributes.mfaAuthenticated", "sourceIPAddress", "userAgent", "requestParameters.roleName", "requestParameters.userName", "requestParameters.policyDocument"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "Actor authorization decisions require an approved-actor registry keyed by ARN, principalId, or session issuer ARN.", "Target ownership and approved automation provenance should be available as enrichment."],
+        limitations: ["Without an authorized-actor inventory this rule becomes noisy baseline visibility.", "IaC and central automation can look unusual without change-provenance enrichment.", "CloudTrail alone does not prove target ownership relationships."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "userIdentity.principalId", normalizedPath: "user.id", notes: "Stable actor identifier for allowlisting" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role for assumed-role sessions" },
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.target_role.name", notes: "Target role" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Target user" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "PutRolePolicy", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx", type: "AssumedRole", id: "AROAXXXXX:i-xxx" },
+          source: { ip: "203.0.113.10" },
+          aws: { iam: { target_role: { name: "TargetRole" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized IAM Change Actors", description: "Exact inventory of identities allowed to manage IAM.", examples: ["platform-security-admin", "terraform-iam-runner", "break-glass IAM admin"], falsePositiveReduction: "Replaces weak substring filtering with stable approved actor classification." },
+        { dimension: "Approved Change Provenance", description: "Correlate userAgent, invokedBy, session tags, pipeline metadata, change ticket, and maintenance window.", examples: ["CloudFormation execution role", "approved CAB window", "out-of-band console session"], falsePositiveReduction: "Separates sanctioned automation from suspicious manual or untracked changes." },
+        { dimension: "Target Ownership", description: "Determine whether the actor is allowed to modify the target user or role.", examples: ["actor owns target app role", "cross-team target", "self-modification"], falsePositiveReduction: "Makes actor-target scope violations much higher signal." },
+        { dimension: "Behavioral Novelty", description: "Track first-time IAM changes by actor, first change against a target, off-hours manual use, or unusual source IP.", examples: ["first IAM write by workload role", "actor never modified this role before"], falsePositiveReduction: "Raises confidence for unusual IAM write patterns." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule detects inline policy changes made outside approved IAM administration workflows. The key decision is not whether the actor name contains admin, but whether the identity, session context, and workflow prove the caller is allowed to mutate IAM permissions for that target.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals PutRolePolicy or PutUserPolicy", "actor is not in the approved IAM-change inventory or request lacks approved automation or change provenance, or actor is modifying a target outside its ownership boundary"],
+        tuningGuidance: "1. Allowlist exact ARNs and principalIds, not substrings. 2. Down-rank events with clear IaC provenance and matching change records. 3. Up-rank first-time actor-target pairs, manual CLI or console sessions, and policy changes that materially expand privilege.",
+        whenToFire: "Fire when an inline policy change is made outside authorized IAM change paths. Raise severity when dangerous policy content or high-value targets are involved.",
+      },
+      simulationCommand: "aws iam put-role-policy --role-name TargetRole --policy-name TestInlinePolicy --policy-document file://inline-policy.json --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with identity inventory; High without",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation", "EventBridge + Lambda enrichment", "Athena with lookup tables", "Panther / Chronicle / Datadog"],
+        scheduling: "Best in real time or short scheduled windows because authorization context is lookup-driven.",
+        considerations: ["Keep Sigma broad and push authorization decisions into enrichment.", "Actor-to-target ownership and approved workflow context matter more than actor naming.", "Use this as the actor-centric companion to dangerous policy-content detections."],
+      },
+    },
   },
   {
     id: "det-034",
-    title: "Inline Policy Modification Followed by Sensitive API Use",
-    description: "Behavior correlation: detects when PutRolePolicy or PutUserPolicy is followed within 10 minutes by the same identity performing sensitive API calls (AssumeRole, GetSecretValue, ListBuckets). Example attack chain: attacker compromises EC2 role → PutRolePolicy → AssumeRole, GetSecretValue, ListBuckets. Catches real attacks with much higher confidence than single-event rules.",
+    title: "New Managed Policy Created and Attached to Self or Controlled Principal",
+    description: "High-confidence privilege-escalation and persistence chain where an actor creates a new customer-managed policy and then attaches that same policy to their own IAM user, current role, or another principal they control within a short time window.",
     awsService: "IAM",
-    relatedServices: ["STS", "Secrets Manager", "S3"],
+    relatedServices: ["STS"],
     severity: "Critical",
     tags: ["IAM", "Inline Policy", "Behavior Correlation", "Privilege Escalation"],
     logSources: ["AWS CloudTrail"],
-    falsePositives: ["Legitimate policy update followed by normal API use", "DevOps workflow updating role then assuming it"],
+    falsePositives: ["Approved IAM engineering workflows that create and immediately attach policies", "Infrastructure automation creating application-specific policies during deployment"],
     rules: {
-      sigma: `title: Inline Policy Modification Followed by Sensitive API Use
+      sigma: `title: New Managed Policy Created and Attached to Self or Controlled Principal
 status: experimental
 logsource:
   service: cloudtrail
 detection:
-  selection_policy:
+  selection:
     eventSource: iam.amazonaws.com
     eventName:
-      - PutRolePolicy
-      - PutUserPolicy
-  selection_sensitive:
-    eventName:
-      - AssumeRole
-      - GetSecretValue
-      - ListBuckets
-  condition: 1 of selection_*
+      - CreatePolicy
+      - AttachUserPolicy
+      - AttachRolePolicy
+      - AttachGroupPolicy
+  condition: selection
 level: critical
-# Note: Full correlation (same identity, within 10 min) requires SIEM correlation or runbooks.
-# This Sigma rule identifies both event types; implement time-window correlation in your SIEM.`,
+# Full correlation requires join on created policy ARN and actor identity.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
-  ((eventSource=iam.amazonaws.com AND (eventName=PutRolePolicy OR eventName=PutUserPolicy))
-   OR (eventName=AssumeRole OR eventName=GetSecretValue OR eventName=ListBuckets))
+  (eventSource=iam.amazonaws.com AND (eventName=CreatePolicy OR eventName=AttachUserPolicy OR eventName=AttachRolePolicy OR eventName=AttachGroupPolicy))
 | eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
-| transaction actor maxspan=10m
-| where mvcount(mvfilter(eventSource="iam.amazonaws.com" AND eventName IN ("PutRolePolicy","PutUserPolicy")))>0
-  AND mvcount(mvfilter(eventName IN ("AssumeRole","GetSecretValue","ListBuckets")))>0
-| table _time, actor, eventName, requestParameters.roleName, requestParameters.userName`,
+| transaction actor maxspan=15m
+| where mvcount(mvfilter(eventName="CreatePolicy"))>0
+  AND mvcount(mvfilter(eventName IN ("AttachUserPolicy","AttachRolePolicy","AttachGroupPolicy")))>0
+| table _time, actor, eventName, responseElements.policy.arn, requestParameters.policyArn, requestParameters.userName, requestParameters.roleName, requestParameters.groupName`,
       cloudtrail: `WITH policy_mods AS (
-  SELECT userIdentity.arn AS actor, eventTime AS policy_time
+  SELECT userIdentity.arn AS actor, responseElements.policy.arn AS created_policy_arn, eventTime AS create_time
   FROM cloudtrail_logs
   WHERE eventSource = 'iam.amazonaws.com'
-    AND eventName IN ('PutRolePolicy', 'PutUserPolicy')
+    AND eventName = 'CreatePolicy'
 ),
-sensitive_use AS (
-  SELECT userIdentity.arn AS actor, eventTime AS use_time, eventName
+attach_events AS (
+  SELECT userIdentity.arn AS actor, requestParameters.policyArn AS policy_arn, requestParameters.userName, requestParameters.roleName, requestParameters.groupName, eventName AS attach_event, eventTime AS attach_time
   FROM cloudtrail_logs
-  WHERE eventName IN ('AssumeRole', 'GetSecretValue', 'ListBuckets')
+  WHERE eventSource = 'iam.amazonaws.com'
+    AND eventName IN ('AttachUserPolicy', 'AttachRolePolicy', 'AttachGroupPolicy')
 )
-SELECT p.actor, p.policy_time, s.use_time, s.eventName
+SELECT p.actor, p.created_policy_arn, p.create_time, s.attach_time, s.attach_event, s.userName, s.roleName, s.groupName
 FROM policy_mods p
-JOIN sensitive_use s ON p.actor = s.actor
-  AND s.use_time > p.policy_time
-  AND s.use_time <= p.policy_time + INTERVAL '10' MINUTE
-ORDER BY p.policy_time DESC`,
-      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, eventSource
-| filter (eventSource = "iam.amazonaws.com" and eventName in ["PutRolePolicy", "PutUserPolicy"])
-  or eventName in ["AssumeRole", "GetSecretValue", "ListBuckets"]
-| stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
-| filter cnt > 1
-| sort cnt desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePolicy", "PutUserPolicy"] } }, null, 2),
+JOIN attach_events s ON p.actor = s.actor
+  AND p.created_policy_arn = s.policy_arn
+  AND s.attach_time > p.create_time
+  AND s.attach_time <= p.create_time + INTERVAL '15' MINUTE
+ORDER BY p.create_time DESC`,
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.policyArn, responseElements.policy.arn
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName in ["CreatePolicy", "AttachUserPolicy", "AttachRolePolicy", "AttachGroupPolicy"]
+| sort @timestamp desc`,
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["CreatePolicy", "AttachUserPolicy", "AttachRolePolicy", "AttachGroupPolicy"] } }, null, 2),
+      lambda: `"""
+New Managed Policy Created and Attached to Self or Controlled Principal
+Trigger: EventBridge rule matching CreatePolicy and Attach*Policy.
+Use for: Correlation of create-and-attach escalation chains.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("CreatePolicy", "AttachUserPolicy", "AttachRolePolicy", "AttachGroupPolicy"):
+        return {"matched": False}
+
+    return {
+        "matched": "requires-correlation-on-created-policy-arn-and-actor",
+        "alert": {
+            "rule_id": "det-034",
+            "title": "New Managed Policy Created and Attached to Self or Controlled Principal",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": detail.get("eventName"),
+            "policy_arn": detail.get("requestParameters", {}).get("policyArn") or detail.get("responseElements", {}).get("policy", {}).get("arn"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: {
       primaryLogSource: "AWS CloudTrail",
       generatingService: "iam.amazonaws.com",
-      importantFields: ["eventSource", "eventName", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.roleName", "requestParameters.userName", "eventTime"],
-      exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "PutRolePolicy", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/ec2-role/i-xxx" }, requestParameters: { roleName: "TargetRole", policyName: "EscalationPolicy" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2),
+      importantFields: ["eventSource", "eventName", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.roleName", "requestParameters.userName", "requestParameters.policyArn", "responseElements.policy.arn", "eventTime"],
+      exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreatePolicy", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/ec2-role/i-xxx" }, responseElements: { policy: { arn: "arn:aws:iam::123456789012:policy/BackdoorPolicy" } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2),
     },
-    investigationSteps: ["Identify the identity that performed the policy modification.", "Review the sequence: policy change → sensitive API use within 10 minutes.", "Verify if AssumeRole/GetSecretValue/ListBuckets was expected.", "Check whether the actor compromised an EC2 or application role before the policy change."],
-    testingSteps: ["As a test role, call PutRolePolicy, then within 10 min call AssumeRole or GetSecretValue.", "Verify both events appear in CloudTrail.", "Run the Splunk or Athena correlation query to confirm the alert triggers."],
+    investigationSteps: ["Identify the identity that created the managed policy and attached it.", "Determine whether the attached target was the actor's own user, session role, or controlled principal.", "Inspect the created policy document for wildcard or escalation permissions.", "Check whether the actor or target used the new permissions immediately afterward."],
+    testingSteps: ["Create a managed policy in a lab account and attach it to the same actor's own principal or role.", "Verify both events appear in CloudTrail.", "Run the correlation query to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Creating a new managed policy and attaching it immediately is a compact way to introduce new permissions without modifying existing policies. When the target is the actor's own identity or a principal they control, it is a strong signal of deliberate privilege expansion or persistence.",
+      threatContext: {
+        attackerBehavior: "An attacker with iam:CreatePolicy plus attachment permissions can create a custom policy tailored to the permissions they want, then attach it to themselves or to a principal they can already use.",
+        realWorldUsage: "This chain matches common AWS privilege-escalation tradecraft because it combines policy authoring and attachment into a short, low-noise workflow.",
+        whyItMatters: "The combination is far more meaningful than either API alone. CreatePolicy by itself is often normal, and attachment by itself may be legitimate, but creating a policy and then attaching that same new ARN to a self-controlled target is strong intent evidence.",
+        riskAndImpact: "If undetected, an attacker can introduce a custom backdoor policy, grant themselves access to sensitive services, or persist on a principal that looks operationally normal.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.userName", "userIdentity.sessionContext.sessionIssuer.arn", "responseElements.policy.arn", "requestParameters.policyDocument", "requestParameters.policyArn", "requestParameters.userName", "requestParameters.roleName", "requestParameters.groupName", "eventTime", "sourceIPAddress"],
+        loggingRequirements: ["CloudTrail must capture both CreatePolicy and AttachUserPolicy/AttachRolePolicy/AttachGroupPolicy.", "The pipeline must preserve responseElements.policy.arn from CreatePolicy so it can be joined to later attachment events.", "Identity inventory or enrichment is needed to decide whether the attachment target is self-controlled."],
+        limitations: ["Self or controlled-principal resolution is not possible from CloudTrail alone in every case.", "AttachGroupPolicy is only high-confidence if group-membership enrichment proves the actor benefits from that group.", "Automation that creates and attaches app-specific policies may require allowlisting."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "responseElements.policy.arn", normalizedPath: "aws.iam.policy.arn", notes: "Policy ARN created by CreatePolicy" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Target user for AttachUserPolicy" },
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.target_role.name", notes: "Target role for AttachRolePolicy" },
+          { rawPath: "requestParameters.groupName", normalizedPath: "aws.iam.target_group.name", notes: "Target group for AttachGroupPolicy" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor who created and attached the policy" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "CreatePolicy", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/ec2-role/i-xxx", type: "AssumedRole" },
+          aws: { iam: { policy: { arn: "arn:aws:iam::123456789012:policy/BackdoorPolicy" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Self or Controlled-Principal Resolution", description: "Decide whether the attachment target is the actor's own IAM user, the actor's session-issuer role, a group the actor belongs to, or another principal they control.", examples: ["IAM user creates policy then AttachUserPolicy to self", "assumed-role session attaches policy to its own role"], falsePositiveReduction: "Turns a generic policy workflow into a concrete self-escalation or persistence pattern." },
+        { dimension: "Created Policy Risk", description: "Parse the newly created policy and classify wildcard admin, pass-role, assume-role, secrets, KMS, and persistence-enabling permissions.", examples: ["iam:PassRole + ec2:RunInstances", "sts:AssumeRole", "Action:*"], falsePositiveReduction: "Reduces noise from benign app policies while prioritizing materially dangerous attachments." },
+        { dimension: "Attachment Blast Radius", description: "Determine what the target principal can already access and whether the attachment affects a human admin, workload role, group, or break-glass identity.", examples: ["production CI role", "developer IAM user", "shared admin group"], falsePositiveReduction: "Separates low-risk dev changes from account-wide escalation opportunities." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a specific attack chain rather than generic follow-on API use. Alert when the same actor creates a new customer-managed policy and then attaches that same policy ARN to a target they control within a short window.",
+        conditions: ["first eventName equals CreatePolicy", "second eventName equals AttachUserPolicy, AttachRolePolicy, or AttachGroupPolicy", "second event requestParameters.policyArn equals first event responseElements.policy.arn", "same actor performs both events", "second event occurs within 10-15 minutes of the first", "attachment target resolves to self or a controlled principal"],
+        tuningGuidance: "1. Treat self-attachment as the primary high-confidence branch. 2. Only include AttachGroupPolicy when group-membership enrichment proves the actor benefits from that group. 3. Score policy-document risk separately so narrow but dangerous custom policies are not missed.",
+        whenToFire: "Fire when a newly created managed policy is attached within a short window to the actor's own identity or a principal they control. In mature environments this should be very low volume and high confidence.",
+      },
+      simulationCommand: "aws iam create-policy --policy-name BackdoorPolicy --policy-document file://policy.json && aws iam attach-user-policy --user-name alice --policy-arn arn:aws:iam::123456789012:policy/BackdoorPolicy",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low after allowlisting IAM automation and resolving target control relationships",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Athena", "Splunk", "Panther", "Chronicle", "Datadog", "SIEM correlation engines"],
+        scheduling: "Best in near-real-time or short batch windows because correlation depends on a 10-15 minute sequence.",
+        considerations: ["Use responseElements.policy.arn from CreatePolicy as the join key.", "Identity-resolution enrichment is mandatory for the self-or-controlled-principal predicate.", "This is materially stronger than generic sensitive API follow-on logic."],
+      },
+    },
   },
 
   // --- IAM Set Default Policy Version ---
   {
     id: "det-035",
-    title: "IAM Policy Default Version Change",
-    description: "Baseline visibility into managed policy version changes. Detects SetDefaultPolicyVersion API calls. Legitimate IAM management may perform this operation.",
+    title: "Managed Policy Default Version Switched to More Permissive Version",
+    description: "Detects SetDefaultPolicyVersion when the selected version materially expands permissions compared with the previous default version. This models privilege escalation and rollback-to-broader-access behavior rather than treating every default-version switch as suspicious.",
     awsService: "IAM",
     relatedServices: [],
-    severity: "Medium",
+    severity: "High",
     tags: ["IAM", "Policy Version", "Privilege Escalation"],
     logSources: ["AWS CloudTrail"],
     falsePositives: ["Legitimate policy version updates", "Terraform/CloudFormation policy management"],
@@ -4260,7 +4771,7 @@ detection:
     eventSource: iam.amazonaws.com
     eventName: SetDefaultPolicyVersion
   condition: selection
-level: medium`,
+level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=SetDefaultPolicyVersion
 | table _time, userIdentity.arn, eventName, requestParameters.policyArn, requestParameters.versionId, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.policyArn, requestParameters.versionId, sourceIPAddress
@@ -4272,17 +4783,96 @@ ORDER BY eventTime DESC`,
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName = "SetDefaultPolicyVersion"
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["SetDefaultPolicyVersion"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["SetDefaultPolicyVersion"] } }, null, 2),
+      lambda: `"""
+Managed Policy Default Version Switched to More Permissive Version
+Trigger: EventBridge rule matching SetDefaultPolicyVersion.
+Use for: Real-time enrichment against prior default version and policy diff.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "SetDefaultPolicyVersion":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-prior-default-version-and-diff",
+        "alert": {
+            "rule_id": "det-035",
+            "title": "Managed Policy Default Version Switched to More Permissive Version",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "policy_arn": detail.get("requestParameters", {}).get("policyArn"),
+            "version_id": detail.get("requestParameters", {}).get("versionId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "userIdentity.type", "requestParameters.policyArn", "requestParameters.versionId", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "SetDefaultPolicyVersion", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { policyArn: "arn:aws:iam::123456789012:policy/TargetPolicy", versionId: "v1" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify who changed the policy default version.", "Verify whether the version change was authorized.", "Check if the new default version has broader permissions than the previous one.", "Review policy version history for rollback indicators."],
-    testingSteps: ["Call SetDefaultPolicyVersion on a test policy.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    investigationSteps: ["Identify who changed the policy default version.", "Verify whether the selected version is more permissive than the previous default.", "Check attachment blast radius for the affected policy.", "Review policy version history for rollback or hidden activation indicators."],
+    testingSteps: ["Call SetDefaultPolicyVersion on a test policy.", "Verify CloudTrail captures the event.", "Compare the selected version with the prior default and confirm the alert logic triggers only on privilege expansion."],
+    lifecycle: {
+      whyItMatters: "SetDefaultPolicyVersion is the moment a stored policy version becomes operative. Attackers can exploit that to restore a previously permissive version or activate a version they prepared earlier, immediately expanding privileges for every attached principal.",
+      threatContext: {
+        attackerBehavior: "An attacker with iam:SetDefaultPolicyVersion can switch a managed policy back to an older or alternate version that grants broader permissions.",
+        realWorldUsage: "Managed-policy version abuse is a standard AWS privilege-escalation path because older versions often survive as dormant rollback points.",
+        whyItMatters: "The API is security-relevant only when the new default is more permissive than the old one. That makes diffing and prior-state awareness mandatory.",
+        riskAndImpact: "If missed, a single SetDefaultPolicyVersion call can restore admin or broad access across many attached principals.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "requestParameters.policyArn", "requestParameters.versionId", "eventTime", "sourceIPAddress"],
+        loggingRequirements: ["CloudTrail must capture SetDefaultPolicyVersion events.", "A policy-state enrichment source is required to know the previous default version before the switch.", "You need access to managed policy metadata and documents via cached policy inventory."],
+        limitations: ["The CloudTrail event itself does not tell you the previous default version.", "Real-time analytics need cached pre-event state.", "Naive string matching misses privilege expansion caused by removed conditions or broader resources."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.policyArn", normalizedPath: "aws.iam.policy.arn", notes: "Managed policy being switched" },
+          { rawPath: "requestParameters.versionId", normalizedPath: "aws.iam.policy.new_default_version", notes: "Version selected by SetDefaultPolicyVersion" },
+          { rawPath: "enrichment.previousDefaultVersionId", normalizedPath: "aws.iam.policy.previous_default_version", notes: "Required lookup or cache value" },
+          { rawPath: "enrichment.diffSummary", normalizedPath: "aws.iam.policy.diff_summary", notes: "Computed privilege delta between prior and new default" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "SetDefaultPolicyVersion", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { policy: { arn: "arn:aws:iam::123456789012:policy/TargetPolicy", new_default_version: "v3", previous_default_version: "v2" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Prior vs New Default Version Diff", description: "Compare the previous default policy document with the version selected in the event and classify whether permissions expanded.", examples: ["added iam:PassRole", "broadened Resource from single ARN to *", "removed restrictive Condition"], falsePositiveReduction: "Prevents alerting on harmless rollbacks or formatting-only changes." },
+        { dimension: "Policy Attachment Blast Radius", description: "Determine how many users, groups, and roles inherit the switched default and whether they are sensitive.", examples: ["attached to production deploy role", "attached to shared admin group"], falsePositiveReduction: "Focuses urgency on changes that affect active or high-value principals." },
+        { dimension: "Actor Trust and Approval Context", description: "Identify whether the actor is an approved IAM operator, automation role, break-glass principal, or unexpected workload identity.", examples: ["terraform-iam-runner", "security-admin", "application role"], falsePositiveReduction: "Expected policy maintenance can be downgraded while preserving suspicious version activation." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should only alert when SetDefaultPolicyVersion makes a policy more permissive than it was before. The API match is easy, but the real detection requires comparing the selected version to the prior default and deciding whether privileges expanded.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals SetDefaultPolicyVersion", "selected version differs from the prior default version", "diff between prior and selected versions shows privilege expansion"],
+        tuningGuidance: "1. Do not keep this as a pure API-call baseline if the intent is privilege-escalation coverage. 2. Cache policy default-version state before events arrive. 3. Diff semantics, not raw strings.",
+        whenToFire: "Fire when the selected default version materially expands permissions over the previous default. Treat events with no reliable old-vs-new diff as baseline visibility.",
+      },
+      simulationCommand: "aws iam set-default-policy-version --policy-arn arn:aws:iam::123456789012:policy/TargetPolicy --version-id v3",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low after policy diffing and actor allowlisting",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with enrichment tables", "Splunk", "Panther / Chronicle / Datadog", "EventBridge + Lambda with policy inventory cache"],
+        scheduling: "Prefer near-real-time with enrichment cache, or short scheduled analytics if policy-version state is materialized into lookup tables.",
+        considerations: ["You need prior-default state; event-only detection is insufficient.", "Without diffing, this should be downgraded to a simple audit rule rather than a privilege-expansion detector."],
+      },
+    },
   },
   {
     id: "det-036",
-    title: "Suspicious Policy Version Rollback",
-    description: "Detects potential privilege escalation when SetDefaultPolicyVersion affects high-value policies. Attackers may roll back policy versions to restore admin access or broad permissions. Focuses on policies attached to roles or users that may restore previously removed privileges.",
+    title: "Risky Managed Policy Version Reactivated",
+    description: "Detects SetDefaultPolicyVersion events where the selected policy version is known to be risky or is materially broader than the previous default version. This detection should rely on policy-version content and diffs, not policy name keywords.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
@@ -4298,39 +4888,109 @@ detection:
   selection:
     eventSource: iam.amazonaws.com
     eventName: SetDefaultPolicyVersion
-  filter_admin_policy:
-    requestParameters.policyArn|contains:
-      - 'Admin'
-      - 'AdministratorAccess'
-      - 'PowerUser'
-      - 'FullAccess'
-  condition: selection and filter_admin_policy
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=SetDefaultPolicyVersion
-| where like(requestParameters.policyArn, "%Admin%") OR like(requestParameters.policyArn, "%PowerUser%") OR like(requestParameters.policyArn, "%FullAccess%") OR like(requestParameters.policyArn, "%AdministratorAccess%")
-| table _time, userIdentity.arn, eventName, requestParameters.policyArn, requestParameters.versionId`,
+| table _time, userIdentity.type, userIdentity.arn, eventName, requestParameters.policyArn, requestParameters.versionId, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.policyArn, requestParameters.versionId
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
   AND eventName = 'SetDefaultPolicyVersion'
-  AND (requestParameters.policyArn LIKE '%Admin%' OR requestParameters.policyArn LIKE '%PowerUser%' OR requestParameters.policyArn LIKE '%FullAccess%' OR requestParameters.policyArn LIKE '%AdministratorAccess%')
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.policyArn, requestParameters.versionId
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName = "SetDefaultPolicyVersion"
-| filter requestParameters.policyArn like /Admin|PowerUser|FullAccess|AdministratorAccess/
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["SetDefaultPolicyVersion"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["SetDefaultPolicyVersion"] } }, null, 2),
+      lambda: `"""
+Risky Managed Policy Version Reactivated
+Trigger: EventBridge rule matching SetDefaultPolicyVersion.
+Use for: Real-time enrichment against policy version catalog and prior default version.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "SetDefaultPolicyVersion":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-policy-version-catalog-and-risk-classification",
+        "alert": {
+            "rule_id": "det-036",
+            "title": "Risky Managed Policy Version Reactivated",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "policy_arn": detail.get("requestParameters", {}).get("policyArn"),
+            "version_id": detail.get("requestParameters", {}).get("versionId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.policyArn", "requestParameters.versionId", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "SetDefaultPolicyVersion", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { policyArn: "arn:aws:iam::123456789012:policy/AdminPolicy", versionId: "v1" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify who rolled back the policy version.", "Compare the new default version with the previous one for permission changes.", "Verify if the policy was recently tightened and the rollback restores broader access.", "Check whether the actor is authorized for policy version management."],
-    testingSteps: ["Set default version on a policy with Admin in the name.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    investigationSteps: ["Identify who reactivated the policy version.", "Compare the selected version with the previous default and determine whether it is known risky or materially broader.", "Assess attachment blast radius for the policy.", "Check whether the actor is authorized for policy version management."],
+    testingSteps: ["Set the default version on a policy back to a previously broader version.", "Verify CloudTrail captures the event.", "Confirm the enriched detector only fires when the selected version is risky or broader than the prior default."],
+    lifecycle: {
+      whyItMatters: "SetDefaultPolicyVersion can instantly reactivate old permissions across every attached user, group, and role without changing any attachments, making it a stealthy way to restore risky access that already exists in history.",
+      threatContext: {
+        attackerBehavior: "An attacker who can call iam:SetDefaultPolicyVersion can select a previous customer-managed policy version that is broader or known to be dangerous.",
+        realWorldUsage: "Rollback to an earlier policy version is a practical abuse path because older versions often survive as dormant rollback points.",
+        whyItMatters: "The operative risk is not the policy name but what the selected version actually grants and whether that version is attached to sensitive principals.",
+        riskAndImpact: "If undetected, a single SetDefaultPolicyVersion call can restore admin or broad access across many attached principals, enabling account takeover, persistence, or access to sensitive data.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "requestParameters.policyArn", "requestParameters.versionId", "sourceIPAddress", "eventTime"],
+        loggingRequirements: ["CloudTrail management events for IAM must be enabled.", "A policy version catalog must exist, built from CreatePolicyVersion history or GetPolicyVersion enrichment.", "The system must know the prior default version to compare before and after state."],
+        limitations: ["SetDefaultPolicyVersion events do not include the selected policy document inline, only policyArn and versionId.", "If older policy versions were created before log retention or never cataloged, live enrichment is required.", "This API applies to customer-managed policies, not inline policies."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.policyArn", normalizedPath: "aws.iam.policy.arn", notes: "Managed policy being switched" },
+          { rawPath: "requestParameters.versionId", normalizedPath: "aws.iam.policy.selected_version", notes: "Version selected by SetDefaultPolicyVersion" },
+          { rawPath: "enrichment.previousDefaultVersionId", normalizedPath: "aws.iam.policy.previous_default_version", notes: "Cached prior default version" },
+          { rawPath: "enrichment.selectedVersionClassification", normalizedPath: "aws.iam.policy.selected_version_classification", notes: "Semantic risk label for selected version" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "SetDefaultPolicyVersion", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { policy: { arn: "arn:aws:iam::123456789012:policy/TargetPolicy", selected_version: "v1", previous_default_version: "v3" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Policy Version Catalog", description: "Store each policy version's parsed document, semantic risk class, and document hash by policyArn and versionId.", examples: ["v1 classified as broad_allow", "v3 classified as restrictive_control"], falsePositiveReduction: "Lets the rule alert on actual risky content instead of guessing from names." },
+        { dimension: "Before/After Permission Diff", description: "Compare the selected version to the previous default to determine whether permissions expanded or restrictive controls were removed.", examples: ["adds Action * on Resource *", "reintroduces iam:PassRole", "removes explicit deny"], falsePositiveReduction: "Suppresses benign rollbacks and focuses on reactivation that increases effective power." },
+        { dimension: "Blast Radius", description: "Measure how many principals are attached and whether they are privileged, production, or cross-account exposed.", examples: ["policy attached to three admin roles", "policy used by break-glass role"], falsePositiveReduction: "Keeps low-impact policy maintenance visible while prioritizing high-risk reversions." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should not care whether a policy ARN contains Admin or PowerUser. It should ask whether the selected version is known to be risky or whether switching to it increases permissions compared with the prior default.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals SetDefaultPolicyVersion", "requestParameters.policyArn and requestParameters.versionId are present", "selected policy version is classified as risky or is broader than the previous default version"],
+        tuningGuidance: "1. Keep a persistent version catalog keyed by policyArn and versionId. 2. Treat known risky version reactivated as the highest-confidence branch. 3. Allowlist approved IAM release pipelines and emergency rollback operators by stable identity attributes, not name substrings.",
+        whenToFire: "Fire when SetDefaultPolicyVersion reactivates a version previously classified as dangerous or materially broadens effective permissions compared with the prior default.",
+      },
+      simulationCommand: "aws iam set-default-policy-version --policy-arn arn:aws:iam::123456789012:policy/TargetPolicy --version-id v1",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with policy-version content and diff enrichment; high if implemented as ARN keyword matching",
+        expectedVolume: "Very low in most environments; spikes mainly during managed policy maintenance",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda with GetPolicyVersion enrichment", "SIEM or analytics platform with historical policy-version catalog", "Athena only if policy versions are pre-materialized into an enrichment table"],
+        scheduling: "Best as real-time or near-real-time with enrichment; scheduled queries are workable if policy-version state is continuously materialized.",
+        considerations: ["This rule is weak without version-content enrichment.", "Track previous default version so you can detect broadening rather than mere change.", "Attachment inventory sharply improves prioritization."],
+      },
+    },
   },
   {
     id: "det-037",
-    title: "Policy Version Change by Unexpected Actor",
-    description: "Detects SetDefaultPolicyVersion performed by identities that normally should not manage IAM policies. Suspicious actors include IAM users, application roles, EC2 instance roles, and assumed roles outside IAM administration.",
+    title: "Default Policy Version Change Outside Authorized IAM Change Path",
+    description: "Detects SetDefaultPolicyVersion performed outside approved IAM policy-management workflows. The signal depends on authorized actor inventory, workflow provenance, and policy sensitivity rather than actor name substrings.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
@@ -4346,46 +5006,112 @@ detection:
   selection:
     eventSource: iam.amazonaws.com
     eventName: SetDefaultPolicyVersion
-  filter_known_admin:
-    userIdentity.principalId|contains:
-      - 'terraform'
-      - 'cloudformation'
-      - 'admin'
-      - 'Admin'
-      - 'IAMAdmin'
-  condition: selection and not filter_known_admin
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=SetDefaultPolicyVersion
-| where NOT (like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%") OR like(userIdentity.arn, "%admin%") OR like(userIdentity.arn, "%Admin%") OR like(userIdentity.arn, "%IAMAdmin%"))
-| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.policyArn`,
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.policyArn, requestParameters.versionId, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.policyArn, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
   AND eventName = 'SetDefaultPolicyVersion'
-  AND userIdentity.principalId NOT LIKE '%terraform%'
-  AND userIdentity.principalId NOT LIKE '%cloudformation%'
-  AND userIdentity.arn NOT LIKE '%admin%'
-  AND userIdentity.arn NOT LIKE '%Admin%'
-  AND userIdentity.arn NOT LIKE '%IAMAdmin%'
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.policyArn
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName = "SetDefaultPolicyVersion"
-| filter userIdentity.principalId not like /terraform/ and userIdentity.principalId not like /cloudformation/ and userIdentity.arn not like /admin/i
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["SetDefaultPolicyVersion"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["SetDefaultPolicyVersion"] } }, null, 2),
+      lambda: `"""
+Default Policy Version Change Outside Authorized IAM Change Path
+Trigger: EventBridge rule matching SetDefaultPolicyVersion.
+Use for: Real-time triage of policy-version changes requiring authorization-context enrichment.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "SetDefaultPolicyVersion":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-policy-version-manager-check",
+        "alert": {
+            "rule_id": "det-037",
+            "title": "Default Policy Version Change Outside Authorized IAM Change Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "policy_arn": detail.get("requestParameters", {}).get("policyArn"),
+            "version_id": detail.get("requestParameters", {}).get("versionId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.policyArn", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "SetDefaultPolicyVersion", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx" }, requestParameters: { policyArn: "arn:aws:iam::123456789012:policy/TargetPolicy", versionId: "v1" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the actor type (IAMUser, AssumedRole) and ARN.", "Verify if this identity is authorized to manage IAM policy versions.", "Check userIdentity.sessionContext.sessionIssuer.arn for assumed roles.", "Review whether the actor is an EC2 instance role or application role."],
     testingSteps: ["As a non-admin role, call SetDefaultPolicyVersion.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
+    lifecycle: {
+      whyItMatters: "A default-version flip can restore previously removed permissions with one API call. The highest-signal cases are unauthorized actors or approved actors performing out-of-band rollbacks to a broader historical version.",
+      threatContext: {
+        attackerBehavior: "An attacker using a developer role, workload identity, or misused automation principal may call SetDefaultPolicyVersion to reactivate a more permissive policy version outside approved IAM change paths.",
+        realWorldUsage: "Unexpected-actor IAM version changes are a strong post-compromise signal because policy version management is typically limited to a small set of trusted identities and workflows.",
+        whyItMatters: "The key decision is not whether the actor name contains admin, but whether the identity, session context, and workflow prove the caller is allowed to manage policy versions for that policy.",
+        riskAndImpact: "If missed, a compromised or out-of-scope identity can reactivate broader permissions on sensitive managed policies without creating new policy documents.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "errorCode", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "userIdentity.sessionContext.sessionIssuer.arn", "sourceIPAddress", "userAgent", "requestParameters.policyArn", "requestParameters.versionId"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "Actor authorization decisions require an approved policy-version-manager registry.", "Policy version inventory and prior-default state should be available as enrichment."],
+        limitations: ["Without an authorized-actor inventory this rule becomes noisy baseline visibility.", "Expected break-glass or release workflows can look suspicious without workflow provenance.", "CloudTrail alone does not determine whether the selected version is broader."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "userIdentity.principalId", normalizedPath: "user.id", notes: "Stable actor identifier for allowlisting" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role for assumed-role sessions" },
+          { rawPath: "requestParameters.policyArn", normalizedPath: "aws.iam.policy.arn", notes: "Managed policy being changed" },
+          { rawPath: "requestParameters.versionId", normalizedPath: "aws.iam.policy.selected_version", notes: "Selected version" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "SetDefaultPolicyVersion", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx", type: "AssumedRole", id: "AROAXXXXX:i-xxx" },
+          aws: { iam: { policy: { arn: "arn:aws:iam::123456789012:policy/TargetPolicy", selected_version: "v1" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized IAM Change Actors", description: "Exact inventory of identities allowed to manage IAM policy versions.", examples: ["platform-security-admin", "terraform-iam-runner"], falsePositiveReduction: "Replaces weak substring filtering with stable approved actor classification." },
+        { dimension: "Approved Change Provenance", description: "Correlate userAgent, invokedBy, session tags, pipeline metadata, change ticket, and maintenance window.", examples: ["CloudFormation execution role", "approved CAB window", "out-of-band console session"], falsePositiveReduction: "Separates sanctioned automation from suspicious manual or untracked changes." },
+        { dimension: "Policy Sensitivity", description: "Classify whether the affected policy is attached to privileged, production, or shared identities.", examples: ["policy attached to admin group", "policy attached to prod deploy role"], falsePositiveReduction: "Raises urgency for high-impact policies and lowers noise for low-risk ones." },
+      ],
+      logicExplanation: {
+        humanReadable: "This is the actor-centric companion to policy-version risk detections. The rule should ask whether the caller should ever be managing policy versions for that policy in that workflow context, not whether its ARN happens to contain admin.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals SetDefaultPolicyVersion", "actor is not in the approved IAM-change inventory or request lacks approved workflow provenance"],
+        tuningGuidance: "1. Allowlist exact ARNs and principalIds, not substrings. 2. Down-rank events with clear IaC provenance and matching change records. 3. Escalate when the policy is sensitive or the selected version is broader than the prior default.",
+        whenToFire: "Fire when SetDefaultPolicyVersion occurs outside authorized IAM change paths. Raise severity when the affected policy is sensitive or the selected version is riskier than before.",
+      },
+      simulationCommand: "aws iam set-default-policy-version --policy-arn arn:aws:iam::123456789012:policy/TargetPolicy --version-id v1 --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Medium without context, low with actor inventory and workflow provenance",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "SIEM correlation", "Athena with lookup tables", "Panther / Chronicle / Datadog"],
+        scheduling: "Best in real time or short scheduled windows because authorization context and version risk are lookup-driven.",
+        considerations: ["Keep Sigma broad and push authorization decisions into enrichment.", "Use this as the actor-centric companion to `det-035` and `det-036`."],
+      },
+    },
   },
 
   // --- IAM Policy Delete or Detach ---
   {
     id: "det-038",
-    title: "IAM Policy Detached or Deleted",
-    description: "Baseline visibility into IAM policy removals. Detects DetachUserPolicy, DetachRolePolicy, DeleteUserPolicy, DeleteRolePolicy. Policy updates may occur during legitimate IAM administration.",
+    title: "IAM Policy Removal With Potential Permission Expansion",
+    description: "Baseline visibility into IAM policy removals with emphasis on changes that may reduce guardrails or expand effective permissions. Broad detach and delete activity remains useful baseline telemetry, but higher-fidelity escalation depends on state, policy semantics, and follow-on behavior.",
     awsService: "IAM",
     relatedServices: [],
     severity: "Medium",
@@ -4418,17 +5144,101 @@ ORDER BY eventTime DESC`,
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName in ["DetachUserPolicy", "DetachRolePolicy", "DeleteUserPolicy", "DeleteRolePolicy"]
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["DetachUserPolicy", "DetachRolePolicy", "DeleteUserPolicy", "DeleteRolePolicy"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["DetachUserPolicy", "DetachRolePolicy", "DeleteUserPolicy", "DeleteRolePolicy"] } }, null, 2),
+      lambda: `"""
+IAM Policy Removal With Potential Permission Expansion
+Trigger: EventBridge rule matching Detach*Policy or Delete*Policy.
+Use for: Baseline visibility plus enrichment for harmful removal scenarios.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("DetachUserPolicy", "DetachRolePolicy", "DeleteUserPolicy", "DeleteRolePolicy"):
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-038",
+            "title": "IAM Policy Removal With Potential Permission Expansion",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": detail.get("eventName"),
+            "policy_arn": detail.get("requestParameters", {}).get("policyArn"),
+            "policy_name": detail.get("requestParameters", {}).get("policyName"),
+            "target_role": detail.get("requestParameters", {}).get("roleName"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "requestParameters.policyArn", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "DetachUserPolicy", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { userName: "TargetUser", policyArn: "arn:aws:iam::aws:policy/ReadOnlyAccess" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who detached or deleted the policy.", "Verify whether the removal was authorized.", "Check if the policy was restrictive (deny, permission boundary).", "Review the target principal's remaining permissions."],
     testingSteps: ["Call DetachUserPolicy or DeleteUserPolicy on a test principal.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Attackers do not always need to add new permissions; often they can expose privileges that already exist by removing policies, boundaries, or restrictive controls that were previously limiting access.",
+      threatContext: {
+        attackerBehavior: "An attacker can increase effective permissions by deleting a policy, detaching a policy, or removing part of a principal's previous control set so latent allows become effective.",
+        realWorldUsage: "Raw detach and delete activity is common in normal IAM lifecycle work, but it is also a common post-compromise path because removing controls can instantly expose access without attaching anything new.",
+        whyItMatters: "A detach or delete event is only important if the removed control was actually restrictive or if follow-on activity shows permission expansion.",
+        riskAndImpact: "If missed, attackers can unlock dormant access, bypass delegated-administration guardrails, or widen service access on active principals without obvious new permission grants.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "errorCode", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "requestParameters.policyArn", "requestParameters.policyName", "sourceIPAddress"],
+        loggingRequirements: ["CloudTrail management events must include DetachUserPolicy, DetachRolePolicy, DeleteUserPolicy, and DeleteRolePolicy.", "Prior-state context is needed to know what policy was removed and whether it was restrictive.", "Follow-on privileged API telemetry materially improves confidence."],
+        limitations: ["Detach and delete events often do not carry the full policy document, so enrichment is mandatory for high-fidelity conclusions.", "This broad rule is better as baseline visibility than a standalone high-severity alert.", "Without state or correlation, routine IAM lifecycle work can look suspicious."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "DetachUserPolicy, DetachRolePolicy, DeleteUserPolicy, or DeleteRolePolicy" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.target_role.name", notes: "Target role" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Target user" },
+          { rawPath: "requestParameters.policyArn", normalizedPath: "aws.iam.policy.arn", notes: "Managed policy removed" },
+          { rawPath: "requestParameters.policyName", normalizedPath: "aws.iam.policy.name", notes: "Inline policy removed" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "DetachUserPolicy", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { target_user: { name: "TargetUser" }, policy: { arn: "arn:aws:iam::aws:policy/ReadOnlyAccess" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Restrictive Control Classification", description: "Classify whether the removed policy functioned as a guardrail, explicit deny, or other restrictive control.", examples: ["explicit deny policy", "permissions boundary helper policy", "narrow scoping control"], falsePositiveReduction: "Ensures the rule alerts on actual control reduction, not every detach or delete." },
+        { dimension: "Target Principal and Governance Context", description: "Measure whether the affected user or role is privileged, production, delegated-admin managed, or expected to carry strict controls.", examples: ["production CI role", "delegated admin user", "security automation role"], falsePositiveReduction: "Prioritizes control reductions on high-value principals." },
+        { dimension: "Follow-on Privileged Activity", description: "Correlate the removal with AssumeRole, GetSecretValue, PassRole, or other privileged actions from the actor or target principal soon afterward.", examples: ["policy detached then AssumeRole succeeds", "control removed then secrets access begins"], falsePositiveReduction: "Distinguishes routine lifecycle operations from changes that plausibly increase effective permissions." },
+      ],
+      logicExplanation: {
+        humanReadable: "Raw detach and delete activity is noisy because offboarding, role replacement, Terraform drift correction, and policy cleanup are common. This rule should stay baseline-oriented but be designed to feed higher-fidelity harmful-removal logic that uses prior-state evidence and follow-on privileged behavior.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals DetachUserPolicy, DetachRolePolicy, DeleteUserPolicy, or DeleteRolePolicy"],
+        tuningGuidance: "1. Keep this as broad baseline visibility. 2. Use semantic policy classification and prior-state lookup to derive harmful-removal alerts. 3. Correlate with follow-on privileged API use before paging.",
+        whenToFire: "Fire on every policy removal for visibility, but reserve high-priority triage for cases where prior-state evidence shows restrictive-control removal or follow-on activity confirms permission expansion.",
+      },
+      simulationCommand: "aws iam detach-user-policy --user-name TargetUser --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium-High raw, low-medium after state and follow-on correlation",
+        expectedVolume: "Environment-dependent",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "SIEM correlation", "Athena", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time baseline visibility or short scheduled analytics both work; higher-fidelity logic needs state and correlation.",
+        considerations: ["This is the broad baseline companion to the more semantic restrictive-control rule.", "Detaches and deletes need prior-state enrichment to support strong conclusions."],
+      },
+    },
   },
   {
     id: "det-039",
-    title: "Suspicious Removal of Restrictive Policy",
-    description: "Detects when policy detach or deletion may increase privileges. Attackers often remove restrictive policies (deny policies, permission boundaries) to expand permissions. Focuses on removal of policies with restrictive names or ARNs.",
+    title: "Restrictive IAM Control Removed or Weakened",
+    description: "Detects changes that reduce IAM restrictions by removing a permissions boundary, detaching or deleting a policy that provides explicit deny or other restrictive controls, or switching to a weaker control state. This rule should evaluate policy semantics rather than relying on restrictive-sounding names.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
@@ -4448,48 +5258,120 @@ detection:
       - DetachRolePolicy
       - DeleteUserPolicy
       - DeleteRolePolicy
-  filter_arn:
-    requestParameters.policyArn|contains:
-      - 'Deny'
-      - 'Restrict'
-      - 'Boundary'
-      - 'ReadOnly'
-      - 'Limited'
-  filter_name:
-    requestParameters.policyName|contains:
-      - 'Deny'
-      - 'Restrict'
-      - 'Boundary'
-  condition: selection and (filter_arn or filter_name)
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=DetachUserPolicy OR eventName=DetachRolePolicy OR eventName=DeleteUserPolicy OR eventName=DeleteRolePolicy)
-| where like(requestParameters.policyArn, "%Deny%") OR like(requestParameters.policyArn, "%Restrict%") OR like(requestParameters.policyArn, "%Boundary%") OR like(requestParameters.policyArn, "%ReadOnly%") OR like(requestParameters.policyArn, "%Limited%") OR like(requestParameters.policyName, "%Deny%") OR like(requestParameters.policyName, "%Restrict%") OR like(requestParameters.policyName, "%Boundary%")
-| table _time, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.policyArn, requestParameters.policyName`,
+| table _time, userIdentity.type, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.policyArn, requestParameters.policyName, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.policyArn, requestParameters.policyName
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
   AND eventName IN ('DetachUserPolicy', 'DetachRolePolicy', 'DeleteUserPolicy', 'DeleteRolePolicy')
-  AND (
-    requestParameters.policyArn LIKE '%Deny%' OR requestParameters.policyArn LIKE '%Restrict%' OR requestParameters.policyArn LIKE '%Boundary%' OR requestParameters.policyArn LIKE '%ReadOnly%' OR requestParameters.policyArn LIKE '%Limited%'
-    OR requestParameters.policyName LIKE '%Deny%' OR requestParameters.policyName LIKE '%Restrict%' OR requestParameters.policyName LIKE '%Boundary%'
-  )
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.policyArn, requestParameters.policyName
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName in ["DetachUserPolicy", "DetachRolePolicy", "DeleteUserPolicy", "DeleteRolePolicy"]
-| filter requestParameters.policyArn like /Deny|Restrict|Boundary|ReadOnly|Limited/ or requestParameters.policyName like /Deny|Restrict|Boundary/
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["DetachUserPolicy", "DetachRolePolicy", "DeleteUserPolicy", "DeleteRolePolicy"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["DetachUserPolicy", "DetachRolePolicy", "DeleteUserPolicy", "DeleteRolePolicy", "DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary", "SetDefaultPolicyVersion"] } }, null, 2),
+      lambda: `"""
+Restrictive IAM Control Removed or Weakened
+Trigger: EventBridge rule matching policy removals or boundary-removal events.
+Use for: Semantic control-reduction triage with prior-state enrichment.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+
+    supported = (
+        "DetachUserPolicy",
+        "DetachRolePolicy",
+        "DeleteUserPolicy",
+        "DeleteRolePolicy",
+        "DeleteRolePermissionsBoundary",
+        "DeleteUserPermissionsBoundary",
+        "SetDefaultPolicyVersion",
+    )
+    if detail.get("eventName") not in supported:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-semantic-control-classification-and-before-after-diff",
+        "alert": {
+            "rule_id": "det-039",
+            "title": "Restrictive IAM Control Removed or Weakened",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "requestParameters.policyArn", "requestParameters.policyName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "DetachUserPolicy", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { userName: "TargetUser", policyArn: "arn:aws:iam::123456789012:policy/DenyS3Delete" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who removed the restrictive policy.", "Verify if the policy was a deny policy or permission boundary.", "Assess the impact on the principal's effective permissions.", "Check whether the removal was authorized."],
     testingSteps: ["Detach a policy with Deny or Restrict in the name.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Attackers do not always need to add new permissions; often they can increase effective access by removing boundaries, deny statements, or restrictive controls that were previously limiting access.",
+      threatContext: {
+        attackerBehavior: "An attacker can increase effective permissions by deleting a permissions boundary, detaching a restrictive managed policy, deleting a restrictive inline policy, or reverting a control to a weaker version.",
+        realWorldUsage: "Restrictive-control removal is a common IAM abuse technique because explicit deny and permissions boundaries can silently block actions even when allows are already present elsewhere.",
+        whyItMatters: "A detach or delete event is only important if the removed control was actually restrictive. Likewise, a replacement is only dangerous if the new control state materially weakens the prior control state.",
+        riskAndImpact: "If missed, attackers can unlock dormant access, bypass delegated-administration guardrails, or expose previously denied actions without attaching any obvious new policy.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "userIdentity.arn", "userIdentity.type", "requestParameters.roleName", "requestParameters.userName", "requestParameters.policyArn", "requestParameters.policyName", "requestParameters.versionId", "sourceIPAddress", "eventTime"],
+        loggingRequirements: ["CloudTrail management events must include policy detach/delete plus boundary-removal and policy-version events if you want full weakening coverage.", "The platform must preserve or be able to retrieve the content of removed, previous, and replacement policies.", "A catalog of restrictive policies and boundaries should be built from parsed documents, not names."],
+        limitations: ["Detach and delete events often do not carry the full policy document, so enrichment is mandatory.", "Name-based rules both miss dangerous custom controls and over-alert on harmless names.", "If you keep the scope detach/delete-only, you will miss weakening-by-replacement patterns."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Detach, delete, boundary-removal, or version-switch event" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.target_role.name", notes: "Target role" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Target user" },
+          { rawPath: "requestParameters.policyArn", normalizedPath: "aws.iam.policy.arn", notes: "Managed policy removed or changed" },
+          { rawPath: "requestParameters.policyName", normalizedPath: "aws.iam.policy.name", notes: "Inline policy removed" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "DetachUserPolicy", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { target_user: { name: "TargetUser" }, policy: { arn: "arn:aws:iam::123456789012:policy/DenyS3Delete" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Restrictive Control Classification", description: "Classify removed or replaced policies as restrictive if they contain explicit Deny statements, tight conditions, or permissions-boundary semantics that cap effective permissions.", examples: ["managed policy contains explicit Deny", "boundary limits principal to approved services only"], falsePositiveReduction: "Ensures the rule alerts on actual control reduction, not every detach or delete." },
+        { dimension: "Before/After Effective Constraint Diff", description: "Compare the prior restrictive control to the post-change state to see whether denies disappeared, conditions were loosened, or the boundary became broader.", examples: ["DeleteRolePermissionsBoundary leaves no boundary", "SetDefaultPolicyVersion removes Deny statement"], falsePositiveReduction: "Distinguishes meaningful weakening from no-op or equivalent policy refactors." },
+        { dimension: "Target Principal and Governance Context", description: "Measure whether the affected user or role is privileged, production, delegated-admin managed, or expected to carry a boundary.", examples: ["delegated user boundary removed", "production CI role loses explicit deny policy"], falsePositiveReduction: "Prioritizes control reductions on high-value principals and suppresses low-impact maintenance." },
+      ],
+      logicExplanation: {
+        humanReadable: "The rule should ask whether a restrictive control was actually reduced, not whether the policy name looked restrictive. The strongest implementation has three branches: boundary removed, restrictive policy removed, or restrictive policy or boundary weakened.",
+        conditions: ["branch A: eventName equals DeleteRolePermissionsBoundary or DeleteUserPermissionsBoundary", "branch B: eventName equals DetachUserPolicy, DetachRolePolicy, DeleteUserPolicy, or DeleteRolePolicy and the removed policy is classified as restrictive", "branch C: eventName equals SetDefaultPolicyVersion or equivalent replacement action and the new effective control state is weaker than the previous state"],
+        tuningGuidance: "1. Keep boundary-removal visibility as a baseline, but reserve high-severity alerts for confirmed control reduction. 2. Reuse the same policy parser and version catalog used for policy-semantic detections. 3. Score full boundary deletion highest, semantic weakening next, and name-only hints lowest or not at all.",
+        whenToFire: "Fire when a permissions boundary disappears, a semantically restrictive policy is removed, or a policy or boundary change measurably reduces effective restrictions on a principal.",
+      },
+      simulationCommand: "aws iam delete-role-permissions-boundary --role-name TargetRole",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with semantic control classification and before/after diffing; high with restrictive-name matching",
+        expectedVolume: "Very low in mature environments with boundaries and guardrails; modest in accounts undergoing IAM redesign",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda with policy lookup and diffing", "SIEM with enrichment tables", "Athena only if policy content and prior-state snapshots are materialized in advance"],
+        scheduling: "Real-time is preferred for boundary deletion; near-real-time scheduled analytics work for semantic weakening if prior-state materialization exists.",
+        considerations: ["If this rule stays detach/delete-only, harmful weakening remains partially uncovered.", "This is the semantic high-fidelity companion to the broader removal baseline."],
+      },
+    },
   },
   {
     id: "det-040",
-    title: "Policy Removal by Unexpected Actor",
-    description: "Detects policy detach or delete performed by identities that normally should not modify IAM permissions. Suspicious actors include IAM users, application roles, EC2 roles, and assumed roles outside IAM administration.",
+    title: "Policy Removal Outside Authorized IAM Change Path",
+    description: "Detects policy detach or delete performed outside approved IAM administration workflows. The key signal is whether the caller should ever be removing IAM policies from that target in that context, not whether its ARN happens to contain admin.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
@@ -4509,46 +5391,115 @@ detection:
       - DetachRolePolicy
       - DeleteUserPolicy
       - DeleteRolePolicy
-  filter_known_admin:
-    userIdentity.principalId|contains:
-      - 'terraform'
-      - 'cloudformation'
-      - 'admin'
-      - 'Admin'
-      - 'IAMAdmin'
-  condition: selection and not filter_known_admin
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=DetachUserPolicy OR eventName=DetachRolePolicy OR eventName=DeleteUserPolicy OR eventName=DeleteRolePolicy)
-| where NOT (like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%") OR like(userIdentity.arn, "%admin%") OR like(userIdentity.arn, "%Admin%") OR like(userIdentity.arn, "%IAMAdmin%"))
-| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.policyArn`,
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.policyArn, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.policyArn, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
   AND eventName IN ('DetachUserPolicy', 'DetachRolePolicy', 'DeleteUserPolicy', 'DeleteRolePolicy')
-  AND userIdentity.principalId NOT LIKE '%terraform%'
-  AND userIdentity.principalId NOT LIKE '%cloudformation%'
-  AND userIdentity.arn NOT LIKE '%admin%'
-  AND userIdentity.arn NOT LIKE '%Admin%'
-  AND userIdentity.arn NOT LIKE '%IAMAdmin%'
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.policyArn
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName in ["DetachUserPolicy", "DetachRolePolicy", "DeleteUserPolicy", "DeleteRolePolicy"]
-| filter userIdentity.principalId not like /terraform/ and userIdentity.principalId not like /cloudformation/ and userIdentity.arn not like /admin/i
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["DetachUserPolicy", "DetachRolePolicy", "DeleteUserPolicy", "DeleteRolePolicy"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["DetachUserPolicy", "DetachRolePolicy", "DeleteUserPolicy", "DeleteRolePolicy"] } }, null, 2),
+      lambda: `"""
+Policy Removal Outside Authorized IAM Change Path
+Trigger: EventBridge rule matching Detach*Policy or Delete*Policy.
+Use for: Real-time triage of IAM removals requiring authorization-context enrichment.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("DetachUserPolicy", "DetachRolePolicy", "DeleteUserPolicy", "DeleteRolePolicy"):
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-iam-removal-actor-check",
+        "alert": {
+            "rule_id": "det-040",
+            "title": "Policy Removal Outside Authorized IAM Change Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": detail.get("eventName"),
+            "policy_arn": detail.get("requestParameters", {}).get("policyArn"),
+            "target_role": detail.get("requestParameters", {}).get("roleName"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.roleName", "requestParameters.userName", "requestParameters.policyArn", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "DetachUserPolicy", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx" }, requestParameters: { userName: "TargetUser", policyArn: "arn:aws:iam::aws:policy/ReadOnlyAccess" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the actor type (IAMUser, AssumedRole) and ARN.", "Verify if this identity is authorized to detach or delete IAM policies.", "Check userIdentity.sessionContext.sessionIssuer.arn for assumed roles.", "Review whether the actor is an EC2 instance role or application role."],
     testingSteps: ["As a non-admin role, call DetachUserPolicy or DeleteUserPolicy.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
+    lifecycle: {
+      whyItMatters: "Policy removals made outside approved IAM administration paths are strong indicators of privilege abuse, weak governance, or compromised identities operating beyond their intended scope.",
+      threatContext: {
+        attackerBehavior: "A developer role, workload identity, EC2 instance profile, or misused human identity may detach or delete IAM policies from principals it should not be managing.",
+        realWorldUsage: "Unexpected-actor IAM removals are common in post-compromise cloud abuse because removing controls is often easier than adding new permissions.",
+        whyItMatters: "This is the actor-centric companion to harmful-removal detections. The question is whether the caller should ever be removing IAM policies from that target in that context.",
+        riskAndImpact: "If missed, a compromised or out-of-scope identity can strip controls from privileged principals, setting up follow-on escalation or persistence.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "errorCode", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "userIdentity.sessionContext.sessionIssuer.arn", "sourceIPAddress", "userAgent", "requestParameters.roleName", "requestParameters.userName", "requestParameters.policyArn", "requestParameters.policyName"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "Actor authorization decisions require an approved IAM-change registry.", "Target ownership and policy sensitivity should be available as enrichment."],
+        limitations: ["Without an authorized-actor inventory this rule becomes noisy.", "Expected decommissioning and automation workflows can look suspicious without change provenance.", "CloudTrail alone does not prove whether the removed control was harmful."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "userIdentity.principalId", normalizedPath: "user.id", notes: "Stable actor identifier for allowlisting" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role for assumed-role sessions" },
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.target_role.name", notes: "Target role" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Target user" },
+          { rawPath: "requestParameters.policyArn", normalizedPath: "aws.iam.policy.arn", notes: "Removed managed policy" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "DetachUserPolicy", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx", type: "AssumedRole", id: "AROAXXXXX:i-xxx" },
+          aws: { iam: { target_user: { name: "TargetUser" }, policy: { arn: "arn:aws:iam::aws:policy/ReadOnlyAccess" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized IAM Change Actors", description: "Exact inventory of identities allowed to remove IAM policies.", examples: ["platform-security-admin", "terraform-iam-runner"], falsePositiveReduction: "Replaces weak substring filters with stable approved actor classification." },
+        { dimension: "Approved Change Provenance", description: "Correlate userAgent, invokedBy, session tags, pipeline metadata, change ticket, and maintenance window.", examples: ["CloudFormation execution role", "approved decommissioning workflow"], falsePositiveReduction: "Separates sanctioned automation from suspicious manual or untracked removals." },
+        { dimension: "Target Ownership and Policy Sensitivity", description: "Determine whether the actor is allowed to modify the target and whether the removed policy is guardrail-like, privileged, or production-linked.", examples: ["cross-team target", "policy attached to admin role"], falsePositiveReduction: "Makes cross-scope or high-impact removals much higher signal." },
+      ],
+      logicExplanation: {
+        humanReadable: "This is the actor-centric companion to the semantic harmful-removal rule. The question is whether the caller should ever be removing IAM policies from that target in that context, not whether its ARN happens to contain admin.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals DetachUserPolicy, DetachRolePolicy, DeleteUserPolicy, or DeleteRolePolicy", "actor is not in the approved IAM-change inventory or request lacks approved workflow provenance, or actor is modifying a target outside its ownership scope"],
+        tuningGuidance: "1. Allowlist exact identities and session issuers only. 2. Maintain an actor-to-target ownership matrix. 3. Increase severity for self-serving removals, cross-team removals, and rare workload-role IAM changes.",
+        whenToFire: "Fire when policy removal happens outside authorized IAM change paths. Raise severity when the removed policy is sensitive or the target is privileged.",
+      },
+      simulationCommand: "aws iam detach-user-policy --user-name TargetUser --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Medium without context, low with actor-target ownership and workflow data",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "SIEM correlation", "Athena with lookup tables", "Panther / Chronicle / Datadog"],
+        scheduling: "Best in real time or short scheduled windows because authorization context is lookup-driven.",
+        considerations: ["Keep Sigma broad and push authorization decisions into enrichment.", "Use this as the actor-centric companion to `det-038` and `det-039`."],
+      },
+    },
   },
 
   // --- IAM Permissions Boundary Deletion ---
   {
     id: "det-041",
     title: "Permissions Boundary Removed",
-    description: "Baseline visibility when a permissions boundary is deleted from a role or user. Important and potentially dangerous, but may occur during legitimate identity management or delegated administration.",
+    description: "Baseline visibility when a permissions boundary is deleted from a role or user. This is a high-sensitivity IAM control-plane event, but it still needs target criticality and prior-state context before it should be treated as confirmed abuse.",
     awsService: "IAM",
     relatedServices: [],
     severity: "Medium",
@@ -4579,17 +5530,98 @@ ORDER BY eventTime DESC`,
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName in ["DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"]
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"] } }, null, 2),
+      lambda: `"""
+Permissions Boundary Removed
+Trigger: EventBridge rule matching DeleteRolePermissionsBoundary or DeleteUserPermissionsBoundary.
+Use for: Real-time baseline visibility into boundary deletion.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"):
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-041",
+            "title": "Permissions Boundary Removed",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_role": request.get("roleName"),
+            "target_user": request.get("userName"),
+            "event_time": detail.get("eventTime"),
+            "source_ip": detail.get("sourceIPAddress"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "DeleteRolePermissionsBoundary", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "TargetRole" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who removed the boundary.", "Verify target principal's attached policies and whether boundary removal expands permissions.", "Check if the change was authorized."],
     testingSteps: ["Call DeleteRolePermissionsBoundary or DeleteUserPermissionsBoundary.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Permissions boundaries are one of the clearest IAM guardrails in AWS. Removing one can expose latent permissions that were already attached to a principal but previously capped.",
+      threatContext: {
+        attackerBehavior: "An attacker with IAM write access can remove a boundary from a user or role to stop limiting its maximum permissions.",
+        realWorldUsage: "Boundary deletion is a common privilege-escalation step in AWS tradecraft because it can make existing allows effective without attaching anything new.",
+        whyItMatters: "This event is valuable baseline telemetry even when legitimate, because boundary lifecycle operations are usually infrequent and security-sensitive.",
+        riskAndImpact: "If missed, a compromised identity can free a workload or human user from delegated-administration controls and enable follow-on privilege abuse.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "sourceIPAddress", "userAgent", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must include IAM API activity.", "The environment should maintain inventory of principals expected to carry a permissions boundary.", "Boundary ARN prior state should be preserved in an enrichment table or IAM inventory cache."],
+        limitations: ["The delete event does not include the removed boundary ARN.", "CloudTrail alone does not tell you whether the target was expected to keep a boundary.", "By itself this is visibility, not proof of malicious intent."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "eventName", normalizedPath: "event.action", notes: "Boundary deletion API action" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.target_role.name", notes: "Target role if role boundary deleted" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Target user if user boundary deleted" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "DeleteRolePermissionsBoundary", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { target_role: { name: "TargetRole" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Prior Boundary State", description: "Resolve which boundary ARN was previously applied and how restrictive it was.", examples: ["prod boundary ARN", "delegated-admin boundary"], falsePositiveReduction: "Separates low-impact cleanup from meaningful control removal." },
+        { dimension: "Target Principal Criticality", description: "Classify whether the affected principal is production, privileged, dormant, break-glass, or high-blast-radius.", examples: ["prod deploy role", "shared admin user"], falsePositiveReduction: "Prioritizes boundary deletion on the principals most likely to matter." },
+        { dimension: "Authorized Change Context", description: "Correlate the actor with approved automation, maintenance windows, and IAM governance roles.", examples: ["terraform-iam-runner", "approved emergency rollback"], falsePositiveReduction: "Downgrades expected governance work without losing visibility." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should remain a broad baseline for successful boundary deletion. The event itself is important, but severity should be driven by enrichment such as what boundary was removed, whether the target was expected to have one, and whether privileged actions followed.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals DeleteRolePermissionsBoundary or DeleteUserPermissionsBoundary", "errorCode is absent"],
+        tuningGuidance: "1. Keep this rule broad. 2. Pair it with prior-state lookup for the removed boundary ARN. 3. Promote only when the target is sensitive, the boundary was materially restrictive, or follow-on activity confirms abuse.",
+        whenToFire: "Fire on every successful boundary deletion for visibility, with higher-priority triage when enrichment shows meaningful control removal.",
+      },
+      simulationCommand: "aws iam delete-role-permissions-boundary --role-name TargetRole",
+      quality: {
+        signalQuality: 7,
+        falsePositiveRate: "Medium as raw visibility, low-medium with target and prior-state enrichment",
+        expectedVolume: "Low in most mature environments",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "CloudWatch Logs Insights", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time or short scheduled intervals both work because this is a direct IAM control-plane event.",
+        considerations: ["This is the baseline companion to higher-fidelity restrictive-control removal detections.", "Maintain principal-to-boundary inventory so investigations can recover what was removed."],
+      },
+    },
   },
   {
     id: "det-042",
-    title: "Suspicious Permissions Boundary Removal by Unexpected Actor",
-    description: "Detects boundary deletion performed by identities that normally should not manage IAM boundaries. Suspicious actors include IAM users, application roles, EC2 instance roles, and assumed roles outside known IAM administration or infrastructure automation. Excludes Terraform, CloudFormation, and admin roles.",
+    title: "Boundary Removal Outside Authorized IAM Change Path",
+    description: "Detects permissions-boundary deletion performed outside approved IAM governance workflows. The key signal is authorized actor context, change provenance, and actor-to-target scope rather than simple substring filtering.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
@@ -4607,44 +5639,110 @@ detection:
     eventName:
       - DeleteRolePermissionsBoundary
       - DeleteUserPermissionsBoundary
-  filter_known_admin:
-    userIdentity.principalId|contains:
-      - 'terraform'
-      - 'cloudformation'
-      - 'admin'
-      - 'Admin'
-      - 'IAMAdmin'
-  condition: selection and not filter_known_admin
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=DeleteRolePermissionsBoundary OR eventName=DeleteUserPermissionsBoundary)
-| where NOT (like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%") OR like(userIdentity.arn, "%admin%") OR like(userIdentity.arn, "%Admin%") OR like(userIdentity.arn, "%IAMAdmin%"))
-| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName`,
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
   AND eventName IN ('DeleteRolePermissionsBoundary', 'DeleteUserPermissionsBoundary')
-  AND userIdentity.principalId NOT LIKE '%terraform%'
-  AND userIdentity.principalId NOT LIKE '%cloudformation%'
-  AND userIdentity.arn NOT LIKE '%admin%'
-  AND userIdentity.arn NOT LIKE '%Admin%'
-  AND userIdentity.arn NOT LIKE '%IAMAdmin%'
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, requestParameters.userName
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName in ["DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"]
-| filter userIdentity.principalId not like /terraform/ and userIdentity.principalId not like /cloudformation/ and userIdentity.arn not like /admin/i
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"] } }, null, 2),
+      lambda: `"""
+Boundary Removal Outside Authorized IAM Change Path
+Trigger: EventBridge rule matching DeleteRolePermissionsBoundary or DeleteUserPermissionsBoundary.
+Use for: Real-time triage of unauthorized boundary deletions.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"):
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-boundary-manager-check",
+        "alert": {
+            "rule_id": "det-042",
+            "title": "Boundary Removal Outside Authorized IAM Change Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_role": detail.get("requestParameters", {}).get("roleName"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.roleName", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "DeleteRolePermissionsBoundary", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx" }, requestParameters: { roleName: "TargetRole" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized to manage IAM boundaries.", "Check sessionContext.sessionIssuer.arn for assumed roles."],
     testingSteps: ["As a non-admin role, call DeleteRolePermissionsBoundary.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
+    lifecycle: {
+      whyItMatters: "Permissions-boundary deletion by the wrong identity is a strong signal because boundary administration is normally limited to a small set of trusted IAM operators and automation paths.",
+      threatContext: {
+        attackerBehavior: "A developer role, workload role, EC2 instance profile, or misused human session may attempt to remove a boundary from a principal it should not govern.",
+        realWorldUsage: "Unexpected-actor IAM control removal is common in post-compromise tradecraft because attackers often abuse existing overprivileged roles rather than obviously named admin identities.",
+        whyItMatters: "The important question is not whether an ARN contains admin, but whether the caller, session, and workflow were allowed to perform this boundary change on that target.",
+        riskAndImpact: "If missed, a compromised or out-of-scope identity can free privileged principals from delegated guardrails and enable follow-on abuse.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "errorCode", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "userIdentity.sessionContext.sessionIssuer.arn", "userIdentity.invokedBy", "sourceIPAddress", "userAgent", "requestParameters.roleName", "requestParameters.userName"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "The environment should maintain an authorized IAM-change actor inventory.", "Target ownership and approved automation provenance should be available as enrichment."],
+        limitations: ["Without an authorized actor registry this becomes noisy baseline visibility.", "Console and CI/CD sessions can look similar without workflow provenance.", "CloudTrail alone does not determine target ownership scope."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "userIdentity.principalId", normalizedPath: "user.id", notes: "Stable actor identifier" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role for assumed-role sessions" },
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.target_role.name", notes: "Target role" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Target user" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "DeleteRolePermissionsBoundary", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx", type: "AssumedRole", id: "AROAXXXXX:i-xxx" },
+          aws: { iam: { target_role: { name: "TargetRole" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized IAM Change Actors", description: "Exact inventory of identities allowed to manage permissions boundaries.", examples: ["platform-security-admin", "terraform-iam-runner"], falsePositiveReduction: "Replaces evasive substring filtering with stable actor classification." },
+        { dimension: "Approved Workflow Provenance", description: "Correlate userAgent, invokedBy, session tags, pipeline metadata, and maintenance windows.", examples: ["CloudFormation execution role", "approved emergency rollback"], falsePositiveReduction: "Separates sanctioned automation from suspicious manual or untracked changes." },
+        { dimension: "Actor-to-Target Scope", description: "Determine whether the actor should be allowed to administer the affected principal.", examples: ["same team platform role", "cross-team workload role"], falsePositiveReduction: "Makes scope violations much higher signal." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule is actor-centric. It should alert when a boundary deletion occurs outside approved IAM governance paths, not when the caller simply lacks admin-like text in its ARN.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals DeleteRolePermissionsBoundary or DeleteUserPermissionsBoundary", "actor is not in the approved boundary-manager inventory or request lacks approved workflow provenance, or actor is outside target ownership scope"],
+        tuningGuidance: "1. Allowlist exact ARNs and principalIds. 2. Do not suppress approved actors entirely; downgrade them when workflow context exists. 3. Escalate when the target is sensitive or the removal is followed by privileged activity.",
+        whenToFire: "Fire when boundary removal happens outside authorized IAM change paths, especially on privileged or production principals.",
+      },
+      simulationCommand: "aws iam delete-role-permissions-boundary --role-name TargetRole --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Medium without actor inventory, low-medium with actor and workflow enrichment",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with lookup tables", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Best in real time or short scheduled windows because the signal depends on actor and workflow context.",
+        considerations: ["This is the actor-centric companion to baseline boundary deletion and semantic control-reduction detections.", "Use exact actor inventory rather than text heuristics."],
+      },
+    },
   },
   {
     id: "det-043",
-    title: "Boundary Removal Followed by Sensitive Activity",
-    description: "Correlates boundary deletion with follow-on privileged activity within 5–15 minutes. Reduces false positives by requiring suspicious follow-on behavior. Same actor or affected principal performs AssumeRole, CreateAccessKey, AttachUserPolicy, PutUserPolicy, PutRolePolicy, GetSecretValue, KMS decrypt, or broad S3 access.",
+    title: "Permissions Boundary Removal Followed by Newly Enabled Activity",
+    description: "Correlates permissions-boundary deletion with follow-on privileged activity that plausibly becomes possible because the control was removed. This should track the actor, the affected principal, and any newly usable sessions rather than simply matching unrelated sensitive events.",
     awsService: "IAM",
     relatedServices: ["STS", "Secrets Manager", "KMS", "S3"],
     severity: "Critical",
@@ -4672,9 +5770,9 @@ detection:
       - PutRolePolicy
       - GetSecretValue
       - Decrypt
-  condition: 1 of selection_*
+  condition: selection_boundary
 level: critical
-# Full correlation (same actor, 5–15 min window) requires SIEM correlation.`,
+# Full correlation requires target principal and session lineage.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=iam.amazonaws.com AND (eventName=DeleteRolePermissionsBoundary OR eventName=DeleteUserPermissionsBoundary))
    OR (eventName=AssumeRole OR eventName=CreateAccessKey OR eventName=AttachUserPolicy OR eventName=AttachRolePolicy OR eventName=PutUserPolicy OR eventName=PutRolePolicy OR eventName=GetSecretValue OR eventName=Decrypt))
@@ -4682,7 +5780,7 @@ level: critical
 | transaction actor maxspan=15m
 | where mvcount(mvfilter(eventSource="iam.amazonaws.com" AND eventName IN ("DeleteRolePermissionsBoundary","DeleteUserPermissionsBoundary")))>0
   AND mvcount(mvfilter(eventName IN ("AssumeRole","CreateAccessKey","AttachUserPolicy","AttachRolePolicy","PutUserPolicy","PutRolePolicy","GetSecretValue","Decrypt")))>0
-| table _time, actor, eventName, requestParameters.roleName, requestParameters.userName`,
+| table _time, actor, eventName, requestParameters.roleName, requestParameters.userName, sourceIPAddress`,
       cloudtrail: `WITH boundary_removal AS (
   SELECT userIdentity.arn AS actor, eventTime AS removal_time
   FROM cloudtrail_logs
@@ -4706,19 +5804,99 @@ ORDER BY b.removal_time DESC`,
 | stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
 | filter cnt > 1
 | sort cnt desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"] } }, null, 2),
+      lambda: `"""
+Permissions Boundary Removal Followed by Newly Enabled Activity
+Trigger: EventBridge rule matching boundary deletion.
+Use for: Correlation with subsequent privileged activity by the actor or affected principal.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"):
+        return {"matched": False}
+
+    return {
+        "matched": "requires-correlation-with-follow-on-activity-and-session-lineage",
+        "alert": {
+            "rule_id": "det-043",
+            "title": "Permissions Boundary Removal Followed by Newly Enabled Activity",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_role": detail.get("requestParameters", {}).get("roleName"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "DeleteRolePermissionsBoundary", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "TargetRole" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the actor that removed the boundary.", "Review the sequence: boundary removal → sensitive API use within 15 minutes.", "Verify if the follow-on activity was expected.", "Assess whether the principal was newly unconstrained."],
     testingSteps: ["Call DeleteRolePermissionsBoundary, then within 15 min call AssumeRole or GetSecretValue.", "Verify both events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+    lifecycle: {
+      whyItMatters: "Boundary deletion becomes much higher confidence when it is followed by actions that the actor or affected principal likely could not perform while the boundary was still in place.",
+      threatContext: {
+        attackerBehavior: "An attacker may remove a boundary and then immediately use the newly freed principal or the same session to assume roles, create access keys, mutate IAM, or retrieve secrets.",
+        realWorldUsage: "This is the post-removal abuse pattern defenders care about most because it ties a control change to observed exploitation rather than just configuration drift.",
+        whyItMatters: "The story is only convincing if the follow-on action is plausibly linked to the removed boundary and the affected principal, not just the same actor doing unrelated work.",
+        riskAndImpact: "If missed, a boundary deletion that was initially triaged as low-priority can quietly become active privilege escalation, persistence, or credential theft.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (IAM, STS, Secrets Manager, KMS, and related management events)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.roleName", "requestParameters.userName", "requestParameters.policyArn", "sourceIPAddress"],
+        loggingRequirements: ["Boundary deletion telemetry must be correlated with subsequent IAM, STS, Secrets Manager, and KMS activity.", "Session lineage or target-principal mapping is required so follow-on actions can be tied to the actor or principal that became unconstrained.", "Principal inventory should indicate whether the removed boundary materially limited the target before removal."],
+        limitations: ["Simple same-actor joins miss cases where the attacker removes a boundary from one principal and then uses that principal later.", "Not every privileged follow-on action was necessarily enabled by the boundary change.", "Sigma cannot express the real correlation logic by itself."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.target_role.name", notes: "Role whose boundary was removed" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "User whose boundary was removed" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor removing boundary" },
+          { rawPath: "follow_on.eventName", normalizedPath: "related.event.action", notes: "Subsequent privileged action" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "DeleteRolePermissionsBoundary", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { target_role: { name: "TargetRole" } } },
+          related: { event: { action: "AssumeRole" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Boundary Effectiveness", description: "Determine what actions the removed boundary actually prevented before deletion.", examples: ["previously blocked AssumeRole", "previously blocked GetSecretValue"], falsePositiveReduction: "Ties follow-on activity to newly enabled behavior instead of generic admin work." },
+        { dimension: "Session Lineage", description: "Track whether the same actor, the affected principal, or a new session from that principal performed the follow-on action.", examples: ["same actor then AssumeRole", "target user creates access key after boundary removal"], falsePositiveReduction: "Makes the correlation story technically credible." },
+        { dimension: "Follow-on Action Risk", description: "Score secrets access, role assumption, key creation, IAM mutation, and pass-role activity differently.", examples: ["CreateAccessKey on newly unbounded user", "GetSecretValue from freed workload role"], falsePositiveReduction: "Prevents routine low-risk activity from receiving the same treatment as strong escalation chains." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should be a true post-removal abuse rule. The strongest version tracks a boundary deletion, identifies the actor and target principal, then looks for privileged actions by that actor, by the affected principal, or by a session derived from that principal within a short window.",
+        conditions: ["first eventName equals DeleteRolePermissionsBoundary or DeleteUserPermissionsBoundary", "follow-on event occurs within 5-15 minutes", "follow-on action is high-risk such as AssumeRole, CreateAccessKey, Put*Policy, Attach*Policy, GetSecretValue, or Decrypt", "correlation ties the action to the actor or newly unconstrained principal"],
+        tuningGuidance: "1. Do not alert on either side independently. 2. Prefer joins on target principal and session lineage, not just actor ARN. 3. Raise confidence only when the follow-on action was plausibly enabled by the removed boundary.",
+        whenToFire: "Fire when boundary removal is followed by high-risk activity from the same actor or affected principal in a way that suggests newly enabled access was immediately used.",
+      },
+      simulationCommand: "aws iam delete-role-permissions-boundary --role-name TargetRole && aws sts assume-role --role-arn arn:aws:iam::123456789012:role/SensitiveRole --role-session-name lab-test",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with target-principal and session-lineage correlation; high if implemented as loose same-actor sequencing",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with state tables", "Panther / Chronicle / Datadog", "EventBridge + Lambda with short-lived state"],
+        scheduling: "Best in near-real-time because the value comes from short-window correlation.",
+        considerations: ["Keep Sigma as the boundary-deletion selector only.", "Implement the real join logic in the SIEM or enrichment pipeline."],
+      },
+    },
   },
 
   // --- IAM Permissions Boundary Weakening ---
   {
     id: "det-044",
     title: "Permissions Boundary Changed",
-    description: "Baseline visibility for any boundary change on a user or role. Boundary changes are high-sensitivity IAM events but can be legitimate.",
+    description: "Baseline visibility for any boundary change on a user or role. Boundary changes are high-sensitivity IAM events, but intent and risk depend on whether the new boundary strengthens, weakens, or simply rotates the previous control.",
     awsService: "IAM",
     relatedServices: [],
     severity: "Medium",
@@ -4749,17 +5927,98 @@ ORDER BY eventTime DESC`,
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName in ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"]
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"] } }, null, 2),
+      lambda: `"""
+Permissions Boundary Changed
+Trigger: EventBridge rule matching PutRolePermissionsBoundary or PutUserPermissionsBoundary.
+Use for: Baseline visibility into boundary assignment and replacement.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("PutRolePermissionsBoundary", "PutUserPermissionsBoundary"):
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-044",
+            "title": "Permissions Boundary Changed",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_role": request.get("roleName"),
+            "target_user": request.get("userName"),
+            "new_boundary": request.get("permissionsBoundary"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "requestParameters.permissionsBoundary", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "PutRolePermissionsBoundary", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "TargetRole", permissionsBoundary: "arn:aws:iam::aws:policy/ExampleBoundary" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who changed the boundary.", "Inspect the new boundary ARN.", "Verify if the change was authorized."],
     testingSteps: ["Call PutRolePermissionsBoundary.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Boundary assignment and replacement are IAM control-plane events that can either tighten controls or quietly weaken them. Broad visibility is necessary because the same API covers both benign governance and abuse.",
+      threatContext: {
+        attackerBehavior: "An attacker may replace a boundary with a weaker one, assign a non-standard boundary, or rotate a target away from the organization's normal controls.",
+        realWorldUsage: "Boundary changes are often overlooked because they look like governance work, but they can materially change the maximum permissions a principal can use.",
+        whyItMatters: "This baseline rule is the feeder for stronger semantic boundary-change detections.",
+        riskAndImpact: "If missed, a boundary change can reduce guardrails on production or privileged identities while appearing routine.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "requestParameters.permissionsBoundary", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "Previous boundary state should be captured so before/after comparisons are possible.", "Boundary policy inventory should be available for semantic analysis."],
+        limitations: ["The raw event does not state whether the new boundary is stronger or weaker than the previous one.", "Without prior-state context this is a baseline audit signal.", "Some environments rotate boundaries through normal automation."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.target_role.name", notes: "Target role" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Target user" },
+          { rawPath: "requestParameters.permissionsBoundary", normalizedPath: "aws.iam.boundary.new_arn", notes: "Assigned or replacement boundary ARN" },
+          { rawPath: "enrichment.previousBoundaryArn", normalizedPath: "aws.iam.boundary.previous_arn", notes: "Prior-state lookup value" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "PutRolePermissionsBoundary", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { target_role: { name: "TargetRole" }, boundary: { new_arn: "arn:aws:iam::aws:policy/ExampleBoundary" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Before/After Boundary Diff", description: "Compare the previous and new boundary ARNs and semantics.", examples: ["prod boundary replaced with custom boundary", "same restriction class but new version"], falsePositiveReduction: "Separates harmless rotation from meaningful weakening." },
+        { dimension: "Target Principal Criticality", description: "Classify whether the affected identity is privileged, production, delegated-admin, or break-glass.", examples: ["shared deploy role", "break-glass user"], falsePositiveReduction: "Prioritizes the boundary changes that matter most." },
+        { dimension: "Boundary Catalog", description: "Classify approved, standard, experimental, and custom boundaries.", examples: ["approved delegated-admin boundary", "custom one-off boundary"], falsePositiveReduction: "Makes it easier to triage normal governance from unusual control changes." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should stay broad and baseline-oriented. It captures any successful boundary assignment or replacement, then relies on previous-boundary state, boundary classification, and target sensitivity to decide whether the change is benign or risky.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals PutRolePermissionsBoundary or PutUserPermissionsBoundary", "errorCode is absent"],
+        tuningGuidance: "1. Keep the event match broad. 2. Add before/after boundary comparison in enrichment. 3. Treat this as the baseline companion to stronger boundary-weakened detections.",
+        whenToFire: "Fire on every successful boundary change for visibility, with escalation when the new boundary is weaker, non-standard, or assigned to a high-value principal.",
+      },
+      simulationCommand: "aws iam put-role-permissions-boundary --role-name TargetRole --permissions-boundary arn:aws:iam::123456789012:policy/ExampleBoundary",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium raw, low-medium with before/after and boundary-catalog enrichment",
+        expectedVolume: "Low to moderate depending on IAM governance automation",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time or scheduled analytics both work because this is a direct management event.",
+        considerations: ["Keep this rule broad so it can feed stronger semantic boundary-change detections.", "Maintain a boundary inventory so investigations can compare old and new state."],
+      },
+    },
   },
   {
     id: "det-045",
-    title: "Boundary Changed to Non-Approved Policy ARN",
-    description: "Detects boundary changes to a policy ARN outside the organization's approved boundary allowlist. In real environments, permissions boundaries are usually tightly standardized. Deviating from approved boundary ARNs is suspicious. Implement allowlist logic: alert when requestParameters.permissionsBoundary is not in the approved list.",
+    title: "Boundary Changed to Weaker or Non-Standard Boundary",
+    description: "Detects permissions-boundary changes where the new boundary falls outside the approved boundary catalog or materially weakens the prior control state. This should use exact boundary allowlists and semantic comparison, not risky-name matching.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
@@ -4777,40 +6036,112 @@ detection:
     eventName:
       - PutRolePermissionsBoundary
       - PutUserPermissionsBoundary
-  filter_non_approved:
-    requestParameters.permissionsBoundary|contains:
-      - 'aws:policy/AdministratorAccess'
-      - 'aws:policy/PowerUserAccess'
-      - 'FullAccess'
-      - 'Admin'
-  condition: selection and filter_non_approved
+  condition: selection
 level: high
-# Customize filter_non_approved: invert to allowlist approved ARNs if supported.`,
+# Enforce exact approved boundary ARNs and semantic weakening in downstream analytics.`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=PutRolePermissionsBoundary OR eventName=PutUserPermissionsBoundary)
-| where like(requestParameters.permissionsBoundary, "%AdministratorAccess%") OR like(requestParameters.permissionsBoundary, "%PowerUserAccess%") OR like(requestParameters.permissionsBoundary, "%FullAccess%") OR like(requestParameters.permissionsBoundary, "%Admin%")
-| table _time, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary`,
+| table _time, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
   AND eventName IN ('PutRolePermissionsBoundary', 'PutUserPermissionsBoundary')
-  AND (requestParameters.permissionsBoundary LIKE '%AdministratorAccess%' OR requestParameters.permissionsBoundary LIKE '%PowerUserAccess%' OR requestParameters.permissionsBoundary LIKE '%FullAccess%' OR requestParameters.permissionsBoundary LIKE '%Admin%')
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName in ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"]
-| filter requestParameters.permissionsBoundary like /AdministratorAccess|PowerUserAccess|FullAccess|Admin/
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"] } }, null, 2),
+      lambda: `"""
+Boundary Changed to Weaker or Non-Standard Boundary
+Trigger: EventBridge rule matching PutRolePermissionsBoundary or PutUserPermissionsBoundary.
+Use for: Real-time enrichment against exact approved boundary catalog.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("PutRolePermissionsBoundary", "PutUserPermissionsBoundary"):
+        return {"matched": False}
+
+    return {
+        "matched": "requires-approved-boundary-catalog-and-before-after-comparison",
+        "alert": {
+            "rule_id": "det-045",
+            "title": "Boundary Changed to Weaker or Non-Standard Boundary",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "new_boundary": detail.get("requestParameters", {}).get("permissionsBoundary"),
+            "target_role": detail.get("requestParameters", {}).get("roleName"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.permissionsBoundary", "requestParameters.roleName", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "PutRolePermissionsBoundary", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "TargetRole", permissionsBoundary: "arn:aws:iam::aws:policy/AdministratorAccess" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who set the boundary.", "Verify if the boundary ARN is in the approved allowlist.", "Assess whether the new boundary weakens restrictions."],
     testingSteps: ["Set a boundary to a non-approved policy ARN.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Permissions boundaries are usually tightly standardized. Assigning a custom or weaker boundary is one of the clearest ways to reduce delegated IAM controls without deleting the boundary outright.",
+      threatContext: {
+        attackerBehavior: "An attacker may swap a target from a strong standard boundary to a weaker custom boundary, or assign a boundary that is technically present but stops constraining meaningful actions.",
+        realWorldUsage: "Boundary abuse often uses custom policy ARNs and semantic weakening rather than obvious names like AdministratorAccess, making exact catalogs and policy parsing more reliable than substring heuristics.",
+        whyItMatters: "The strongest signal is either deviation from an approved boundary catalog or a before/after comparison showing the new boundary is less restrictive.",
+        riskAndImpact: "If missed, a principal can retain the appearance of governance while quietly gaining materially broader effective permissions.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.permissionsBoundary", "requestParameters.roleName", "requestParameters.userName", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "The environment should maintain an exact approved-boundary ARN catalog.", "Previous boundary state and semantic classification should be available for comparison."],
+        limitations: ["The raw event does not tell you whether the new boundary is actually weaker.", "Substring matching on boundary names is both noisy and easy to evade.", "Approved-boundary catalogs must be maintained as governance changes occur."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.permissionsBoundary", normalizedPath: "aws.iam.boundary.new_arn", notes: "New boundary ARN applied to the target" },
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.target_role.name", notes: "Target role" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Target user" },
+          { rawPath: "enrichment.previousBoundaryArn", normalizedPath: "aws.iam.boundary.previous_arn", notes: "Prior boundary ARN" },
+          { rawPath: "enrichment.boundaryClassification", normalizedPath: "aws.iam.boundary.classification", notes: "Approved, custom, weak, or experimental boundary class" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "PutRolePermissionsBoundary", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { target_role: { name: "TargetRole" }, boundary: { new_arn: "arn:aws:iam::123456789012:policy/CustomWeakBoundary", previous_arn: "arn:aws:iam::123456789012:policy/StandardProdBoundary" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Exact Approved Boundary Catalog", description: "Match the new boundary ARN against a maintained allowlist of approved standard boundaries.", examples: ["standard prod boundary", "delegated-admin boundary"], falsePositiveReduction: "Detects truly non-standard boundaries without relying on brittle text patterns." },
+        { dimension: "Before/After Constraint Diff", description: "Compare the previous and new boundary documents to determine whether the new boundary is less restrictive.", examples: ["removed deny conditions", "broadened allowed resources"], falsePositiveReduction: "Separates benign boundary migration from actual weakening." },
+        { dimension: "Target Principal Class", description: "Apply different approved boundaries and tolerances by target class.", examples: ["prod deploy role", "helpdesk user", "sandbox developer"], falsePositiveReduction: "Prevents one-size-fits-all policy decisions from generating unnecessary alerts." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should have two branches: the new boundary ARN is not in the approved catalog for that target class, or the new boundary is semantically weaker than the previous one. Either case is more meaningful than name-based matching.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals PutRolePermissionsBoundary or PutUserPermissionsBoundary", "new boundary ARN is not in the approved catalog or before/after comparison shows weaker restrictions"],
+        tuningGuidance: "1. Use exact allowlists, not wildcard name filters. 2. Compare the new boundary to the previous one. 3. Maintain target-class-specific approved boundary mappings rather than a single global list.",
+        whenToFire: "Fire when a target receives a non-standard boundary or a boundary that is measurably weaker than the previous control state.",
+      },
+      simulationCommand: "aws iam put-role-permissions-boundary --role-name TargetRole --permissions-boundary arn:aws:iam::123456789012:policy/CustomWeakBoundary",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with exact boundary catalog and before/after comparison; high with name-based matching",
+        expectedVolume: "Very low in mature environments with standardized boundaries",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with lookup tables", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time or short scheduled intervals both work, provided the approved-boundary catalog is accessible.",
+        considerations: ["This rule should enforce exact boundary governance, not keyword governance.", "Boundary document parsing materially improves detection quality."],
+      },
+    },
   },
   {
     id: "det-046",
-    title: "Boundary Change on Sensitive Principal",
-    description: "Detects boundary changes applied to highly sensitive users or roles. Sensitive targets include admin roles, break-glass roles, deployment roles, platform roles, and privileged human users. Even a legitimate-looking boundary change is risky on critical identities.",
+    title: "Permissions Boundary Changed on Classified Privileged Principal",
+    description: "Detects permissions-boundary changes applied to highly privileged or otherwise classified sensitive principals. This rule should rely on principal criticality metadata and target class rather than role-name heuristics.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
@@ -4828,47 +6159,110 @@ detection:
     eventName:
       - PutRolePermissionsBoundary
       - PutUserPermissionsBoundary
-  filter_role:
-    requestParameters.roleName|contains:
-      - 'admin'
-      - 'Admin'
-      - 'break-glass'
-      - 'deploy'
-      - 'platform'
-  filter_user:
-    requestParameters.userName|contains:
-      - 'admin'
-      - 'Admin'
-      - 'break-glass'
-      - 'deploy'
-      - 'platform'
-  condition: selection and (filter_role or filter_user)
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com (eventName=PutRolePermissionsBoundary OR eventName=PutUserPermissionsBoundary)
-| where like(requestParameters.roleName, "%admin%") OR like(requestParameters.roleName, "%Admin%") OR like(requestParameters.roleName, "%break-glass%") OR like(requestParameters.roleName, "%deploy%") OR like(requestParameters.roleName, "%platform%") OR like(requestParameters.userName, "%admin%") OR like(requestParameters.userName, "%Admin%") OR like(requestParameters.userName, "%break-glass%") OR like(requestParameters.userName, "%deploy%") OR like(requestParameters.userName, "%platform%")
-| table _time, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary`,
+| table _time, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
   AND eventName IN ('PutRolePermissionsBoundary', 'PutUserPermissionsBoundary')
-  AND (requestParameters.roleName LIKE '%admin%' OR requestParameters.roleName LIKE '%Admin%' OR requestParameters.roleName LIKE '%break-glass%' OR requestParameters.roleName LIKE '%deploy%' OR requestParameters.roleName LIKE '%platform%' OR requestParameters.userName LIKE '%admin%' OR requestParameters.userName LIKE '%Admin%' OR requestParameters.userName LIKE '%break-glass%' OR requestParameters.userName LIKE '%deploy%' OR requestParameters.userName LIKE '%platform%')
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName in ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"]
-| filter requestParameters.roleName like /admin|break-glass|deploy|platform/i or requestParameters.userName like /admin|break-glass|deploy|platform/i
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"] } }, null, 2),
+      lambda: `"""
+Permissions Boundary Changed on Classified Privileged Principal
+Trigger: EventBridge rule matching PutRolePermissionsBoundary or PutUserPermissionsBoundary.
+Use for: Real-time triage of boundary changes on high-value identities.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("PutRolePermissionsBoundary", "PutUserPermissionsBoundary"):
+        return {"matched": False}
+
+    return {
+        "matched": "requires-sensitive-principal-classification",
+        "alert": {
+            "rule_id": "det-046",
+            "title": "Permissions Boundary Changed on Classified Privileged Principal",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_role": detail.get("requestParameters", {}).get("roleName"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "new_boundary": detail.get("requestParameters", {}).get("permissionsBoundary"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "requestParameters.permissionsBoundary", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "PutRolePermissionsBoundary", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "TargetRole", permissionsBoundary: "arn:aws:iam::aws:policy/ExampleBoundary" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the target principal and whether it is sensitive.", "Verify if the boundary change was authorized.", "Assess impact on the principal's effective permissions."],
     testingSteps: ["Set a boundary on a role with 'admin' in the name.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Boundary changes on tier-0 or otherwise privileged identities deserve separate attention because even well-formed governance actions can have outsized blast radius on those principals.",
+      threatContext: {
+        attackerBehavior: "An attacker may target a privileged user or role and alter its boundary to reduce controls or prepare future abuse.",
+        realWorldUsage: "High-value IAM identities are frequent targets because small control changes on them can unlock access across production, incident response, or shared services paths.",
+        whyItMatters: "The important signal is target criticality, not whether the role name contains admin-like text.",
+        riskAndImpact: "If missed, a boundary change on a privileged principal can weaken defenses around the exact identities defenders rely on most.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "requestParameters.permissionsBoundary", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "The environment should maintain a sensitive-principal inventory or identity criticality model.", "Previous boundary state should be available for high-quality triage."],
+        limitations: ["Name matching is not a reliable way to identify privileged principals.", "Not every change on a sensitive principal is malicious.", "CloudTrail alone does not tell you whether the new boundary is weaker."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.target_role.name", notes: "Target role" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Target user" },
+          { rawPath: "requestParameters.permissionsBoundary", normalizedPath: "aws.iam.boundary.new_arn", notes: "New or replacement boundary ARN" },
+          { rawPath: "enrichment.principalCriticality", normalizedPath: "aws.iam.target.criticality", notes: "High-value principal classification" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "PutRolePermissionsBoundary", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { target_role: { name: "ProdDeployRole", criticality: "privileged" }, boundary: { new_arn: "arn:aws:iam::123456789012:policy/ProdBoundary" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Principal Criticality", description: "Classify whether the target is break-glass, production deploy, admin-equivalent, shared-services, or incident-response related.", examples: ["break-glass role", "prod deploy role"], falsePositiveReduction: "Focuses the rule on identities where boundary changes have real blast radius." },
+        { dimension: "Boundary Governance Mapping", description: "Compare the target class to its approved boundary set.", examples: ["prod deploy role should use prod boundary", "break-glass account should have no routine changes"], falsePositiveReduction: "Prevents expected platform maintenance on low-risk targets from looking like tier-0 abuse." },
+        { dimension: "Authorized Operator Context", description: "Correlate the actor with approved governance operators and change windows.", examples: ["platform-security-admin", "approved maintenance window"], falsePositiveReduction: "Allows legitimate high-risk changes to be downgraded instead of ignored." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection is target-centric. It should trigger whenever a boundary change affects a classified sensitive principal, then use principal criticality, previous boundary state, and operator context to determine urgency.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals PutRolePermissionsBoundary or PutUserPermissionsBoundary", "target principal is classified as privileged or otherwise sensitive"],
+        tuningGuidance: "1. Use identity inventory and criticality tags, not role-name substrings. 2. Map approved boundaries by principal class. 3. Escalate when the new boundary is weaker or the actor is outside expected governance paths.",
+        whenToFire: "Fire for any boundary change on a classified privileged principal, with highest urgency when the change weakens controls or occurs outside approved operator paths.",
+      },
+      simulationCommand: "aws iam put-role-permissions-boundary --role-name ProdDeployRole --permissions-boundary arn:aws:iam::123456789012:policy/ProdBoundary",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with principal classification and approved-boundary mapping",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with principal inventory", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real time is preferred because changes on privileged principals deserve immediate review.",
+        considerations: ["Principal criticality metadata is the core dependency for this rule.", "Use this as a target-centric companion to the broader boundary-change detections."],
+      },
+    },
   },
   {
     id: "det-047",
-    title: "Boundary Change Followed by Privileged or Sensitive Action",
-    description: "Correlates boundary update with immediate privileged use. Attackers weaken a boundary to immediately use broader permissions. Follow-on events: AssumeRole, CreatePolicyVersion, SetDefaultPolicyVersion, PassRole, GetSecretValue, Decrypt, broad S3 access.",
+    title: "Boundary Weakened Followed by Newly Enabled Activity",
+    description: "Correlates boundary change with near-term privileged activity that plausibly becomes possible because the new boundary is weaker. This should track the affected principal, boundary ARN, and follow-on session lineage rather than just the same actor string.",
     awsService: "IAM",
     relatedServices: ["STS", "Secrets Manager", "KMS", "S3"],
     severity: "Critical",
@@ -4894,9 +6288,9 @@ detection:
       - PassRole
       - GetSecretValue
       - Decrypt
-  condition: 1 of selection_*
+  condition: selection_boundary
 level: critical
-# Full correlation requires SIEM.`,
+# Full correlation requires boundary state, target principal, and session lineage.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=iam.amazonaws.com AND (eventName=PutRolePermissionsBoundary OR eventName=PutUserPermissionsBoundary))
    OR (eventName=AssumeRole OR eventName=CreatePolicyVersion OR eventName=SetDefaultPolicyVersion OR eventName=PassRole OR eventName=GetSecretValue OR eventName=Decrypt))
@@ -4904,7 +6298,7 @@ level: critical
 | transaction actor maxspan=15m
 | where mvcount(mvfilter(eventSource="iam.amazonaws.com" AND eventName IN ("PutRolePermissionsBoundary","PutUserPermissionsBoundary")))>0
   AND mvcount(mvfilter(eventName IN ("AssumeRole","CreatePolicyVersion","SetDefaultPolicyVersion","PassRole","GetSecretValue","Decrypt")))>0
-| table _time, actor, eventName, requestParameters.roleName, requestParameters.userName`,
+| table _time, actor, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary`,
       cloudtrail: `WITH boundary_change AS (
   SELECT userIdentity.arn AS actor, eventTime AS change_time
   FROM cloudtrail_logs
@@ -4928,22 +6322,104 @@ ORDER BY b.change_time DESC`,
 | stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
 | filter cnt > 1
 | sort cnt desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"] } }, null, 2),
+      lambda: `"""
+Boundary Weakened Followed by Newly Enabled Activity
+Trigger: EventBridge rule matching PutRolePermissionsBoundary or PutUserPermissionsBoundary.
+Use for: Correlation of weakening changes with subsequent high-risk activity.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in ("PutRolePermissionsBoundary", "PutUserPermissionsBoundary"):
+        return {"matched": False}
+
+    return {
+        "matched": "requires-boundary-diff-and-follow-on-correlation",
+        "alert": {
+            "rule_id": "det-047",
+            "title": "Boundary Weakened Followed by Newly Enabled Activity",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_role": detail.get("requestParameters", {}).get("roleName"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "new_boundary": detail.get("requestParameters", {}).get("permissionsBoundary"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.userName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "PutRolePermissionsBoundary", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "TargetRole", permissionsBoundary: "arn:aws:iam::aws:policy/ExampleBoundary" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the actor that changed the boundary.", "Review the sequence: boundary change → privileged or sensitive action within 15 minutes.", "Verify if the follow-on activity was expected.", "Assess whether the boundary change enabled broader access."],
     testingSteps: ["Call PutRolePermissionsBoundary, then within 15 min call AssumeRole or GetSecretValue.", "Verify both events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+    lifecycle: {
+      whyItMatters: "Boundary changes become much more convincing as abuse when the target principal or actor immediately performs actions that were previously blocked or out of profile.",
+      threatContext: {
+        attackerBehavior: "An attacker may weaken a boundary and then quickly use the newly enabled permissions to assume roles, access secrets, or mutate IAM state.",
+        realWorldUsage: "This is the strongest boundary-abuse branch because it shows both the control change and its operational use.",
+        whyItMatters: "A real detector must tie the weakened boundary to the actor, target principal, and follow-on action rather than simply matching two unrelated events close together.",
+        riskAndImpact: "If missed, a seemingly small governance change can immediately turn into active credential theft, persistence, or privilege escalation.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (IAM, STS, Secrets Manager, KMS, and related services)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.roleName", "requestParameters.userName", "requestParameters.permissionsBoundary", "sourceIPAddress"],
+        loggingRequirements: ["Boundary-change telemetry must be correlated with follow-on IAM, STS, Secrets Manager, and KMS activity.", "Previous and new boundary state must be compared to confirm weakening.", "Principal inventory and session lineage are required to connect the change to later activity."],
+        limitations: ["Same-actor-only joins miss target-principal abuse patterns.", "Not every privileged action after a boundary change was enabled by it.", "The raw Put*Boundary event does not reveal whether the new boundary is weaker."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.permissionsBoundary", normalizedPath: "aws.iam.boundary.new_arn", notes: "New boundary ARN" },
+          { rawPath: "enrichment.previousBoundaryArn", normalizedPath: "aws.iam.boundary.previous_arn", notes: "Previous boundary ARN" },
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.target_role.name", notes: "Target role" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Target user" },
+          { rawPath: "follow_on.eventName", normalizedPath: "related.event.action", notes: "Subsequent privileged activity" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "PutRolePermissionsBoundary", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { target_role: { name: "TargetRole" }, boundary: { new_arn: "arn:aws:iam::123456789012:policy/CustomWeakBoundary", previous_arn: "arn:aws:iam::123456789012:policy/StandardBoundary" } } },
+          related: { event: { action: "GetSecretValue" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Boundary Weakening Diff", description: "Confirm the new boundary is weaker or non-standard before doing follow-on correlation.", examples: ["removed restrictive conditions", "custom boundary replacing standard boundary"], falsePositiveReduction: "Prevents benign boundary rotation from entering the high-confidence branch." },
+        { dimension: "Target Principal and Session Lineage", description: "Track whether the actor, the affected principal, or a new session from that principal performed the follow-on action.", examples: ["target role assumes another role", "affected user creates access key"], falsePositiveReduction: "Makes the correlation technically defensible." },
+        { dimension: "Follow-on Action Risk", description: "Score follow-on actions by how directly they indicate newly enabled privilege use.", examples: ["AssumeRole", "PassRole", "GetSecretValue", "SetDefaultPolicyVersion"], falsePositiveReduction: "Prevents low-risk administration from looking like immediate exploitation." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should be the strongest boundary-change abuse rule. First confirm the boundary was weakened or replaced with a non-standard version, then correlate the actor or affected principal with high-risk follow-on activity in a short window.",
+        conditions: ["first eventName equals PutRolePermissionsBoundary or PutUserPermissionsBoundary", "before/after comparison shows the new boundary is weaker or non-standard", "follow-on event occurs within 5-15 minutes", "follow-on action is high risk and linked to the actor or affected principal"],
+        tuningGuidance: "1. Do not use raw API sequencing alone. 2. Confirm weakening first. 3. Correlate on target principal and session lineage, not only actor ARN.",
+        whenToFire: "Fire when a weaker boundary is applied and the actor or affected principal quickly uses newly enabled privileges.",
+      },
+      simulationCommand: "aws iam put-role-permissions-boundary --role-name TargetRole --permissions-boundary arn:aws:iam::123456789012:policy/CustomWeakBoundary && aws secretsmanager get-secret-value --secret-id demo-secret",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with weakening confirmation and lineage-aware correlation",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with enrichment tables", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Best in near-real-time because short-window follow-on activity is the key signal.",
+        considerations: ["Use this as the high-confidence branch after `det-044` and `det-045`.", "Implement the real join logic outside Sigma."],
+      },
+    },
   },
 
   // --- IAM Create Login Profile ---
   {
     id: "det-048",
     title: "IAM Login Profile Created",
-    description: "Baseline visibility when a console password is created for an IAM user. Use High severity if the platform assumes modern AWS environments should rarely create IAM console passwords; otherwise Medium.",
+    description: "Baseline visibility when a console password is created for an IAM user. In mature AWS environments this is often rare and high-signal, but severity should still be informed by identity posture, console-access policy, and target user type.",
     awsService: "IAM",
     relatedServices: [],
-    severity: "High",
+    severity: "Medium",
     tags: ["IAM", "Login Profile", "Privilege Escalation"],
     logSources: ["AWS CloudTrail"],
     falsePositives: ["Legitimate onboarding of new IAM users with console access", "Migration from SSO to IAM users"],
@@ -4957,7 +6433,7 @@ detection:
     eventSource: iam.amazonaws.com
     eventName: CreateLoginProfile
   condition: selection
-level: high`,
+level: medium`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=CreateLoginProfile
 | table _time, userIdentity.arn, eventName, requestParameters.userName, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.userName, sourceIPAddress
@@ -4969,17 +6445,95 @@ ORDER BY eventTime DESC`,
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName = "CreateLoginProfile"
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateLoginProfile"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["CreateLoginProfile"] } }, null, 2),
+      lambda: `"""
+IAM Login Profile Created
+Trigger: EventBridge rule matching CreateLoginProfile.
+Use for: Real-time visibility into console-password creation for IAM users.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "CreateLoginProfile":
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-048",
+            "title": "IAM Login Profile Created",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+            "source_ip": detail.get("sourceIPAddress"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateLoginProfile", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { userName: "backdoor-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who created the login profile.", "Verify if the target user should have console access.", "Check if the environment prefers SSO over IAM console passwords."],
     testingSteps: ["Call CreateLoginProfile for a test user.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Creating a login profile turns an IAM user into a console-capable identity. In modern AWS environments that rely on SSO or federation, this can be a significant persistence or exposure event.",
+      threatContext: {
+        attackerBehavior: "An attacker may create a console password for a dormant or API-only IAM user to establish durable interactive access.",
+        realWorldUsage: "Console-password creation is a classic persistence technique in environments that still permit IAM users but do not expect routine console onboarding.",
+        whyItMatters: "This is the baseline event that feeds stronger detections about unauthorized actors, non-human targets, and follow-on console login.",
+        riskAndImpact: "If missed, a low-visibility IAM user can be converted into an interactive console identity with broad investigative blind spots if MFA and posture are weak.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "requestParameters.userName", "sourceIPAddress", "userAgent", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "The environment should know whether IAM console access is allowed by policy.", "User identity inventory should classify human, service, dormant, and API-only users."],
+        limitations: ["The raw event does not reveal whether the target user is supposed to have console access.", "In older IAM-user-centric environments this can still be a legitimate onboarding signal.", "CloudTrail does not directly show whether MFA was configured afterward."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor creating the login profile" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "IAM user receiving console password" },
+          { rawPath: "eventTime", normalizedPath: "@timestamp", notes: "CloudTrail event time" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["creation"], action: "CreateLoginProfile", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { target_user: { name: "backdoor-user" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "User Eligibility for Console Access", description: "Classify whether the target user should ever have a console password.", examples: ["human employee", "API-only service user", "dormant legacy IAM user"], falsePositiveReduction: "Separates expected onboarding from suspicious persistence." },
+        { dimension: "Account IAM Posture", description: "Determine whether the environment prefers SSO or forbids IAM console users except break-glass cases.", examples: ["SSO-only prod account", "legacy IAM-user account"], falsePositiveReduction: "Prevents the same event from being treated identically across very different environments." },
+        { dimension: "Follow-on Console Use", description: "Correlate later ConsoleLogin, MFA setup, or lack of MFA for the target user.", examples: ["ConsoleLogin within 24h", "no MFA configured"], falsePositiveReduction: "Raises priority when the new password is actively used." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should stay baseline-oriented. It alerts on every successful CreateLoginProfile, then uses user eligibility, account posture, and later console activity to decide whether the event is routine or suspicious.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals CreateLoginProfile", "errorCode is absent"],
+        tuningGuidance: "1. Default severity should reflect the environment's IAM model. 2. Escalate for API-only, dormant, or non-console users. 3. Correlate with ConsoleLogin and MFA posture rather than relying on the create event alone.",
+        whenToFire: "Fire on every successful login-profile creation for visibility, with higher priority when the target user should not normally receive console access.",
+      },
+      simulationCommand: "aws iam create-login-profile --user-name backdoor-user --password 'ExampleTempPassword123!' --password-reset-required",
+      quality: {
+        signalQuality: 7,
+        falsePositiveRate: "Medium in IAM-user-heavy environments, low-medium where SSO is the norm",
+        expectedVolume: "Low in modern environments",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because console password creation may be followed quickly by sign-in.",
+        considerations: ["This is the baseline companion to actor-centric and target-eligibility login-profile detections.", "Use account posture to decide final severity."],
+      },
+    },
   },
   {
     id: "det-049",
-    title: "Login Profile Created by Unexpected Actor",
-    description: "Detects console-password creation by actors who normally should not manage IAM users. Suspicious actors include IAM users, application roles, EC2 instance roles, and non-IAM-admin assumed roles. Excludes Terraform, CloudFormation, and admin roles.",
+    title: "Login Profile Created Outside Authorized IAM Change Path",
+    description: "Detects console-password creation by actors outside the delegated IAM admin set. The rule should rely on authorized actor inventory, workflow provenance, and actor-to-target scope rather than ARN substring filters.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
@@ -4995,44 +6549,108 @@ detection:
   selection:
     eventSource: iam.amazonaws.com
     eventName: CreateLoginProfile
-  filter_known_admin:
-    userIdentity.principalId|contains:
-      - 'terraform'
-      - 'cloudformation'
-      - 'admin'
-      - 'Admin'
-      - 'IAMAdmin'
-  condition: selection and not filter_known_admin
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=CreateLoginProfile
-| where NOT (like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%") OR like(userIdentity.arn, "%admin%") OR like(userIdentity.arn, "%Admin%") OR like(userIdentity.arn, "%IAMAdmin%"))
-| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName`,
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
   AND eventName = 'CreateLoginProfile'
-  AND userIdentity.principalId NOT LIKE '%terraform%'
-  AND userIdentity.principalId NOT LIKE '%cloudformation%'
-  AND userIdentity.arn NOT LIKE '%admin%'
-  AND userIdentity.arn NOT LIKE '%Admin%'
-  AND userIdentity.arn NOT LIKE '%IAMAdmin%'
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName = "CreateLoginProfile"
-| filter userIdentity.principalId not like /terraform/ and userIdentity.principalId not like /cloudformation/ and userIdentity.arn not like /admin/i
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateLoginProfile"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["CreateLoginProfile"] } }, null, 2),
+      lambda: `"""
+Login Profile Created Outside Authorized IAM Change Path
+Trigger: EventBridge rule matching CreateLoginProfile.
+Use for: Real-time triage of unauthorized console-password creation.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "CreateLoginProfile":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-login-profile-manager-check",
+        "alert": {
+            "rule_id": "det-049",
+            "title": "Login Profile Created Outside Authorized IAM Change Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateLoginProfile", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx" }, requestParameters: { userName: "backdoor-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized to create IAM login profiles.", "Check sessionContext.sessionIssuer.arn for assumed roles."],
     testingSteps: ["As a non-admin role, call CreateLoginProfile.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
+    lifecycle: {
+      whyItMatters: "Console-password creation by the wrong identity is a strong governance and abuse signal because only a narrow set of helpdesk, IAM admin, or automation roles should perform it.",
+      threatContext: {
+        attackerBehavior: "A compromised workload role, developer role, or unapproved human identity may create a login profile to establish interactive persistence.",
+        realWorldUsage: "Unexpected-actor IAM credential creation is a common post-compromise pattern because attackers abuse whatever IAM write access is already available.",
+        whyItMatters: "The decision is about authorization and workflow context, not whether the actor's ARN text looks like admin.",
+        riskAndImpact: "If missed, an attacker can create console access for a backdoor user without using an obviously privileged identity.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "userIdentity.sessionContext.sessionIssuer.arn", "userIdentity.invokedBy", "sourceIPAddress", "userAgent", "requestParameters.userName", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "The environment should maintain an authorized login-profile manager inventory.", "Actor-to-target scope or delegated-admin boundaries should be available as enrichment."],
+        limitations: ["Without actor inventory this becomes noisy.", "Helpdesk or onboarding automation can look suspicious without workflow provenance.", "CloudTrail alone does not prove whether the actor was in an approved support path."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "userIdentity.principalId", normalizedPath: "user.id", notes: "Stable actor identifier" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role for assumed-role sessions" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "IAM user receiving console password" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["creation"], action: "CreateLoginProfile", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx", type: "AssumedRole", id: "AROAXXXXX:i-xxx" },
+          aws: { iam: { target_user: { name: "backdoor-user" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized IAM Change Actors", description: "Exact inventory of principals allowed to create console passwords.", examples: ["IAM admin role", "approved helpdesk role", "onboarding automation"], falsePositiveReduction: "Replaces brittle name heuristics with stable authorization context." },
+        { dimension: "Workflow Provenance", description: "Correlate userAgent, invokedBy, session tags, ticket IDs, and maintenance windows.", examples: ["identity onboarding workflow", "manual out-of-band CLI"], falsePositiveReduction: "Separates sanctioned support work from suspicious manual activity." },
+        { dimension: "Actor-to-Target Scope", description: "Determine whether the actor is allowed to administer the target user.", examples: ["same business unit helpdesk", "cross-team application role"], falsePositiveReduction: "Makes scope violations substantially higher signal." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should alert when CreateLoginProfile occurs outside approved IAM or helpdesk workflows. The strongest signal comes from exact actor inventory, workflow provenance, and target-admin scope checks.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals CreateLoginProfile", "actor is not in the approved login-profile manager inventory or request lacks approved workflow provenance, or actor is outside target-admin scope"],
+        tuningGuidance: "1. Use exact ARNs and principalIds, not text matching. 2. Distinguish helpdesk, onboarding, and break-glass workflows. 3. Escalate when the target user is dormant, non-human, or quickly logs in afterward.",
+        whenToFire: "Fire when a login profile is created outside authorized IAM change paths, especially when the target user is unusual or the actor is a workload identity.",
+      },
+      simulationCommand: "aws iam create-login-profile --user-name backdoor-user --password 'ExampleTempPassword123!' --password-reset-required --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Medium without actor inventory, low-medium with workflow and scope enrichment",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with lookup tables", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because credential creation often precedes immediate use.",
+        considerations: ["This is the actor-centric companion to the baseline login-profile creation rule.", "Use target scope and workflow provenance to control noise."],
+      },
+    },
   },
   {
     id: "det-050",
-    title: "Login Profile Created for Suspicious or Non-Human User",
-    description: "Detects login profile creation for users that look like service accounts, automation users, backdoor users, or identities that historically should not have console access. Attackers may create a console password for a backdoor IAM user or for a user that previously had only API-based access.",
+    title: "Login Profile Created for Non-Console or Non-Human User",
+    description: "Detects console-password creation for users classified as non-human, API-only, or otherwise ineligible for console access. This should be driven by identity metadata and historical console posture rather than username pattern matching.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
@@ -5048,38 +6666,103 @@ detection:
   selection:
     eventSource: iam.amazonaws.com
     eventName: CreateLoginProfile
-  filter_target:
-    requestParameters.userName|contains:
-      - 'svc-'
-      - 'service'
-      - 'automation'
-      - 'backdoor'
-      - 'bot'
-      - 'api'
-      - 'cicd'
-      - 'terraform'
-  condition: selection and filter_target
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=CreateLoginProfile
-| where like(requestParameters.userName, "%svc-%") OR like(requestParameters.userName, "%service%") OR like(requestParameters.userName, "%automation%") OR like(requestParameters.userName, "%backdoor%") OR like(requestParameters.userName, "%bot%") OR like(requestParameters.userName, "%api%") OR like(requestParameters.userName, "%cicd%") OR like(requestParameters.userName, "%terraform%")
-| table _time, userIdentity.arn, eventName, requestParameters.userName`,
+| table _time, userIdentity.arn, eventName, requestParameters.userName, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.userName
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
   AND eventName = 'CreateLoginProfile'
-  AND (requestParameters.userName LIKE '%svc-%' OR requestParameters.userName LIKE '%service%' OR requestParameters.userName LIKE '%automation%' OR requestParameters.userName LIKE '%backdoor%' OR requestParameters.userName LIKE '%bot%' OR requestParameters.userName LIKE '%api%' OR requestParameters.userName LIKE '%cicd%' OR requestParameters.userName LIKE '%terraform%')
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.userName
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName = "CreateLoginProfile"
-| filter requestParameters.userName like /svc-|service|automation|backdoor|bot|api|cicd|terraform/
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateLoginProfile"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["CreateLoginProfile"] } }, null, 2),
+      lambda: `"""
+Login Profile Created for Non-Console or Non-Human User
+Trigger: EventBridge rule matching CreateLoginProfile.
+Use for: Real-time triage of console passwords created for ineligible user classes.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "CreateLoginProfile":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-user-eligibility-and-console-history-check",
+        "alert": {
+            "rule_id": "det-050",
+            "title": "Login Profile Created for Non-Console or Non-Human User",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateLoginProfile", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { userName: "backdoor-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the target user and whether it is a service or automation account.", "Verify if the user should have console access.", "Check if the user was recently created."],
     testingSteps: ["Create a login profile for a user with 'svc-' in the name.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Creating a console password for an API-only, service, automation, or otherwise ineligible user is one of the clearest persistence and misuse signals in IAM-user-heavy environments.",
+      threatContext: {
+        attackerBehavior: "An attacker may give interactive console access to a service account, dormant automation user, or backdoor-style IAM user that historically operated only with API credentials.",
+        realWorldUsage: "This is a durable persistence pattern because the user may already exist and look operationally normal, while console access adds a new interaction path defenders may not expect.",
+        whyItMatters: "The strongest signal is not the username text but whether the target user should ever have console access based on identity metadata and history.",
+        riskAndImpact: "If missed, attackers can convert non-human or dormant identities into interactive footholds with access that may blend into existing IAM user activity.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.userName", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "The environment should maintain user classification metadata such as human vs service or API-only.", "Historical console-access posture and MFA state should be available for the target user."],
+        limitations: ["Username patterns are not reliable user classification.", "Some service or break-glass identities may legitimately receive console access during exceptions.", "CloudTrail alone does not tell you whether the user historically lacked console access unless you enrich it."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "User receiving the console password" },
+          { rawPath: "enrichment.userType", normalizedPath: "aws.iam.target_user.type", notes: "Human, service, API-only, dormant, break-glass, etc." },
+          { rawPath: "enrichment.previousConsoleAccess", normalizedPath: "aws.iam.target_user.previous_console_access", notes: "Whether the user already had console capability" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor creating the login profile" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["creation"], action: "CreateLoginProfile", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { target_user: { name: "svc-build-bot", type: "service", previous_console_access: false } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "User Eligibility Classification", description: "Determine whether the target user is human, service, automation, dormant, break-glass, or API-only.", examples: ["service bot", "legacy API-only user", "human employee"], falsePositiveReduction: "Avoids relying on fragile naming patterns." },
+        { dimension: "Historical Console Posture", description: "Check whether the target user has ever had a login profile, ConsoleLogin history, or MFA devices.", examples: ["first-ever console access", "never used console before"], falsePositiveReduction: "Raises confidence when the event introduces a genuinely new access path." },
+        { dimension: "Environment Policy", description: "Model whether the account permits console access for this user class.", examples: ["no console access for service users", "break-glass exceptions only"], falsePositiveReduction: "Lets the detector align with the organization's real IAM model." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should be a target-eligibility rule. Alert when CreateLoginProfile affects a user classified as non-human, API-only, or otherwise not expected to have console access, especially if the user had no prior console history.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals CreateLoginProfile", "target user is classified as service, automation, API-only, dormant, or otherwise not expected to have console access"],
+        tuningGuidance: "1. Use identity metadata and historical posture instead of username patterns. 2. Allow explicit break-glass exceptions. 3. Escalate when the user quickly performs ConsoleLogin or lacks MFA.",
+        whenToFire: "Fire when console access is created for a user class that should not normally receive it, especially if this is the user's first console-capable state.",
+      },
+      simulationCommand: "aws iam create-login-profile --user-name svc-build-bot --password 'ExampleTempPassword123!' --password-reset-required",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with user classification and console-history enrichment; high with username heuristics alone",
+        expectedVolume: "Very low in mature environments",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with identity inventory", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because the value comes from catching new interactive access paths quickly.",
+        considerations: ["This is the target-centric companion to the actor-centric login-profile creation rule.", "User classification quality is the main dependency."],
+      },
+    },
   },
   {
     id: "det-051",
@@ -5103,9 +6786,9 @@ detection:
   selection_login:
     eventSource: signin.amazonaws.com
     eventName: ConsoleLogin
-  condition: 1 of selection_*
+  condition: selection_create
 level: critical
-# Full correlation (same user, within 24h) requires SIEM.`,
+# Full correlation requires exact target-user linkage across IAM and sign-in telemetry.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=iam.amazonaws.com AND eventName=CreateLoginProfile) OR (eventSource=signin.amazonaws.com AND eventName=ConsoleLogin))
 | eval target_user=case(eventName="CreateLoginProfile", requestParameters.userName, eventName="ConsoleLogin", replace(userIdentity.arn, ".*user/", ""), 1=1, null)
@@ -5141,12 +6824,90 @@ ORDER BY p.create_time DESC`,
 | stats count(*) as cnt, collect_list(eventName) as events by target_user
 | filter cnt > 1
 | sort cnt desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateLoginProfile"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["CreateLoginProfile"] } }, null, 2),
+      lambda: `"""
+CreateLoginProfile Followed by Console Login
+Trigger: EventBridge rule matching CreateLoginProfile.
+Use for: Correlation with later successful console authentication by the same target user.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "CreateLoginProfile":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-correlation-with-successful-consolelogin",
+        "alert": {
+            "rule_id": "det-051",
+            "title": "CreateLoginProfile Followed by Console Login",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.userName", "requestParameters.userName", "responseElements.ConsoleLogin", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateLoginProfile", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { userName: "backdoor-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the user that received the login profile.", "Review ConsoleLogin events for that user within 24 hours.", "Check if the login was from an unusual IP or without MFA."],
     testingSteps: ["Create a login profile, then log in via console within 24h.", "Verify both events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+    lifecycle: {
+      whyItMatters: "Creating console access becomes far more meaningful when the target user actually uses it. This sequence is one of the clearest signs that newly created interactive access was not just configured, but exercised.",
+      threatContext: {
+        attackerBehavior: "An attacker may create a login profile for an IAM user and then use that new password to log into the AWS console soon afterward.",
+        realWorldUsage: "This is a classic persistence and account-takeover sequence in IAM-user-based environments because it turns a control-plane change into immediate operational access.",
+        whyItMatters: "The create event alone can still be onboarding or admin work; the later successful ConsoleLogin is what turns it into a much stronger signal.",
+        riskAndImpact: "If missed, attackers can establish durable console access and begin operating interactively from a user that previously had no such path.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for IAM", "CloudTrail sign-in events from signin.amazonaws.com"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "requestParameters.userName", "userIdentity.arn", "responseElements.ConsoleLogin", "additionalEventData.MFAUsed", "sourceIPAddress"],
+        loggingRequirements: ["IAM CreateLoginProfile events and sign-in telemetry must both be ingested.", "Sign-in telemetry must preserve successful ConsoleLogin outcomes.", "The environment should be able to map login events back to the target IAM user reliably."],
+        limitations: ["Simple ARN parsing from sign-in events can be brittle across identity types and log formats.", "Legitimate onboarding can generate this pattern.", "MFA and device context are sometimes incomplete depending on the pipeline."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "User receiving the login profile" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor creating the login profile" },
+          { rawPath: "responseElements.ConsoleLogin", normalizedPath: "aws.signin.console_login", notes: "Successful sign-in outcome" },
+          { rawPath: "additionalEventData.MFAUsed", normalizedPath: "aws.signin.mfa_used", notes: "MFA posture for follow-on login" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["creation"], action: "CreateLoginProfile", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { target_user: { name: "backdoor-user" } }, signin: { console_login: "Success", mfa_used: "No" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Target User Eligibility", description: "Classify whether the target user should have console access at all.", examples: ["human employee", "API-only service user", "dormant legacy user"], falsePositiveReduction: "Separates expected onboarding from suspicious persistence." },
+        { dimension: "Creator-to-Target Relationship", description: "Determine whether the actor normally administers the target user.", examples: ["helpdesk to employee account", "workload role to unrelated IAM user"], falsePositiveReduction: "Raises confidence when the create-and-use sequence came from an unexpected operator path." },
+        { dimension: "Console Login Risk Context", description: "Evaluate MFA use, source IP novelty, geo, device fingerprint, and time-to-first-login.", examples: ["login within minutes", "no MFA", "new country"], falsePositiveReduction: "Distinguishes benign onboarding from suspicious access activation." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a state transition: console access was created, then the target user actually authenticated successfully. The strongest implementation links the target IAM user from CreateLoginProfile to the successful ConsoleLogin event and enriches the login with MFA and access-path context.",
+        conditions: ["first eventName equals CreateLoginProfile", "second eventSource equals signin.amazonaws.com and eventName equals ConsoleLogin", "responseElements.ConsoleLogin equals Success", "the login user matches the target user from the create event", "login occurs within 24 hours"],
+        tuningGuidance: "1. Do not alert on either event alone. 2. Use exact target-user mapping rather than brittle regex where possible. 3. Escalate for no MFA, unusual source IP, and non-human or dormant target users.",
+        whenToFire: "Fire when a newly created login profile is followed by a successful console login by that same target user, especially when the access path or target user is unusual.",
+      },
+      simulationCommand: "aws iam create-login-profile --user-name backdoor-user --password 'ExampleTempPassword123!' --password-reset-required",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium depending on IAM-user onboarding frequency and target-user eligibility context",
+        expectedVolume: "Very low in mature environments",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with sign-in telemetry", "Panther / Chronicle / Datadog", "EventBridge + Lambda with short-lived state"],
+        scheduling: "Best in near-real-time because the value comes from seeing access become active quickly.",
+        considerations: ["Treat this as the high-confidence branch above baseline login-profile creation.", "Reliable sign-in ingestion is mandatory."],
+      },
+    },
   },
 
   // --- IAM Update Login Profile ---
@@ -5182,17 +6943,95 @@ ORDER BY eventTime DESC`,
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName = "UpdateLoginProfile"
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["UpdateLoginProfile"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["UpdateLoginProfile"] } }, null, 2),
+      lambda: `"""
+IAM Login Profile Updated
+Trigger: EventBridge rule matching UpdateLoginProfile.
+Use for: Baseline visibility into IAM password reset or console-password update events.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "UpdateLoginProfile":
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-052",
+            "title": "IAM Login Profile Updated",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+            "source_ip": detail.get("sourceIPAddress"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "UpdateLoginProfile", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { userName: "TargetUser" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who updated the login profile.", "Verify if the password change was authorized.", "Check if the target user was recently compromised."],
     testingSteps: ["Call UpdateLoginProfile for a test user.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Password-reset and password-update activity is foundational telemetry for detecting persistence, helpdesk abuse, and account recovery misuse against IAM users.",
+      threatContext: {
+        attackerBehavior: "An attacker or unauthorized operator may reset a user's console password to regain or establish access.",
+        realWorldUsage: "UpdateLoginProfile is frequently seen in support and recovery workflows, but it is also a practical takeover mechanism when attackers already have enough IAM access.",
+        whyItMatters: "This should remain a baseline rule because the event is important, even when it is not malicious by itself.",
+        riskAndImpact: "If missed, a suspicious password update may only become visible later after a successful console login or other downstream abuse.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "requestParameters.userName", "requestParameters.passwordResetRequired", "sourceIPAddress", "userAgent", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "The pipeline should preserve requestParameters.passwordResetRequired when present.", "User inventory should indicate whether the target user is expected to have console access."],
+        limitations: ["The event alone does not distinguish self-service change from delegated reset unless you enrich the actor and target relationship.", "Support workflows can generate legitimate events.", "Without sign-in correlation this remains a baseline signal."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor updating the login profile" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Target user whose password was changed" },
+          { rawPath: "requestParameters.passwordResetRequired", normalizedPath: "aws.iam.target_user.password_reset_required", notes: "Whether forced reset was enabled" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "UpdateLoginProfile", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { target_user: { name: "TargetUser", password_reset_required: true } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Self-Service vs Delegated Reset", description: "Determine whether the actor changed their own password or someone else's.", examples: ["user resets own password", "helpdesk resets employee password"], falsePositiveReduction: "Separates routine self-service from more sensitive delegated changes." },
+        { dimension: "Target User Console Posture", description: "Classify whether the target user should have a console password at all.", examples: ["human user", "API-only user"], falsePositiveReduction: "Improves prioritization when the target's console capability is unexpected." },
+        { dimension: "Follow-on Sign-In Activity", description: "Correlate later ConsoleLogin, MFA changes, and unusual login context.", examples: ["ConsoleLogin within 1h", "no MFA"], falsePositiveReduction: "Raises confidence when the reset becomes active access." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should stay as a broad baseline password-reset detector. It should alert on every successful UpdateLoginProfile, then rely on self-service context, target eligibility, and later sign-in behavior to determine urgency.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals UpdateLoginProfile", "errorCode is absent"],
+        tuningGuidance: "1. Keep the event match broad. 2. Distinguish self-service from delegated resets. 3. Correlate with console login and MFA posture for escalation.",
+        whenToFire: "Fire on every successful login-profile update for visibility, with higher priority when the actor-target relationship or target-user posture is unusual.",
+      },
+      simulationCommand: "aws iam update-login-profile --user-name TargetUser --password 'ExampleTempPassword123!' --password-reset-required",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium as raw visibility, low-medium with actor-target and sign-in enrichment",
+        expectedVolume: "Low to moderate depending on support workflows",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time or short scheduled intervals both work because this is direct IAM telemetry.",
+        considerations: ["Keep this as the baseline companion to unauthorized-reset and reset-plus-login detections.", "Do not over-severity the raw event without context."],
+      },
+    },
   },
   {
     id: "det-053",
-    title: "Login Profile Updated by Unexpected Actor",
-    description: "Detects password changes made by identities that normally should not manage IAM users. Suspicious actors include IAM users, application roles, EC2 roles, and non-admin assumed roles. Excludes expected admin/helpdesk/automation roles.",
+    title: "Login Profile Updated Outside Authorized IAM Change Path",
+    description: "Detects password changes performed by actors outside approved IAM, helpdesk, or onboarding workflows. The rule should rely on exact authorized actor inventory, workflow provenance, and actor-to-target scope rather than substring filters.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
@@ -5208,46 +7047,108 @@ detection:
   selection:
     eventSource: iam.amazonaws.com
     eventName: UpdateLoginProfile
-  filter_known_admin:
-    userIdentity.principalId|contains:
-      - 'terraform'
-      - 'cloudformation'
-      - 'admin'
-      - 'Admin'
-      - 'IAMAdmin'
-      - 'helpdesk'
-  condition: selection and not filter_known_admin
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=UpdateLoginProfile
-| where NOT (like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%") OR like(userIdentity.arn, "%admin%") OR like(userIdentity.arn, "%Admin%") OR like(userIdentity.arn, "%IAMAdmin%") OR like(userIdentity.arn, "%helpdesk%"))
-| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName`,
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
   AND eventName = 'UpdateLoginProfile'
-  AND userIdentity.principalId NOT LIKE '%terraform%'
-  AND userIdentity.principalId NOT LIKE '%cloudformation%'
-  AND userIdentity.arn NOT LIKE '%admin%'
-  AND userIdentity.arn NOT LIKE '%Admin%'
-  AND userIdentity.arn NOT LIKE '%IAMAdmin%'
-  AND userIdentity.arn NOT LIKE '%helpdesk%'
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName = "UpdateLoginProfile"
-| filter userIdentity.principalId not like /terraform|cloudformation|admin|helpdesk/i
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["UpdateLoginProfile"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["UpdateLoginProfile"] } }, null, 2),
+      lambda: `"""
+Login Profile Updated Outside Authorized IAM Change Path
+Trigger: EventBridge rule matching UpdateLoginProfile.
+Use for: Real-time triage of unauthorized password reset activity.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "UpdateLoginProfile":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-password-reset-actor-check",
+        "alert": {
+            "rule_id": "det-053",
+            "title": "Login Profile Updated Outside Authorized IAM Change Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "UpdateLoginProfile", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx" }, requestParameters: { userName: "TargetUser" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized to update IAM login profiles.", "Check sessionContext.sessionIssuer.arn for assumed roles."],
     testingSteps: ["As a non-admin role, call UpdateLoginProfile.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
+    lifecycle: {
+      whyItMatters: "Password resets by the wrong identity are strong account-takeover and governance signals because only a small set of support or IAM operators should perform them.",
+      threatContext: {
+        attackerBehavior: "An attacker using a workload role, developer role, or unapproved human session may reset a user's password to gain or restore console access.",
+        realWorldUsage: "Unexpected-actor password reset is a common cloud abuse pattern when attackers inherit enough IAM write access to manipulate credentials directly.",
+        whyItMatters: "Authorization context matters far more than actor naming. A malicious actor can easily operate under a neutral-looking name.",
+        riskAndImpact: "If missed, attackers can convert a compromised IAM permission set into active user account takeover.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "userIdentity.sessionContext.sessionIssuer.arn", "userIdentity.invokedBy", "sourceIPAddress", "userAgent", "requestParameters.userName", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "The environment should maintain an authorized password-reset manager inventory.", "Actor-to-target scope or delegated-admin relationships should be available as enrichment."],
+        limitations: ["Without actor inventory this becomes noisy.", "Helpdesk or automation resets can look suspicious without workflow provenance.", "CloudTrail alone does not distinguish every support path."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "userIdentity.principalId", normalizedPath: "user.id", notes: "Stable actor identifier" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role for assumed-role sessions" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "User whose password was changed" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "UpdateLoginProfile", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx", type: "AssumedRole", id: "AROAXXXXX:i-xxx" },
+          aws: { iam: { target_user: { name: "TargetUser" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized Reset Actors", description: "Exact inventory of principals allowed to update login profiles.", examples: ["IAM admin role", "approved helpdesk role"], falsePositiveReduction: "Replaces fragile name filters with durable authorization context." },
+        { dimension: "Workflow Provenance", description: "Correlate tickets, session tags, invokedBy, userAgent, and onboarding or recovery workflows.", examples: ["helpdesk reset workflow", "manual untracked CLI"], falsePositiveReduction: "Separates support operations from suspicious manual resets." },
+        { dimension: "Actor-to-Target Scope", description: "Determine whether the actor is allowed to administer the specific target user.", examples: ["same BU helpdesk", "cross-team workload role"], falsePositiveReduction: "Makes scope violations higher signal." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule is actor-centric. It should alert when UpdateLoginProfile occurs outside approved password-reset workflows, not when the actor simply lacks admin-like text in its name.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals UpdateLoginProfile", "actor is not in the approved reset-manager inventory or request lacks approved workflow provenance, or actor is outside target-admin scope"],
+        tuningGuidance: "1. Use exact ARNs and principalIds. 2. Distinguish self-service, helpdesk, and break-glass reset paths. 3. Escalate when the target is sensitive or later logs in from unusual context.",
+        whenToFire: "Fire when a password reset occurs outside authorized IAM change paths, especially when the target user or actor context is unusual.",
+      },
+      simulationCommand: "aws iam update-login-profile --user-name TargetUser --password 'ExampleTempPassword123!' --password-reset-required --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Medium without actor inventory, low-medium with workflow and scope enrichment",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with lookup tables", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because suspicious resets may be followed quickly by sign-in.",
+        considerations: ["Use this as the actor-centric companion to baseline login-profile updates.", "Do not depend on text-based role naming."],
+      },
+    },
   },
   {
     id: "det-054",
-    title: "Login Profile Updated for Sensitive or Suspicious User",
-    description: "Detects when a password is changed for privileged IAM users, break-glass users, dormant users, suspected backdoor users, or users not expected to use console access. Attackers often reset passwords on useful identities, not random ones.",
+    title: "Login Profile Updated for Sensitive or Console-Ineligible User",
+    description: "Detects password resets for privileged, dormant, break-glass, API-only, or otherwise console-ineligible IAM users. This should rely on user classification and console posture rather than username substrings.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
@@ -5263,36 +7164,103 @@ detection:
   selection:
     eventSource: iam.amazonaws.com
     eventName: UpdateLoginProfile
-  filter_sensitive:
-    requestParameters.userName|contains:
-      - 'admin'
-      - 'Admin'
-      - 'break-glass'
-      - 'root'
-      - 'backdoor'
-      - 'privileged'
-  condition: selection and filter_sensitive
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=UpdateLoginProfile
-| where like(requestParameters.userName, "%admin%") OR like(requestParameters.userName, "%Admin%") OR like(requestParameters.userName, "%break-glass%") OR like(requestParameters.userName, "%root%") OR like(requestParameters.userName, "%backdoor%") OR like(requestParameters.userName, "%privileged%")
-| table _time, userIdentity.arn, eventName, requestParameters.userName`,
+| table _time, userIdentity.arn, eventName, requestParameters.userName, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.userName
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
   AND eventName = 'UpdateLoginProfile'
-  AND (requestParameters.userName LIKE '%admin%' OR requestParameters.userName LIKE '%Admin%' OR requestParameters.userName LIKE '%break-glass%' OR requestParameters.userName LIKE '%root%' OR requestParameters.userName LIKE '%backdoor%' OR requestParameters.userName LIKE '%privileged%')
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.userName
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName = "UpdateLoginProfile"
-| filter requestParameters.userName like /admin|break-glass|root|backdoor|privileged/i
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["UpdateLoginProfile"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["UpdateLoginProfile"] } }, null, 2),
+      lambda: `"""
+Login Profile Updated for Sensitive or Console-Ineligible User
+Trigger: EventBridge rule matching UpdateLoginProfile.
+Use for: Real-time triage of password resets on high-risk or unexpected target users.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "UpdateLoginProfile":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-target-user-classification",
+        "alert": {
+            "rule_id": "det-054",
+            "title": "Login Profile Updated for Sensitive or Console-Ineligible User",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "UpdateLoginProfile", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { userName: "admin-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the target user and whether it is sensitive.", "Verify if the password change was authorized.", "Check if the user was recently involved in an incident."],
     testingSteps: ["Update a login profile for a user with 'admin' in the name.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Password resets on sensitive, dormant, or console-ineligible users are materially riskier than resets on ordinary employee accounts because they can activate high-value or unexpected identities.",
+      threatContext: {
+        attackerBehavior: "An attacker may reset a privileged, dormant, break-glass, or API-only user's password to gain access to a more useful identity than their starting foothold.",
+        realWorldUsage: "Attackers often target the most operationally valuable identities rather than random IAM users, especially when trying to preserve access.",
+        whyItMatters: "The strongest signal is target-user criticality and eligibility for console access, not whether the username string contains admin.",
+        riskAndImpact: "If missed, a single password reset can reactivate or compromise exactly the users that matter most for privilege escalation and persistence.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.userName", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "User inventory should classify privileged, break-glass, dormant, API-only, and non-console users.", "Historical console posture and MFA state should be available as enrichment."],
+        limitations: ["Username strings are not reliable sensitivity indicators.", "The AWS root account is not represented through UpdateLoginProfile for IAM users.", "Without identity metadata this rule loses much of its value."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "User whose password was updated" },
+          { rawPath: "enrichment.userType", normalizedPath: "aws.iam.target_user.type", notes: "Human, service, API-only, break-glass, dormant, etc." },
+          { rawPath: "enrichment.userCriticality", normalizedPath: "aws.iam.target_user.criticality", notes: "Privileged or high-value user class" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor performing the reset" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "UpdateLoginProfile", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { target_user: { name: "break-glass-user", type: "break-glass", criticality: "privileged" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "User Sensitivity Classification", description: "Determine whether the target is privileged, break-glass, dormant, API-only, or otherwise special.", examples: ["break-glass account", "API-only service user"], falsePositiveReduction: "Avoids relying on fragile username patterns." },
+        { dimension: "Historical Console Posture", description: "Check whether the user previously had console access, recent ConsoleLogin events, and MFA state.", examples: ["never used console", "no MFA"], falsePositiveReduction: "Raises confidence when the reset affects an unusual or newly reactivated identity." },
+        { dimension: "Reset Context", description: "Correlate actor authorization, incident response context, and maintenance windows.", examples: ["approved break-glass rotation", "manual untracked reset"], falsePositiveReduction: "Separates real operational resets from suspicious targeting of sensitive users." },
+      ],
+      logicExplanation: {
+        humanReadable: "This is the target-centric companion to unauthorized password-reset detections. It should alert when UpdateLoginProfile affects a privileged, dormant, or console-ineligible user, then use actor context and console posture to determine urgency.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals UpdateLoginProfile", "target user is classified as privileged, break-glass, dormant, API-only, or otherwise unusual for console access"],
+        tuningGuidance: "1. Use identity metadata instead of username patterns. 2. Ignore root-style name heuristics for IAM-user logic. 3. Escalate when the reset is followed by sign-in or performed by an unexpected actor.",
+        whenToFire: "Fire when a password reset affects a sensitive or console-ineligible user, especially when that user should rarely be touched or quickly becomes active afterward.",
+      },
+      simulationCommand: "aws iam update-login-profile --user-name break-glass-user --password 'ExampleTempPassword123!' --password-reset-required",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with user classification and console-posture enrichment",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with identity inventory", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because sensitive-user resets deserve immediate review.",
+        considerations: ["This is the target-centric companion to `det-053`.", "User classification quality is the main dependency."],
+      },
+    },
   },
   {
     id: "det-055",
@@ -5316,9 +7284,9 @@ detection:
   selection_login:
     eventSource: signin.amazonaws.com
     eventName: ConsoleLogin
-  condition: 1 of selection_*
+  condition: selection_update
 level: critical
-# Full correlation (same user, short window) requires SIEM.`,
+# Full correlation requires exact target-user linkage and successful sign-in correlation.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=iam.amazonaws.com AND eventName=UpdateLoginProfile) OR (eventSource=signin.amazonaws.com AND eventName=ConsoleLogin))
 | eval target_user=case(eventName="UpdateLoginProfile", requestParameters.userName, eventName="ConsoleLogin", replace(userIdentity.arn, ".*user/", ""), 1=1, null)
@@ -5354,19 +7322,97 @@ ORDER BY p.update_time DESC`,
 | stats count(*) as cnt, collect_list(eventName) as events by target_user
 | filter cnt > 1
 | sort cnt desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["UpdateLoginProfile"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["UpdateLoginProfile"] } }, null, 2),
+      lambda: `"""
+UpdateLoginProfile Followed by Console Login
+Trigger: EventBridge rule matching UpdateLoginProfile.
+Use for: Correlation of password reset with later successful console use.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "UpdateLoginProfile":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-correlation-with-successful-consolelogin",
+        "alert": {
+            "rule_id": "det-055",
+            "title": "UpdateLoginProfile Followed by Console Login",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.userName", "responseElements.ConsoleLogin", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "UpdateLoginProfile", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { userName: "TargetUser" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the user whose password was updated.", "Review ConsoleLogin events for that user within 1 hour.", "Check if the login was from an unusual IP or without MFA."],
     testingSteps: ["Update a login profile, then log in via console within 1h.", "Verify both events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+    lifecycle: {
+      whyItMatters: "A password reset becomes far more meaningful when the target user quickly authenticates successfully. This is one of the clearest signals that the reset was operationally used, not just configured.",
+      threatContext: {
+        attackerBehavior: "An attacker may reset a user's password and then immediately log in as that user to exercise the new access path.",
+        realWorldUsage: "This is a classic account-takeover sequence in IAM-user environments because it ties credential manipulation directly to subsequent access.",
+        whyItMatters: "The key split is whether this was expected self-service recovery or an external reset followed by active use.",
+        riskAndImpact: "If missed, a reset event that initially looks routine can quickly become interactive console takeover with no timely response.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for IAM", "CloudTrail sign-in events from signin.amazonaws.com"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "requestParameters.userName", "userIdentity.arn", "responseElements.ConsoleLogin", "additionalEventData.MFAUsed", "sourceIPAddress"],
+        loggingRequirements: ["IAM reset telemetry and sign-in telemetry must both be ingested.", "Sign-in events must preserve successful ConsoleLogin results.", "The environment should be able to map sign-in events back to the target IAM user reliably."],
+        limitations: ["Simple username extraction from sign-in events can be brittle.", "Legitimate self-service resets followed by login are expected in some environments.", "CloudWatch count-based approximations are not sufficient for real correlation."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "User whose password was updated" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor performing the reset" },
+          { rawPath: "responseElements.ConsoleLogin", normalizedPath: "aws.signin.console_login", notes: "Successful login outcome" },
+          { rawPath: "additionalEventData.MFAUsed", normalizedPath: "aws.signin.mfa_used", notes: "MFA posture of follow-on login" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "UpdateLoginProfile", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { target_user: { name: "TargetUser" } }, signin: { console_login: "Success", mfa_used: "No" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Reset Relationship", description: "Determine whether the reset was self-service, delegated helpdesk, or suspicious third-party activity.", examples: ["self-reset then self-login", "helpdesk reset then employee login", "workload role reset then target login"], falsePositiveReduction: "Makes the correlation story much more actionable." },
+        { dimension: "Login Risk Context", description: "Evaluate MFA use, first-seen source IP, geography, device fingerprint, and time-to-login.", examples: ["no MFA", "login from new country within minutes"], falsePositiveReduction: "Separates routine password recovery from suspicious access activation." },
+        { dimension: "Target User Sensitivity", description: "Classify whether the user is privileged, dormant, non-human, or otherwise unusual for console activity.", examples: ["break-glass user", "dormant legacy user"], falsePositiveReduction: "Raises priority when the reset affected a user that matters more." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should be the high-confidence branch for password-reset abuse. The strongest implementation links UpdateLoginProfile to a successful ConsoleLogin by the same target user in a short window, then enriches the login with MFA and source context.",
+        conditions: ["first eventName equals UpdateLoginProfile", "second eventSource equals signin.amazonaws.com and eventName equals ConsoleLogin", "responseElements.ConsoleLogin equals Success", "login user matches the target user from the reset event", "login occurs within 1 hour"],
+        tuningGuidance: "1. Do not alert on either event alone. 2. Distinguish self-reset-and-login from third-party reset-and-login. 3. Escalate for no MFA, unusual source IP, and sensitive target users.",
+        whenToFire: "Fire when a password reset is followed by successful console use by that same target user, especially when the reset relationship or login context is suspicious.",
+      },
+      simulationCommand: "aws iam update-login-profile --user-name TargetUser --password 'ExampleTempPassword123!' --password-reset-required",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium depending on self-service recovery volume and target-user context",
+        expectedVolume: "Very low in mature environments",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with sign-in telemetry", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Best in near-real-time because the access pattern is short-window and actionable.",
+        considerations: ["Use this as the high-confidence branch above baseline password resets.", "Reliable sign-in telemetry is mandatory."],
+      },
+    },
   },
 
   // --- IAM Add User to Group ---
   {
     id: "det-056",
     title: "IAM User Added to Group",
-    description: "Baseline visibility whenever a user is added to an IAM group. Important group-membership activity but can be legitimate in onboarding or admin workflows.",
+    description: "Baseline visibility whenever a user is added to an IAM group. This is foundational entitlement-change telemetry that should be enriched with group privilege level, target-user type, and actor context before it is treated as suspicious.",
     awsService: "IAM",
     relatedServices: [],
     severity: "Medium",
@@ -5395,17 +7441,97 @@ ORDER BY eventTime DESC`,
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName = "AddUserToGroup"
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["AddUserToGroup"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["AddUserToGroup"] } }, null, 2),
+      lambda: `"""
+IAM User Added to Group
+Trigger: EventBridge rule matching AddUserToGroup.
+Use for: Baseline visibility into IAM entitlement changes.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "AddUserToGroup":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-056",
+            "title": "IAM User Added to Group",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_user": request.get("userName"),
+            "group_name": request.get("groupName"),
+            "event_time": detail.get("eventTime"),
+            "source_ip": detail.get("sourceIPAddress"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.groupName", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "AddUserToGroup", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { groupName: "AdminGroup", userName: "compromised-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who added the user and which group.", "Verify if the group has privileged policies.", "Check if the addition was authorized."],
     testingSteps: ["Call AddUserToGroup.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Group membership changes are foundational IAM entitlement events. Even when legitimate, they can materially alter what a user can do if the destination group carries strong policies.",
+      threatContext: {
+        attackerBehavior: "An attacker with IAM write access may add a user to a group to expand permissions, create persistence, or prepare later credential use.",
+        realWorldUsage: "Group-based escalation is common in older IAM-user-heavy environments because it is simple, durable, and can be hidden among legitimate identity administration.",
+        whyItMatters: "This baseline rule is the feeder for stronger detections about privileged groups, self-granted entitlements, and membership changes followed by immediate use.",
+        riskAndImpact: "If missed, a user may quietly inherit strong permissions and later use them through API keys, console access, or role assumption.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "requestParameters.groupName", "requestParameters.userName", "sourceIPAddress", "userAgent", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must include IAM activity.", "The platform should maintain group-to-effective-permission inventory.", "User inventory should classify whether the target user is human, service, dormant, or sensitive."],
+        limitations: ["The event alone does not reveal the effective permissions of the destination group.", "Onboarding and routine identity management can generate true events.", "Some environments use groups sparingly while others use them heavily, which changes baseline volume."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.groupName", normalizedPath: "aws.iam.group.name", notes: "Destination IAM group" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Added user" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor adding the user" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "AddUserToGroup", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { group: { name: "AdminGroup" }, target_user: { name: "compromised-user" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Group Effective Permissions", description: "Resolve managed and inline policies attached to the destination group.", examples: ["admin-equivalent group", "read-only group"], falsePositiveReduction: "Separates harmless membership changes from meaningful privilege increase." },
+        { dimension: "Target User Type", description: "Classify whether the target user is human, service, dormant, or recently created.", examples: ["new employee user", "API-only automation user"], falsePositiveReduction: "Improves prioritization when the user type makes the addition unusual." },
+        { dimension: "Authorized Actor Context", description: "Correlate the actor with approved onboarding, helpdesk, and IAM admin workflows.", examples: ["identity provisioning automation", "manual cross-team grant"], falsePositiveReduction: "Reduces noise from expected identity lifecycle operations." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain a broad entitlement-change baseline. It alerts on every successful AddUserToGroup, then uses group privilege, target-user type, and actor context to determine whether the change is routine or suspicious.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals AddUserToGroup", "errorCode is absent"],
+        tuningGuidance: "1. Keep the event match broad. 2. Maintain a group privilege inventory. 3. Escalate only when the group meaningfully expands access or the target user is unusual.",
+        whenToFire: "Fire on every successful group addition for visibility, with higher priority when the group is high-risk or the target user is unexpected.",
+      },
+      simulationCommand: "aws iam add-user-to-group --group-name AdminGroup --user-name compromised-user",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium as raw entitlement visibility, low-medium with group privilege enrichment",
+        expectedVolume: "Environment-dependent",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time or scheduled analytics both work because this is direct IAM management telemetry.",
+        considerations: ["Use this as the feeder rule for higher-confidence entitlement abuse detections.", "Group privilege inventory is the main dependency."],
+      },
+    },
   },
   {
     id: "det-057",
-    title: "User Added to Privileged Group",
-    description: "Detects likely privilege escalation when the destination group is high-risk. Matches Admin, Administrators, PowerUser, BreakGlass, SecurityAdmin, PlatformAdmin patterns.",
+    title: "User Added to Permission-Granting High-Risk Group",
+    description: "Detects group additions where the destination group grants admin-equivalent, takeover-enabling, or otherwise high-risk permissions. This should be based on effective group permissions rather than group-name patterns.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
@@ -5421,41 +7547,108 @@ detection:
   selection:
     eventSource: iam.amazonaws.com
     eventName: AddUserToGroup
-  filter_privileged:
-    requestParameters.groupName|contains:
-      - 'Admin'
-      - 'Administrators'
-      - 'PowerUser'
-      - 'BreakGlass'
-      - 'SecurityAdmin'
-      - 'PlatformAdmin'
-  condition: selection and filter_privileged
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=AddUserToGroup
-| where like(requestParameters.groupName, "%Admin%") OR like(requestParameters.groupName, "%PowerUser%") OR like(requestParameters.groupName, "%BreakGlass%") OR like(requestParameters.groupName, "%SecurityAdmin%") OR like(requestParameters.groupName, "%PlatformAdmin%") OR like(requestParameters.groupName, "%Administrators%")
-| table _time, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName`,
+| table _time, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
   AND eventName = 'AddUserToGroup'
-  AND (requestParameters.groupName LIKE '%Admin%' OR requestParameters.groupName LIKE '%PowerUser%' OR requestParameters.groupName LIKE '%BreakGlass%' OR requestParameters.groupName LIKE '%SecurityAdmin%' OR requestParameters.groupName LIKE '%PlatformAdmin%' OR requestParameters.groupName LIKE '%Administrators%')
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName = "AddUserToGroup"
-| filter requestParameters.groupName like /Admin|PowerUser|BreakGlass|SecurityAdmin|PlatformAdmin|Administrators/
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["AddUserToGroup"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["AddUserToGroup"] } }, null, 2),
+      lambda: `"""
+User Added to Permission-Granting High-Risk Group
+Trigger: EventBridge rule matching AddUserToGroup.
+Use for: Real-time enrichment against group effective permissions.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "AddUserToGroup":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-group-permission-resolution",
+        "alert": {
+            "rule_id": "det-057",
+            "title": "User Added to Permission-Granting High-Risk Group",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "group_name": detail.get("requestParameters", {}).get("groupName"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.groupName", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "AddUserToGroup", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { groupName: "AdminGroup", userName: "compromised-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the group and its attached policies.", "Verify if the user addition was authorized.", "Check for self-addition (actor = added user)."],
     testingSteps: ["Add a user to a group with Admin in the name.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "A group addition becomes much more important when the destination group grants effective permissions that enable privilege escalation, credential theft, or broad administrative control.",
+      threatContext: {
+        attackerBehavior: "An attacker may add a user to a group that grants admin-equivalent or takeover-enabling permissions instead of attaching policies directly to the user.",
+        realWorldUsage: "This is a practical escalation path in IAM-user-heavy environments because group grants can look like normal entitlement management while still delivering strong privileges.",
+        whyItMatters: "The security value comes from the permissions the group grants, not from whether its name contains Admin.",
+        riskAndImpact: "If missed, a user can silently inherit admin-like rights or other high-risk abilities and begin using them through console or API paths.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.groupName", "requestParameters.userName", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "The platform must resolve attached managed and inline policies for the destination group.", "Policy semantics should be classified into admin-equivalent, takeover-enabling, or low-risk buckets."],
+        limitations: ["Group names are not reliable indicators of privilege.", "Custom privileged groups with neutral names are invisible to name-based logic.", "Authorized onboarding automation can still generate true events that need context."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.groupName", normalizedPath: "aws.iam.group.name", notes: "Destination group" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "Added user" },
+          { rawPath: "enrichment.groupPermissionClass", normalizedPath: "aws.iam.group.permission_class", notes: "Semantic risk label for the group's effective permissions" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "AddUserToGroup", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { group: { name: "EngineeringOps", permission_class: "admin_equivalent" }, target_user: { name: "compromised-user" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Effective Group Permissions", description: "Classify the group's attached policies by what they actually allow.", examples: ["iam:*", "sts:AssumeRole + iam:PassRole", "secretsmanager:GetSecretValue + kms:Decrypt"], falsePositiveReduction: "Detects truly dangerous group grants even when group names are neutral." },
+        { dimension: "Target User Sensitivity", description: "Determine whether the added user is dormant, non-human, newly created, or already privileged.", examples: ["dormant IAM user", "newly created admin user"], falsePositiveReduction: "Improves prioritization when the grant lands on unusual users." },
+        { dimension: "Authorized Grant Context", description: "Correlate the actor with approved onboarding or identity lifecycle workflows.", examples: ["identity provisioning pipeline", "manual grant by unrelated user"], falsePositiveReduction: "Separates expected identity administration from suspicious privilege expansion." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should only be treated as high confidence when the destination group's effective permissions are genuinely dangerous. The right implementation resolves the group's managed and inline policies, classifies them semantically, and then scores the membership change.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals AddUserToGroup", "destination group resolves to admin-equivalent or takeover-enabling permissions"],
+        tuningGuidance: "1. Replace group-name logic with permission-aware classification. 2. Treat admin-equivalent, pass-role, assume-role, credential, and secrets access as separate risk classes. 3. Escalate when the target user is unusual or the actor context is suspicious.",
+        whenToFire: "Fire when a user is added to a group whose effective permissions materially expand privilege or enable takeover behavior.",
+      },
+      simulationCommand: "aws iam add-user-to-group --group-name EngineeringOps --user-name compromised-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with permission-aware group classification; high with name-based group matching",
+        expectedVolume: "Very low in environments with controlled IAM groups",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with group policy inventory", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is valuable because group grants can be used immediately.",
+        considerations: ["This is the permission-aware companion to the baseline group-addition rule.", "Maintain a current group-policy inventory."],
+      },
+    },
   },
   {
     id: "det-058",
-    title: "Self-Addition or Backdoor Addition to Group",
-    description: "Detects likely malicious group membership when the actor adds themselves, or adds a suspiciously named user (backup, svc, admin2, support-temp, breakglass2, automation-backup).",
+    title: "Self-Granted or Dormant Identity Added to High-Risk Group",
+    description: "Detects self-granted group membership or assignment of high-risk group access to dormant, newly created, or otherwise suspicious identities. This should rely on identity ownership and target-user context rather than username fragments alone.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
@@ -5471,15 +7664,7 @@ detection:
   selection:
     eventSource: iam.amazonaws.com
     eventName: AddUserToGroup
-  filter_suspicious_target:
-    requestParameters.userName|contains:
-      - 'backup'
-      - 'svc'
-      - 'admin2'
-      - 'support-temp'
-      - 'breakglass2'
-      - 'automation-backup'
-  condition: selection and filter_suspicious_target
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=AddUserToGroup
 | eval actor_user=replace(userIdentity.arn, ".*user/", "")
@@ -5497,17 +7682,96 @@ ORDER BY eventTime DESC`,
 | filter eventName = "AddUserToGroup"
 | filter requestParameters.userName like /backup|svc|admin2|support-temp|breakglass2|automation-backup/
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["AddUserToGroup"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["AddUserToGroup"] } }, null, 2),
+      lambda: `"""
+Self-Granted or Dormant Identity Added to High-Risk Group
+Trigger: EventBridge rule matching AddUserToGroup.
+Use for: Real-time triage of self-granted or suspicious entitlement additions.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "AddUserToGroup":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-self-grant-and-target-identity-context",
+        "alert": {
+            "rule_id": "det-058",
+            "title": "Self-Granted or Dormant Identity Added to High-Risk Group",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "group_name": detail.get("requestParameters", {}).get("groupName"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.groupName", "requestParameters.userName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "AddUserToGroup", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/attacker" }, requestParameters: { groupName: "AdminGroup", userName: "attacker" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Check if actor added themselves (self-addition).", "Verify if target username matches backdoor patterns.", "Review when the target user was created."],
     testingSteps: ["Add yourself to a group or add a user with 'backup' in the name.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "Self-granted access and grants to dormant or unusual identities are both strong entitlement-abuse patterns because they indicate deliberate privilege placement rather than ordinary onboarding.",
+      threatContext: {
+        attackerBehavior: "An attacker may add themselves to a high-risk group or grant high-risk group membership to a dormant, backup, or newly created identity that they control.",
+        realWorldUsage: "This is a common persistence pattern in IAM-user-based environments because it creates durable access on identities that may attract little attention.",
+        whyItMatters: "The useful signal is identity ownership and target-user history, not whether the target username matches a small list of suspicious strings.",
+        riskAndImpact: "If missed, attackers can silently grant themselves or their backdoor identity durable group-based privilege that survives token expiration and later pivoting.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.groupName", "requestParameters.userName", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "The environment should map actor identities to owned IAM usernames where possible.", "User inventory should classify dormant, newly created, and service-style identities."],
+        limitations: ["Regex extraction from actor ARN only reliably covers direct IAM user identities.", "Assumed-role and federated sessions require ownership mapping or upstream identity correlation.", "Target-user history is necessary to distinguish dormant or backdoor-like accounts from ordinary users."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "User receiving new group access" },
+          { rawPath: "requestParameters.groupName", normalizedPath: "aws.iam.group.name", notes: "Granted group" },
+          { rawPath: "enrichment.targetUserState", normalizedPath: "aws.iam.target_user.state", notes: "Dormant, new, active, break-glass, etc." },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "AddUserToGroup", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/attacker", type: "IAMUser" },
+          aws: { iam: { group: { name: "AdminGroup" }, target_user: { name: "attacker", state: "active" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Self-Grant Resolution", description: "Determine whether the actor added themselves or an identity they directly control.", examples: ["IAM user adds self", "actor adds just-created user they own"], falsePositiveReduction: "Makes deliberate self-escalation substantially higher signal." },
+        { dimension: "Target Identity State", description: "Classify whether the target user is dormant, newly created, service-like, or break-glass.", examples: ["dormant user revived", "newly created backdoor user"], falsePositiveReduction: "Separates suspicious persistence patterns from ordinary user administration." },
+        { dimension: "Group Privilege Level", description: "Determine whether the granted group actually provides meaningful privilege.", examples: ["admin-equivalent group", "limited support group"], falsePositiveReduction: "Prevents low-impact self-grants from looking like major escalation." },
+      ],
+      logicExplanation: {
+        humanReadable: "This detection should focus on two stronger branches: the actor grants themselves group membership, or the actor grants a high-risk group to a dormant or newly created identity. Both branches become especially important when the destination group is privileged.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals AddUserToGroup", "actor resolves to the same user as requestParameters.userName or target user is classified as dormant, newly created, or otherwise suspicious", "destination group is high-risk or materially expands permissions"],
+        tuningGuidance: "1. Resolve self-grants using identity ownership, not only direct ARN parsing. 2. Require high-risk group context where possible. 3. Use target-user history instead of suspicious username patterns.",
+        whenToFire: "Fire when an actor grants themselves high-risk group access or grants such access to a dormant, newly created, or otherwise suspicious identity.",
+      },
+      simulationCommand: "aws iam add-user-to-group --group-name AdminGroup --user-name attacker",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with self-grant resolution and target-user history; high with username heuristics alone",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with identity inventory", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because self-granted group access can be used immediately.",
+        considerations: ["This rule should be permission-aware and identity-aware.", "Avoid treating suspicious username text as the main decision factor."],
+      },
+    },
   },
   {
     id: "det-059",
-    title: "AddUserToGroup Followed by Privileged Use",
-    description: "High-confidence escalation: AddUserToGroup then within 15 minutes the added user performs CreateAccessKey, AssumeRole, ConsoleLogin, GetSecretValue, s3:GetObject, AttachUserPolicy, PutUserPolicy.",
+    title: "Group Entitlement Granted Followed by Credential Materialization or Privileged Use",
+    description: "Correlates a user being added to a high-risk group with subsequent credential creation, console use, or privileged activity by that same user. This should track the target user and access path rather than simply matching unrelated sensitive events.",
     awsService: "IAM",
     relatedServices: ["STS", "Secrets Manager", "S3"],
     severity: "Critical",
@@ -5530,14 +7794,14 @@ detection:
       - GetSecretValue
       - AttachUserPolicy
       - PutUserPolicy
-  condition: 1 of selection_*
+  condition: selection_add
 level: critical
-# Full correlation (added user, 15 min) requires SIEM.`,
+# Full correlation requires target-user linkage, group privilege context, and follow-on access modeling.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
-  ((eventSource=iam.amazonaws.com AND eventName=AddUserToGroup) OR (eventName=CreateAccessKey OR eventName=AssumeRole OR eventName=GetSecretValue OR eventName=AttachUserPolicy OR eventName=PutUserPolicy))
-| eval target_user=case(eventName="AddUserToGroup", requestParameters.userName, eventName=CreateAccessKey, requestParameters.userName, eventName=AttachUserPolicy, requestParameters.userName, eventName=PutUserPolicy, requestParameters.userName, 1=1, replace(userIdentity.arn, ".*user/", ""))
+  ((eventSource=iam.amazonaws.com AND eventName=AddUserToGroup) OR (eventName=CreateAccessKey OR eventName=AssumeRole OR eventName=GetSecretValue OR eventName=AttachUserPolicy OR eventName=PutUserPolicy OR eventName=ConsoleLogin))
+| eval target_user=case(eventName="AddUserToGroup", requestParameters.userName, eventName=CreateAccessKey, requestParameters.userName, eventName=AttachUserPolicy, requestParameters.userName, eventName=PutUserPolicy, requestParameters.userName, eventName="ConsoleLogin", replace(userIdentity.arn, ".*user/", ""), 1=1, replace(userIdentity.arn, ".*user/", ""))
 | eval is_add=if(eventName="AddUserToGroup", 1, 0)
-| eval is_sensitive=if(eventName IN ("CreateAccessKey","AssumeRole","GetSecretValue","AttachUserPolicy","PutUserPolicy"), 1, 0)
+| eval is_sensitive=if(eventName IN ("CreateAccessKey","AssumeRole","GetSecretValue","AttachUserPolicy","PutUserPolicy","ConsoleLogin"), 1, 0)
 | transaction target_user maxspan=15m
 | where mvcount(mvfilter(is_add=1))>0 AND mvcount(mvfilter(is_sensitive=1))>0
 | table _time, target_user, eventName, userIdentity.arn`,
@@ -5550,7 +7814,7 @@ level: critical
 sensitive_use AS (
   SELECT regexp_extract(userIdentity.arn, 'user/([^/]+)$', 1) AS target_user, eventTime AS use_time, eventName
   FROM cloudtrail_logs
-  WHERE eventName IN ('CreateAccessKey', 'AssumeRole', 'GetSecretValue', 'AttachUserPolicy', 'PutUserPolicy')
+  WHERE eventName IN ('CreateAccessKey', 'AssumeRole', 'GetSecretValue', 'AttachUserPolicy', 'PutUserPolicy', 'ConsoleLogin')
 )
 SELECT a.target_user, a.add_time, s.use_time, s.eventName
 FROM add_event a
@@ -5560,25 +7824,104 @@ JOIN sensitive_use s ON a.target_user = s.target_user
 ORDER BY a.add_time DESC`,
       cloudwatch: `fields @timestamp, eventSource, eventName, requestParameters.userName, userIdentity.arn
 | filter (eventSource = "iam.amazonaws.com" and eventName = "AddUserToGroup")
-  or eventName in ["CreateAccessKey", "AssumeRole", "GetSecretValue", "AttachUserPolicy", "PutUserPolicy"]
+  or eventName in ["CreateAccessKey", "AssumeRole", "GetSecretValue", "AttachUserPolicy", "PutUserPolicy", "ConsoleLogin"]
 | parse userIdentity.arn "*user/%{target_user}"
 | eval target_user=coalesce(requestParameters.userName, target_user)
 | stats count(*) as cnt, collect_list(eventName) as events by target_user
 | filter cnt > 1
 | sort cnt desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["AddUserToGroup"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["AddUserToGroup"] } }, null, 2),
+      lambda: `"""
+Group Entitlement Granted Followed by Credential Materialization or Privileged Use
+Trigger: EventBridge rule matching AddUserToGroup.
+Use for: Correlation of entitlement grants with later credential creation, console use, or privileged activity.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "AddUserToGroup":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-target-user-correlation-with-follow-on-activity",
+        "alert": {
+            "rule_id": "det-059",
+            "title": "Group Entitlement Granted Followed by Credential Materialization or Privileged Use",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target_user": detail.get("requestParameters", {}).get("userName"),
+            "group_name": detail.get("requestParameters", {}).get("groupName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.groupName", "requestParameters.userName", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "AddUserToGroup", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { groupName: "AdminGroup", userName: "compromised-user" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify the added user.", "Review activity by that user within 15 minutes.", "Verify if CreateAccessKey, AssumeRole, or other sensitive actions were expected."],
     testingSteps: ["Add user to group, then as that user call CreateAccessKey within 15 min.", "Verify both events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+    lifecycle: {
+      whyItMatters: "An entitlement change becomes much stronger evidence of abuse when the target user immediately materializes credentials, signs in, or performs privileged activity using the newly granted access.",
+      threatContext: {
+        attackerBehavior: "An attacker may add a user to a powerful group and then quickly create access keys, log in, assume roles, or access secrets as that user.",
+        realWorldUsage: "This is the highest-value group membership abuse pattern because it ties an entitlement change directly to operational use.",
+        whyItMatters: "The real signal is entitlement grant plus use by the added user, not simply seeing the add event next to unrelated sensitive actions.",
+        riskAndImpact: "If missed, privilege expansion through group membership can transition into active persistence or data access before anyone reviews the configuration change.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail IAM management events", "CloudTrail sign-in events where ConsoleLogin is used"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "requestParameters.groupName", "requestParameters.userName", "userIdentity.arn", "sourceIPAddress", "responseElements.ConsoleLogin"],
+        loggingRequirements: ["Group-add telemetry must be correlated with later CreateAccessKey, ConsoleLogin, AssumeRole, IAM mutation, and secrets access events.", "The platform should resolve whether the destination group is actually high-risk.", "Target-user linkage must work across IAM and sign-in telemetry."],
+        limitations: ["Simple username extraction from userIdentity.arn is brittle for some identity types.", "S3 GetObject style behavior is not available without S3 data events.", "Not every follow-on action was necessarily enabled by the group add unless group privilege is confirmed first."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.groupName", normalizedPath: "aws.iam.group.name", notes: "Granted group" },
+          { rawPath: "requestParameters.userName", normalizedPath: "aws.iam.target_user.name", notes: "User added to the group" },
+          { rawPath: "follow_on.eventName", normalizedPath: "related.event.action", notes: "Later credential creation, sign-in, or privileged action" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["change"], action: "AddUserToGroup", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { group: { name: "AdminGroup" }, target_user: { name: "compromised-user" } } },
+          related: { event: { action: "CreateAccessKey" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Destination Group Risk", description: "Confirm whether the granted group materially expands access.", examples: ["admin-equivalent group", "assume-role heavy group"], falsePositiveReduction: "Prevents ordinary onboarding from entering the high-confidence branch." },
+        { dimension: "Follow-on Access Path", description: "Track whether the target user materialized credentials, logged in, or used privileged APIs after the grant.", examples: ["CreateAccessKey", "ConsoleLogin", "GetSecretValue"], falsePositiveReduction: "Distinguishes entitlement change from actual abuse." },
+        { dimension: "Time-to-Use and Actor Context", description: "Measure how quickly the target becomes active and whether the grant came from an unexpected actor.", examples: ["access key created within 5 minutes", "manual cross-team grant"], falsePositiveReduction: "Raises confidence for deliberate abuse sequences." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should be the high-confidence entitlement-abuse rule for group membership. First confirm the user was added to a high-risk group, then correlate later credential creation, console use, or privileged actions by that same target user in a short window.",
+        conditions: ["first eventName equals AddUserToGroup", "destination group is high-risk", "follow-on action by the same target user occurs within 15 minutes", "follow-on action is CreateAccessKey, ConsoleLogin, AssumeRole, AttachUserPolicy, PutUserPolicy, GetSecretValue, or similar high-risk use"],
+        tuningGuidance: "1. Confirm group privilege first. 2. Correlate on the added user, not just the actor who made the change. 3. Include ConsoleLogin and credential materialization because they are often the most direct proof of use.",
+        whenToFire: "Fire when a user is added to a high-risk group and then quickly creates credentials, logs in, or performs privileged actions using the newly granted access.",
+      },
+      simulationCommand: "aws iam add-user-to-group --group-name AdminGroup --user-name compromised-user && aws iam create-access-key --user-name compromised-user",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with group-risk confirmation and target-user correlation",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with identity and group inventories", "Panther / Chronicle / Datadog", "EventBridge + Lambda with short-lived state"],
+        scheduling: "Best in near-real-time because the follow-on use window is short and actionable.",
+        considerations: ["This is the strongest group-membership abuse branch in the family.", "Target-user correlation matters more than raw event proximity."],
+      },
+    },
   },
 
   // --- IAM Backdoor Role Creation ---
   {
     id: "det-060",
     title: "IAM Role Created",
-    description: "Baseline visibility for new IAM role creation. Role creation is often legitimate but security-sensitive because the trust policy defines who can assume it.",
+    description: "Baseline visibility for new IAM role creation. Role creation is often legitimate, but it is still high-sensitivity telemetry because the trust policy and immediate follow-on actions determine whether the new role becomes persistence or escalation infrastructure.",
     awsService: "IAM",
     relatedServices: [],
     severity: "Medium",
@@ -5607,25 +7950,103 @@ ORDER BY eventTime DESC`,
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName = "CreateRole"
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateRole"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["CreateRole"] } }, null, 2),
+      lambda: `"""
+IAM Role Created
+Trigger: EventBridge rule matching CreateRole.
+Use for: Baseline visibility into new IAM role creation.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "CreateRole":
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-060",
+            "title": "IAM Role Created",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "role_name": detail.get("requestParameters", {}).get("roleName"),
+            "event_time": detail.get("eventTime"),
+            "source_ip": detail.get("sourceIPAddress"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.assumeRolePolicyDocument", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateRole", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "BackdoorRole", assumeRolePolicyDocument: "{}" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
     investigationSteps: ["Identify who created the role.", "Inspect the trust policy (assumeRolePolicyDocument).", "Verify if the role creation was authorized."],
     testingSteps: ["Call CreateRole.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    lifecycle: {
+      whyItMatters: "A new IAM role can become persistence, lateral movement, or privilege-escalation infrastructure depending on its trust policy and what permissions are granted immediately afterward.",
+      threatContext: {
+        attackerBehavior: "An attacker may create a role as a durable access mechanism, either with suspicious trust or with privileged policies attached shortly after creation.",
+        realWorldUsage: "Role creation is common in legitimate automation, but it is also a favored persistence path because roles integrate cleanly with AWS-native workflows.",
+        whyItMatters: "This baseline rule is the feeder for stronger detections about suspicious trust policies, privileged role initialization, and unexpected actor context.",
+        riskAndImpact: "If missed, a newly created role can become a backdoor or privilege-pivot point before anyone reviews the trust and permission model.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "requestParameters.roleName", "requestParameters.assumeRolePolicyDocument", "sourceIPAddress", "userAgent", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "The pipeline must preserve the trust policy document.", "Follow-on AttachRolePolicy, PutRolePolicy, and AssumeRole telemetry should be available for correlation."],
+        limitations: ["CreateRole alone is often operationally noisy.", "The raw event does not indicate whether the trust policy is suspicious unless you inspect it.", "Service-linked or IaC-created roles can dominate volume in some environments."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.role.name", notes: "Created role name" },
+          { rawPath: "requestParameters.assumeRolePolicyDocument", normalizedPath: "aws.iam.role.trust_policy", notes: "Initial trust policy" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor creating the role" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["creation"], action: "CreateRole", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { role: { name: "BackdoorRole", trust_policy: "{}" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Trust Policy Risk", description: "Classify the initial trust policy as service-linked, internal, cross-account, root-trusting, or otherwise unusual.", examples: ["external root trust", "broad AWS principal", "expected ec2.amazonaws.com"], falsePositiveReduction: "Separates ordinary service roles from suspicious persistence paths." },
+        { dimension: "Immediate Permission Grants", description: "Correlate whether privileged policies are attached or inline permissions are added shortly after role creation.", examples: ["AdministratorAccess attached within 5 minutes", "wildcard inline policy added"], falsePositiveReduction: "Raises confidence when the role quickly becomes operationally dangerous." },
+        { dimension: "Authorized Creator Context", description: "Determine whether the actor is approved IaC, platform engineering, or an unexpected identity.", examples: ["terraform-runner", "manual console user"], falsePositiveReduction: "Reduces noise from expected automation and highlights unusual role creation paths." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain a broad baseline role-creation detector. It fires on every successful CreateRole, then uses trust-policy analysis, immediate permission grants, and creator context to determine whether the role looks like normal infrastructure or potential persistence.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals CreateRole", "errorCode is absent"],
+        tuningGuidance: "1. Keep the event match broad. 2. Pair this rule with suspicious trust, privileged policy attachment, and unexpected actor detections. 3. Preserve the trust policy document for later analysis.",
+        whenToFire: "Fire on every successful role creation for visibility, with escalation when trust or follow-on permissions make the role suspicious.",
+      },
+      simulationCommand: "aws iam create-role --role-name BackdoorRole --assume-role-policy-document file://trust-policy.json",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium raw, low-medium when combined with trust and permission enrichment",
+        expectedVolume: "Environment-dependent",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because suspicious trust or policy attachment often follows quickly.",
+        considerations: ["This is the feeder rule for the stronger role-abuse detections that follow.", "Preserve trust policy content in the pipeline."],
+      },
+    },
   },
   {
     id: "det-061",
-    title: "Suspicious Trust Policy on Role Creation",
-    description: "Detects likely persistence or backdoor setup through dangerous trust policies. Flags trust policies allowing root of another account, external principals, or broad trust. Excludes expected service principals (ec2.amazonaws.com, ecs-tasks.amazonaws.com, lambda.amazonaws.com) when role name and actor are consistent with normal provisioning.",
+    title: "Risky Trust Policy Introduced on New Role",
+    description: "Detects newly created roles whose trust policy introduces external-account trust, root trust, broad principals, or missing trust constraints that make the role suitable for persistence or cross-account abuse. This should be driven by trust-policy semantics rather than raw text matching.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
     tags: ["IAM", "CreateRole", "Persistence"],
     logSources: ["AWS CloudTrail"],
-    falsePositives: ["Legitimate cross-account role", "Service-linked role creation"],
+    falsePositives: ["Legitimate cross-account role", "Approved third-party integrations", "Expected service-trust role provisioning"],
     rules: {
-      sigma: `title: Suspicious Trust Policy on Role Creation
+      sigma: `title: Risky Trust Policy Introduced on New Role
 status: experimental
 logsource:
   service: cloudtrail
@@ -5633,50 +8054,117 @@ detection:
   selection:
     eventSource: iam.amazonaws.com
     eventName: CreateRole
-  filter_suspicious:
-    requestParameters.assumeRolePolicyDocument|contains:
-      - '"AWS":"arn:aws:iam::'
-      - 'root'
-      - ':root"'
-      - 'Principal'
-  condition: selection and filter_suspicious
+  condition: selection
 level: high
-# Refine: exclude ec2.amazonaws.com, lambda.amazonaws.com when role name matches.`,
+# Trust-policy risk scoring requires semantic parsing of principals and conditions.`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=CreateRole
-| where (like(requestParameters.assumeRolePolicyDocument, "%root%") OR like(requestParameters.assumeRolePolicyDocument, "%:root%") OR like(requestParameters.assumeRolePolicyDocument, "%arn:aws:iam::%"))
-  AND NOT (like(requestParameters.assumeRolePolicyDocument, "%ec2.amazonaws.com%") AND like(requestParameters.roleName, "%ec2%"))
-  AND NOT (like(requestParameters.assumeRolePolicyDocument, "%lambda.amazonaws.com%") AND like(requestParameters.roleName, "%lambda%"))
-| table _time, userIdentity.arn, eventName, requestParameters.roleName`,
-      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.assumeRolePolicyDocument
+| table _time, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.assumeRolePolicyDocument, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.assumeRolePolicyDocument, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
   AND eventName = 'CreateRole'
-  AND (requestParameters.assumeRolePolicyDocument LIKE '%root%' OR requestParameters.assumeRolePolicyDocument LIKE '%arn:aws:iam::%')
 ORDER BY eventTime DESC`,
-      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.assumeRolePolicyDocument
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.assumeRolePolicyDocument, sourceIPAddress
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName = "CreateRole"
-| filter requestParameters.assumeRolePolicyDocument like /root|arn:aws:iam:/
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateRole"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["CreateRole"] } }, null, 2),
+      lambda: `"""
+Risky Trust Policy Introduced on New Role
+Trigger: EventBridge rule matching CreateRole.
+Use for: Real-time trust-policy parsing on newly created roles.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "CreateRole":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-trust-policy-semantic-analysis",
+        "alert": {
+            "rule_id": "det-061",
+            "title": "Risky Trust Policy Introduced on New Role",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "role_name": detail.get("requestParameters", {}).get("roleName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.assumeRolePolicyDocument", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateRole", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "BackdoorRole", assumeRolePolicyDocument: '{"Statement":[{"Effect":"Allow","Principal":{"AWS":"arn:aws:iam::999999999999:root"},"Action":"sts:AssumeRole"}]}' }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Inspect the trust policy for external or root principals.", "Verify if cross-account trust was authorized.", "Check for overly broad trust conditions."],
-    testingSteps: ["Create a role with root trust policy.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    investigationSteps: ["Inspect the trust policy for external, root, wildcard, or federated principals.", "Verify whether cross-account or third-party trust was approved.", "Review whether ExternalId, source ARN, source account, or org-based conditions are present."],
+    testingSteps: ["Create a role with an external-account root principal in the trust policy.", "Verify CloudTrail captures the full assumeRolePolicyDocument.", "Run the detection and confirm the role is escalated based on parsed trust semantics rather than string matching."],
+    lifecycle: {
+      whyItMatters: "Trust policy is the role's front door. A newly created role with overly broad, external, or weakly constrained trust can become immediate persistence or cross-account access infrastructure even before any permissions are attached.",
+      threatContext: {
+        attackerBehavior: "An attacker may create a role trusted by an external account, an external root principal, or a broad AWS principal so they can assume it later from a controlled identity.",
+        realWorldUsage: "Trust-based persistence is common because it fits legitimate AWS design patterns while still enabling durable access if the trust relationship is weak or unauthorized.",
+        whyItMatters: "The strongest signal is in principal type and trust conditions, not whether the raw JSON string contains the word Principal.",
+        riskAndImpact: "If missed, a seemingly ordinary new role can function as a covert backdoor that is assumed later from outside the expected operator set.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.roleName", "requestParameters.assumeRolePolicyDocument", "sourceIPAddress", "userAgent", "errorCode"],
+        loggingRequirements: ["CloudTrail must preserve the full trust policy document.", "The detection pipeline should parse principals, actions, and conditions from the trust policy JSON.", "Known legitimate service-trust and approved cross-account relationships should be available as enrichment."],
+        limitations: ["Raw substring matching is highly unreliable for trust policies.", "Some legitimate cross-account roles do trust external accounts or roots for delegation patterns.", "Without policy parsing you cannot accurately reason about ExternalId, principal type, or scope."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.role.name", notes: "Created role name" },
+          { rawPath: "requestParameters.assumeRolePolicyDocument", normalizedPath: "aws.iam.role.trust_policy", notes: "New trust policy to parse semantically" },
+          { rawPath: "trustPolicy.Statement[].Principal", normalizedPath: "aws.iam.role.trust_principals", notes: "Resolved principal set from parsed trust policy" },
+          { rawPath: "trustPolicy.Statement[].Condition", normalizedPath: "aws.iam.role.trust_conditions", notes: "Conditions such as sts:ExternalId or source restrictions" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["creation"], action: "CreateRole", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { role: { name: "BackdoorRole", trust_principals: ["arn:aws:iam::999999999999:root"], trust_conditions: [] } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Trust Principal Classification", description: "Classify principals as service, same-account role, same-account root, external-account role, external-account root, federated, or wildcard.", examples: ["ec2.amazonaws.com", "arn:aws:iam::999999999999:root"], falsePositiveReduction: "Separates expected service trust from broad or external persistence paths." },
+        { dimension: "Trust Condition Strength", description: "Evaluate whether external principals are constrained by ExternalId, source account, source ARN, or organization conditions.", examples: ["missing ExternalId", "sourceArn restricted"], falsePositiveReduction: "Distinguishes legitimate delegated trust from weak open trust." },
+        { dimension: "Creator and Role Context", description: "Correlate whether the actor and workflow are approved for creating cross-account or service roles.", examples: ["terraform platform role", "manual developer session"], falsePositiveReduction: "Reduces noise from legitimate infrastructure provisioning." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should parse the new role's trust policy and score it for risky trust semantics. The highest-risk cases are external-account or root principals, broad AWS principals, and weak or missing constraints on federated or cross-account trust.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals CreateRole", "parsed trust policy contains external-account, root, wildcard, or otherwise risky principals, or lacks required trust constraints for that trust type"],
+        tuningGuidance: "1. Parse the JSON trust policy rather than text matching. 2. Maintain an allowlist of expected service principals and approved external trusts. 3. Escalate when the new role is assumed shortly after creation.",
+        whenToFire: "Fire when a newly created role introduces trust semantics that are broader, more external, or less constrained than the environment normally permits.",
+      },
+      simulationCommand: "aws iam create-role --role-name BackdoorRole --assume-role-policy-document file://cross-account-root-trust.json",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with trust parsing and approved-trust inventory; high with raw substring matching",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda trust parsing", "Athena with JSON extraction", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because suspicious trust may be used quickly after creation.",
+        considerations: ["Keep the raw trust policy document available for later review.", "This detection pairs naturally with `det-064`."],
+      },
+    },
   },
   {
     id: "det-062",
-    title: "New Role Immediately Granted Privileged Policy",
-    description: "Correlates CreateRole with AttachRolePolicy or PutRolePolicy shortly after. Flags AdministratorAccess, PowerUserAccess, or inline policies with Action *, iam:*, sts:AssumeRole, iam:PassRole, kms:Decrypt, secretsmanager:GetSecretValue.",
+    title: "New Role Initialized with Privilege-Granting Policy",
+    description: "Correlates CreateRole with immediate managed-policy attachment or inline-policy creation that turns the role into admin-equivalent, takeover-enabling, or otherwise high-risk infrastructure. This should be based on policy semantics, not wildcard string matching alone.",
     awsService: "IAM",
     relatedServices: [],
     severity: "Critical",
     tags: ["IAM", "CreateRole", "Persistence", "Behavior Correlation"],
     logSources: ["AWS CloudTrail"],
-    falsePositives: ["Legitimate role creation with appropriate policies"],
+    falsePositives: ["Legitimate role creation with appropriate policies", "Approved platform automation"],
     rules: {
-      sigma: `title: New Role Immediately Granted Privileged Policy
+      sigma: `title: New Role Initialized with Privilege-Granting Policy
 status: experimental
 logsource:
   service: cloudtrail
@@ -5684,38 +8172,34 @@ detection:
   selection_create:
     eventSource: iam.amazonaws.com
     eventName: CreateRole
-  selection_attach:
-    eventSource: iam.amazonaws.com
-    eventName:
-      - AttachRolePolicy
-      - PutRolePolicy
-  condition: 1 of selection_*
+  condition: selection_create
 level: critical
-# Full correlation (same role, 15 min) requires SIEM.`,
+# Full correlation requires exact role linkage and semantic classification of attached permissions.`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com
   (eventName=CreateRole OR eventName=AttachRolePolicy OR eventName=PutRolePolicy)
-| eval role_name=case(eventName="CreateRole", requestParameters.roleName, eventName=AttachRolePolicy, requestParameters.roleName, eventName=PutRolePolicy, requestParameters.roleName, 1=1, null)
+| eval role_name=case(eventName="CreateRole", requestParameters.roleName, eventName="AttachRolePolicy", requestParameters.roleName, eventName="PutRolePolicy", requestParameters.roleName, 1=1, null)
 | eval is_create=if(eventName="CreateRole", 1, 0)
-| eval is_privileged=if((eventName="AttachRolePolicy" AND (like(requestParameters.policyArn, "%AdministratorAccess%") OR like(requestParameters.policyArn, "%PowerUserAccess%"))) OR (eventName="PutRolePolicy" AND like(requestParameters.policyDocument, "%*%")), 1, 0)
+| eval is_privileged=if((eventName="AttachRolePolicy" AND (like(requestParameters.policyArn, "%AdministratorAccess%") OR like(requestParameters.policyArn, "%PowerUserAccess%"))) OR (eventName="PutRolePolicy" AND (like(requestParameters.policyDocument, "%iam:PassRole%") OR like(requestParameters.policyDocument, "%sts:AssumeRole%") OR like(requestParameters.policyDocument, "%secretsmanager:GetSecretValue%") OR like(requestParameters.policyDocument, "%kms:Decrypt%") OR like(requestParameters.policyDocument, "%\\"Action\\":\\"*\\"%"))), 1, 0)
 | transaction role_name maxspan=15m
 | where mvcount(mvfilter(is_create=1))>0 AND mvcount(mvfilter(is_privileged=1))>0
-| table _time, role_name, eventName, requestParameters.policyArn`,
+| table _time, role_name, eventName, requestParameters.policyArn, requestParameters.policyDocument`,
       cloudtrail: `WITH role_created AS (
-  SELECT requestParameters.roleName AS role_name, eventTime AS create_time
+  SELECT requestParameters.roleName AS role_name, eventTime AS create_time, recipientAccountId
   FROM cloudtrail_logs
   WHERE eventSource = 'iam.amazonaws.com'
     AND eventName = 'CreateRole'
 ),
 policy_attached AS (
-  SELECT requestParameters.roleName AS role_name, eventTime AS attach_time, eventName, requestParameters.policyArn, requestParameters.policyDocument
+  SELECT requestParameters.roleName AS role_name, eventTime AS attach_time, eventName, requestParameters.policyArn, requestParameters.policyDocument, recipientAccountId
   FROM cloudtrail_logs
   WHERE eventSource = 'iam.amazonaws.com'
     AND eventName IN ('AttachRolePolicy', 'PutRolePolicy')
-    AND (requestParameters.policyArn LIKE '%AdministratorAccess%' OR requestParameters.policyArn LIKE '%PowerUserAccess%' OR requestParameters.policyDocument LIKE '%*%')
+    AND (requestParameters.policyArn LIKE '%AdministratorAccess%' OR requestParameters.policyArn LIKE '%PowerUserAccess%' OR requestParameters.policyDocument LIKE '%iam:PassRole%' OR requestParameters.policyDocument LIKE '%sts:AssumeRole%' OR requestParameters.policyDocument LIKE '%secretsmanager:GetSecretValue%' OR requestParameters.policyDocument LIKE '%kms:Decrypt%' OR requestParameters.policyDocument LIKE '%"Action":"*"%')
 )
 SELECT r.role_name, r.create_time, p.attach_time, p.eventName, p.policyArn
 FROM role_created r
 JOIN policy_attached p ON r.role_name = p.role_name
+  AND r.recipientAccountId = p.recipientAccountId
   AND p.attach_time > r.create_time
   AND p.attach_time <= r.create_time + INTERVAL '15' MINUTE
 ORDER BY r.create_time DESC`,
@@ -5725,25 +8209,104 @@ ORDER BY r.create_time DESC`,
 | stats count(*) as cnt, collect_list(eventName) as events by requestParameters.roleName
 | filter cnt > 1
 | sort cnt desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateRole", "AttachRolePolicy", "PutRolePolicy"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["CreateRole", "AttachRolePolicy", "PutRolePolicy"] } }, null, 2),
+      lambda: `"""
+New Role Initialized with Privilege-Granting Policy
+Trigger: EventBridge rule matching CreateRole, AttachRolePolicy, or PutRolePolicy.
+Use for: Correlation of role creation with immediate high-risk permission grants.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"CreateRole", "AttachRolePolicy", "PutRolePolicy"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-role-creation-plus-policy-correlation",
+        "alert": {
+            "rule_id": "det-062",
+            "title": "New Role Initialized with Privilege-Granting Policy",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "role_name": detail.get("requestParameters", {}).get("roleName"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.policyArn", "requestParameters.policyDocument", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateRole", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "BackdoorRole" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the role and policies attached.", "Review the sequence: CreateRole → AttachRolePolicy/PutRolePolicy within 15 min.", "Verify if AdministratorAccess or PowerUserAccess was authorized."],
-    testingSteps: ["Create a role, then attach AdministratorAccess within 15 min.", "Verify both events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+    investigationSteps: ["Identify the role and policies attached.", "Review the sequence: CreateRole followed by AttachRolePolicy or PutRolePolicy within 15 minutes.", "Classify whether the resulting role became admin-equivalent, pass-role capable, or otherwise high-risk."],
+    testingSteps: ["Create a role, then attach AdministratorAccess or an inline pass-role or secrets-access policy within 15 minutes.", "Verify both events in CloudTrail.", "Run the correlation query and confirm the role is surfaced as newly initialized high-risk infrastructure."],
+    lifecycle: {
+      whyItMatters: "A newly created role becomes much more suspicious when it is immediately initialized with strong permissions. This sequence often reflects deliberate setup of usable role infrastructure rather than ordinary scaffolding.",
+      threatContext: {
+        attackerBehavior: "An attacker may create a role and quickly attach an admin-equivalent managed policy or inline policy that enables role chaining, pass-role abuse, secrets access, or broad control-plane actions.",
+        realWorldUsage: "Rapid role initialization is a common persistence and escalation pattern because attackers want the role to become operational immediately.",
+        whyItMatters: "The dangerous moment is not just role creation, but role creation followed by permissions that materially expand its capability.",
+        riskAndImpact: "If missed, a new role can go from inert object to high-privilege backdoor within minutes.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.roleName", "requestParameters.policyArn", "requestParameters.policyDocument", "sourceIPAddress", "errorCode", "recipientAccountId"],
+        loggingRequirements: ["CreateRole, AttachRolePolicy, and PutRolePolicy events must all be ingested.", "The environment should classify attached managed policies and parsed inline policies by semantic risk.", "Correlations should use exact role identity, not role name alone when account context matters."],
+        limitations: ["Role-name-only joins can false-correlate across accounts or reused names.", "Inline policy parsing is required for full fidelity.", "Some legitimate infrastructure roles are created and initialized quickly by automation."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.role.name", notes: "Newly created role" },
+          { rawPath: "requestParameters.policyArn", normalizedPath: "aws.iam.policy.arn", notes: "Managed policy attached to the role" },
+          { rawPath: "requestParameters.policyDocument", normalizedPath: "aws.iam.inline_policy.document", notes: "Inline policy added to the role" },
+          { rawPath: "enrichment.permissionClass", normalizedPath: "aws.iam.role.permission_class", notes: "Semantic risk class of the resulting role permissions" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["creation"], action: "CreateRole", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { role: { name: "BackdoorRole", permission_class: "admin_equivalent" }, policy: { arn: "arn:aws:iam::aws:policy/AdministratorAccess" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Permission Semantics", description: "Classify policies as admin-equivalent, pass-role heavy, role-chaining, secrets access, KMS decrypt, or lower risk.", examples: ["AdministratorAccess", "iam:PassRole + sts:AssumeRole"], falsePositiveReduction: "Captures true capability rather than wildcards alone." },
+        { dimension: "Role Initialization Timeline", description: "Measure how quickly policies were attached after role creation.", examples: ["AdministratorAccess attached within 2 minutes"], falsePositiveReduction: "Short initialization windows are stronger signals of deliberate role activation." },
+        { dimension: "Creator Context", description: "Determine whether the role was created by approved IaC or an unexpected operator path.", examples: ["terraform-runner", "manual user session"], falsePositiveReduction: "Separates platform automation from suspicious manual provisioning." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should be the role-initialization detector. First observe CreateRole, then correlate a short-window AttachRolePolicy or PutRolePolicy on that same role, and finally classify the resulting permission set semantically to decide whether the role became dangerous.",
+        conditions: ["first eventName equals CreateRole", "second eventName equals AttachRolePolicy or PutRolePolicy on the same role", "follow-on permission grant occurs within 15 minutes", "attached or inline policy is admin-equivalent, pass-role heavy, role-chaining, secrets-accessing, or otherwise high-risk"],
+        tuningGuidance: "1. Correlate on exact role identity where possible. 2. Parse inline policies semantically. 3. Escalate further when the new role is assumed or attached to compute shortly after initialization.",
+        whenToFire: "Fire when a newly created role is rapidly initialized with privilege-granting permissions that make it operationally dangerous.",
+      },
+      simulationCommand: "aws iam create-role --role-name BackdoorRole --assume-role-policy-document file://trust-policy.json && aws iam attach-role-policy --role-name BackdoorRole --policy-arn arn:aws:iam::aws:policy/AdministratorAccess",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with semantic policy classification and creator context",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with policy classification tables", "Panther / Chronicle / Datadog", "EventBridge + Lambda with short-lived state"],
+        scheduling: "Best in near-real-time because the role may be used immediately after initialization.",
+        considerations: ["This is one of the strongest role-creation abuse detections in the family.", "Policy parsing quality directly affects fidelity."],
+      },
+    },
   },
   {
     id: "det-063",
-    title: "Suspicious Role Creation by Unexpected Actor",
-    description: "Detects role creation by identities that should not manage IAM roles. Suspicious actors include IAM users, application roles, EC2 instance roles, and non-admin assumed roles. Excludes Terraform, CloudFormation, and admin roles.",
+    title: "Role Created Outside Authorized IAM Change Path",
+    description: "Detects CreateRole activity by actors outside approved IAM administration or infrastructure-as-code workflows. This should be driven by exact authorized principal inventories, session provenance, and scoped admin boundaries rather than ARN substring filters.",
     awsService: "IAM",
     relatedServices: [],
     severity: "High",
     tags: ["IAM", "CreateRole", "Anomaly"],
     logSources: ["AWS CloudTrail"],
-    falsePositives: ["Legitimate DevOps or automation roles", "IAM admin users with expected access"],
+    falsePositives: ["Legitimate DevOps or automation roles", "Approved platform engineering sessions"],
     rules: {
-      sigma: `title: Suspicious Role Creation by Unexpected Actor
+      sigma: `title: Role Created Outside Authorized IAM Change Path
 status: experimental
 logsource:
   service: cloudtrail
@@ -5751,50 +8314,114 @@ detection:
   selection:
     eventSource: iam.amazonaws.com
     eventName: CreateRole
-  filter_known_admin:
-    userIdentity.principalId|contains:
-      - 'terraform'
-      - 'cloudformation'
-      - 'admin'
-      - 'Admin'
-      - 'IAMAdmin'
-  condition: selection and not filter_known_admin
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=CreateRole
-| where NOT (like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%") OR like(userIdentity.arn, "%admin%") OR like(userIdentity.arn, "%Admin%") OR like(userIdentity.arn, "%IAMAdmin%"))
-| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName`,
-      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, sourceIPAddress
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'iam.amazonaws.com'
   AND eventName = 'CreateRole'
-  AND userIdentity.principalId NOT LIKE '%terraform%'
-  AND userIdentity.principalId NOT LIKE '%cloudformation%'
-  AND userIdentity.arn NOT LIKE '%admin%'
-  AND userIdentity.arn NOT LIKE '%Admin%'
-  AND userIdentity.arn NOT LIKE '%IAMAdmin%'
 ORDER BY eventTime DESC`,
-      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.roleName
 | filter eventSource = "iam.amazonaws.com"
 | filter eventName = "CreateRole"
-| filter userIdentity.principalId not like /terraform|cloudformation|admin/i
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateRole"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.iam"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["iam.amazonaws.com"], eventName: ["CreateRole"] } }, null, 2),
+      lambda: `"""
+Role Created Outside Authorized IAM Change Path
+Trigger: EventBridge rule matching CreateRole.
+Use for: Real-time triage of unauthorized role creation.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "iam.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "CreateRole":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-role-creator-check",
+        "alert": {
+            "rule_id": "det-063",
+            "title": "Role Created Outside Authorized IAM Change Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "role_name": detail.get("requestParameters", {}).get("roleName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
-    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.roleName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateRole", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx" }, requestParameters: { roleName: "BackdoorRole" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized to create IAM roles.", "Check sessionContext.sessionIssuer.arn for assumed roles."],
-    testingSteps: ["As a non-admin role, call CreateRole.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.roleName", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateRole", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx" }, requestParameters: { roleName: "BackdoorRole" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the actor type, ARN, and stable principalId.", "Verify whether this identity is authorized to create IAM roles in this account or environment.", "Check session issuer, invokedBy, session tags, and workflow provenance for assumed roles or automation."],
+    testingSteps: ["As a role outside the approved IAM admin set, call CreateRole.", "Verify CloudTrail captures actor and session context.", "Run the detection and confirm it relies on authorization inventory rather than text-based admin matching."],
+    lifecycle: {
+      whyItMatters: "Role creation by the wrong identity is a strong governance and abuse signal because only a narrow set of IAM admin or platform automation principals should provision new roles.",
+      threatContext: {
+        attackerBehavior: "An attacker using a workload role, developer session, or unapproved human identity may create a new role to establish persistence or prepare later abuse.",
+        realWorldUsage: "Unexpected-actor IAM write activity is a common cloud post-compromise pattern because attackers exploit whatever control-plane permissions they already inherited.",
+        whyItMatters: "Actor authorization is the key signal here, not whether the actor's ARN contains admin-like text.",
+        riskAndImpact: "If missed, attackers can provision new trust and permission surfaces from identities that were never meant to manage IAM roles.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail (management events for IAM)"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "userIdentity.sessionContext.sessionIssuer.arn", "userIdentity.invokedBy", "sourceIPAddress", "userAgent", "requestParameters.roleName", "errorCode"],
+        loggingRequirements: ["CloudTrail management events must be enabled.", "The environment should maintain an exact inventory of principals allowed to create roles.", "Session provenance such as invokedBy, session tags, or CI/CD context should be available where possible."],
+        limitations: ["Without actor inventory this rule becomes noisy.", "Legitimate platform automation can look suspicious without workflow provenance.", "Text-based actor filters are not reliable for either suppression or detection."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor ARN" },
+          { rawPath: "userIdentity.principalId", normalizedPath: "user.id", notes: "Stable actor identifier" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role for assumed sessions" },
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.role.name", notes: "Role created by the actor" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["creation"], action: "CreateRole", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx", type: "AssumedRole", id: "AROAXXXXX:i-xxx" },
+          aws: { iam: { role: { name: "BackdoorRole" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized Role Creators", description: "Exact inventory of principals or workflows allowed to create IAM roles.", examples: ["platform terraform role", "approved IAM admin role"], falsePositiveReduction: "Replaces brittle name heuristics with stable authorization context." },
+        { dimension: "Workflow Provenance", description: "Correlate CI/CD, CloudFormation, Terraform, session tags, and deployment tickets.", examples: ["CloudFormation service role", "manual console session"], falsePositiveReduction: "Separates expected provisioning from suspicious out-of-band creation." },
+        { dimension: "Scope and Account Boundary", description: "Determine whether the actor is allowed to create roles in this account, OU, or environment.", examples: ["prod platform admin", "dev workload role creating prod role"], falsePositiveReduction: "Makes scope violations meaningfully higher signal." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should be an actor-authorization detector. It should alert when CreateRole occurs outside approved IAM or platform workflows, using exact actor inventories and session provenance rather than text filters on principal names.",
+        conditions: ["eventSource equals iam.amazonaws.com", "eventName equals CreateRole", "actor is not in the approved role-creator inventory or request lacks approved workflow provenance, or actor is outside allowed environment scope"],
+        tuningGuidance: "1. Use exact ARNs and principalIds. 2. Treat CI/CD and IaC as workflow context, not name fragments. 3. Escalate when the created role also has risky trust or is assumed shortly afterward." ,
+        whenToFire: "Fire when a new role is created outside authorized IAM change paths, especially when the actor is a workload identity or the role is risky.",
+      },
+      simulationCommand: "aws iam create-role --role-name BackdoorRole --assume-role-policy-document file://trust-policy.json --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Medium without actor inventory, low-medium with workflow and scope enrichment",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with lookup tables", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because suspicious role creation often precedes quick follow-on abuse.",
+        considerations: ["Use this as an actor-centric severity multiplier for `det-061`, `det-062`, and `det-064`.", "Avoid all substring-based admin suppression."],
+      },
+    },
   },
   {
     id: "det-064",
     title: "New Role Created Then Assumed",
-    description: "High-confidence persistence: CreateRole (optionally with AttachRolePolicy/PutRolePolicy) then AssumeRole on that role shortly afterward. Catches the common create-backdoor-role-then-use-it pattern.",
+    description: "High-confidence persistence and role-abuse correlation: a newly created role is assumed shortly afterward, indicating the role was not just provisioned but activated. This should correlate on exact role identity and ideally include trust or permission-risk context.",
     awsService: "IAM",
     relatedServices: ["STS"],
     severity: "Critical",
     tags: ["IAM", "CreateRole", "Persistence", "Behavior Correlation"],
     logSources: ["AWS CloudTrail"],
-    falsePositives: ["Legitimate role creation and immediate testing"],
+    falsePositives: ["Legitimate role creation and immediate testing", "Expected CI/CD smoke tests"],
     rules: {
       sigma: `title: New Role Created Then Assumed
 status: experimental
@@ -5804,11 +8431,9 @@ detection:
   selection_create:
     eventSource: iam.amazonaws.com
     eventName: CreateRole
-  selection_assume:
-    eventName: AssumeRole
-  condition: 1 of selection_*
+  condition: selection_create
 level: critical
-# Full correlation (same role ARN assumed) requires SIEM.`,
+# Full correlation requires exact role ARN linkage and short-window assumption by a matching principal.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=iam.amazonaws.com AND eventName=CreateRole) OR (eventSource=sts.amazonaws.com AND eventName=AssumeRole))
 | eval role_name=case(eventName="CreateRole", requestParameters.roleName, eventName="AssumeRole", replace(requestParameters.roleArn, ".*role/", ""), 1=1, null)
@@ -5816,22 +8441,23 @@ level: critical
 | eval is_assume=if(eventName="AssumeRole", 1, 0)
 | transaction role_name maxspan=30m
 | where mvcount(mvfilter(is_create=1))>0 AND mvcount(mvfilter(is_assume=1))>0
-| table _time, role_name, eventName, userIdentity.arn`,
+| table _time, role_name, eventName, userIdentity.arn, requestParameters.roleArn`,
       cloudtrail: `WITH role_created AS (
-  SELECT requestParameters.roleName AS role_name, eventTime AS create_time, awsregion, recipientaccountid
+  SELECT requestParameters.roleName AS role_name, eventTime AS create_time, recipientAccountId
   FROM cloudtrail_logs
   WHERE eventSource = 'iam.amazonaws.com'
     AND eventName = 'CreateRole'
 ),
 role_assumed AS (
-  SELECT requestParameters.roleArn, regexp_extract(requestParameters.roleArn, 'role/([^/]+)$', 1) AS role_name, eventTime AS assume_time
+  SELECT requestParameters.roleArn, regexp_extract(requestParameters.roleArn, 'role/([^/]+)$', 1) AS role_name, eventTime AS assume_time, recipientAccountId
   FROM cloudtrail_logs
   WHERE eventSource = 'sts.amazonaws.com'
     AND eventName = 'AssumeRole'
 )
-SELECT r.role_name, r.create_time, a.assume_time
+SELECT r.role_name, r.create_time, a.assume_time, a.roleArn
 FROM role_created r
 JOIN role_assumed a ON r.role_name = a.role_name
+  AND r.recipientAccountId = a.recipientAccountId
   AND a.assume_time > r.create_time
   AND a.assume_time <= r.create_time + INTERVAL '30' MINUTE
 ORDER BY r.create_time DESC`,
@@ -5843,24 +8469,106 @@ ORDER BY r.create_time DESC`,
 | filter cnt > 1
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.iam", "aws.sts"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["CreateRole", "AssumeRole"] } }, null, 2),
+      lambda: `"""
+New Role Created Then Assumed
+Trigger: EventBridge rule matching CreateRole or AssumeRole.
+Use for: Correlation of new role creation with near-term successful use.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    event_source = detail.get("eventSource")
+    event_name = detail.get("eventName")
+    if event_source not in {"iam.amazonaws.com", "sts.amazonaws.com"}:
+        return {"matched": False}
+    if event_name not in {"CreateRole", "AssumeRole"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-createrole-plus-assumerole-correlation",
+        "alert": {
+            "rule_id": "det-064",
+            "title": "New Role Created Then Assumed",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "role_name": detail.get("requestParameters", {}).get("roleName"),
+            "role_arn": detail.get("requestParameters", {}).get("roleArn"),
+            "event_name": event_name,
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
-    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.roleArn", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateRole", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "BackdoorRole" }, recipientAccountId: "123456789012", sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the role that was created.", "Review AssumeRole events for that role within 30 minutes.", "Verify if the assumption was authorized."],
-    testingSteps: ["Create a role, attach policy, then AssumeRole within 30 min.", "Verify all events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "iam.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.roleName", "requestParameters.roleArn", "recipientAccountId", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "iam.amazonaws.com", eventName: "CreateRole", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { roleName: "BackdoorRole" }, recipientAccountId: "123456789012", sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the role that was created and the exact role ARN later assumed.", "Review whether the role had risky trust or privileged policies at creation time.", "Verify if the assumer identity and timing were expected for this role."],
+    testingSteps: ["Create a role, optionally attach a strong policy, then call AssumeRole on that same role within 30 minutes.", "Verify CreateRole and AssumeRole both appear in CloudTrail.", "Run the correlation and confirm the detector links the exact role identity rather than only a loose role name."],
+    lifecycle: {
+      whyItMatters: "The clearest evidence that a new role was built for operational abuse is that it gets assumed quickly after creation. This moves the signal from suspicious setup to confirmed activation.",
+      threatContext: {
+        attackerBehavior: "An attacker may create a role, optionally grant it permissions, and then assume it shortly afterward to exercise the new trust path.",
+        realWorldUsage: "This is one of the strongest role-based persistence patterns because it directly links provisioning to immediate use.",
+        whyItMatters: "CreateRole alone is only setup. AssumeRole is the proof the new role became active infrastructure.",
+        riskAndImpact: "If missed, defenders may see role creation as just another provisioning event while the attacker is already operating through the new role.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail IAM management events", "AWS CloudTrail STS management events"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "requestParameters.roleName", "requestParameters.roleArn", "userIdentity.arn", "recipientAccountId", "sourceIPAddress"],
+        loggingRequirements: ["Both CreateRole and AssumeRole telemetry must be ingested.", "Correlations should prefer exact role ARN or account-qualified role identity over role name only.", "The environment should preserve trust and permission context from the newly created role."],
+        limitations: ["Role-name-only matching can fail when paths are used or names repeat across accounts.", "Some legitimate testing and CI/CD workflows create and assume roles quickly.", "AssumeRole success is the key event, so failed assumptions should be analyzed separately."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.roleName", normalizedPath: "aws.iam.role.name", notes: "Role created by CreateRole" },
+          { rawPath: "requestParameters.roleArn", normalizedPath: "aws.iam.role.arn", notes: "Role assumed by later STS call" },
+          { rawPath: "recipientAccountId", normalizedPath: "cloud.account.id", notes: "Account boundary for exact role correlation" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor creating or assuming the role" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["iam"], type: ["creation"], action: "CreateRole", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { iam: { role: { name: "BackdoorRole", arn: "arn:aws:iam::123456789012:role/BackdoorRole" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Exact Role Identity", description: "Correlate the created role to later AssumeRole using ARN, account ID, and path-aware role identity.", examples: ["arn:aws:iam::123456789012:role/BackdoorRole"], falsePositiveReduction: "Prevents false joins across reused names or path variations." },
+        { dimension: "Role Risk Context", description: "Carry forward trust-policy and permission-risk classification from creation time.", examples: ["external root trust", "AdministratorAccess attached"], falsePositiveReduction: "Explains why the activation matters." },
+        { dimension: "Assumer Context", description: "Determine who assumed the role and whether that assumer was expected.", examples: ["same creator session", "external account principal"], falsePositiveReduction: "Distinguishes ordinary testing from suspicious activation patterns." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should be the anchor high-confidence rule in the role-creation family. First observe a successful CreateRole, then correlate a later successful AssumeRole into that exact role within a short window, and enrich with trust, permissions, and assumer context.",
+        conditions: ["first eventName equals CreateRole", "second eventSource equals sts.amazonaws.com and eventName equals AssumeRole", "requestParameters.roleArn resolves to the same role created earlier", "assumption occurs within 30 minutes"],
+        tuningGuidance: "1. Correlate on exact role identity, not just role name. 2. Carry forward trust and permission risk from `det-061` and `det-062`. 3. Escalate for external-account assumption or same-session creator-to-assumer continuity.",
+        whenToFire: "Fire when a newly created role is assumed shortly afterward, especially when the role had risky trust or high-risk permissions.",
+      },
+      simulationCommand: "aws iam create-role --role-name BackdoorRole --assume-role-policy-document file://trust-policy.json && aws sts assume-role --role-arn arn:aws:iam::123456789012:role/BackdoorRole --role-session-name backdoor-test",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium depending on legitimate create-and-test workflows",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with exact role identity joins", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Best in near-real-time because role activation soon after creation is highly actionable.",
+        considerations: ["This is one of the highest-fidelity role-abuse detections in the dataset.", "Exact ARN correlation matters."],
+      },
+    },
   },
 
   // --- PassRole via EC2 RunInstances (detect via EC2, NOT iam:PassRole) ---
   {
     id: "det-065",
     title: "EC2 Launched with IAM Instance Profile",
-    description: "Baseline visibility for instances launched with an IAM profile. Normal in many environments but important because roles on compute are a major privilege surface. Detects RunInstances with iamInstanceProfile in requestParameters.",
+    description: "Baseline visibility for EC2 launches that attach an IAM instance profile. This is important feeder telemetry because compute-attached roles are a major privilege surface, even when the launch itself is routine.",
     awsService: "EC2",
     relatedServices: ["IAM"],
     severity: "Medium",
     tags: ["EC2", "RunInstances", "PassRole", "Privilege Escalation"],
     logSources: ["AWS CloudTrail"],
-    falsePositives: ["Legitimate EC2 launches with instance profiles", "Auto Scaling"],
+    falsePositives: ["Legitimate EC2 launches with instance profiles", "Auto Scaling", "Standard provisioning pipelines"],
     rules: {
       sigma: `title: EC2 Launched with IAM Instance Profile
 status: experimental
@@ -5888,17 +8596,100 @@ ORDER BY eventTime DESC`,
 | filter eventName = "RunInstances"
 | filter ispresent(requestParameters.iamInstanceProfile)
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RunInstances"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["RunInstances"] } }, null, 2),
+      lambda: `"""
+EC2 Launched with IAM Instance Profile
+Trigger: EventBridge rule matching RunInstances.
+Use for: Baseline visibility into compute launches that activate IAM roles.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "RunInstances":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    if not request.get("iamInstanceProfile"):
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-065",
+            "title": "EC2 Launched with IAM Instance Profile",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "instance_profile": request.get("iamInstanceProfile"),
+            "event_time": detail.get("eventTime"),
+            "source_ip": detail.get("sourceIPAddress"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.iamInstanceProfile", "requestParameters.instancesSet", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "RunInstances", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { iamInstanceProfile: { name: "AdminInstanceProfile" }, instancesSet: { items: [{ imageId: "ami-xxx", instanceType: "t2.micro" }] } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify who launched the instance.", "Inspect the instance profile name/ARN.", "Verify if the launch was authorized."],
-    testingSteps: ["Launch EC2 with iam-instance-profile.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    investigationSteps: ["Identify who launched the instance and which instance profile was attached.", "Resolve the instance profile to its backing IAM role and effective permissions.", "Verify whether the launch came from approved provisioning workflow."],
+    testingSteps: ["Launch an EC2 instance with an IAM instance profile attached.", "Verify the RunInstances event includes iamInstanceProfile in CloudTrail.", "Run the detection and confirm the baseline event is generated before any privilege-specific enrichment."],
+    lifecycle: {
+      whyItMatters: "Launching compute with an IAM instance profile activates a role in a workload context. Even when legitimate, this is the feeder event for more specific detections about privileged profiles, unexpected launchers, and follow-on credential use.",
+      threatContext: {
+        attackerBehavior: "An attacker may launch EC2 with an instance profile to gain access to role credentials via IMDS and use the instance as a staging point for further abuse.",
+        realWorldUsage: "Compute-attached role abuse is a common pattern because it blends into normal infrastructure behavior while providing durable, refreshable credentials.",
+        whyItMatters: "The meaningful signal starts with role activation on compute, even if you need later enrichment to know how dangerous it was.",
+        riskAndImpact: "If missed, a seemingly ordinary instance launch can become the entry point for privilege escalation, secrets access, or cross-account movement through the attached role.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "IAM inventory for instance profile to role resolution"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.iamInstanceProfile", "requestParameters.instancesSet", "sourceIPAddress", "userAgent", "errorCode"],
+        loggingRequirements: ["CloudTrail must preserve iamInstanceProfile details in RunInstances requests.", "The platform should resolve instance profiles to backing roles and effective permissions.", "Downstream use of the resulting role should be available for later correlation."],
+        limitations: ["The launch event alone does not reveal whether the backing role is privileged.", "Large environments may produce high baseline volume from normal automation.", "Without profile-to-role resolution this remains a feeder event only."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.iamInstanceProfile.name", normalizedPath: "aws.ec2.instance_profile.name", notes: "Instance profile attached at launch" },
+          { rawPath: "requestParameters.instancesSet.items[].instanceType", normalizedPath: "cloud.instance.type", notes: "EC2 instance characteristics" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor launching the instance" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["compute"], type: ["creation"], action: "RunInstances", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { ec2: { instance_profile: { name: "AdminInstanceProfile" } } },
+          cloud: { instance: { type: "t2.micro" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Profile-to-Role Resolution", description: "Resolve the instance profile to the actual IAM role and its trust and permission model.", examples: ["WebAppProfile -> WebAppRole"], falsePositiveReduction: "Turns a generic profile name into actionable IAM context." },
+        { dimension: "Provisioning Workflow Context", description: "Determine whether the launch came from Auto Scaling, approved IaC, SSM automation, or manual operator action.", examples: ["Auto Scaling service role", "manual CLI launch"], falsePositiveReduction: "Separates routine provisioning from ad hoc compute creation." },
+        { dimension: "Role Activation Follow-On", description: "Correlate later STS sessions or sensitive API use from the attached role.", examples: ["GetSecretValue after launch", "AssumeRole from instance role"], falsePositiveReduction: "Moves the signal from baseline visibility to role-abuse detection." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain a baseline compute-role activation rule. It alerts whenever RunInstances includes an instance profile, then relies on profile-to-role resolution, launcher context, and follow-on credential use to determine risk.",
+        conditions: ["eventSource equals ec2.amazonaws.com", "eventName equals RunInstances", "requestParameters.iamInstanceProfile exists", "errorCode is absent"],
+        tuningGuidance: "1. Keep the event match broad. 2. Resolve the profile to the backing role immediately. 3. Escalate based on role privilege and follow-on activity rather than the launch alone.",
+        whenToFire: "Fire on every successful EC2 launch with an attached instance profile for visibility, with higher priority when the role is privileged or the launch path is unusual.",
+      },
+      simulationCommand: "aws ec2 run-instances --image-id ami-1234567890abcdef0 --instance-type t3.micro --iam-instance-profile Name=AdminInstanceProfile",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium as baseline visibility, low-medium with role resolution and workflow context",
+        expectedVolume: "Environment-dependent",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time or scheduled analytics both work because this is direct control-plane telemetry.",
+        considerations: ["Use this as the feeder rule for `det-066`, `det-067`, and `det-069`.", "Profile-to-role resolution is the key enrichment dependency."],
+      },
+    },
   },
   {
     id: "det-066",
-    title: "RunInstances with High-Risk Instance Profile",
-    description: "Detects likely privilege escalation when the attached instance profile is privileged. Matches Admin, Administrator, PowerUser, Security, BreakGlass patterns in profile name or ARN.",
+    title: "RunInstances with Permission-Granting Instance Profile",
+    description: "Detects EC2 launches where the attached instance profile resolves to a role with admin-equivalent, role-chaining, secrets-access, or otherwise high-risk permissions. This should be based on the backing role's effective permissions rather than profile-name patterns.",
     awsService: "EC2",
     relatedServices: ["IAM"],
     severity: "High",
@@ -5914,42 +8705,115 @@ detection:
   selection:
     eventSource: ec2.amazonaws.com
     eventName: RunInstances
-  filter_name:
-    requestParameters.iamInstanceProfile|contains:
-      - 'Admin'
-      - 'Administrator'
-      - 'PowerUser'
-      - 'Security'
-      - 'BreakGlass'
-  condition: selection and filter_name
+  filter_profile:
+    requestParameters.iamInstanceProfile|exists: true
+  condition: selection and filter_profile
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com eventName=RunInstances
 | where isnotnull(requestParameters.iamInstanceProfile)
-| where like(requestParameters.iamInstanceProfile, "%Admin%") OR like(requestParameters.iamInstanceProfile, "%PowerUser%") OR like(requestParameters.iamInstanceProfile, "%Security%") OR like(requestParameters.iamInstanceProfile, "%BreakGlass%") OR like(requestParameters.iamInstanceProfile, "%Administrator%")
-| table _time, userIdentity.arn, eventName, requestParameters.iamInstanceProfile`,
+| table _time, userIdentity.arn, eventName, requestParameters.iamInstanceProfile, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.iamInstanceProfile, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'ec2.amazonaws.com'
   AND eventName = 'RunInstances'
   AND requestParameters.iamInstanceProfile IS NOT NULL
-  AND (requestParameters.iamInstanceProfile LIKE '%Admin%' OR requestParameters.iamInstanceProfile LIKE '%PowerUser%' OR requestParameters.iamInstanceProfile LIKE '%Security%' OR requestParameters.iamInstanceProfile LIKE '%BreakGlass%' OR requestParameters.iamInstanceProfile LIKE '%Administrator%')
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.iamInstanceProfile
 | filter eventSource = "ec2.amazonaws.com"
 | filter eventName = "RunInstances"
-| filter requestParameters.iamInstanceProfile like /Admin|PowerUser|Security|BreakGlass|Administrator/
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RunInstances"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["RunInstances"] } }, null, 2),
+      lambda: `"""
+RunInstances with Permission-Granting Instance Profile
+Trigger: EventBridge rule matching RunInstances.
+Use for: Real-time enrichment against the backing role behind the instance profile.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "RunInstances":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    if not request.get("iamInstanceProfile"):
+        return {"matched": False}
+
+    return {
+        "matched": "requires-instance-profile-to-role-permission-resolution",
+        "alert": {
+            "rule_id": "det-066",
+            "title": "RunInstances with Permission-Granting Instance Profile",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "instance_profile": request.get("iamInstanceProfile"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.iamInstanceProfile", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "RunInstances", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { iamInstanceProfile: { name: "AdminInstanceProfile" } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the instance profile and its attached role.", "Verify if the profile has privileged permissions.", "Check if the launch was from deployment automation."],
-    testingSteps: ["Launch EC2 with Admin instance profile.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    investigationSteps: ["Resolve the instance profile to the actual role and inspect its policies.", "Determine whether the backing role grants admin-equivalent, pass-role, role-chaining, or secrets-access capability.", "Verify whether the launch path and target account were expected."],
+    testingSteps: ["Launch EC2 with an instance profile whose backing role grants AdministratorAccess or strong pass-role or secrets access.", "Verify the profile-to-role mapping is available to the detector.", "Run the detection and confirm the alert is based on resolved permissions rather than profile naming."],
+    lifecycle: {
+      whyItMatters: "An EC2 launch becomes much more important when the attached instance profile resolves to a role whose permissions materially expand what the workload can do.",
+      threatContext: {
+        attackerBehavior: "An attacker may launch EC2 with a powerful instance profile to obtain metadata credentials and then operate under the attached role.",
+        realWorldUsage: "This is a common cloud privilege-escalation path because compute launch with a role is operationally normal and provides durable credentials inside the workload.",
+        whyItMatters: "The right decision factor is what the backing role can actually do, not whether the profile name looks like admin.",
+        riskAndImpact: "If missed, a single compute launch can silently activate broad AWS permissions through a benign-looking profile name.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "IAM instance-profile and role inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.iamInstanceProfile", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["CloudTrail RunInstances telemetry must be ingested.", "The environment must resolve the profile to its backing role and effective permissions.", "Role trust should confirm the role is valid for EC2 use."],
+        limitations: ["Profile names are not reliable indicators of privilege.", "The raw launch event does not contain the full backing role policy set.", "Some privileged profiles may be normal in tightly controlled infrastructure accounts."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.iamInstanceProfile.name", normalizedPath: "aws.ec2.instance_profile.name", notes: "Profile attached at launch" },
+          { rawPath: "enrichment.instanceProfileRoleArn", normalizedPath: "aws.iam.role.arn", notes: "Resolved backing role ARN" },
+          { rawPath: "enrichment.permissionClass", normalizedPath: "aws.iam.role.permission_class", notes: "Semantic risk class of the backing role" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["compute"], type: ["creation"], action: "RunInstances", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { ec2: { instance_profile: { name: "WebOpsProfile" } }, iam: { role: { arn: "arn:aws:iam::123456789012:role/WebOpsRole", permission_class: "admin_equivalent" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Backing Role Permission Class", description: "Classify the resolved role as admin-equivalent, pass-role capable, role-chaining, secrets-accessing, or lower risk.", examples: ["AdministratorAccess", "iam:PassRole + sts:AssumeRole"], falsePositiveReduction: "Captures dangerous compute role activation even with neutral profile names." },
+        { dimension: "EC2 Trust Validity", description: "Verify that the backing role actually trusts ec2.amazonaws.com and is intended for workload use.", examples: ["EC2 service trust", "non-EC2 trust on attached role"], falsePositiveReduction: "Highlights role misuse or unusual profile attachment paths." },
+        { dimension: "Launch Context", description: "Correlate launcher identity, target subnet/account, and provisioning workflow.", examples: ["Auto Scaling launch template", "manual operator launch"], falsePositiveReduction: "Separates expected infrastructure activity from suspicious compute role activation." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should first resolve the instance profile to its backing role, then classify the resulting permissions semantically. The detector becomes high value when the attached role grants material privilege or role-chaining capability.",
+        conditions: ["eventSource equals ec2.amazonaws.com", "eventName equals RunInstances", "requestParameters.iamInstanceProfile exists", "resolved backing role is classified as admin-equivalent, pass-role capable, role-chaining, secrets-accessing, or otherwise high-risk"],
+        tuningGuidance: "1. Never rely on profile name patterns. 2. Validate that the backing role is meant for EC2. 3. Escalate further when the launch actor is unexpected or the role is used for sensitive APIs soon after launch.",
+        whenToFire: "Fire when RunInstances activates an instance profile whose backing role materially expands workload privilege.",
+      },
+      simulationCommand: "aws ec2 run-instances --image-id ami-1234567890abcdef0 --instance-type t3.micro --iam-instance-profile Name=WebOpsProfile",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with backing-role resolution; high with profile-name heuristics",
+        expectedVolume: "Low in mature environments with controlled privileged profiles",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with IAM inventory", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because the attached role may be used immediately.",
+        considerations: ["This is the permission-aware companion to `det-065`.", "Profile-to-role and policy resolution are mandatory."],
+      },
+    },
   },
   {
     id: "det-067",
-    title: "Suspicious EC2 Launch with IAM Profile by Unexpected Actor",
-    description: "Detects compute launch with IAM profile by an identity that should not be launching privileged EC2. Suspicious actors include IAM users, non-admin app roles, identities outside deployment automation. Excludes Terraform, CloudFormation, and admin roles.",
+    title: "EC2 Launch with Instance Profile Outside Authorized Compute Provisioning Path",
+    description: "Detects RunInstances with an attached instance profile when the launch actor is outside approved provisioning, platform engineering, or workload-deployment workflows. This should be driven by exact actor inventories and approved principal-to-profile mappings rather than name-based exclusions.",
     awsService: "EC2",
     relatedServices: ["IAM"],
     severity: "High",
@@ -5967,55 +8831,121 @@ detection:
     eventName: RunInstances
   filter_profile:
     requestParameters.iamInstanceProfile|exists: true
-  filter_known:
-    userIdentity.principalId|contains:
-      - 'terraform'
-      - 'cloudformation'
-      - 'admin'
-      - 'Admin'
-      - 'codepipeline'
-      - 'codebuild'
-  condition: selection and filter_profile and not filter_known
+  condition: selection and filter_profile
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com eventName=RunInstances
 | where isnotnull(requestParameters.iamInstanceProfile)
-| where NOT (like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%") OR like(userIdentity.arn, "%admin%") OR like(userIdentity.arn, "%Admin%") OR like(userIdentity.arn, "%codepipeline%") OR like(userIdentity.arn, "%codebuild%"))
-| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.iamInstanceProfile`,
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.iamInstanceProfile, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.iamInstanceProfile, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'ec2.amazonaws.com'
   AND eventName = 'RunInstances'
   AND requestParameters.iamInstanceProfile IS NOT NULL
-  AND userIdentity.principalId NOT LIKE '%terraform%'
-  AND userIdentity.principalId NOT LIKE '%cloudformation%'
-  AND userIdentity.arn NOT LIKE '%admin%'
-  AND userIdentity.arn NOT LIKE '%Admin%'
-  AND userIdentity.arn NOT LIKE '%codepipeline%'
-  AND userIdentity.arn NOT LIKE '%codebuild%'
 ORDER BY eventTime DESC`,
-      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.iamInstanceProfile
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.iamInstanceProfile
 | filter eventSource = "ec2.amazonaws.com"
 | filter eventName = "RunInstances"
 | filter ispresent(requestParameters.iamInstanceProfile)
-| filter userIdentity.principalId not like /terraform|cloudformation|admin|codepipeline|codebuild/i
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RunInstances"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["RunInstances"] } }, null, 2),
+      lambda: `"""
+EC2 Launch with Instance Profile Outside Authorized Compute Provisioning Path
+Trigger: EventBridge rule matching RunInstances.
+Use for: Real-time triage of unexpected actors launching compute with attached roles.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "RunInstances":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    if not request.get("iamInstanceProfile"):
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-compute-launcher-check",
+        "alert": {
+            "rule_id": "det-067",
+            "title": "EC2 Launch with Instance Profile Outside Authorized Compute Provisioning Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "instance_profile": request.get("iamInstanceProfile"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.iamInstanceProfile", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "RunInstances", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { iamInstanceProfile: { name: "AdminInstanceProfile" } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized to launch EC2 with instance profiles.", "Check sessionContext.sessionIssuer.arn for assumed roles."],
-    testingSteps: ["As a non-admin role, launch EC2 with instance profile.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
+    investigationSteps: ["Identify the actor type, ARN, principalId, and session issuer.", "Verify whether this identity is approved to launch EC2 with attached profiles in this account and environment.", "Check whether the requested profile is one the actor is allowed to use under approved provisioning paths."],
+    testingSteps: ["As a role outside the approved provisioning set, launch EC2 with an attached instance profile.", "Verify CloudTrail captures actor and instance-profile context.", "Run the detection and confirm it relies on authorized actor and approved profile mapping instead of string-based exclusions."],
+    lifecycle: {
+      whyItMatters: "Launching compute with an attached IAM role is sensitive enough that only a narrow set of automation and operators should perform it. Unexpected actor context often makes the launch more suspicious than the profile itself.",
+      threatContext: {
+        attackerBehavior: "An attacker using a developer, workload, or ad hoc human session may launch EC2 with a role to gain workload credentials and a controllable execution environment.",
+        realWorldUsage: "Unexpected-actor compute launches are a common cloud abuse pattern because attackers often choose mechanisms that look like routine infrastructure operations.",
+        whyItMatters: "The right question is whether the actor is allowed to launch compute with that class of role, not whether the actor's ARN looks like terraform or admin.",
+        riskAndImpact: "If missed, attackers can create new compute footholds with attached credentials from identities that should never provision such infrastructure.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "Authorized provisioning actor inventory", "Approved actor-to-profile or actor-to-role mappings"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.iamInstanceProfile", "sourceIPAddress", "userAgent", "errorCode"],
+        loggingRequirements: ["RunInstances events must be ingested with actor session context.", "The environment should maintain exact approved launch principals and scope.", "Profile or role usage policy should indicate which actors may launch which profiles."],
+        limitations: ["Without actor inventory this rule becomes noisy.", "Federated or chained role sessions need stable identity context and scope mapping.", "Legitimate emergency or break-glass provisioning can still look suspicious without workflow provenance."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Launch actor" },
+          { rawPath: "userIdentity.principalId", normalizedPath: "user.id", notes: "Stable actor identifier" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role for assumed-role sessions" },
+          { rawPath: "requestParameters.iamInstanceProfile.name", normalizedPath: "aws.ec2.instance_profile.name", notes: "Requested instance profile" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["compute"], type: ["creation"], action: "RunInstances", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx", type: "AssumedRole", id: "AROAXXXXX:i-xxx" },
+          aws: { ec2: { instance_profile: { name: "AdminInstanceProfile" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized Provisioning Actors", description: "Exact inventory of principals allowed to launch EC2 with attached roles.", examples: ["Auto Scaling service role", "approved platform deployer"], falsePositiveReduction: "Replaces brittle actor naming filters with stable authorization context." },
+        { dimension: "Actor-to-Profile Scope", description: "Determine whether the actor is allowed to use the specific profile or class of backing role.", examples: ["web deployer may use WebAppProfile only", "developer role cannot use AdminProfile"], falsePositiveReduction: "Prevents over-broad permission to launch arbitrary privileged compute." },
+        { dimension: "Workflow Provenance", description: "Correlate launch templates, CI/CD context, change windows, and service-driven operations.", examples: ["launch template rollout", "manual CLI launch"], falsePositiveReduction: "Separates routine deployments from suspicious out-of-band launches." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should be an actor-authorization detector for compute role activation. It alerts when RunInstances with an instance profile occurs outside approved provisioning workflows or when the actor uses a profile outside its allowed scope.",
+        conditions: ["eventSource equals ec2.amazonaws.com", "eventName equals RunInstances", "requestParameters.iamInstanceProfile exists", "actor is not in approved provisioning inventory or actor is outside allowed profile scope, or request lacks approved workflow provenance"],
+        tuningGuidance: "1. Use exact principal inventories and scope mapping. 2. Treat CI/CD and service roles as workflow context, not string patterns. 3. Escalate when the backing role is high-risk or is used soon after launch.",
+        whenToFire: "Fire when compute is launched with an attached profile outside authorized provisioning paths, especially when the backing role is privileged.",
+      },
+      simulationCommand: "aws ec2 run-instances --image-id ami-1234567890abcdef0 --instance-type t3.micro --iam-instance-profile Name=AdminInstanceProfile --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Medium without actor inventory, low-medium with scope and workflow enrichment",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with lookup tables", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because suspicious compute launches can lead to immediate credential use.",
+        considerations: ["Use this as the actor-centric companion to `det-065` and `det-066`.", "Actor scope quality is the main dependency."],
+      },
+    },
   },
   {
     id: "det-068",
     title: "EC2 Instance Profile Associated or Replaced",
-    description: "Visibility for AssociateIamInstanceProfile and ReplaceIamInstanceProfileAssociation. Attackers may add or swap a profile on an existing instance rather than launch a new one.",
+    description: "Baseline visibility for attaching or swapping an instance profile on an existing EC2 instance. Attackers may prefer adding or replacing a profile on live compute rather than launching new infrastructure.",
     awsService: "EC2",
     relatedServices: ["IAM"],
     severity: "Medium",
     tags: ["EC2", "Instance Profile", "PassRole", "Privilege Escalation"],
     logSources: ["AWS CloudTrail"],
-    falsePositives: ["Legitimate instance profile association", "Auto Scaling replacement"],
+    falsePositives: ["Legitimate instance profile association", "Auto Scaling replacement", "Approved remediation workflows"],
     rules: {
       sigma: `title: EC2 Instance Profile Associated or Replaced
 status: experimental
@@ -6040,17 +8970,97 @@ ORDER BY eventTime DESC`,
 | filter eventSource = "ec2.amazonaws.com"
 | filter eventName in ["AssociateIamInstanceProfile", "ReplaceIamInstanceProfileAssociation"]
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["AssociateIamInstanceProfile", "ReplaceIamInstanceProfileAssociation"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["AssociateIamInstanceProfile", "ReplaceIamInstanceProfileAssociation"] } }, null, 2),
+      lambda: `"""
+EC2 Instance Profile Associated or Replaced
+Trigger: EventBridge rule matching AssociateIamInstanceProfile or ReplaceIamInstanceProfileAssociation.
+Use for: Baseline visibility into profile changes on existing instances.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"AssociateIamInstanceProfile", "ReplaceIamInstanceProfileAssociation"}:
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-068",
+            "title": "EC2 Instance Profile Associated or Replaced",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "instance_id": detail.get("requestParameters", {}).get("instanceId"),
+            "instance_profile": detail.get("requestParameters", {}).get("iamInstanceProfile"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.instanceId", "requestParameters.iamInstanceProfile", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "AssociateIamInstanceProfile", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { instanceId: "i-xxx", iamInstanceProfile: { name: "AdminProfile" } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify who associated or replaced the profile.", "Verify the target instance and new profile.", "Check if the change was authorized."],
-    testingSteps: ["Call AssociateIamInstanceProfile on an instance.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    investigationSteps: ["Identify who associated or replaced the profile and on which instance.", "Resolve the new profile to its backing role and compare it with the prior instance profile if one existed.", "Verify whether the change was expected for that instance and lifecycle stage."],
+    testingSteps: ["Call AssociateIamInstanceProfile or ReplaceIamInstanceProfileAssociation on a test instance.", "Verify CloudTrail records the instance and profile details.", "Run the detection and confirm the baseline event appears before privilege-delta enrichment."],
+    lifecycle: {
+      whyItMatters: "Changing the profile on an existing instance can activate new credentials without creating new infrastructure, which makes it a strong tactic for quiet privilege changes on live workloads.",
+      threatContext: {
+        attackerBehavior: "An attacker may attach or swap an instance profile on a running instance to gain access to role credentials through IMDS.",
+        realWorldUsage: "This is a practical workload-side privilege escalation pattern because it avoids the noise of launching a new instance.",
+        whyItMatters: "Profile association on existing compute can be more suspicious than a fresh launch, especially when the instance previously had no profile or receives a materially stronger one.",
+        riskAndImpact: "If missed, an attacker can turn an existing workload into a privileged execution context without provisioning anything new.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "Instance inventory", "Instance-profile and role inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.instanceId", "requestParameters.iamInstanceProfile", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["Profile association and replacement events must be ingested.", "The environment should know the prior profile or absence of a profile on the instance.", "The detector should resolve the new profile to the backing role and compare privilege delta."],
+        limitations: ["ReplaceIamInstanceProfileAssociation can use association-centric fields that are less straightforward than launch telemetry.", "Without previous profile state you cannot measure privilege delta cleanly.", "Some lifecycle automation legitimately swaps profiles during maintenance."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.instanceId", normalizedPath: "cloud.instance.id", notes: "Target EC2 instance" },
+          { rawPath: "requestParameters.iamInstanceProfile.name", normalizedPath: "aws.ec2.instance_profile.name", notes: "Newly attached or replacement profile" },
+          { rawPath: "enrichment.previousInstanceProfile", normalizedPath: "aws.ec2.previous_instance_profile.name", notes: "Prior profile for privilege-delta analysis" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["compute"], type: ["change"], action: "AssociateIamInstanceProfile", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          cloud: { instance: { id: "i-xxx" } },
+          aws: { ec2: { instance_profile: { name: "AdminProfile" }, previous_instance_profile: { name: null } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Privilege Delta", description: "Compare the new backing role's effective permissions to the previous profile or no-profile state.", examples: ["no profile -> admin-equivalent role", "read-only -> pass-role capable"], falsePositiveReduction: "Elevates meaningful privilege changes over routine profile maintenance." },
+        { dimension: "Instance Context", description: "Determine instance age, owner, environment criticality, and whether the instance is internet reachable or user-managed.", examples: ["long-lived production instance", "temporary build worker"], falsePositiveReduction: "Improves prioritization for profile changes on sensitive workloads." },
+        { dimension: "Authorized Change Context", description: "Correlate maintenance windows, automation, and operator scope.", examples: ["SSM maintenance automation", "manual operator action"], falsePositiveReduction: "Separates sanctioned maintenance from suspicious live-host privilege changes." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should stay as a baseline profile-change detector on existing EC2 instances. The higher-confidence branch comes from comparing the new role to the previous state and asking whether the change materially increased privilege or activated a role where there was none before.",
+        conditions: ["eventSource equals ec2.amazonaws.com", "eventName equals AssociateIamInstanceProfile or ReplaceIamInstanceProfileAssociation", "errorCode is absent"],
+        tuningGuidance: "1. Keep the event match broad. 2. Resolve new and previous profiles to backing roles. 3. Escalate when privilege increases or the instance had no profile before.",
+        whenToFire: "Fire on every successful profile association or replacement for visibility, with higher priority when the profile materially increases the instance's available permissions.",
+      },
+      simulationCommand: "aws ec2 associate-iam-instance-profile --instance-id i-0123456789abcdef0 --iam-instance-profile Name=AdminProfile",
+      quality: {
+        signalQuality: 7,
+        falsePositiveRate: "Medium as raw visibility, low-medium with privilege-delta enrichment",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because live-host profile changes may be followed quickly by credential use.",
+        considerations: ["Use this as the feeder rule for stronger compute role-activation analytics.", "Previous profile state is the most important enrichment."],
+      },
+    },
   },
   {
     id: "det-069",
-    title: "RunInstances with IAM Profile Followed by Privileged API Use",
-    description: "High-confidence escalation: RunInstances with instance profile then shortly afterward, activity from the role associated with that profile performs AssumeRole, GetSecretValue, s3:GetObject, kms:Decrypt, iam:AttachRolePolicy, ec2:CreateSnapshot. Models post-launch abuse of the passed role.",
+    title: "New or Changed EC2 Role Activation Followed by Sensitive API Use",
+    description: "Correlates EC2 role activation through RunInstances or later profile association with subsequent sensitive API use from the resulting workload role. This should pivot on the resolved backing role rather than the human launcher.",
     awsService: "EC2",
     relatedServices: ["IAM", "STS", "Secrets Manager", "S3", "KMS"],
     severity: "Critical",
@@ -6065,7 +9075,10 @@ logsource:
 detection:
   selection_launch:
     eventSource: ec2.amazonaws.com
-    eventName: RunInstances
+    eventName:
+      - RunInstances
+      - AssociateIamInstanceProfile
+      - ReplaceIamInstanceProfileAssociation
   selection_sensitive:
     eventName:
       - AssumeRole
@@ -6073,23 +9086,23 @@ detection:
       - CreateSnapshot
       - AttachRolePolicy
       - PutRolePolicy
-  condition: 1 of selection_*
+  condition: selection_launch
 level: critical
-# Full correlation (instance role, 15 min) requires SIEM.`,
+# Full correlation requires profile-to-role resolution and pivoting to workload-role activity.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
-  ((eventSource=ec2.amazonaws.com AND eventName=RunInstances) OR (eventName=AssumeRole OR eventName=GetSecretValue OR eventName=CreateSnapshot OR eventName=AttachRolePolicy OR eventName=PutRolePolicy))
+  (((eventSource=ec2.amazonaws.com AND eventName=RunInstances) OR eventName="AssociateIamInstanceProfile" OR eventName="ReplaceIamInstanceProfileAssociation") OR (eventName=AssumeRole OR eventName=GetSecretValue OR eventName=CreateSnapshot OR eventName=AttachRolePolicy OR eventName=PutRolePolicy))
 | eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
-| eval is_launch=if(eventSource="ec2.amazonaws.com" AND eventName="RunInstances" AND isnotnull(requestParameters.iamInstanceProfile), 1, 0)
+| eval is_launch=if(eventSource="ec2.amazonaws.com" AND (eventName="RunInstances" OR eventName="AssociateIamInstanceProfile" OR eventName="ReplaceIamInstanceProfileAssociation"), 1, 0)
 | eval is_sensitive=if(eventName IN ("AssumeRole","GetSecretValue","CreateSnapshot","AttachRolePolicy","PutRolePolicy"), 1, 0)
 | transaction actor maxspan=15m
 | where mvcount(mvfilter(is_launch=1))>0 AND mvcount(mvfilter(is_sensitive=1))>0
-| table _time, actor, eventName, requestParameters.iamInstanceProfile`,
+| table _time, actor, eventName, requestParameters.iamInstanceProfile, requestParameters.roleArn`,
       cloudtrail: `WITH ec2_launch AS (
   SELECT userIdentity.arn AS actor, eventTime AS launch_time
   FROM cloudtrail_logs
   WHERE eventSource = 'ec2.amazonaws.com'
-    AND eventName = 'RunInstances'
-    AND requestParameters.iamInstanceProfile IS NOT NULL
+    AND ((eventName = 'RunInstances' AND requestParameters.iamInstanceProfile IS NOT NULL)
+      OR eventName IN ('AssociateIamInstanceProfile', 'ReplaceIamInstanceProfileAssociation'))
 ),
 sensitive_use AS (
   SELECT userIdentity.arn AS actor, eventTime AS use_time, eventName
@@ -6108,19 +9121,98 @@ ORDER BY e.launch_time DESC`,
 | stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
 | filter cnt > 1
 | sort cnt desc`,
-      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RunInstances"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["RunInstances", "AssociateIamInstanceProfile", "ReplaceIamInstanceProfileAssociation"] } }, null, 2),
+      lambda: `"""
+New or Changed EC2 Role Activation Followed by Sensitive API Use
+Trigger: EventBridge rule matching compute role activation events.
+Use for: Correlation from role activation on EC2 to later sensitive API use.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"RunInstances", "AssociateIamInstanceProfile", "ReplaceIamInstanceProfileAssociation"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-profile-to-role-resolution-and-follow-on-role-activity",
+        "alert": {
+            "rule_id": "det-069",
+            "title": "New or Changed EC2 Role Activation Followed by Sensitive API Use",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "instance_profile": detail.get("requestParameters", {}).get("iamInstanceProfile"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.iamInstanceProfile", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "RunInstances", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { iamInstanceProfile: { name: "AdminInstanceProfile" } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor that launched the instance.", "Review the sequence: RunInstances → sensitive API use within 15 minutes.", "Verify if the instance role was used for expected workload.", "Check for credential exfiltration indicators."],
-    testingSteps: ["Launch EC2 with instance profile, then use the role for GetSecretValue within 15 min.", "Verify both events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+    investigationSteps: ["Resolve the activated instance profile to its backing role and determine whether sensitive follow-on activity came from that role rather than the human launcher.", "Review the sequence from EC2 launch or profile change to role use within 15 minutes.", "Check whether the follow-on activity reflects secrets access, role chaining, IAM mutation, or other sensitive operations unexpected for that workload."],
+    testingSteps: ["Launch EC2 with a powerful profile or attach a profile to an existing instance, then obtain instance credentials and call GetSecretValue, AssumeRole, or another sensitive API.", "Verify both the activation event and later role activity appear in CloudTrail.", "Run the correlation and confirm it pivots on the resolved workload role rather than only the original human actor."],
+    lifecycle: {
+      whyItMatters: "Compute role activation becomes high confidence when the resulting workload identity quickly performs sensitive actions. This is the clearest signal that the attached role was not just configured but actively used.",
+      threatContext: {
+        attackerBehavior: "An attacker may launch EC2 or attach a profile, retrieve credentials from IMDS, and then use the role to access secrets, assume other roles, or modify IAM.",
+        realWorldUsage: "This is a common workload-role abuse chain because the compute event and the later API use are separated across different identities and telemetry perspectives.",
+        whyItMatters: "The right correlation pivot is the workload role that becomes active, not merely the human who launched or changed the instance.",
+        riskAndImpact: "If missed, privilege-bearing compute can move from setup to active cloud abuse before defenders connect the EC2 event to later API use.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail EC2 management events", "AWS CloudTrail management events for STS, IAM, Secrets Manager, KMS, EC2 and related services", "Instance-profile and role inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "requestParameters.iamInstanceProfile", "requestParameters.roleArn", "userIdentity.arn", "sourceIPAddress"],
+        loggingRequirements: ["The platform must resolve instance profiles to backing roles.", "Role-use telemetry must retain workload-role identity in userIdentity fields.", "Correlations should follow the workload role after activation rather than the launch actor."],
+        limitations: ["Joining on the original human launcher misses real abuse if the workload role later acts independently.", "Some sensitive data-plane activity still depends on additional logging beyond management events.", "Not every rapid follow-on action was necessarily enabled by the role change unless role capability is confirmed."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.iamInstanceProfile.name", normalizedPath: "aws.ec2.instance_profile.name", notes: "Activated profile" },
+          { rawPath: "enrichment.instanceProfileRoleArn", normalizedPath: "aws.iam.role.arn", notes: "Resolved workload role ARN" },
+          { rawPath: "follow_on.eventName", normalizedPath: "related.event.action", notes: "Sensitive action later performed by the workload role" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["compute"], type: ["creation"], action: "RunInstances", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { ec2: { instance_profile: { name: "AdminProfile" } }, iam: { role: { arn: "arn:aws:iam::123456789012:role/AdminRole" } } },
+          related: { event: { action: "GetSecretValue" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Resolved Workload Role", description: "Pivot the correlation to the role activated on EC2 rather than the original operator.", examples: ["AdminRole assumed by instance profile"], falsePositiveReduction: "Matches how real post-launch abuse actually appears in telemetry." },
+        { dimension: "Sensitive Use Class", description: "Classify later role activity as secrets access, IAM mutation, snapshotting, or cross-account role chaining.", examples: ["GetSecretValue", "AssumeRole", "PutRolePolicy"], falsePositiveReduction: "Explains whether the activated role was abused in a meaningful way." },
+        { dimension: "Activation Path", description: "Track whether the role was activated via launch or live profile replacement.", examples: ["RunInstances", "ReplaceIamInstanceProfileAssociation"], falsePositiveReduction: "Improves triage when existing hosts suddenly gain privileged roles." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a chain: compute role activation occurs through instance launch or profile change, then the resolved workload role performs sensitive API activity soon afterward. The detector should pivot to the workload role identity, not the original operator.",
+        conditions: ["first event is RunInstances with iamInstanceProfile or AssociateIamInstanceProfile or ReplaceIamInstanceProfileAssociation", "instance profile resolves to a backing role", "follow-on sensitive action is performed by that workload role within 15 minutes"],
+        tuningGuidance: "1. Correlate on the resolved backing role. 2. Classify the follow-on action by impact. 3. Escalate when the activation path was live profile replacement or the role is unusually privileged.",
+        whenToFire: "Fire when EC2 role activation is followed quickly by sensitive API use from the resulting workload role.",
+      },
+      simulationCommand: "aws ec2 run-instances --image-id ami-1234567890abcdef0 --instance-type t3.micro --iam-instance-profile Name=AdminProfile",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with resolved workload-role correlation",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with IAM inventory", "Panther / Chronicle / Datadog", "EventBridge + Lambda with short-lived state"],
+        scheduling: "Best in near-real-time because the role activation and abuse window is short.",
+        considerations: ["The role pivot is the most important implementation detail.", "This should sit above the baseline EC2 role-activation detectors."],
+      },
+    },
   },
 
   // --- PassRole via ECS RunTask (detect via ECS, NOT iam:PassRole) ---
   {
     id: "det-070",
     title: "ECS RunTask Executed",
-    description: "Baseline visibility for ad hoc task execution. RunTask can be legitimate but ad hoc task launches are often sensitive because they can run attacker-controlled code.",
+    description: "Baseline visibility for ad hoc ECS task execution. RunTask can be legitimate, but it is sensitive because it can activate task roles, execution roles, and runtime overrides that materially change what the workload can do.",
     awsService: "ECS",
     relatedServices: ["IAM"],
     severity: "Medium",
@@ -6149,25 +9241,105 @@ ORDER BY eventTime DESC`,
 | filter eventSource = "ecs.amazonaws.com"
 | filter eventName = "RunTask"
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.ecs"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RunTask"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.ecs"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ecs.amazonaws.com"], eventName: ["RunTask"] } }, null, 2),
+      lambda: `"""
+ECS RunTask Executed
+Trigger: EventBridge rule matching RunTask.
+Use for: Baseline visibility into ad hoc task execution and task-role activation.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ecs.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "RunTask":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-070",
+            "title": "ECS RunTask Executed",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "cluster": request.get("cluster"),
+            "task_definition": request.get("taskDefinition"),
+            "event_time": detail.get("eventTime"),
+            "source_ip": detail.get("sourceIPAddress"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ecs.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.cluster", "requestParameters.taskDefinition", "requestParameters.overrides", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ecs.amazonaws.com", eventName: "RunTask", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { cluster: "prod", taskDefinition: "backdoor-task:1" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify who ran the task.", "Inspect the task definition and overrides.", "Verify if the task execution was authorized."],
-    testingSteps: ["Call ECS RunTask.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    investigationSteps: ["Identify who ran the task and in which cluster.", "Inspect the task definition, task role, execution role, and any runtime overrides.", "Verify if the task execution was authorized or came from approved automation."],
+    testingSteps: ["Call ECS RunTask for a test task definition.", "Verify CloudTrail captures the cluster, task definition, and overrides.", "Run the detection and confirm the baseline event is emitted before role-specific enrichment."],
+    lifecycle: {
+      whyItMatters: "Ad hoc task execution is a powerful workload activation mechanism. Even as a baseline, RunTask is important because it can introduce new task roles, execution paths, and attacker-controlled runtime behavior.",
+      threatContext: {
+        attackerBehavior: "An attacker may use RunTask to execute short-lived code under ECS-managed infrastructure with access to a task role or execution role.",
+        realWorldUsage: "RunTask is attractive because it can look operationally normal while still providing rapid workload execution and credential access.",
+        whyItMatters: "The baseline event feeds stronger detections about high-risk task roles, runtime overrides, unexpected actors, and follow-on role use.",
+        riskAndImpact: "If missed, a malicious ad hoc task can execute attacker-controlled code under powerful roles without a long-lived service being created.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for ECS", "ECS task-definition inventory", "IAM role inventory for taskRoleArn and executionRoleArn"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.cluster", "requestParameters.taskDefinition", "requestParameters.overrides", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["CloudTrail RunTask events must be enabled.", "The platform should resolve the task definition's task role and execution role.", "Overrides should be preserved so runtime role and command changes can be inspected."],
+        limitations: ["The raw RunTask event does not always carry complete resolved role context without consulting ECS task-definition inventory.", "Many environments legitimately use ad hoc tasks for operations or batch work.", "Without role resolution this remains baseline visibility only."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.cluster", normalizedPath: "aws.ecs.cluster.name", notes: "Target ECS cluster" },
+          { rawPath: "requestParameters.taskDefinition", normalizedPath: "aws.ecs.task_definition.arn", notes: "Task definition or family revision" },
+          { rawPath: "requestParameters.overrides", normalizedPath: "aws.ecs.run_task.overrides", notes: "Runtime overrides that may affect roles or commands" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["compute"], type: ["start"], action: "RunTask", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { ecs: { cluster: { name: "prod" }, task_definition: { arn: "backdoor-task:1" }, run_task: { overrides: {} } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Resolved Task and Execution Roles", description: "Resolve the task definition to its taskRoleArn and executionRoleArn.", examples: ["task role with Secrets Manager access", "execution role only"], falsePositiveReduction: "Turns baseline task execution into actionable privilege context." },
+        { dimension: "Runtime Override Context", description: "Inspect overrides for changed commands, environment variables, or task role changes.", examples: ["custom command override", "taskRoleArn override"], falsePositiveReduction: "Highlights ad hoc execution that differs from the task's normal operating profile." },
+        { dimension: "Authorized Task Launcher Context", description: "Determine whether the actor, cluster, and task family align with approved automation or operational use.", examples: ["scheduled platform task", "manual developer run in prod"], falsePositiveReduction: "Separates ordinary operations from suspicious ad hoc workload launches." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain the baseline ECS task-activation rule. It alerts on every successful RunTask, then uses resolved task role, execution role, overrides, and actor context to determine whether the task launch deserves escalation.",
+        conditions: ["eventSource equals ecs.amazonaws.com", "eventName equals RunTask", "errorCode is absent"],
+        tuningGuidance: "1. Keep the match broad. 2. Resolve taskRoleArn and executionRoleArn from the task definition immediately. 3. Escalate on privileged roles, unusual overrides, or unexpected actors rather than the baseline event alone.",
+        whenToFire: "Fire on every successful RunTask for visibility, with higher priority when the task activates strong roles or uses unusual runtime overrides.",
+      },
+      simulationCommand: "aws ecs run-task --cluster prod --task-definition backdoor-task:1",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium as raw visibility, low-medium with role and override enrichment",
+        expectedVolume: "Environment-dependent",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because task-role activation can be used immediately.",
+        considerations: ["Use this as the feeder rule for stronger ECS task-role detections.", "Task-definition and role resolution are the key enrichment dependencies."],
+      },
+    },
   },
   {
     id: "det-071",
-    title: "RunTask with Privileged Task Role",
-    description: "Detects likely privilege escalation when the task uses a high-risk task role. Flags task definitions or overrides.taskRoleArn containing Admin, PowerUser, Security, BreakGlass, or AdministratorAccess.",
+    title: "RunTask with Permission-Granting Task Role",
+    description: "Detects ECS task launches where the resolved task role or runtime-overridden role grants admin-equivalent, role-chaining, secrets-access, or otherwise high-risk permissions. This should be based on resolved IAM role capability rather than task-definition or role-name text.",
     awsService: "ECS",
     relatedServices: ["IAM"],
     severity: "High",
     tags: ["ECS", "RunTask", "PassRole", "Privilege Escalation"],
     logSources: ["AWS CloudTrail"],
-    falsePositives: ["Known service/task definitions", "Approved operational automation"],
+    falsePositives: ["Known service task roles", "Approved operational automation", "Expected break-glass workflows"],
     rules: {
-      sigma: `title: RunTask with Privileged Task Role
+      sigma: `title: RunTask with Permission-Granting Task Role
 status: experimental
 logsource:
   service: cloudtrail
@@ -6175,54 +9347,118 @@ detection:
   selection:
     eventSource: ecs.amazonaws.com
     eventName: RunTask
-  filter_task:
-    requestParameters.taskDefinition|contains:
-      - 'admin'
-      - 'Admin'
-      - 'PowerUser'
-      - 'Security'
-      - 'BreakGlass'
-      - 'backdoor'
-  filter_override:
-    requestParameters.overrides|contains:
-      - 'taskRoleArn'
-      - 'Admin'
-      - 'PowerUser'
-  condition: selection and (filter_task or filter_override)
-level: high`,
+  condition: selection
+level: high
+# High-confidence use requires task-role resolution and permission classification.`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ecs.amazonaws.com eventName=RunTask
-| where like(requestParameters.taskDefinition, "%admin%") OR like(requestParameters.taskDefinition, "%Admin%") OR like(requestParameters.taskDefinition, "%PowerUser%") OR like(requestParameters.taskDefinition, "%Security%") OR like(requestParameters.taskDefinition, "%BreakGlass%") OR like(requestParameters.taskDefinition, "%backdoor%") OR like(requestParameters.overrides, "%taskRoleArn%")
-| table _time, userIdentity.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, requestParameters.overrides`,
-      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, requestParameters.overrides
+| table _time, userIdentity.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, requestParameters.overrides, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, requestParameters.overrides, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'ecs.amazonaws.com'
   AND eventName = 'RunTask'
-  AND (requestParameters.taskDefinition LIKE '%admin%' OR requestParameters.taskDefinition LIKE '%Admin%' OR requestParameters.taskDefinition LIKE '%PowerUser%' OR requestParameters.taskDefinition LIKE '%Security%' OR requestParameters.taskDefinition LIKE '%BreakGlass%' OR requestParameters.taskDefinition LIKE '%backdoor%' OR requestParameters.overrides LIKE '%taskRoleArn%')
 ORDER BY eventTime DESC`,
-      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, requestParameters.overrides
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, requestParameters.overrides, sourceIPAddress
 | filter eventSource = "ecs.amazonaws.com"
 | filter eventName = "RunTask"
-| filter requestParameters.taskDefinition like /admin|PowerUser|Security|BreakGlass|backdoor/i or requestParameters.overrides like /taskRoleArn/
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.ecs"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RunTask"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.ecs"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ecs.amazonaws.com"], eventName: ["RunTask"] } }, null, 2),
+      lambda: `"""
+RunTask with Permission-Granting Task Role
+Trigger: EventBridge rule matching RunTask.
+Use for: Real-time task-role resolution and permission scoring.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ecs.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "RunTask":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-resolved-task-role-permission-classification",
+        "alert": {
+            "rule_id": "det-071",
+            "title": "RunTask with Permission-Granting Task Role",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "cluster": detail.get("requestParameters", {}).get("cluster"),
+            "task_definition": detail.get("requestParameters", {}).get("taskDefinition"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
-    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ecs.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.taskDefinition", "requestParameters.overrides", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ecs.amazonaws.com", eventName: "RunTask", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { cluster: "prod", taskDefinition: "admin-task:1", overrides: { taskRoleArn: "arn:aws:iam::123456789012:role/AdminRole" } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the task definition and task role.", "Verify if the task role has privileged permissions.", "Check if the task execution was from approved automation."],
-    testingSteps: ["Run a task with admin in the task definition name.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ecs.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.cluster", "requestParameters.taskDefinition", "requestParameters.overrides", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ecs.amazonaws.com", eventName: "RunTask", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { cluster: "prod", taskDefinition: "web-task:12", overrides: { taskRoleArn: "arn:aws:iam::123456789012:role/ProdOpsRole" } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Resolve the task definition to its default taskRoleArn and executionRoleArn, then compare against any runtime override.", "Inspect the resolved task role's effective permissions and trust relationship.", "Verify whether this cluster, task family, and role combination is expected under approved operational workflows."],
+    testingSteps: ["Run a task whose resolved task role grants AdministratorAccess, role chaining, or secrets access, optionally via override.", "Verify CloudTrail captures RunTask and the override context.", "Run the detection and confirm it scores the resolved role permissions rather than task-definition naming."],
+    lifecycle: {
+      whyItMatters: "ECS task launches become much more important when the task activates a role with material privilege. The security value comes from the resolved task role and its permissions, not from how the task or role is named.",
+      threatContext: {
+        attackerBehavior: "An attacker may use RunTask to execute a workload under a powerful task role and then access secrets, assume roles, or modify cloud control-plane resources.",
+        realWorldUsage: "Short-lived ECS tasks are attractive because they blend into ordinary operations while still providing controlled code execution and role credentials.",
+        whyItMatters: "The strongest signal is what the task role can do after launch, not whether the task family contains words like admin.",
+        riskAndImpact: "If missed, a single ad hoc task run can silently activate broad permissions through a neutrally named task definition or overridden role.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for ECS", "ECS task-definition inventory", "IAM role and policy inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.cluster", "requestParameters.taskDefinition", "requestParameters.overrides", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["RunTask telemetry must be ingested with overrides preserved.", "The platform should resolve taskRoleArn and executionRoleArn from the task definition.", "Task-role permissions should be semantically classified before alerting at high severity."],
+        limitations: ["The raw RunTask event usually does not contain the fully resolved role without ECS task-definition lookups.", "Name-based matching is unreliable for both task definitions and roles.", "Some privileged task roles are legitimate in tightly controlled service environments."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.taskDefinition", normalizedPath: "aws.ecs.task_definition.arn", notes: "Launched task definition" },
+          { rawPath: "requestParameters.overrides.taskRoleArn", normalizedPath: "aws.ecs.run_task.override_task_role_arn", notes: "Runtime task-role override if present" },
+          { rawPath: "enrichment.resolvedTaskRoleArn", normalizedPath: "aws.iam.role.arn", notes: "Final resolved task role used by the task" },
+          { rawPath: "enrichment.permissionClass", normalizedPath: "aws.iam.role.permission_class", notes: "Semantic privilege class of the resolved task role" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["compute"], type: ["start"], action: "RunTask", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { ecs: { cluster: { name: "prod" }, task_definition: { arn: "web-task:12" }, run_task: { override_task_role_arn: "arn:aws:iam::123456789012:role/ProdOpsRole" } }, iam: { role: { arn: "arn:aws:iam::123456789012:role/ProdOpsRole", permission_class: "admin_equivalent" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Resolved Task Role Permission Class", description: "Classify the final task role as admin-equivalent, role-chaining, secrets-accessing, pass-role capable, or lower risk.", examples: ["AdministratorAccess", "sts:AssumeRole + secretsmanager:GetSecretValue"], falsePositiveReduction: "Captures real privilege even when names are neutral." },
+        { dimension: "Execution Role vs Task Role Split", description: "Distinguish image-pull and logging permissions from application permissions available to the container.", examples: ["execution role only", "powerful task role"], falsePositiveReduction: "Prevents over-alerting on benign execution roles while highlighting application-role risk." },
+        { dimension: "Cluster and Task Family Context", description: "Determine whether the cluster, task family, and role pairing is normal for the environment.", examples: ["prod cluster with ad hoc ops task", "unexpected task role on customer-facing service"], falsePositiveReduction: "Separates service design from suspicious workload activation." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should resolve the task's final task role, whether from the task definition or a runtime override, then classify that role semantically. The detection becomes high value when the task role grants material privilege such as role chaining, secrets access, or broad administration.",
+        conditions: ["eventSource equals ecs.amazonaws.com", "eventName equals RunTask", "resolved task role is classified as admin-equivalent, role-chaining, secrets-accessing, pass-role capable, or otherwise high-risk"],
+        tuningGuidance: "1. Resolve the final task role before evaluating risk. 2. Do not depend on task-definition or role-name substrings. 3. Escalate when the actor is unexpected or the task uses runtime overrides.",
+        whenToFire: "Fire when RunTask activates a task role whose effective permissions materially expand what the workload can do.",
+      },
+      simulationCommand: "aws ecs run-task --cluster prod --task-definition web-task:12 --overrides '{\"taskRoleArn\":\"arn:aws:iam::123456789012:role/ProdOpsRole\"}'",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with resolved role classification; high with name heuristics",
+        expectedVolume: "Low in mature ECS environments",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with ECS and IAM inventory", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because the task role can be used immediately after launch.",
+        considerations: ["This is the permission-aware companion to `det-070`.", "Task-definition and role resolution are mandatory dependencies."],
+      },
+    },
   },
   {
     id: "det-072",
-    title: "RunTask with Task Role Override",
-    description: "Detects unusual task launches when taskRoleArn override is present. Override indicates the task role was explicitly specified at runtime, which is a strong signal for PassRole abuse.",
+    title: "RunTask with Runtime Role Override or Privilege Delta",
+    description: "Detects ECS task launches where a runtime override changes the effective task role or meaningfully increases task privilege compared with the default task definition. Presence of an override alone is not enough; the important signal is the security delta and actor context.",
     awsService: "ECS",
     relatedServices: ["IAM"],
     severity: "High",
     tags: ["ECS", "RunTask", "PassRole", "Privilege Escalation"],
     logSources: ["AWS CloudTrail"],
-    falsePositives: ["Legitimate task role override for testing", "Multi-role task definitions"],
+    falsePositives: ["Legitimate task role override for testing", "Operational break-glass runs", "Approved multi-role orchestration"],
     rules: {
-      sigma: `title: RunTask with Task Role Override
+      sigma: `title: RunTask with Runtime Role Override or Privilege Delta
 status: experimental
 logsource:
   service: cloudtrail
@@ -6230,36 +9466,110 @@ detection:
   selection:
     eventSource: ecs.amazonaws.com
     eventName: RunTask
-  filter_override:
-    requestParameters.overrides|contains: 'taskRoleArn'
-  condition: selection and filter_override
-level: high`,
+  condition: selection
+level: high
+# High-confidence use requires override parsing and comparison with the default task role.`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ecs.amazonaws.com eventName=RunTask
-| where like(requestParameters.overrides, "%taskRoleArn%")
-| table _time, userIdentity.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, requestParameters.overrides`,
-      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, requestParameters.overrides
+| table _time, userIdentity.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, requestParameters.overrides, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, requestParameters.overrides, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'ecs.amazonaws.com'
   AND eventName = 'RunTask'
-  AND requestParameters.overrides IS NOT NULL
-  AND requestParameters.overrides LIKE '%taskRoleArn%'
 ORDER BY eventTime DESC`,
-      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, requestParameters.overrides
+      cloudwatch: `fields @timestamp, userIdentity.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, requestParameters.overrides, sourceIPAddress
 | filter eventSource = "ecs.amazonaws.com"
 | filter eventName = "RunTask"
-| filter requestParameters.overrides like /taskRoleArn/
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.ecs"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RunTask"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.ecs"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ecs.amazonaws.com"], eventName: ["RunTask"] } }, null, 2),
+      lambda: `"""
+RunTask with Runtime Role Override or Privilege Delta
+Trigger: EventBridge rule matching RunTask.
+Use for: Real-time comparison of default and runtime-overridden task roles.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ecs.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "RunTask":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-task-role-override-diff-analysis",
+        "alert": {
+            "rule_id": "det-072",
+            "title": "RunTask with Runtime Role Override or Privilege Delta",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "cluster": detail.get("requestParameters", {}).get("cluster"),
+            "task_definition": detail.get("requestParameters", {}).get("taskDefinition"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
-    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ecs.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.overrides", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ecs.amazonaws.com", eventName: "RunTask", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { cluster: "prod", taskDefinition: "my-task:1", overrides: { taskRoleArn: "arn:aws:iam::123456789012:role/AdminRole" } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the overridden task role ARN.", "Verify if the override was authorized.", "Check the task definition's default role vs override."],
-    testingSteps: ["Run a task with taskRoleArn in overrides.", "Verify CloudTrail captures the event.", "Run the detection to confirm the alert triggers."],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ecs.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.cluster", "requestParameters.taskDefinition", "requestParameters.overrides", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ecs.amazonaws.com", eventName: "RunTask", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { cluster: "prod", taskDefinition: "my-task:1", overrides: { taskRoleArn: "arn:aws:iam::123456789012:role/ProdOpsRole" } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Determine whether the run used a runtime taskRoleArn override or another override that changed effective workload privilege.", "Compare the default task role from the task definition to the final runtime role.", "Verify whether the override was approved for that actor, cluster, and task family."],
+    testingSteps: ["Run a task with an override that changes taskRoleArn from the default definition to a stronger role.", "Verify CloudTrail captures the override structure.", "Run the detection and confirm it alerts on the privilege delta, not merely on the existence of the override field."],
+    lifecycle: {
+      whyItMatters: "Runtime overrides are powerful because they can change what a task executes under without changing the task definition itself. The key risk is the privilege delta introduced by the override.",
+      threatContext: {
+        attackerBehavior: "An attacker may override the task role at runtime to execute under a stronger identity than the service normally uses.",
+        realWorldUsage: "This is a practical abuse path because runtime overrides can look like flexible orchestration while still activating materially different permissions.",
+        whyItMatters: "The strongest signal is not that an override exists, but that it changes the effective role or increases available privilege.",
+        riskAndImpact: "If missed, attackers can borrow the cover of an existing task family while swapping in a more powerful role only at execution time.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for ECS", "ECS task-definition inventory", "IAM role and policy inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.taskDefinition", "requestParameters.overrides", "requestParameters.cluster", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["RunTask overrides must be preserved as structured data where possible.", "The platform should know the default taskRoleArn and executionRoleArn for the task definition.", "The detector should compare default and overridden roles semantically."],
+        limitations: ["String searching for taskRoleArn in serialized JSON is unreliable.", "Not every override changes privilege; some only alter commands or environment variables.", "Some legitimate operations teams do use runtime overrides as part of approved workflows."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.taskDefinition", normalizedPath: "aws.ecs.task_definition.arn", notes: "Base task definition" },
+          { rawPath: "requestParameters.overrides.taskRoleArn", normalizedPath: "aws.ecs.run_task.override_task_role_arn", notes: "Runtime task-role override if present" },
+          { rawPath: "enrichment.defaultTaskRoleArn", normalizedPath: "aws.ecs.task_definition.default_task_role_arn", notes: "Default task role from ECS inventory" },
+          { rawPath: "enrichment.privilegeDelta", normalizedPath: "aws.ecs.run_task.task_role_privilege_delta", notes: "Whether runtime role meaningfully increases privilege" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["compute"], type: ["start"], action: "RunTask", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { ecs: { task_definition: { arn: "my-task:1", default_task_role_arn: "arn:aws:iam::123456789012:role/AppTaskRole" }, run_task: { override_task_role_arn: "arn:aws:iam::123456789012:role/ProdOpsRole", task_role_privilege_delta: "higher" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Default vs Overridden Role Comparison", description: "Compare the default task role and the runtime role for permission, trust, and scope differences.", examples: ["AppTaskRole -> ProdOpsRole"], falsePositiveReduction: "Finds meaningful privilege changes instead of noisy override presence." },
+        { dimension: "Override Type and Intent", description: "Distinguish role overrides from command, environment, or placement overrides.", examples: ["taskRoleArn override", "command override only"], falsePositiveReduction: "Prevents every override from becoming a high-severity alert." },
+        { dimension: "Authorized Override Context", description: "Determine whether the actor and workflow are approved to override roles for this task family.", examples: ["break-glass operations run", "developer ad hoc prod override"], falsePositiveReduction: "Separates sanctioned exceptions from suspicious runtime role swaps." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should compare the task definition's default role with the final runtime role used by the task. The highest-value branch is when the runtime override changes the effective role and meaningfully increases task privilege or scope.",
+        conditions: ["eventSource equals ecs.amazonaws.com", "eventName equals RunTask", "runtime override changes the final task role or privilege level compared with the default task definition", "override is not part of an approved override workflow"],
+        tuningGuidance: "1. Parse overrides structurally, not as plain text. 2. Compare default and runtime roles semantically. 3. Escalate only when the override changes privilege or authorization scope.",
+        whenToFire: "Fire when RunTask uses a runtime override that materially changes the effective task role or increases workload privilege.",
+      },
+      simulationCommand: "aws ecs run-task --cluster prod --task-definition my-task:1 --overrides '{\"taskRoleArn\":\"arn:aws:iam::123456789012:role/ProdOpsRole\"}'",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with override diff analysis; high when only checking for the literal taskRoleArn field",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with ECS inventory", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because overridden task roles can be used immediately.",
+        considerations: ["This is the runtime-diff companion to `det-071`.", "Default task-definition inventory is required."],
+      },
+    },
   },
   {
     id: "det-073",
-    title: "RunTask by Unexpected Actor",
-    description: "Detects ECS task launches by identities that normally should not run tasks with roles. Suspicious actors include IAM users, application roles outside CI/CD or platform automation, non-admin assumed roles. Excludes Terraform, CloudFormation, codepipeline, codebuild.",
+    title: "RunTask Outside Authorized Task Launch Path",
+    description: "Detects ECS task launches performed by actors outside approved cluster, task-family, or workload-launch workflows. This should rely on exact principal inventories, workflow provenance, and actor-to-task authorization scope rather than negative keyword filters.",
     awsService: "ECS",
     relatedServices: ["IAM"],
     severity: "High",
@@ -6275,46 +9585,110 @@ detection:
   selection:
     eventSource: ecs.amazonaws.com
     eventName: RunTask
-  filter_known:
-    userIdentity.principalId|contains:
-      - 'terraform'
-      - 'cloudformation'
-      - 'admin'
-      - 'Admin'
-      - 'codepipeline'
-      - 'codebuild'
-  condition: selection and not filter_known
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ecs.amazonaws.com eventName=RunTask
-| where NOT (like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%") OR like(userIdentity.arn, "%admin%") OR like(userIdentity.arn, "%Admin%") OR like(userIdentity.arn, "%codepipeline%") OR like(userIdentity.arn, "%codebuild%"))
-| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition`,
-      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, sourceIPAddress
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'ecs.amazonaws.com'
   AND eventName = 'RunTask'
-  AND userIdentity.principalId NOT LIKE '%terraform%'
-  AND userIdentity.principalId NOT LIKE '%cloudformation%'
-  AND userIdentity.arn NOT LIKE '%admin%'
-  AND userIdentity.arn NOT LIKE '%Admin%'
-  AND userIdentity.arn NOT LIKE '%codepipeline%'
-  AND userIdentity.arn NOT LIKE '%codebuild%'
 ORDER BY eventTime DESC`,
-      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition
 | filter eventSource = "ecs.amazonaws.com"
 | filter eventName = "RunTask"
-| filter userIdentity.principalId not like /terraform|cloudformation|admin|codepipeline|codebuild/i
 | sort @timestamp desc`,
-      eventbridge: JSON.stringify({ source: ["aws.ecs"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RunTask"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.ecs"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ecs.amazonaws.com"], eventName: ["RunTask"] } }, null, 2),
+      lambda: `"""
+RunTask Outside Authorized Task Launch Path
+Trigger: EventBridge rule matching RunTask.
+Use for: Real-time triage of unauthorized ECS task launches.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ecs.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "RunTask":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-task-launcher-check",
+        "alert": {
+            "rule_id": "det-073",
+            "title": "RunTask Outside Authorized Task Launch Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "cluster": detail.get("requestParameters", {}).get("cluster"),
+            "task_definition": detail.get("requestParameters", {}).get("taskDefinition"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ecs.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.cluster", "requestParameters.taskDefinition", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ecs.amazonaws.com", eventName: "RunTask", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { cluster: "prod", taskDefinition: "backdoor-task:1" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized to run ECS tasks.", "Check sessionContext.sessionIssuer.arn for assumed roles."],
-    testingSteps: ["As a non-admin role, call ECS RunTask.", "Verify CloudTrail captures the event.", "Run the detection to confirm it triggers on unexpected actors."],
+    investigationSteps: ["Identify the actor type, ARN, principalId, and session issuer.", "Verify whether this identity is approved to run this task family in this cluster and environment.", "Check workflow provenance such as CI/CD, maintenance windows, service scheduler context, or break-glass approval."],
+    testingSteps: ["As an identity outside the approved ECS launch set, call RunTask against a monitored cluster.", "Verify CloudTrail captures actor and task-family context.", "Run the detection and confirm it relies on authorization scope and workflow provenance rather than actor-name text."],
+    lifecycle: {
+      whyItMatters: "Task launches by the wrong identity are strong indicators of abuse because only a narrow set of operators and automation should be allowed to start workloads with attached roles in sensitive clusters.",
+      threatContext: {
+        attackerBehavior: "An attacker using a developer session, workload role, or ad hoc human identity may start an ECS task to gain execution inside the environment under a task role.",
+        realWorldUsage: "Unexpected-actor workload launches are common in post-compromise scenarios because they look like ordinary operational actions while activating new code and credentials.",
+        whyItMatters: "Authorization scope matters more than whether the actor's ARN contains admin-like or automation-like words.",
+        riskAndImpact: "If missed, attackers can run tasks in clusters and task families they were never meant to control, often with sensitive roles and runtime overrides.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for ECS", "Authorized task-launcher inventory", "Cluster and task-family authorization mappings"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.cluster", "requestParameters.taskDefinition", "sourceIPAddress", "userAgent", "errorCode"],
+        loggingRequirements: ["RunTask events must be ingested with full actor context.", "The environment should maintain exact approved principals and actor-to-cluster or actor-to-task-family scope.", "Workflow provenance such as CI/CD or scheduler identity should be available where possible."],
+        limitations: ["Without actor inventory this rule becomes noisy.", "Federated and chained role sessions need stable identity modeling.", "Legitimate emergency or operational runs can still look suspicious without workflow context."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Task launch actor" },
+          { rawPath: "userIdentity.principalId", normalizedPath: "user.id", notes: "Stable actor identifier" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role for assumed sessions" },
+          { rawPath: "requestParameters.cluster", normalizedPath: "aws.ecs.cluster.name", notes: "Target cluster" },
+          { rawPath: "requestParameters.taskDefinition", normalizedPath: "aws.ecs.task_definition.arn", notes: "Target task family or revision" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["compute"], type: ["start"], action: "RunTask", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/app-role/i-xxx", type: "AssumedRole", id: "AROAXXXXX:i-xxx" },
+          aws: { ecs: { cluster: { name: "prod" }, task_definition: { arn: "backdoor-task:1" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized Task Launchers", description: "Exact inventory of principals or workflows allowed to launch ECS tasks.", examples: ["scheduler role", "approved platform deployer"], falsePositiveReduction: "Replaces brittle keyword-based actor suppression." },
+        { dimension: "Actor-to-Cluster and Task Scope", description: "Determine whether the actor is allowed to run this task family in this cluster or environment.", examples: ["dev role may run only build tasks", "prod ops may run maintenance task family"], falsePositiveReduction: "Makes scope violations much higher signal." },
+        { dimension: "Launch Workflow Provenance", description: "Correlate service scheduler, CI/CD, maintenance windows, and approved break-glass context.", examples: ["scheduled operational run", "manual CLI launch in prod"], falsePositiveReduction: "Separates sanctioned launches from suspicious ad hoc usage." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should be an actor-authorization rule for ECS task launches. It should alert when RunTask occurs outside approved cluster and task-family launch paths, using exact principal inventories and workflow provenance rather than text filters.",
+        conditions: ["eventSource equals ecs.amazonaws.com", "eventName equals RunTask", "actor is not in the approved task-launch inventory or actor is outside allowed task-family or cluster scope, or request lacks approved workflow provenance"],
+        tuningGuidance: "1. Use exact ARNs and principalIds. 2. Model scope by cluster and task family. 3. Escalate when the task activates a high-risk role or uses runtime overrides.",
+        whenToFire: "Fire when RunTask is executed outside authorized task-launch paths, especially in production clusters or with sensitive task roles.",
+      },
+      simulationCommand: "aws ecs run-task --cluster prod --task-definition backdoor-task:1 --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Medium without actor inventory, low-medium with scope and workflow enrichment",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with lookup tables", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because suspicious ECS launches can lead to immediate role use.",
+        considerations: ["Use this as the actor-centric companion to `det-071` and `det-072`.", "Actor scope and workflow provenance are the primary dependencies."],
+      },
+    },
   },
   {
     id: "det-074",
-    title: "RunTask Followed by Sensitive Activity from Task Role",
-    description: "High-confidence privilege escalation: RunTask using task role then shortly afterward, role performs AssumeRole, GetSecretValue, s3:GetObject, kms:Decrypt, iam:AttachRolePolicy, PutRolePolicy, ecs:RegisterTaskDefinition. Correlates ECS launch with follow-on activity by the same actor.",
+    title: "ECS Task Role Activation Followed by Sensitive API Use",
+    description: "Correlates ECS task launch with later sensitive API use by the resolved task role. This should pivot on the runtime task role identity rather than the original human launcher and confirm that the task role became operationally active.",
     awsService: "ECS",
     relatedServices: ["IAM", "STS", "Secrets Manager", "S3", "KMS"],
     severity: "Critical",
@@ -6337,9 +9711,9 @@ detection:
       - AttachRolePolicy
       - PutRolePolicy
       - RegisterTaskDefinition
-  condition: 1 of selection_*
+  condition: selection_run
 level: critical
-# Full correlation (task role, 15 min) requires SIEM.`,
+# Full correlation requires resolved task-role identity and follow-on role-use mapping.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=ecs.amazonaws.com AND eventName=RunTask) OR (eventName=AssumeRole OR eventName=GetSecretValue OR eventName=AttachRolePolicy OR eventName=PutRolePolicy OR eventName=RegisterTaskDefinition))
 | eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
@@ -6347,7 +9721,7 @@ level: critical
 | eval is_sensitive=if(eventName IN ("AssumeRole","GetSecretValue","AttachRolePolicy","PutRolePolicy","RegisterTaskDefinition"), 1, 0)
 | transaction actor maxspan=15m
 | where mvcount(mvfilter(is_run=1))>0 AND mvcount(mvfilter(is_sensitive=1))>0
-| table _time, actor, eventName, requestParameters.taskDefinition`,
+| table _time, actor, eventName, requestParameters.taskDefinition, requestParameters.roleArn`,
       cloudtrail: `WITH ecs_run AS (
   SELECT userIdentity.arn AS actor, eventTime AS run_time
   FROM cloudtrail_logs
@@ -6371,25 +9745,104 @@ ORDER BY e.run_time DESC`,
 | stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
 | filter cnt > 1
 | sort cnt desc`,
-      eventbridge: JSON.stringify({ source: ["aws.ecs"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventName: ["RunTask"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.ecs"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ecs.amazonaws.com"], eventName: ["RunTask"] } }, null, 2),
+      lambda: `"""
+ECS Task Role Activation Followed by Sensitive API Use
+Trigger: EventBridge rule matching RunTask.
+Use for: Correlation from ECS task launch to later sensitive API activity by the task role.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ecs.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "RunTask":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-task-role-resolution-and-follow-on-role-activity",
+        "alert": {
+            "rule_id": "det-074",
+            "title": "ECS Task Role Activation Followed by Sensitive API Use",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "cluster": detail.get("requestParameters", {}).get("cluster"),
+            "task_definition": detail.get("requestParameters", {}).get("taskDefinition"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ecs.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.taskDefinition", "requestParameters.overrides", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ecs.amazonaws.com", eventName: "RunTask", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev-user" }, requestParameters: { cluster: "prod", taskDefinition: "backdoor-task:1" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor that ran the task.", "Review the sequence: RunTask → sensitive API use within 15 minutes.", "Verify if the task role was used for expected workload.", "Check for credential exfiltration from the container."],
-    testingSteps: ["Run ECS task, then have the task role perform GetSecretValue within 15 min.", "Verify both events in CloudTrail.", "Run the Splunk or Athena correlation query."],
+    investigationSteps: ["Resolve the final task role used by the launched task and determine whether the later sensitive actions came from that role rather than the original operator.", "Review the sequence from task launch to role activity within the correlation window.", "Check whether the follow-on actions reflect secrets access, role chaining, IAM mutation, or task-definition abuse unexpected for that workload."],
+    testingSteps: ["Run a task with a task role that can call GetSecretValue, AssumeRole, or RegisterTaskDefinition, then trigger one of those actions from inside the container within 15 minutes.", "Verify both the RunTask event and later role activity appear in CloudTrail.", "Run the correlation and confirm it pivots on the resolved task role identity rather than only the human launcher."],
+    lifecycle: {
+      whyItMatters: "A task launch becomes high-confidence abuse when the resulting task role quickly performs sensitive API activity. This is the clearest signal that the launched workload was used operationally, not just scheduled or tested.",
+      threatContext: {
+        attackerBehavior: "An attacker may launch an ECS task, obtain task credentials from the container environment, and then use the task role to access secrets, assume roles, or mutate IAM and ECS resources.",
+        realWorldUsage: "This is a common workload-abuse chain because the initial launch and later API use occur under different identities and can be missed if only the human launcher is tracked.",
+        whyItMatters: "The right pivot is the resolved task role that becomes active after launch, not the original RunTask caller.",
+        riskAndImpact: "If missed, a single ad hoc task can transition from launch to active cloud abuse before defenders connect the workload execution to the later API trail.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for ECS", "AWS CloudTrail management events for STS, IAM, Secrets Manager, ECS and related services", "ECS task-definition inventory", "IAM role inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "requestParameters.taskDefinition", "requestParameters.overrides", "requestParameters.roleArn", "userIdentity.arn", "sourceIPAddress"],
+        loggingRequirements: ["RunTask events must be ingested with overrides preserved.", "The platform must resolve the launched task's final task role.", "Follow-on CloudTrail events must preserve the runtime role identity in userIdentity or session issuer fields."],
+        limitations: ["Joining on the original human launcher misses the real task-role activity path.", "CloudWatch-style simple counts do not prove ordered correlation.", "Some sensitive data-plane access still depends on broader logging coverage."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.taskDefinition", normalizedPath: "aws.ecs.task_definition.arn", notes: "Task definition used at launch" },
+          { rawPath: "enrichment.resolvedTaskRoleArn", normalizedPath: "aws.iam.role.arn", notes: "Resolved task role activated by the launch" },
+          { rawPath: "follow_on.eventName", normalizedPath: "related.event.action", notes: "Sensitive API action later performed by the task role" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["compute"], type: ["start"], action: "RunTask", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev-user", type: "IAMUser" },
+          aws: { ecs: { task_definition: { arn: "backdoor-task:1" } }, iam: { role: { arn: "arn:aws:iam::123456789012:role/TaskSecretsRole" } } },
+          related: { event: { action: "GetSecretValue" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Resolved Task Role Identity", description: "Map the launched task to the final task role actually available in the container.", examples: ["TaskSecretsRole", "ProdOpsTaskRole"], falsePositiveReduction: "Matches how real post-launch abuse appears in telemetry." },
+        { dimension: "Sensitive Use Class", description: "Classify follow-on activity as secrets access, role chaining, IAM mutation, or ECS control-plane abuse.", examples: ["GetSecretValue", "AssumeRole", "RegisterTaskDefinition"], falsePositiveReduction: "Explains why the task-role use is dangerous." },
+        { dimension: "Task Launch Context", description: "Track cluster criticality, overrides, task-family rarity, and whether the launch path was expected.", examples: ["prod cluster ad hoc task", "runtime role override"], falsePositiveReduction: "Separates benign automation from suspicious workload activation." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a chain: RunTask activates a task role, then the resolved task role performs sensitive actions soon afterward. The detector should pivot to the runtime task-role identity and not rely on the RunTask caller being the same as the later CloudTrail actor.",
+        conditions: ["first eventName equals RunTask", "task launch resolves to a final task role", "follow-on sensitive action is performed by that task role within 15 minutes", "follow-on action is AssumeRole, GetSecretValue, AttachRolePolicy, PutRolePolicy, RegisterTaskDefinition, or similarly high-risk behavior"],
+        tuningGuidance: "1. Resolve the final task role before correlating. 2. Treat task-role activity as distinct from the original launcher. 3. Escalate when the task role itself is privileged or the launch used overrides.",
+        whenToFire: "Fire when an ECS task launch is followed quickly by sensitive API use from the resulting task role.",
+      },
+      simulationCommand: "aws ecs run-task --cluster prod --task-definition backdoor-task:1",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with resolved task-role correlation",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with ECS and IAM inventory", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Best in near-real-time because the launch-to-abuse window is short and actionable.",
+        considerations: ["This should be one of the highest-fidelity ECS role-abuse detections in the dataset.", "Resolved task-role identity is the key implementation detail."],
+      },
+    },
   },
 
   // --- SSM Session Manager Access ---
   {
     id: "det-075",
     title: "SSM StartSession Visibility",
-    description: "Baseline visibility for any interactive Session Manager session. StartSession can be legitimate admin activity but is lateral-movement-relevant and should be tracked.",
+    description: "Baseline visibility for any interactive Session Manager session. StartSession is legitimate in many environments, but it is still strong interactive-access telemetry and should be treated as a feeder for lateral-movement and post-compromise detections.",
     awsService: "SSM",
     relatedServices: ["EC2"],
     severity: "Medium",
     tags: ["SSM", "Session Manager", "Lateral Movement"],
     logSources: ["AWS CloudTrail"],
-    falsePositives: ["Legitimate admin troubleshooting", "Platform automation"],
+    falsePositives: ["Legitimate admin troubleshooting", "Platform automation", "Approved break-glass sessions"],
     rules: {
       sigma: `title: SSM StartSession Visibility
 status: experimental
@@ -6413,24 +9866,104 @@ ORDER BY eventTime DESC`,
 | filter eventName = "StartSession"
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ssm"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ssm.amazonaws.com"], eventName: ["StartSession"] } }, null, 2),
+      lambda: `"""
+SSM StartSession Visibility
+Trigger: EventBridge rule matching StartSession.
+Use for: Baseline visibility into interactive Session Manager access.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ssm.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "StartSession":
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-075",
+            "title": "SSM StartSession Visibility",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target": detail.get("requestParameters", {}).get("target"),
+            "event_time": detail.get("eventTime"),
+            "source_ip": detail.get("sourceIPAddress"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ssm.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.target", "sourceIPAddress", "userAgent", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ssm.amazonaws.com", eventName: "StartSession", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/admin" }, requestParameters: { target: "i-0abc123def456" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and target instance.", "Verify if the session was authorized.", "Check sourceIPAddress and userAgent for anomalies."],
-    testingSteps: ["Call aws ssm start-session --target i-xxx.", "Verify CloudTrail captures StartSession.", "Run the detection to confirm visibility."],
+    investigationSteps: ["Identify the actor, session issuer, and target instance or managed node.", "Verify whether the session was authorized for that actor and target.", "Review source IP, user agent, target sensitivity, and any follow-on actions after session start."],
+    testingSteps: ["Call `aws ssm start-session --target i-xxx` against a managed test instance.", "Verify CloudTrail captures the StartSession event and target identifier.", "Run the detection and confirm it provides baseline visibility before actor or target-sensitivity enrichment."],
+    lifecycle: {
+      whyItMatters: "StartSession is one of the clearest interactive access signals in AWS. Even as a baseline event, it is critical because it often represents direct hands-on access to live systems without SSH exposure.",
+      threatContext: {
+        attackerBehavior: "An attacker may use Session Manager to gain interactive shell access to managed instances after obtaining appropriate IAM permissions.",
+        realWorldUsage: "Session Manager is widely used for legitimate administration, but it is equally valuable to attackers because it provides interactive access through native AWS control paths.",
+        whyItMatters: "This baseline rule is the feeder for stronger detections about unexpected actors, sensitive targets, and post-session abuse.",
+        riskAndImpact: "If missed, attackers can access live systems interactively without leaving traditional network access signals like inbound SSH.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for SSM", "EC2 or managed-node inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.target", "sourceIPAddress", "userAgent", "errorCode"],
+        loggingRequirements: ["CloudTrail must record StartSession events.", "The environment should resolve requestParameters.target to instance metadata, owner, and sensitivity.", "Follow-on API activity by the same actor should be available for later correlation."],
+        limitations: ["The baseline event does not reveal command content or what happened inside the session.", "The target is often only an instance ID unless enriched from EC2 inventory.", "Many legitimate admin workflows use StartSession, so raw event volume may be moderate in mature environments."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.target", normalizedPath: "cloud.instance.id", notes: "Managed instance or target of the interactive session" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor opening the session" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role for assumed-role sessions" },
+          { rawPath: "sourceIPAddress", normalizedPath: "source.ip", notes: "Network source for the API call" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["session"], type: ["start"], action: "StartSession", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/admin", type: "IAMUser" },
+          cloud: { instance: { id: "i-0abc123def456" } },
+          source: { ip: "203.0.113.10" },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Target Sensitivity", description: "Resolve the target instance to environment, owner, and criticality.", examples: ["prod app server", "bastion", "directory services host"], falsePositiveReduction: "Improves prioritization when sessions land on sensitive systems." },
+        { dimension: "Actor Authorization Context", description: "Determine whether the actor is approved to open interactive sessions to this class of target.", examples: ["platform admin", "developer session to prod"], falsePositiveReduction: "Turns broad visibility into meaningful access control insights." },
+        { dimension: "Follow-On Activity", description: "Correlate later control-plane actions or additional sessions by the same actor.", examples: ["StartSession followed by CreateSnapshot", "multiple host pivots"], falsePositiveReduction: "Raises priority when the session is part of a broader intrusion pattern." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain a baseline interactive-access rule. It alerts on every successful StartSession, then uses target sensitivity, actor authorization, and follow-on behavior to decide whether the session is routine or suspicious.",
+        conditions: ["eventSource equals ssm.amazonaws.com", "eventName equals StartSession", "errorCode is absent"],
+        tuningGuidance: "1. Keep the event match broad. 2. Resolve the target host and actor scope quickly. 3. Escalate when the actor is unexpected, the target is sensitive, or follow-on behavior is suspicious.",
+        whenToFire: "Fire on every successful StartSession for visibility, with higher priority when it targets sensitive systems or comes from unusual actors.",
+      },
+      simulationCommand: "aws ssm start-session --target i-0abc123def456",
+      quality: {
+        signalQuality: 7,
+        falsePositiveRate: "Medium as raw visibility, low-medium with actor and target enrichment",
+        expectedVolume: "Environment-dependent",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because interactive access often precedes quick follow-on activity.",
+        considerations: ["Use this as the feeder rule for the stronger SSM access detections that follow.", "Target inventory is the most important enrichment."],
+      },
+    },
   },
   {
     id: "det-076",
-    title: "StartSession by Unexpected Actor",
-    description: "Detects sessions initiated by identities that normally should not open interactive shells to EC2. Suspicious actors include IAM users outside admin/helpdesk/platform roles, application roles, EC2 instance roles, and non-admin assumed roles.",
+    title: "StartSession Outside Authorized Interactive Access Path",
+    description: "Detects Session Manager access by identities outside approved administration, helpdesk, or break-glass workflows. This should rely on exact actor inventories, session provenance, and target scope rather than ARN substring allowlists.",
     awsService: "SSM",
     relatedServices: ["EC2"],
     severity: "High",
     tags: ["SSM", "Session Manager", "Anomaly"],
     logSources: ["AWS CloudTrail"],
-    falsePositives: ["Known SSM administrators", "Helpdesk or platform automation"],
+    falsePositives: ["Known SSM administrators", "Helpdesk or platform automation", "Approved break-glass access"],
     rules: {
-      sigma: `title: StartSession by Unexpected Actor
+      sigma: `title: StartSession Outside Authorized Interactive Access Path
 status: experimental
 logsource:
   service: cloudtrail
@@ -6438,52 +9971,108 @@ detection:
   selection:
     eventSource: ssm.amazonaws.com
     eventName: StartSession
-  filter_arn:
-    userIdentity.arn|contains:
-      - '/role/Admin'
-      - '/role/SSMAdmin'
-      - '/role/Platform'
-      - '/role/Helpdesk'
-      - '/role/DevOps'
-      - '/user/admin'
-  filter_issuer:
-    userIdentity.sessionContext.sessionIssuer.arn|contains:
-      - '/role/Admin'
-      - '/role/SSMAdmin'
-      - '/role/Platform'
-  condition: selection and not (filter_arn or filter_issuer)
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ssm.amazonaws.com eventName=StartSession
-| where NOT (like(userIdentity.arn, "%/role/Admin%") OR like(userIdentity.arn, "%/role/SSMAdmin%") OR like(userIdentity.arn, "%/role/Platform%") OR like(userIdentity.arn, "%/role/Helpdesk%") OR like(userIdentity.arn, "%/role/DevOps%") OR like(userIdentity.arn, "%/user/admin%") OR like(userIdentity.sessionContext.sessionIssuer.arn, "%/role/Admin%") OR like(userIdentity.sessionContext.sessionIssuer.arn, "%/role/SSMAdmin%") OR like(userIdentity.sessionContext.sessionIssuer.arn, "%/role/Platform%"))
-| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, requestParameters.target, sourceIPAddress`,
-      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, requestParameters.target, sourceIPAddress
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, requestParameters.target, sourceIPAddress, userAgent`,
+      cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, requestParameters.target, sourceIPAddress, userAgent
 FROM cloudtrail_logs
 WHERE eventSource = 'ssm.amazonaws.com'
   AND eventName = 'StartSession'
-  AND userIdentity.arn NOT LIKE '%/role/Admin%'
-  AND userIdentity.arn NOT LIKE '%/role/SSMAdmin%'
-  AND userIdentity.arn NOT LIKE '%/role/Platform%'
-  AND userIdentity.arn NOT LIKE '%/role/Helpdesk%'
-  AND userIdentity.arn NOT LIKE '%/role/DevOps%'
-  AND userIdentity.arn NOT LIKE '%/user/admin%'
-  AND (userIdentity.sessionContext.sessionIssuer.arn IS NULL OR (userIdentity.sessionContext.sessionIssuer.arn NOT LIKE '%/role/Admin%' AND userIdentity.sessionContext.sessionIssuer.arn NOT LIKE '%/role/SSMAdmin%' AND userIdentity.sessionContext.sessionIssuer.arn NOT LIKE '%/role/Platform%'))
 ORDER BY eventTime DESC`,
-      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, requestParameters.target, sourceIPAddress
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, requestParameters.target, sourceIPAddress, userAgent
 | filter eventSource = "ssm.amazonaws.com"
 | filter eventName = "StartSession"
-| filter userIdentity.arn not like /\\/role\\/(Admin|SSMAdmin|Platform|Helpdesk|DevOps)/ and userIdentity.arn not like /\\/user\\/admin/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ssm"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ssm.amazonaws.com"], eventName: ["StartSession"] } }, null, 2),
+      lambda: `"""
+StartSession Outside Authorized Interactive Access Path
+Trigger: EventBridge rule matching StartSession.
+Use for: Real-time triage of unauthorized interactive Session Manager access.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ssm.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "StartSession":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-session-actor-check",
+        "alert": {
+            "rule_id": "det-076",
+            "title": "StartSession Outside Authorized Interactive Access Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target": detail.get("requestParameters", {}).get("target"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
-    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ssm.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.target", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ssm.amazonaws.com", eventName: "StartSession", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session" }, requestParameters: { target: "i-0abc123" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized for SSM access.", "Update allowlist if legitimate."],
-    testingSteps: ["As a non-admin role, call StartSession.", "Verify detection triggers.", "Add role to allowlist and confirm suppression."],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ssm.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.target", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ssm.amazonaws.com", eventName: "StartSession", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session" }, requestParameters: { target: "i-0abc123" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the actor type, ARN, principalId, and session issuer.", "Verify whether this identity is approved to open interactive sessions to the target instance class.", "Check workflow provenance such as helpdesk, maintenance, or break-glass approval."],
+    testingSteps: ["As a principal outside the approved SSM administrator set, call `aws ssm start-session --target i-xxx`.", "Verify CloudTrail captures actor and target context.", "Run the detection and confirm it relies on exact authorization and scope, not actor-name text."],
+    lifecycle: {
+      whyItMatters: "Interactive access by the wrong identity is a strong signal because only a narrow set of operators should be able to open live shells into managed infrastructure.",
+      threatContext: {
+        attackerBehavior: "An attacker using a workload role, developer session, or unapproved human identity may open a Session Manager shell to gain hands-on access to live systems.",
+        realWorldUsage: "Unexpected-actor interactive access is common in post-compromise workflows because it leverages native AWS administration mechanisms instead of network-exposed services.",
+        whyItMatters: "Authorization context matters more than whether a role or user name looks like admin.",
+        riskAndImpact: "If missed, attackers can gain shell access to instances from identities that were never meant to perform interactive administration.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for SSM", "Authorized interactive-access actor inventory", "Target authorization scope mappings"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.target", "sourceIPAddress", "userAgent", "errorCode"],
+        loggingRequirements: ["StartSession events must be ingested with actor context intact.", "The environment should maintain exact principal inventories for allowed interactive access.", "The detector should understand actor-to-target scope and workflow provenance."],
+        limitations: ["Without actor inventory this becomes noisy.", "Federated and chained role sessions need stable identity modeling.", "Legitimate helpdesk or break-glass paths can still look suspicious without workflow context."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Session initiator" },
+          { rawPath: "userIdentity.principalId", normalizedPath: "user.id", notes: "Stable actor identifier" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role for assumed sessions" },
+          { rawPath: "requestParameters.target", normalizedPath: "cloud.instance.id", notes: "Interactive session target" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["session"], type: ["start"], action: "StartSession", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session", type: "AssumedRole", id: "AROAXXXXX:session" },
+          cloud: { instance: { id: "i-0abc123" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized Interactive Access Actors", description: "Exact inventory of principals allowed to open Session Manager sessions.", examples: ["SSM admin role", "approved helpdesk role"], falsePositiveReduction: "Replaces brittle role-name allowlists." },
+        { dimension: "Actor-to-Target Scope", description: "Determine whether the actor is allowed to open sessions to this target or environment.", examples: ["prod platform admin", "dev operator to dev hosts only"], falsePositiveReduction: "Makes scope violations much higher signal." },
+        { dimension: "Workflow Provenance", description: "Correlate maintenance windows, incident-response workflows, helpdesk tickets, and break-glass context.", examples: ["IR triage session", "manual untracked shell"], falsePositiveReduction: "Separates sanctioned access from suspicious interactive use." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should be an actor-authorization rule for Session Manager. It should alert when StartSession occurs outside approved interactive-access workflows or when the actor is outside allowed target scope.",
+        conditions: ["eventSource equals ssm.amazonaws.com", "eventName equals StartSession", "actor is not in the approved interactive-access inventory or actor is outside allowed target scope, or request lacks approved workflow provenance"],
+        tuningGuidance: "1. Use exact ARNs and principalIds. 2. Model target scope explicitly. 3. Escalate when the target is sensitive or follow-on actions look suspicious.",
+        whenToFire: "Fire when StartSession is initiated outside authorized interactive access paths, especially to production or sensitive systems.",
+      },
+      simulationCommand: "aws ssm start-session --target i-0abc123 --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Medium without actor inventory, low-medium with target scope and workflow enrichment",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with lookup tables", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because suspicious interactive access deserves immediate review.",
+        considerations: ["Use this as the actor-centric companion to the StartSession baseline.", "Actor inventory and target scope quality are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-077",
-    title: "StartSession to Sensitive or Unusual Target",
-    description: "Detects sessions opened to production, privileged, break-glass, domain-controller-like, secrets-hosting, or otherwise sensitive instances. Target matching uses instance ID patterns or naming conventions.",
+    title: "StartSession to Classified Sensitive Target",
+    description: "Detects Session Manager access to targets classified as production, identity infrastructure, bastion, break-glass, secrets-hosting, or otherwise sensitive systems. This should rely on resolved target metadata rather than instance ID naming conventions.",
     awsService: "SSM",
     relatedServices: ["EC2"],
     severity: "High",
@@ -6499,44 +10088,108 @@ detection:
   selection:
     eventSource: ssm.amazonaws.com
     eventName: StartSession
-  filter_target:
-    requestParameters.target|contains:
-      - 'prod'
-      - 'Prod'
-      - 'production'
-      - 'dc'
-      - 'domain'
-      - 'bastion'
-      - 'secrets'
-      - 'breakglass'
-      - 'privileged'
-  condition: selection and filter_target
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ssm.amazonaws.com eventName=StartSession
-| where like(requestParameters.target, "%prod%") OR like(requestParameters.target, "%Prod%") OR like(requestParameters.target, "%production%") OR like(requestParameters.target, "%dc%") OR like(requestParameters.target, "%domain%") OR like(requestParameters.target, "%bastion%") OR like(requestParameters.target, "%secrets%") OR like(requestParameters.target, "%breakglass%") OR like(requestParameters.target, "%privileged%")
-| table _time, userIdentity.arn, requestParameters.target, sourceIPAddress`,
+| table _time, userIdentity.arn, requestParameters.target, sourceIPAddress, userAgent`,
       cloudtrail: `SELECT eventTime, userIdentity.arn, requestParameters.target, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'ssm.amazonaws.com'
   AND eventName = 'StartSession'
-  AND (requestParameters.target LIKE '%prod%' OR requestParameters.target LIKE '%Prod%' OR requestParameters.target LIKE '%production%' OR requestParameters.target LIKE '%dc%' OR requestParameters.target LIKE '%domain%' OR requestParameters.target LIKE '%bastion%' OR requestParameters.target LIKE '%secrets%' OR requestParameters.target LIKE '%breakglass%' OR requestParameters.target LIKE '%privileged%')
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.target, sourceIPAddress
 | filter eventSource = "ssm.amazonaws.com"
 | filter eventName = "StartSession"
-| filter requestParameters.target like /prod|dc|domain|bastion|secrets|breakglass|privileged/i
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ssm"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ssm.amazonaws.com"], eventName: ["StartSession"] } }, null, 2),
+      lambda: `"""
+StartSession to Classified Sensitive Target
+Trigger: EventBridge rule matching StartSession.
+Use for: Real-time target sensitivity enrichment on interactive access.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ssm.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "StartSession":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-target-sensitivity-classification",
+        "alert": {
+            "rule_id": "det-077",
+            "title": "StartSession to Classified Sensitive Target",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target": detail.get("requestParameters", {}).get("target"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
-    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ssm.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.target", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ssm.amazonaws.com", eventName: "StartSession", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { target: "i-prod-db-0abc123" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the target instance and its sensitivity.", "Verify if the session was authorized.", "Cross-reference with instance tags if available."],
-    testingSteps: ["Start session to an instance with 'prod' in its identifier.", "Verify detection triggers."],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ssm.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.target", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ssm.amazonaws.com", eventName: "StartSession", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { target: "i-0abc123def456" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Resolve the target instance or managed node to its environment, owner, and sensitivity class.", "Verify whether the session was authorized for that target class and actor.", "Check whether the host is production, bastion, break-glass, directory, or secrets infrastructure."],
+    testingSteps: ["Start a session to a test instance tagged or classified as production or otherwise sensitive.", "Verify the detector can resolve the target's metadata from inventory.", "Run the detection and confirm it depends on host classification rather than instance ID naming."],
+    lifecycle: {
+      whyItMatters: "Interactive access to sensitive systems is materially riskier than access to ordinary hosts. The target itself can make a baseline StartSession event far more important.",
+      threatContext: {
+        attackerBehavior: "An attacker may use Session Manager to access production servers, identity infrastructure, bastions, or secrets-hosting systems after gaining SSM permissions.",
+        realWorldUsage: "Sensitive-target access is a common escalation step because these hosts often expose credentials, privileged trust boundaries, or critical business data.",
+        whyItMatters: "The correct signal comes from target classification, not whether the instance ID or hostname text happens to contain prod or domain.",
+        riskAndImpact: "If missed, attackers can gain hands-on access to the systems that matter most without tripping higher-confidence target-aware alerts.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for SSM", "EC2 or managed-node inventory with tags and ownership metadata"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.target", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["The environment should resolve target instance IDs to tags, names, owners, and sensitivity labels.", "Sensitive-target classification should be maintained centrally.", "Target class should be available to the detection engine at session time."],
+        limitations: ["Instance IDs themselves rarely carry semantic meaning.", "Without target inventory this rule degrades into weak name heuristics.", "Some sensitive hosts are accessed legitimately during routine maintenance or incident response."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.target", normalizedPath: "cloud.instance.id", notes: "Interactive session target" },
+          { rawPath: "enrichment.targetEnvironment", normalizedPath: "cloud.instance.environment", notes: "Production, staging, development, etc." },
+          { rawPath: "enrichment.targetSensitivity", normalizedPath: "cloud.instance.sensitivity", notes: "Bastion, directory, break-glass, secrets host, and similar classes" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor opening the session" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["session"], type: ["start"], action: "StartSession", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          cloud: { instance: { id: "i-0abc123def456", environment: "production", sensitivity: "database" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Target Sensitivity Classification", description: "Classify the target as prod, bastion, directory, break-glass, secrets host, or other sensitive category.", examples: ["prod database host", "bastion", "directory services instance"], falsePositiveReduction: "Replaces structurally weak target-name matching." },
+        { dimension: "Actor-to-Target Authorization", description: "Determine whether the actor is allowed to access that target class.", examples: ["platform admin to prod bastion", "developer to production database host"], falsePositiveReduction: "Separates expected privileged access from suspicious targeting." },
+        { dimension: "Operational Context", description: "Correlate change windows, incident tickets, maintenance workflows, and break-glass approval.", examples: ["approved maintenance session", "untracked out-of-hours access"], falsePositiveReduction: "Makes high-sensitivity target sessions much more actionable." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should alert when StartSession targets a system classified as sensitive. The correct implementation resolves the target instance from inventory and applies a sensitivity label, then combines that with actor authorization and operational context.",
+        conditions: ["eventSource equals ssm.amazonaws.com", "eventName equals StartSession", "target instance is classified as production, bastion, identity infrastructure, break-glass, secrets-hosting, or otherwise sensitive"],
+        tuningGuidance: "1. Resolve the target from inventory instead of using instance ID text. 2. Maintain a central sensitive-target taxonomy. 3. Escalate further when the actor is unexpected or follow-on activity is suspicious.",
+        whenToFire: "Fire when Session Manager access targets a classified sensitive system, especially when the actor or timing is unusual.",
+      },
+      simulationCommand: "aws ssm start-session --target i-0abc123def456",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with target classification; high with instance-name or ID heuristics",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with instance inventory", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because sensitive-target sessions deserve rapid review.",
+        considerations: ["This is the target-centric companion to `det-076`.", "Target inventory and sensitivity labels are the key dependencies."],
+      },
+    },
   },
   {
     id: "det-078",
-    title: "StartSession Followed by Suspicious AWS API Activity",
-    description: "High-confidence lateral movement: StartSession then within a short window, same actor performs GetSecretValue, KMS decrypt, AssumeRole, CreateAccessKey, S3 GetObject, IAM policy modification, or snapshot creation. CloudTrail does not expose shell commands; correlation with follow-on API activity raises confidence.",
+    title: "StartSession Followed by Sensitive Cloud Activity",
+    description: "Correlates interactive Session Manager access with subsequent sensitive cloud activity by the same actor or derived session identity. This is a high-confidence post-compromise sequence when interactive access quickly turns into secrets access, role chaining, IAM mutation, or snapshot activity.",
     awsService: "SSM",
     relatedServices: ["EC2", "Secrets Manager", "KMS", "IAM", "S3"],
     severity: "Critical",
@@ -6563,9 +10216,9 @@ detection:
       - PutRolePolicy
       - CreateSnapshot
       - CreateSnapshots
-  condition: 1 of selection_*
+  condition: selection_start
 level: critical
-# Full correlation (actor, 15 min) requires SIEM.`,
+# Full correlation requires stable actor or session identity and ordered short-window sequencing.`,
       splunk: `index=aws sourcetype=aws:cloudtrail
   ((eventSource=ssm.amazonaws.com AND eventName=StartSession) OR (eventName=GetSecretValue OR eventName=Decrypt OR eventName=AssumeRole OR eventName=CreateAccessKey OR eventName=PutUserPolicy OR eventName=AttachRolePolicy OR eventName=PutRolePolicy OR eventName=CreateSnapshot OR eventName=CreateSnapshots))
 | eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
@@ -6598,18 +10251,97 @@ ORDER BY e.start_time DESC`,
 | filter cnt > 1
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.ssm"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ssm.amazonaws.com"], eventName: ["StartSession"] } }, null, 2),
+      lambda: `"""
+StartSession Followed by Sensitive Cloud Activity
+Trigger: EventBridge rule matching StartSession.
+Use for: Correlation from interactive access to later sensitive API use.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ssm.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "StartSession":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-startsession-plus-sensitive-activity-correlation",
+        "alert": {
+            "rule_id": "det-078",
+            "title": "StartSession Followed by Sensitive Cloud Activity",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "target": detail.get("requestParameters", {}).get("target"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ssm.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.target", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ssm.amazonaws.com", eventName: "StartSession", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { target: "i-0abc123" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and StartSession time.", "Review sequence: StartSession → sensitive API within 15 min.", "Verify if follow-on activity was from the session or separate automation."],
-    testingSteps: ["Start SSM session, then perform GetSecretValue within 15 min.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Identify the actor, session issuer, and target associated with the StartSession event.", "Review the short-window sequence from interactive access to secrets access, role chaining, IAM mutation, or snapshoting behavior.", "Determine whether the follow-on activity came from the same principal or a derived session path expected after the session."],
+    testingSteps: ["Start an SSM session from a test identity, then perform GetSecretValue, AssumeRole, or CreateSnapshot within 15 minutes.", "Verify both the StartSession event and later sensitive API use appear in CloudTrail.", "Run the correlation and confirm it requires ordered short-window behavior rather than simple event co-occurrence."],
+    lifecycle: {
+      whyItMatters: "Interactive access followed by sensitive cloud activity is one of the clearest indicators that a session was operationally abused rather than used for routine maintenance.",
+      threatContext: {
+        attackerBehavior: "An attacker may open an interactive Session Manager shell and then pivot into secrets access, role chaining, IAM changes, or snapshot creation shortly afterward.",
+        realWorldUsage: "This sequence is a practical post-compromise pattern because SSM provides the hands-on keyboard access needed to inspect hosts, extract credentials, or trigger follow-on cloud actions.",
+        whyItMatters: "CloudTrail does not show shell commands, so the strongest proxy is the sequence of interactive access followed by sensitive cloud APIs.",
+        riskAndImpact: "If missed, defenders may see the session and the later API calls as unrelated events rather than a single intrusion chain.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for SSM", "AWS CloudTrail management events for Secrets Manager, KMS, STS, IAM, EC2 and related services"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.target", "sourceIPAddress"],
+        loggingRequirements: ["StartSession and follow-on management events must be ingested in the same analytics environment.", "Actor identity should be normalized across direct and assumed-role sessions.", "Ordered short-window correlation must be available in the detection engine."],
+        limitations: ["CloudTrail cannot prove what happened inside the shell.", "Simple counts grouped by ARN do not prove sequence.", "Some legitimate admin sessions are followed by sensitive API activity, so target and actor context remain important."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Primary actor identity" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role where relevant" },
+          { rawPath: "requestParameters.target", normalizedPath: "cloud.instance.id", notes: "Host accessed interactively" },
+          { rawPath: "follow_on.eventName", normalizedPath: "related.event.action", notes: "Sensitive API action after the session" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["session"], type: ["start"], action: "StartSession", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          cloud: { instance: { id: "i-0abc123" } },
+          related: { event: { action: "GetSecretValue" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Stable Actor Identity", description: "Normalize direct and assumed-role identities so the session actor can be matched to follow-on cloud activity.", examples: ["IAM user", "assumed platform role"], falsePositiveReduction: "Improves correlation fidelity across role hops." },
+        { dimension: "Session Target Context", description: "Classify the host accessed by the session and its likely secrets or privilege exposure.", examples: ["bastion", "prod app host", "build worker"], falsePositiveReduction: "Explains why later activity after the session is important." },
+        { dimension: "Follow-On Activity Class", description: "Group later actions into secrets access, role chaining, IAM mutation, and snapshot or collection behavior.", examples: ["GetSecretValue", "AssumeRole", "CreateSnapshot"], falsePositiveReduction: "Makes post-session abuse sequences clearer and easier to triage." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a short-window post-session sequence: an actor opens an SSM session and then performs sensitive cloud actions soon afterward. The detector should require ordered correlation and stable actor identity rather than matching either side independently.",
+        conditions: ["first eventSource equals ssm.amazonaws.com and eventName equals StartSession", "second event is a sensitive cloud API by the same actor or normalized session identity", "follow-on action occurs within 15 minutes"],
+        tuningGuidance: "1. Require ordered sequence, not loose co-occurrence. 2. Normalize direct and assumed-role identities. 3. Escalate further when the target host is sensitive or the actor is unauthorized for interactive access.",
+        whenToFire: "Fire when interactive Session Manager access is followed quickly by sensitive cloud activity from the same operator identity.",
+      },
+      simulationCommand: "aws ssm start-session --target i-0abc123 && aws secretsmanager get-secret-value --secret-id ExampleSecret",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium depending on admin workflows and actor-target context",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with ordered event windows", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Best in near-real-time because the session-to-abuse window is short and actionable.",
+        considerations: ["This is one of the strongest SSM abuse detections in the family.", "Ordered correlation and stable identity normalization are critical."],
+      },
+    },
   },
 
   // --- EC2 Volume Snapshot Loot ---
   {
     id: "det-079",
     title: "EBS Snapshot Created",
-    description: "Baseline visibility whenever a snapshot is created from a volume. Snapshot creation can be legitimate backup/admin activity, so this is visibility, not immediate exfiltration detection.",
+    description: "Baseline visibility whenever a snapshot is created from a volume. Snapshot creation is often legitimate, but it is still important loot-stage telemetry because it can precede sharing, copying, or volume rehydration.",
     awsService: "EC2",
     relatedServices: ["EBS"],
     severity: "Medium",
@@ -6641,16 +10373,94 @@ ORDER BY eventTime DESC`,
 | filter eventName in ["CreateSnapshot", "CreateSnapshots"]
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["CreateSnapshot", "CreateSnapshots"] } }, null, 2),
+      lambda: `"""
+EBS Snapshot Created
+Trigger: EventBridge rule matching CreateSnapshot or CreateSnapshots.
+Use for: Baseline visibility into snapshot creation activity.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"CreateSnapshot", "CreateSnapshots"}:
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-079",
+            "title": "EBS Snapshot Created",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "volume_id": detail.get("requestParameters", {}).get("volumeId"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.volumeId", "requestParameters.description", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "CreateSnapshot", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/admin" }, requestParameters: { volumeId: "vol-0abc123" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and source volume.", "Verify if snapshot creation was authorized.", "Check for follow-on ModifySnapshotAttribute or CopySnapshot."],
-    testingSteps: ["Call CreateSnapshot on a volume.", "Verify CloudTrail captures the event.", "Run the detection."],
+    investigationSteps: ["Identify the actor, source volume, and whether the volume backs a sensitive system.", "Verify if snapshot creation was authorized for this volume and actor.", "Check for follow-on ModifySnapshotAttribute, CopySnapshot, or CreateVolume activity."],
+    testingSteps: ["Call CreateSnapshot or CreateSnapshots on a test volume.", "Verify CloudTrail captures the source volume context.", "Run the detection and confirm it provides baseline visibility before exfiltration-oriented enrichment."],
+    lifecycle: {
+      whyItMatters: "Snapshot creation is a foundational storage-loot signal. Even when legitimate, it is the first control-plane step in many later exfiltration or rehydration chains.",
+      threatContext: {
+        attackerBehavior: "An attacker may create an EBS snapshot to capture disk contents for later sharing, copying, or offline restoration.",
+        realWorldUsage: "Snapshotting is attractive because it looks like standard cloud administration while still creating a durable copy of a workload's data at the storage layer.",
+        whyItMatters: "This baseline event feeds stronger detections about unauthorized actors, external sharing, and snapshot rehydration.",
+        riskAndImpact: "If missed, defenders may not notice data collection at the volume layer until much later in the exfiltration chain.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "EBS and EC2 inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.volumeId", "requestParameters.description", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["CreateSnapshot and CreateSnapshots events must be ingested.", "The environment should resolve volume ownership, attached instance, and data sensitivity.", "Follow-on snapshot sharing and copy events should be available for later correlation."],
+        limitations: ["CreateSnapshots can involve multi-volume operations and may expose different request shapes than CreateSnapshot.", "Raw snapshot creation alone does not prove exfiltration.", "Backup and DLM workflows can generate high baseline volume in storage-heavy environments."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.volumeId", normalizedPath: "aws.ebs.volume.id", notes: "Source volume where available" },
+          { rawPath: "requestParameters.description", normalizedPath: "aws.ebs.snapshot.description", notes: "Optional operator-provided description" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor creating the snapshot" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["storage"], type: ["creation"], action: "CreateSnapshot", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/admin", type: "IAMUser" },
+          aws: { ebs: { volume: { id: "vol-0abc123" }, snapshot: { description: "manual backup" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Volume Sensitivity", description: "Resolve the volume to the attached instance, application, and data class.", examples: ["prod database volume", "build-worker scratch disk"], falsePositiveReduction: "Helps distinguish routine backup from potential high-value collection." },
+        { dimension: "Authorized Snapshot Actors", description: "Determine whether the actor is expected to create snapshots for this workload class.", examples: ["backup automation role", "manual app role"], falsePositiveReduction: "Separates standard backup activity from suspicious storage collection." },
+        { dimension: "Follow-On Snapshot Chain", description: "Track whether the snapshot is later shared, copied, or rehydrated.", examples: ["ModifySnapshotAttribute", "CopySnapshot"], falsePositiveReduction: "Moves the signal from baseline visibility to likely exfiltration behavior." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain a baseline snapshot-creation rule. It alerts on every successful CreateSnapshot or CreateSnapshots event, then uses actor context, volume sensitivity, and later snapshot-handling behavior to determine risk.",
+        conditions: ["eventSource equals ec2.amazonaws.com", "eventName equals CreateSnapshot or CreateSnapshots", "errorCode is absent"],
+        tuningGuidance: "1. Keep the event match broad. 2. Resolve the source volume and owning workload. 3. Escalate based on unauthorized actors or later sharing, copying, or rehydration activity.",
+        whenToFire: "Fire on every successful snapshot creation for visibility, with higher priority when the source volume is sensitive or the actor is unusual.",
+      },
+      simulationCommand: "aws ec2 create-snapshot --volume-id vol-0abc123 --description 'manual backup'",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium as raw visibility, low-medium with actor and volume enrichment",
+        expectedVolume: "Environment-dependent",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because snapshot creation may quickly lead to sharing or copying.",
+        considerations: ["Use this as the feeder rule for the higher-confidence snapshot-exfiltration detections that follow.", "Volume inventory is the main enrichment dependency."],
+      },
+    },
   },
   {
     id: "det-080",
-    title: "Snapshot Created by Unexpected Actor",
-    description: "Detects snapshot creation by identities that normally should not snapshot production volumes. Suspicious actors include IAM users outside infra/admin roles, application roles, and unusual assumed roles. Excludes backup services, DLM, and expected platform roles.",
+    title: "Snapshot Created Outside Authorized Backup or Infrastructure Path",
+    description: "Detects snapshot creation by actors outside approved backup, storage, or infrastructure-administration workflows. This should rely on exact actor inventories and volume sensitivity, not backup or admin role-name substrings.",
     awsService: "EC2",
     relatedServices: ["EBS"],
     severity: "High",
@@ -6668,56 +10478,117 @@ detection:
     eventName:
       - CreateSnapshot
       - CreateSnapshots
-  filter_known:
-    userIdentity.arn|contains:
-      - '/role/Backup'
-      - '/role/DLM'
-      - '/role/Infra'
-      - '/role/Admin'
-      - '/role/Platform'
-    userIdentity.principalId|contains:
-      - 'dlm.amazonaws.com'
-      - 'backup'
-  condition: selection and not filter_known
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com (eventName=CreateSnapshot OR eventName=CreateSnapshots)
-| where NOT (like(userIdentity.arn, "%/role/Backup%") OR like(userIdentity.arn, "%/role/DLM%") OR like(userIdentity.arn, "%/role/Infra%") OR like(userIdentity.arn, "%/role/Admin%") OR like(userIdentity.arn, "%/role/Platform%") OR like(userIdentity.principalId, "%dlm.amazonaws.com%") OR like(userIdentity.principalId, "%backup%"))
-| table _time, userIdentity.type, userIdentity.arn, eventName, requestParameters.volumeId, sourceIPAddress`,
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.principalId, eventName, requestParameters.volumeId, sourceIPAddress`,
       cloudtrail: `SELECT eventTime, userIdentity.type, userIdentity.arn, eventName, requestParameters.volumeId, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'ec2.amazonaws.com'
   AND eventName IN ('CreateSnapshot', 'CreateSnapshots')
-  AND userIdentity.arn NOT LIKE '%/role/Backup%'
-  AND userIdentity.arn NOT LIKE '%/role/DLM%'
-  AND userIdentity.arn NOT LIKE '%/role/Infra%'
-  AND userIdentity.arn NOT LIKE '%/role/Admin%'
-  AND userIdentity.arn NOT LIKE '%/role/Platform%'
-  AND (userIdentity.principalId IS NULL OR (userIdentity.principalId NOT LIKE '%dlm.amazonaws.com%' AND userIdentity.principalId NOT LIKE '%backup%'))
 ORDER BY eventTime DESC`,
-      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, eventName, requestParameters.volumeId, sourceIPAddress
+      cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.principalId, eventName, requestParameters.volumeId, sourceIPAddress
 | filter eventSource = "ec2.amazonaws.com"
 | filter eventName in ["CreateSnapshot", "CreateSnapshots"]
-| filter userIdentity.arn not like /\\/role\\/(Backup|DLM|Infra|Admin|Platform)/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["CreateSnapshot", "CreateSnapshots"] } }, null, 2),
+      lambda: `"""
+Snapshot Created Outside Authorized Backup or Infrastructure Path
+Trigger: EventBridge rule matching CreateSnapshot or CreateSnapshots.
+Use for: Real-time triage of unauthorized snapshot creation.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"CreateSnapshot", "CreateSnapshots"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-snapshot-actor-check",
+        "alert": {
+            "rule_id": "det-080",
+            "title": "Snapshot Created Outside Authorized Backup or Infrastructure Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "volume_id": detail.get("requestParameters", {}).get("volumeId"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "requestParameters.volumeId", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "CreateSnapshot", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session" }, requestParameters: { volumeId: "vol-0abc123" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and source volume.", "Verify if this identity is authorized for snapshot creation.", "Update allowlist if legitimate."],
-    testingSteps: ["As a non-backup role, call CreateSnapshot.", "Verify detection triggers."],
+    investigationSteps: ["Identify the actor type, ARN, principalId, and the source volume or workload.", "Verify whether this identity is approved to create snapshots for that volume class or environment.", "Check whether the volume backs a sensitive workload and whether the snapshot was part of a known backup or maintenance workflow."],
+    testingSteps: ["As an identity outside the approved backup or infrastructure set, call CreateSnapshot on a monitored test volume.", "Verify CloudTrail captures actor and volume context.", "Run the detection and confirm it relies on exact actor authorization rather than role-name text."],
+    lifecycle: {
+      whyItMatters: "Snapshot creation by the wrong identity is a strong storage-collection signal because only a narrow set of backup, storage, or infrastructure roles should create volume copies in sensitive environments.",
+      threatContext: {
+        attackerBehavior: "An attacker using a workload role, developer session, or unapproved assumed role may create snapshots to stage disk data for later exfiltration or restoration.",
+        realWorldUsage: "Unexpected-actor snapshot creation is a practical cloud data-access pattern because it uses native AWS storage workflows instead of direct data-plane exfiltration.",
+        whyItMatters: "Authorization context matters more than whether a role name contains Backup or Admin.",
+        riskAndImpact: "If missed, attackers can create durable copies of sensitive volumes from identities that were never intended to perform storage operations.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "Authorized backup and storage actor inventory", "EBS and workload sensitivity inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.principalId", "requestParameters.volumeId", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["CreateSnapshot and CreateSnapshots events must be ingested with actor context.", "The environment should maintain exact principals approved for snapshot creation.", "Volume ownership and sensitivity should be resolvable from inventory."],
+        limitations: ["Without actor inventory this rule becomes noisy.", "Some legitimate automation may use neutral role names.", "CreateSnapshots may involve multi-volume workflows where the source volume context is broader than a single volumeId."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor creating the snapshot" },
+          { rawPath: "userIdentity.principalId", normalizedPath: "user.id", notes: "Stable actor identifier" },
+          { rawPath: "requestParameters.volumeId", normalizedPath: "aws.ebs.volume.id", notes: "Source volume where available" },
+          { rawPath: "enrichment.volumeSensitivity", normalizedPath: "aws.ebs.volume.sensitivity", notes: "Resolved workload or data sensitivity of the source volume" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["storage"], type: ["creation"], action: "CreateSnapshot", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session", type: "AssumedRole", id: "AROAXXXXX:session" },
+          aws: { ebs: { volume: { id: "vol-0abc123", sensitivity: "production_database" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized Snapshot Actors", description: "Exact inventory of roles, services, and workflows allowed to create snapshots.", examples: ["DLM service role", "approved backup automation"], falsePositiveReduction: "Replaces brittle name-based backup allowlists." },
+        { dimension: "Volume Sensitivity and Ownership", description: "Resolve whether the source volume backs a sensitive production workload, ECS host, or EKS node.", examples: ["prod database volume", "temporary build host"], falsePositiveReduction: "Raises priority when unauthorized snapshotting affects valuable data." },
+        { dimension: "Workflow Provenance", description: "Correlate backup schedules, maintenance windows, and infrastructure automation context.", examples: ["scheduled backup run", "manual out-of-band snapshot"], falsePositiveReduction: "Separates expected storage operations from suspicious collection activity." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should be an actor-authorization detector for snapshot creation. It should alert when CreateSnapshot or CreateSnapshots occurs outside approved backup or infrastructure workflows, especially on sensitive volumes.",
+        conditions: ["eventSource equals ec2.amazonaws.com", "eventName equals CreateSnapshot or CreateSnapshots", "actor is not in the approved snapshot-creator inventory or request lacks approved workflow provenance, or actor is outside allowed volume scope"],
+        tuningGuidance: "1. Use exact ARNs and principalIds. 2. Model actor-to-volume or actor-to-environment scope. 3. Escalate further when the source volume is sensitive or the snapshot is later shared or copied.",
+        whenToFire: "Fire when snapshots are created outside authorized backup or infrastructure paths, especially for sensitive volumes.",
+      },
+      simulationCommand: "aws ec2 create-snapshot --volume-id vol-0abc123 --description 'manual copy' --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Medium without actor inventory, low-medium with volume and workflow enrichment",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with storage and actor inventories", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because unauthorized snapshotting can quickly lead to sharing or copying.",
+        considerations: ["This is the actor-centric companion to the snapshot baseline.", "Actor inventory and volume ownership are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-081",
-    title: "Snapshot Shared Externally or Made Public",
-    description: "Detects the dangerous control point where a snapshot is exposed outside the account. ModifySnapshotAttribute with createVolumePermission add (external account IDs or Group=all) is one of the strongest exfiltration indicators in the snapshot loot chain.",
+    title: "Snapshot Shared to External Account",
+    description: "Detects the owner-side control point where a private snapshot is shared to one or more external AWS accounts. This is a high-confidence storage-exposure event and should be evaluated using permission delta and recipient-account allowlists, not collapsed together with public sharing.",
     awsService: "EC2",
     relatedServices: ["EBS"],
     severity: "Critical",
     tags: ["EC2", "EBS", "Snapshot", "Exfiltration"],
     logSources: ["AWS CloudTrail"],
-    falsePositives: ["Legitimate cross-account sharing for DR", "Approved migration"],
+    falsePositives: ["Legitimate cross-account sharing for DR", "Approved migration", "Planned data transfer between owned accounts"],
     rules: {
-      sigma: `title: Snapshot Shared Externally or Made Public
+      sigma: `title: Snapshot Shared to External Account
 status: experimental
 logsource:
   service: cloudtrail
@@ -6725,40 +10596,111 @@ detection:
   selection:
     eventSource: ec2.amazonaws.com
     eventName: ModifySnapshotAttribute
-  filter_permission:
-    requestParameters.createVolumePermission|contains:
-      - 'add'
-      - 'all'
-    requestParameters.groupNames|contains: 'all'
-  condition: selection and filter_permission
-level: critical`,
+  condition: selection
+level: critical
+# External-account recipient evaluation requires parsing createVolumePermission.add.userIds and approved account allowlists.`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com eventName=ModifySnapshotAttribute
-| where (requestParameters.createVolumePermission.add.userIds IS NOT NULL AND mvcount(requestParameters.createVolumePermission.add.userIds)>0) OR (requestParameters.createVolumePermission.add.groups IS NOT NULL AND mvcount(requestParameters.createVolumePermission.add.groups)>0) OR like(requestParameters.groupNames, "%all%")
-| table _time, userIdentity.arn, requestParameters.snapshotId, requestParameters.createVolumePermission, requestParameters.groupNames, sourceIPAddress`,
-      cloudtrail: `SELECT eventTime, userIdentity.arn, requestParameters.snapshotId, requestParameters.createVolumePermission, requestParameters.groupNames, sourceIPAddress
+| where requestParameters.createVolumePermission.add.userIds IS NOT NULL AND mvcount(requestParameters.createVolumePermission.add.userIds)>0
+| table _time, userIdentity.arn, requestParameters.snapshotId, requestParameters.createVolumePermission, sourceIPAddress`,
+      cloudtrail: `SELECT eventTime, userIdentity.arn, requestParameters.snapshotId, requestParameters.createVolumePermission, sourceIPAddress
 FROM cloudtrail_logs
 WHERE eventSource = 'ec2.amazonaws.com'
   AND eventName = 'ModifySnapshotAttribute'
-  AND (requestParameters.createVolumePermission.add.userIds IS NOT NULL
-    OR requestParameters.createVolumePermission.add.groups IS NOT NULL
-    OR requestParameters.groupNames LIKE '%all%')
+  AND requestParameters.createVolumePermission.add.userIds IS NOT NULL
 ORDER BY eventTime DESC`,
-      cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.snapshotId, requestParameters.createVolumePermission, requestParameters.groupNames, sourceIPAddress
+      cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.snapshotId, requestParameters.createVolumePermission, sourceIPAddress
 | filter eventSource = "ec2.amazonaws.com"
 | filter eventName = "ModifySnapshotAttribute"
-| filter ispresent(requestParameters.createVolumePermission.add) or requestParameters.groupNames like /all/
+| filter ispresent(requestParameters.createVolumePermission.add.userIds)
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["ModifySnapshotAttribute"] } }, null, 2),
+      lambda: `"""
+Snapshot Shared to External Account
+Trigger: EventBridge rule matching ModifySnapshotAttribute.
+Use for: Real-time evaluation of snapshot recipient-account exposure.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "ModifySnapshotAttribute":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-external-account-recipient-evaluation",
+        "alert": {
+            "rule_id": "det-081",
+            "title": "Snapshot Shared to External Account",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "snapshot_id": detail.get("requestParameters", {}).get("snapshotId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
-    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.snapshotId", "requestParameters.createVolumePermission", "requestParameters.groupNames", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "ModifySnapshotAttribute", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { snapshotId: "snap-xxx", createVolumePermission: { add: { groups: ["all"] } } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the snapshot and actor.", "Check if sharing was authorized.", "Review recipient account IDs if present."],
-    testingSteps: ["Call ModifySnapshotAttribute with createVolumePermission add group all.", "Verify detection triggers."],
+    telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.snapshotId", "requestParameters.createVolumePermission", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "ModifySnapshotAttribute", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { snapshotId: "snap-xxx", createVolumePermission: { add: { userIds: ["999999999999"] } } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
+    investigationSteps: ["Identify the snapshot, actor, and recipient account IDs added to the permission set.", "Verify whether the recipient accounts are approved DR, migration, or organization-owned destinations.", "Check whether the same snapshot was later copied, restored, or made public."],
+    testingSteps: ["Call `ModifySnapshotAttribute` with `createVolumePermission.add.userIds` for an external account.", "Verify CloudTrail records the permission delta and recipient IDs.", "Run the detection and confirm it separates external-account sharing from public exposure."],
+    lifecycle: {
+      whyItMatters: "Sharing a snapshot to another AWS account is a direct exposure control point. It creates a durable cross-account access path to disk data and is often one of the strongest storage-exfiltration signals available in control-plane telemetry.",
+      threatContext: {
+        attackerBehavior: "An attacker may share a snapshot to an attacker-controlled or otherwise unauthorized account so it can be copied or restored elsewhere.",
+        realWorldUsage: "Cross-account sharing is a realistic data theft method because it leverages native AWS workflows and can blend into legitimate DR or migration practices.",
+        whyItMatters: "The important distinction is recipient-account exposure, not merely that snapshot permissions changed.",
+        riskAndImpact: "If missed, a full copy of sensitive disk data can leave the account boundary under the cover of a routine permission update.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "Approved recipient-account inventory", "Snapshot and volume ownership inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.snapshotId", "requestParameters.createVolumePermission", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["ModifySnapshotAttribute events must be ingested with the full permission delta.", "The environment should maintain allowlists of approved recipient accounts and organizations.", "The detector should distinguish permission add from removal or benign attribute inspection."],
+        limitations: ["CloudTrail alone does not tell you whether the recipient account is organization-owned unless you enrich it.", "Some legitimate DR or migration workflows do share snapshots externally.", "Broad EventBridge matching on ModifySnapshotAttribute needs downstream payload filtering."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.snapshotId", normalizedPath: "aws.ebs.snapshot.id", notes: "Snapshot being exposed externally" },
+          { rawPath: "requestParameters.createVolumePermission.add.userIds", normalizedPath: "aws.ebs.snapshot.added_recipient_accounts", notes: "Recipient account IDs added to the permission set" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor changing snapshot permissions" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "ModifySnapshotAttribute", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { ebs: { snapshot: { id: "snap-xxx", added_recipient_accounts: ["999999999999"] } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Recipient Account Ownership", description: "Determine whether added recipient accounts are self-owned, organization-owned, partner-owned, or truly external.", examples: ["approved DR account", "unmanaged external account"], falsePositiveReduction: "Separates business-approved sharing from likely exfiltration." },
+        { dimension: "Permission Delta Intent", description: "Verify that the request added external access rather than removing or replacing existing permissions.", examples: ["userIds added", "no net exposure increase"], falsePositiveReduction: "Prevents unrelated permission updates from appearing as exfiltration." },
+        { dimension: "Snapshot Sensitivity", description: "Resolve the snapshot back to the originating volume, workload, and data classification.", examples: ["prod database snapshot", "temporary build volume snapshot"], falsePositiveReduction: "Raises priority when the exposed snapshot contains sensitive data." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect the exact moment a snapshot is shared to another account. The strongest implementation parses `createVolumePermission.add.userIds`, compares recipient IDs to approved allowlists, and treats truly external recipients as critical exposure events.",
+        conditions: ["eventSource equals ec2.amazonaws.com", "eventName equals ModifySnapshotAttribute", "permission delta adds one or more recipient account IDs", "recipient accounts are not in the approved cross-account share inventory"],
+        tuningGuidance: "1. Keep external-account sharing separate from public exposure. 2. Model approved DR and migration accounts explicitly. 3. Escalate further when the snapshot later gets copied or restored in the recipient account.",
+        whenToFire: "Fire when a snapshot is shared to an unapproved external account, especially when the source snapshot backs a sensitive workload.",
+      },
+      simulationCommand: "aws ec2 modify-snapshot-attribute --snapshot-id snap-xxx --attribute createVolumePermission --operation-type add --user-ids 999999999999",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with recipient-account allowlists; medium without ownership enrichment",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with account inventory", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is strongly preferred because this is a direct exposure control point.",
+        considerations: ["Keep this distinct from the public-share detector.", "Recipient-account ownership enrichment is the main dependency."],
+      },
+    },
   },
   {
     id: "det-082",
     title: "Snapshot Copied or Rehydrated After Creation",
-    description: "Detects likely data loot chain behavior: CreateSnapshot followed shortly by CopySnapshot, CreateVolume from that snapshot, or AttachVolume of restored volume. Correlates snapshot creation with rehydration rather than benign backup.",
+    description: "Detects likely snapshot abuse when a newly created snapshot is copied, restored into a volume, or progressed toward attachment soon after creation. This should be modeled with snapshot and volume lineage, not actor-only time-window correlation.",
     awsService: "EC2",
     relatedServices: ["EBS"],
     severity: "High",
@@ -6782,11 +10724,11 @@ detection:
       - CopySnapshot
       - CreateVolume
       - AttachVolume
-  condition: 1 of selection_*
+  condition: selection_create
 level: high
-# Full correlation (snapshot ID, 2h) requires SIEM.`,
+# High-confidence use requires lineage correlation across snapshotId, sourceSnapshotId, and derived volume entities.`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com (eventName=CreateSnapshot OR eventName=CreateSnapshots OR eventName=CopySnapshot OR eventName=CreateVolume OR eventName=AttachVolume)
-| eval snapshot_id=coalesce(requestParameters.volumeId, requestParameters.sourceSnapshotId, requestParameters.snapshotId)
+| eval snapshot_id=coalesce(requestParameters.snapshotId, requestParameters.sourceSnapshotId)
 | eval is_create=if(eventName IN ("CreateSnapshot","CreateSnapshots"), 1, 0)
 | eval is_rehydrate=if(eventName IN ("CopySnapshot","CreateVolume","AttachVolume"), 1, 0)
 | transaction userIdentity.arn maxspan=2h
@@ -6794,19 +10736,22 @@ level: high
 | table _time, userIdentity.arn, eventName, snapshot_id`,
       cloudtrail: `WITH create_evt AS (
   SELECT userIdentity.arn AS actor, eventTime AS create_time,
-    COALESCE(requestParameters.volumeId, '') AS vol_id
+    requestParameters.snapshotId AS snap_id,
+    requestParameters.volumeId AS volume_id
   FROM cloudtrail_logs
   WHERE eventSource = 'ec2.amazonaws.com'
     AND eventName IN ('CreateSnapshot', 'CreateSnapshots')
 ),
 rehydrate_evt AS (
   SELECT userIdentity.arn AS actor, eventTime AS rehydrate_time, eventName,
-    requestParameters.sourceSnapshotId AS snap_id
+    requestParameters.sourceSnapshotId AS source_snap_id,
+    requestParameters.snapshotId AS snapshot_id,
+    requestParameters.volumeId AS volume_id
   FROM cloudtrail_logs
   WHERE eventSource = 'ec2.amazonaws.com'
     AND eventName IN ('CopySnapshot', 'CreateVolume', 'AttachVolume')
 )
-SELECT c.actor, c.create_time, r.rehydrate_time, r.eventName, r.snap_id
+SELECT c.actor, c.create_time, r.rehydrate_time, r.eventName, r.source_snap_id, r.snapshot_id, r.volume_id
 FROM create_evt c
 JOIN rehydrate_evt r ON c.actor = r.actor
   AND r.rehydrate_time > c.create_time
@@ -6819,16 +10764,94 @@ ORDER BY c.create_time DESC`,
 | filter cnt > 1
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["CreateSnapshot", "CreateSnapshots", "CopySnapshot", "CreateVolume", "AttachVolume"] } }, null, 2),
+      lambda: `"""
+Snapshot Copied or Rehydrated After Creation
+Trigger: EventBridge rule matching snapshot creation, copy, and restore events.
+Use for: State-based lineage correlation from snapshot creation to copy or volume rehydration.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"CreateSnapshot", "CreateSnapshots", "CopySnapshot", "CreateVolume", "AttachVolume"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-snapshot-lineage-correlation",
+        "alert": {
+            "rule_id": "det-082",
+            "title": "Snapshot Copied or Rehydrated After Creation",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.volumeId", "requestParameters.sourceSnapshotId", "requestParameters.snapshotId", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "CreateSnapshot", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { volumeId: "vol-0abc123" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and snapshot chain.", "Review CreateSnapshot → CopySnapshot/CreateVolume/AttachVolume sequence.", "Verify if workflow was authorized."],
-    testingSteps: ["Create snapshot, then CopySnapshot or CreateVolume within 2h.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Identify the snapshot lineage from initial creation to copy, restore, or attachment stages.", "Verify whether the copied snapshot or restored volume belongs to an approved backup, DR, or migration workflow.", "Determine whether the lineage points to storage exposure or offline data access rather than routine operations."],
+    testingSteps: ["Create a snapshot, then copy it or create a volume from it within 2 hours, and optionally attach the restored volume.", "Verify each event carries snapshot or volume references in CloudTrail.", "Run the detection and confirm it reasons over snapshot-to-volume lineage rather than loose actor-only aggregation."],
+    lifecycle: {
+      whyItMatters: "A snapshot becomes more suspicious when it is quickly copied or restored. This sequence moves the event from passive storage collection toward operational use of the collected data.",
+      threatContext: {
+        attackerBehavior: "An attacker may create a snapshot and then copy it, restore it into a volume, or attach that volume to another instance for offline inspection or theft.",
+        realWorldUsage: "This is a practical storage-loot path because it uses standard AWS primitives to materialize disk data away from the original workload.",
+        whyItMatters: "The real signal comes from lineage across snapshot and derived volume entities, not simply from one actor performing multiple storage actions.",
+        riskAndImpact: "If missed, defenders may see independent snapshot and restore operations without recognizing that the same data object is being moved toward offline access.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "Snapshot and volume inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.snapshotId", "requestParameters.sourceSnapshotId", "requestParameters.volumeId", "sourceIPAddress"],
+        loggingRequirements: ["Snapshot creation, copy, volume creation, and attachment events must all be ingested.", "The detector must track snapshot-to-volume lineage across related APIs.", "Volume metadata or state may be needed to connect CreateVolume and AttachVolume reliably."],
+        limitations: ["Actor-only joins are weak and can be noisy in shared admin contexts.", "AttachVolume does not inherently preserve snapshot lineage unless you carry it forward from CreateVolume.", "Routine DR and migration workflows may legitimately perform the same sequence."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.snapshotId", normalizedPath: "aws.ebs.snapshot.id", notes: "Created or modified snapshot identifier" },
+          { rawPath: "requestParameters.sourceSnapshotId", normalizedPath: "aws.ebs.snapshot.source_id", notes: "Snapshot lineage reference used in copy or create-volume operations" },
+          { rawPath: "requestParameters.volumeId", normalizedPath: "aws.ebs.volume.id", notes: "Derived or attached volume identifier" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor performing the storage action" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["storage"], type: ["creation"], action: "CreateSnapshot", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { ebs: { snapshot: { id: "snap-xxx", source_id: "snap-xxx" }, volume: { id: "vol-restored-123" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Snapshot-to-Volume Lineage", description: "Track whether a created snapshot becomes the source for CopySnapshot or CreateVolume and then later AttachVolume.", examples: ["snap-xxx -> vol-restored-123"], falsePositiveReduction: "Distinguishes true storage progression from unrelated admin activity." },
+        { dimension: "Workflow Intent", description: "Determine whether the sequence matches approved backup restore, DR, or migration workflows.", examples: ["scheduled DR exercise", "manual out-of-band restore"], falsePositiveReduction: "Separates routine restores from suspicious rehydration." },
+        { dimension: "Source Workload Sensitivity", description: "Resolve the original volume and derived volume to workload criticality and ownership.", examples: ["prod database volume", "temporary test volume"], falsePositiveReduction: "Raises priority when restored data comes from sensitive systems." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should follow storage lineage. First observe snapshot creation, then correlate a short-window CopySnapshot or CreateVolume that references the created snapshot, and optionally an AttachVolume that brings the restored data into a live system.",
+        conditions: ["first eventName equals CreateSnapshot or CreateSnapshots", "second event is CopySnapshot, CreateVolume, or AttachVolume with snapshot or derived volume lineage back to the created snapshot", "follow-on activity occurs within 2 hours"],
+        tuningGuidance: "1. Correlate on snapshot and derived volume lineage, not only actor identity. 2. Treat CreateVolume as stronger than CopySnapshot alone because it moves toward access. 3. Escalate further when the derived volume is attached to a live host.",
+        whenToFire: "Fire when a newly created snapshot is quickly copied or restored into a volume, especially if the lineage leads to later attachment.",
+      },
+      simulationCommand: "aws ec2 create-snapshot --volume-id vol-0abc123 --description 'manual copy' && aws ec2 create-volume --availability-zone us-east-1a --snapshot-id snap-xxx",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with lineage correlation; high with actor-only correlation",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with lineage joins", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is useful because rehydration can quickly progress to access.",
+        considerations: ["This is the storage-lineage companion to the snapshot baseline.", "Snapshot and volume entity tracking is the main dependency."],
+      },
+    },
   },
   {
     id: "det-083",
     title: "Snapshot Loot Chain",
-    description: "High-confidence multi-step credential/data theft: CreateSnapshot → ModifySnapshotAttribute (share/public) or CopySnapshot → CreateVolume → AttachVolume. Models the actual looting workflow rather than any single API.",
+    description: "High-confidence multi-stage storage exfiltration and rehydration detection. This should model ordered lineage from snapshot creation to exposure or copy and then to volume creation or attachment, using entity linkage rather than actor-only aggregation.",
     awsService: "EC2",
     relatedServices: ["EBS"],
     severity: "Critical",
@@ -6857,9 +10880,9 @@ detection:
     eventName:
       - CreateVolume
       - AttachVolume
-  condition: 1 of selection_*
+  condition: selection_create
 level: critical
-# Full chain correlation requires SIEM.`,
+# Full chain correlation requires ordered lineage across snapshotId, sourceSnapshotId, and derived volume entities.`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com (eventName=CreateSnapshot OR eventName=CreateSnapshots OR eventName=ModifySnapshotAttribute OR eventName=CopySnapshot OR eventName=CreateVolume OR eventName=AttachVolume)
 | eval actor=userIdentity.arn
 | eval is_create=if(eventName IN ("CreateSnapshot","CreateSnapshots"), 1, 0)
@@ -6895,19 +10918,97 @@ ORDER BY eventTime DESC`,
 | stats count(*) as cnt, count_distinct(eventName) as distinct_events, collect_list(eventName) as events by userIdentity.arn
 | filter cnt >= 3 and distinct_events >= 3
 | sort cnt desc`,
-      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["ModifySnapshotAttribute"] } }, null, 2),
+      eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["CreateSnapshot", "CreateSnapshots", "ModifySnapshotAttribute", "CopySnapshot", "CreateVolume", "AttachVolume"] } }, null, 2),
+      lambda: `"""
+Snapshot Loot Chain
+Trigger: EventBridge rule matching snapshot creation, sharing, copying, and rehydration events.
+Use for: Stateful multi-step detection of snapshot exposure and restore workflows.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"CreateSnapshot", "CreateSnapshots", "ModifySnapshotAttribute", "CopySnapshot", "CreateVolume", "AttachVolume"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-multi-stage-snapshot-loot-chain-correlation",
+        "alert": {
+            "rule_id": "det-083",
+            "title": "Snapshot Loot Chain",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.snapshotId", "requestParameters.sourceSnapshotId", "requestParameters.createVolumePermission", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "ModifySnapshotAttribute", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { snapshotId: "snap-xxx", createVolumePermission: { add: { groups: ["all"] } } }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the full chain: CreateSnapshot → share/copy → CreateVolume → AttachVolume.", "Verify if workflow was authorized.", "Check for cross-account sharing."],
-    testingSteps: ["Execute full loot chain: CreateSnapshot, ModifySnapshotAttribute, CopySnapshot, CreateVolume, AttachVolume.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Build the complete storage lineage from snapshot creation through exposure or copy and then into derived volumes and attachments.", "Verify whether the chain matches approved DR, migration, or public collaboration workflows.", "Confirm whether the snapshot was exposed publicly, shared cross-account, copied, or restored into a live instance outside expected controls."],
+    testingSteps: ["Execute a full controlled chain: create a snapshot, then share it externally or copy it, then create a volume from it and attach it.", "Verify each stage records the expected snapshot or derived volume references in CloudTrail.", "Run the detection and confirm the chain only fires when ordered lineage is present rather than mere actor co-occurrence."],
+    lifecycle: {
+      whyItMatters: "This is the flagship storage-loot detector because it models how a snapshot moves from collection to exposure and then toward access. Multi-stage lineage provides much stronger confidence than any one API event on its own.",
+      threatContext: {
+        attackerBehavior: "An attacker may create a snapshot, expose or copy it, and then restore or attach the resulting volume to gain offline or live access to the stolen data.",
+        realWorldUsage: "Snapshot exfiltration and rehydration is attractive because it uses native cloud storage workflows to separate data collection from later access.",
+        whyItMatters: "The strongest confidence comes from ordered multi-stage behavior over the same storage lineage, not simply multiple suspicious APIs by the same actor.",
+        riskAndImpact: "If missed, defenders may detect only fragments of a storage theft chain and fail to recognize that sensitive disk data has already crossed into accessible form.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "Snapshot and volume inventory", "Account and region allowlists for approved sharing or copy operations"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.snapshotId", "requestParameters.sourceSnapshotId", "requestParameters.createVolumePermission", "requestParameters.volumeId", "sourceIPAddress"],
+        loggingRequirements: ["All snapshot create, permission-change, copy, volume creation, and attachment events must be ingested.", "The detector should track ordered lineage across snapshot and volume entities.", "Permission-delta modeling should distinguish external-account sharing, public sharing, copy, and restore branches."],
+        limitations: ["Actor-only joins are too weak for reliable chain detection.", "AttachVolume must be tied back to CreateVolume lineage to be trustworthy.", "Legitimate DR and migration workflows can perform similar sequences and require strong allowlisting."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.snapshotId", normalizedPath: "aws.ebs.snapshot.id", notes: "Primary snapshot entity in the chain" },
+          { rawPath: "requestParameters.sourceSnapshotId", normalizedPath: "aws.ebs.snapshot.source_id", notes: "Snapshot lineage reference used in copy or restore stages" },
+          { rawPath: "requestParameters.volumeId", normalizedPath: "aws.ebs.volume.id", notes: "Derived volume in the restore branch" },
+          { rawPath: "requestParameters.createVolumePermission", normalizedPath: "aws.ebs.snapshot.permission_delta", notes: "Exposure branch through sharing or public access" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["storage"], type: ["creation"], action: "CreateSnapshot", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { ebs: { snapshot: { id: "snap-xxx", source_id: "snap-xxx", permission_delta: { add: { userIds: ["999999999999"] } } }, volume: { id: "vol-restored-123" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Branch Type", description: "Distinguish exposure branches from public or external sharing versus copy or rehydration branches.", examples: ["external share branch", "copy and restore branch"], falsePositiveReduction: "Lets the detector explain exactly how the loot chain progressed." },
+        { dimension: "Entity Lineage", description: "Track the same snapshot through permission changes, copy operations, derived volumes, and live attachments.", examples: ["snap-xxx -> copied snapshot -> vol-restored-123"], falsePositiveReduction: "Prevents unrelated storage operations by the same actor from forming a false chain." },
+        { dimension: "Approved Recovery Context", description: "Correlate DR accounts, migration projects, maintenance windows, and backup service ownership.", examples: ["planned recovery drill", "manual untracked restore"], falsePositiveReduction: "Separates authorized resilience workflows from suspicious storage access chains." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a multi-stage storage theft path. First a snapshot is created, then it is either exposed or copied, and finally it is restored into a volume or attached to a live instance. The detector should require ordered lineage across those stages, not just multiple event names by one actor.",
+        conditions: ["first eventName equals CreateSnapshot or CreateSnapshots", "second stage is external share, public share, or CopySnapshot over the same snapshot lineage", "third stage is CreateVolume or AttachVolume over the derived lineage", "all stages occur in an expected short window and are not part of approved workflows"],
+        tuningGuidance: "1. Correlate by snapshot and volume lineage. 2. Separate exposure and rehydration branches for explainability. 3. Escalate further when the source workload is sensitive or the recipient account is unapproved.",
+        whenToFire: "Fire when a snapshot progresses through an ordered exposure or copy path into restored or attached storage access.",
+      },
+      simulationCommand: "aws ec2 create-snapshot --volume-id vol-0abc123 --description 'loot-chain-test'",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with ordered lineage and approved-workflow allowlists; high with actor-only aggregation",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with lineage tracking tables", "Panther / Chronicle / Datadog", "EventBridge + Lambda with stateful storage lineage"],
+        scheduling: "Near-real-time is preferred because the full loot path can progress quickly once the snapshot is created.",
+        considerations: ["This should be one of the highest-fidelity storage abuse detections in the dataset.", "Lineage tracking is the core dependency."],
+      },
+    },
   },
 
   // --- Public EBS Snapshot Loot ---
   {
     id: "det-084",
     title: "Snapshot Made Public",
-    description: "Detects the owner-account action that causes public exposure. ModifySnapshotAttribute with createVolumePermission add Group=all is the key control point that creates the public-loot opportunity.",
+    description: "Detects the specific owner-account action that makes a snapshot public. This should be public-only and distinct from external-account sharing, focusing on permission deltas that add `groups=[\"all\"]` or equivalent public exposure state.",
     awsService: "EC2",
     relatedServices: ["EBS"],
     severity: "Critical",
@@ -6923,11 +11024,7 @@ detection:
   selection:
     eventSource: ec2.amazonaws.com
     eventName: ModifySnapshotAttribute
-  filter_group:
-    requestParameters.groupNames|contains: 'all'
-  filter_perm:
-    requestParameters.createVolumePermission|contains: 'all'
-  condition: selection and (filter_group or filter_perm)
+  condition: selection
 level: critical`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com eventName=ModifySnapshotAttribute
 | where like(requestParameters.groupNames, "%all%") OR like(requestParameters.createVolumePermission.add.groups, "%all%") OR mvcount(mvfilter(requestParameters.createVolumePermission.add.groups="all"))>0
@@ -6945,16 +11042,94 @@ ORDER BY eventTime DESC`,
 | filter requestParameters.groupNames like /all/ or requestParameters.createVolumePermission like /all/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["ModifySnapshotAttribute"] } }, null, 2),
+      lambda: `"""
+Snapshot Made Public
+Trigger: EventBridge rule matching ModifySnapshotAttribute.
+Use for: Real-time evaluation of public snapshot exposure.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "ModifySnapshotAttribute":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-public-permission-delta-evaluation",
+        "alert": {
+            "rule_id": "det-084",
+            "title": "Snapshot Made Public",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "snapshot_id": detail.get("requestParameters", {}).get("snapshotId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.snapshotId", "requestParameters.groupNames", "requestParameters.createVolumePermission", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "ModifySnapshotAttribute", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { snapshotId: "snap-xxx", groupNames: ["all"] }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the snapshot and actor.", "Verify if public sharing was authorized.", "Consider reverting the permission."],
-    testingSteps: ["Call ModifySnapshotAttribute with groupNames all.", "Verify detection triggers."],
+    investigationSteps: ["Identify the snapshot, actor, and exact permission delta that introduced `all` public access.", "Verify whether public exposure was ever intended for this snapshot.", "Contain immediately by removing the public permission and investigating any downstream copies or restores."],
+    testingSteps: ["Call `ModifySnapshotAttribute` with `groups=[\"all\"]` or equivalent public permission change in a test account.", "Verify CloudTrail captures the public exposure delta.", "Run the detection and confirm it fires only on public sharing semantics, not generic external-account sharing."],
+    lifecycle: {
+      whyItMatters: "Making a snapshot public is one of the strongest exposure control points in AWS storage. It creates open access beyond any specific account relationship and can immediately enable unauthorized copying or restoration.",
+      threatContext: {
+        attackerBehavior: "An attacker may make a snapshot public to facilitate broad access, conceal which consumer account will retrieve it, or simply bypass account-to-account allowlisting.",
+        realWorldUsage: "Public exposure is less common than cross-account sharing but is often more severe because it removes the need to know or control a specific recipient account.",
+        whyItMatters: "This rule should be distinct from external-account sharing because public exposure is a sharper, higher-confidence state change.",
+        riskAndImpact: "If missed, sensitive disk data may become globally accessible through a single control-plane permission update.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "Snapshot inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.snapshotId", "requestParameters.groupNames", "requestParameters.createVolumePermission", "sourceIPAddress", "errorCode"],
+        loggingRequirements: ["ModifySnapshotAttribute events must preserve the permission delta that adds public access.", "The detector should specifically evaluate additions of `all` rather than generic permission updates.", "Snapshot ownership and data sensitivity should be resolvable from inventory."],
+        limitations: ["String matching over serialized permission blobs is brittle without payload-aware parsing.", "Some legacy or collaboration workflows may intentionally expose snapshots publicly, though this should be rare.", "Broad EventBridge matching needs downstream payload inspection to isolate public exposure."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.snapshotId", normalizedPath: "aws.ebs.snapshot.id", notes: "Snapshot being made public" },
+          { rawPath: "requestParameters.groupNames", normalizedPath: "aws.ebs.snapshot.permission_groups", notes: "Direct group permission list where present" },
+          { rawPath: "requestParameters.createVolumePermission.add.groups", normalizedPath: "aws.ebs.snapshot.added_permission_groups", notes: "Permission groups added in the request" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor exposing the snapshot publicly" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["change"], action: "ModifySnapshotAttribute", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          aws: { ebs: { snapshot: { id: "snap-xxx", permission_groups: ["all"], added_permission_groups: ["all"] } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Public Exposure Delta", description: "Verify that the request added `all` rather than removing or merely inspecting permissions.", examples: ["groups added = all"], falsePositiveReduction: "Keeps the rule tied to actual public exposure." },
+        { dimension: "Snapshot Sensitivity", description: "Resolve the snapshot back to the original workload and data class.", examples: ["prod database snapshot", "golden image snapshot"], falsePositiveReduction: "Raises urgency when the publicly exposed snapshot is high-value." },
+        { dimension: "Containment Context", description: "Track whether public exposure is quickly reverted or followed by copy activity.", examples: ["public for 2 minutes then reverted", "copied shortly after exposure"], falsePositiveReduction: "Improves prioritization and remediation decisions." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect only the public-exposure branch of snapshot abuse. It should parse the permission delta on ModifySnapshotAttribute and fire when the request adds public access via `groups=[\"all\"]` or equivalent semantics.",
+        conditions: ["eventSource equals ec2.amazonaws.com", "eventName equals ModifySnapshotAttribute", "permission delta adds public access through group `all`"],
+        tuningGuidance: "1. Keep public exposure separate from external-account sharing. 2. Parse permission additions rather than generic contains checks. 3. Escalate when the snapshot later gets copied or restored after public exposure.",
+        whenToFire: "Fire when a snapshot is made public, especially when the source data is sensitive or the exposure is not immediately reverted.",
+      },
+      simulationCommand: "aws ec2 modify-snapshot-attribute --snapshot-id snap-xxx --attribute createVolumePermission --operation-type add --group-names all",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low in most environments because true public snapshot sharing is rare",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda payload parsing", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is essential because this is an immediate exposure control point.",
+        considerations: ["Keep this public-only; let `det-081` own external-account sharing.", "Containment workflow should be immediate."],
+      },
+    },
   },
   {
     id: "det-085",
-    title: "Public Snapshot Exposure Inventory / Hygiene",
-    description: "Detection/hunt concept for existing public snapshots owned by the organization. Recurring inventory checks are required because already-public snapshots may not generate fresh control-plane events. Use DescribeSnapshotAttribute or inventory queries.",
+    title: "Snapshot Exposure Inventory and Permission Enumeration",
+    description: "Posture and hunting control for identifying snapshots that are already public or externally shared, plus visibility into explicit permission enumeration via `DescribeSnapshotAttribute`. This is primarily a scheduled inventory or hygiene control, not a pure event-driven alert.",
     awsService: "EC2",
     relatedServices: ["EBS"],
     severity: "High",
@@ -6974,11 +11149,10 @@ detection:
     requestParameters.attribute|contains: 'createVolumePermission'
   condition: selection and filter_attr
 level: high
-# Use as scheduled hunt: query DescribeSnapshotAttribute for createVolumePermission,
-# then check response for group=all or external account IDs.`,
+# Use as scheduled inventory/hunt, not as a standalone proof of public exposure.`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com eventName=DescribeSnapshotAttribute requestParameters.attribute=createVolumePermission
 | table _time, userIdentity.arn, requestParameters.snapshotId, responseElements
-# Hunt: Run EC2 DescribeSnapshotAttribute for all snapshots, filter response for group=all or userIds`,
+# Hunt: Run scheduled inventory over owned snapshots and evaluate createVolumePermission state.`,
       cloudtrail: `-- Hunt: List snapshots then check createVolumePermission
 -- Step 1: Get snapshot IDs from DescribeSnapshots (owner-ids self)
 -- Step 2: For each snapshot, DescribeSnapshotAttribute(attribute=createVolumePermission)
@@ -6995,16 +11169,98 @@ ORDER BY eventTime DESC`,
 | filter requestParameters.attribute = "createVolumePermission"
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["DescribeSnapshotAttribute"] } }, null, 2),
+      lambda: `"""
+Snapshot Exposure Inventory and Permission Enumeration
+Trigger: EventBridge rule matching DescribeSnapshotAttribute.
+Use for: Visibility into snapshot permission inspection; actual posture control should run on a schedule.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "DescribeSnapshotAttribute":
+        return {"matched": False}
+
+    request = detail.get("requestParameters", {})
+    if request.get("attribute") != "createVolumePermission":
+        return {"matched": False}
+
+    return {
+        "matched": "permission-enumeration-visibility-only",
+        "alert": {
+            "rule_id": "det-085",
+            "title": "Snapshot Exposure Inventory and Permission Enumeration",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "snapshot_id": request.get("snapshotId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "requestParameters.snapshotId", "requestParameters.attribute", "responseElements", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "DescribeSnapshotAttribute", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/admin" }, requestParameters: { snapshotId: "snap-xxx", attribute: "createVolumePermission" }, responseElements: { createVolumePermission: { groups: ["all"] } }, eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Run inventory of snapshots with createVolumePermission.", "Identify any with group=all or external account IDs.", "Remediate unauthorized public exposure."],
-    testingSteps: ["Run DescribeSnapshotAttribute for snapshots.", "Verify hunt logic identifies public snapshots."],
+    investigationSteps: ["Run scheduled inventory over owned snapshots and inspect current `createVolumePermission` state.", "Identify snapshots with `groups=[\"all\"]` or external account IDs not on approved allowlists.", "Separately review who is enumerating snapshot permissions through `DescribeSnapshotAttribute` and why."],
+    testingSteps: ["Run `DescribeSnapshotAttribute --attribute createVolumePermission` against test snapshots, including one intentionally shared or public snapshot.", "Verify CloudTrail captures the enumeration event.", "Verify the scheduled inventory logic identifies current exposure even when there is no fresh `ModifySnapshotAttribute` event."],
+    lifecycle: {
+      whyItMatters: "Already-exposed snapshots may persist long after the original control-plane event. A posture and hunting control is necessary because event-driven detections alone cannot guarantee you catch current exposure state.",
+      threatContext: {
+        attackerBehavior: "An attacker may enumerate snapshot permissions to identify exposed data or validate whether a previously shared snapshot remains accessible.",
+        realWorldUsage: "Permission enumeration is a common precursor to data access, but more importantly, public or external exposure can persist indefinitely without new write events.",
+        whyItMatters: "This control is primarily about current exposure state and secondarily about who is inspecting snapshot permissions.",
+        riskAndImpact: "If omitted, defenders may miss long-lived public or externally shared snapshots that remain exposed despite no recent mutation activity.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "Scheduled EC2 inventory or custom posture checks"],
+        requiredFields: ["eventSource", "eventName", "requestParameters.snapshotId", "requestParameters.attribute", "responseElements", "eventTime"],
+        loggingRequirements: ["CloudTrail should capture DescribeSnapshotAttribute activity for visibility into permission inspection.", "A separate scheduled inventory job must evaluate current snapshot exposure state across all owned snapshots.", "Approved public or cross-account snapshots should be documented for posture suppression."],
+        limitations: ["DescribeSnapshotAttribute activity does not equal exposure; it only shows inspection.", "A public snapshot can remain exposed with no fresh CloudTrail reads or writes.", "This is better modeled as posture and hunting than as a primary alerting rule."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.snapshotId", normalizedPath: "aws.ebs.snapshot.id", notes: "Snapshot whose permissions are being inspected" },
+          { rawPath: "requestParameters.attribute", normalizedPath: "aws.ebs.snapshot.requested_attribute", notes: "Permission attribute being queried" },
+          { rawPath: "responseElements.createVolumePermission", normalizedPath: "aws.ebs.snapshot.current_permissions", notes: "Current evaluated permission state when available" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor enumerating snapshot permissions" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["configuration"], type: ["info"], action: "DescribeSnapshotAttribute", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/admin", type: "IAMUser" },
+          aws: { ebs: { snapshot: { id: "snap-xxx", requested_attribute: "createVolumePermission", current_permissions: { groups: ["all"] } } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Current Exposure State", description: "Determine whether the snapshot is currently public or shared to external accounts.", examples: ["groups = all", "userIds include external account"], falsePositiveReduction: "Makes the control about actual posture rather than mere inspection events." },
+        { dimension: "Enumeration Intent", description: "Identify whether permission inspection is part of routine security hygiene or suspicious reconnaissance.", examples: ["scheduled inventory lambda", "manual developer query"], falsePositiveReduction: "Separates benign hygiene from curious or suspicious inspection." },
+        { dimension: "Approved Exception Catalog", description: "Maintain documented exceptions for intentionally public or cross-account shared snapshots.", examples: ["approved public golden image", "approved DR snapshot share"], falsePositiveReduction: "Keeps the posture control focused on true exposure issues." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should be treated as a posture and hunting control. Scheduled inventory should evaluate current snapshot exposure state across all owned snapshots, while DescribeSnapshotAttribute events provide visibility into who is enumerating permissions.",
+        conditions: ["scheduled inventory finds a snapshot with public access or unapproved external-account permissions, or CloudTrail shows DescribeSnapshotAttribute against createVolumePermission for monitoring or investigative visibility"],
+        tuningGuidance: "1. Do not treat DescribeSnapshotAttribute alone as proof of exposure. 2. Build a periodic inventory over all owned snapshots. 3. Separate posture findings from suspicious permission enumeration activity.",
+        whenToFire: "Fire posture findings when current exposure state is unsafe, and separately surface permission enumeration when the actor or timing is suspicious.",
+      },
+      simulationCommand: "aws ec2 describe-snapshot-attribute --snapshot-id snap-xxx --attribute createVolumePermission",
+      quality: {
+        signalQuality: 7,
+        falsePositiveRate: "Low for posture findings with exception catalogs; medium for raw enumeration visibility",
+        expectedVolume: "Low for posture exceptions, environment-dependent for inventory runs",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["Scheduled inventory jobs", "Config/custom compliance checks", "Athena or Splunk hunts", "EventBridge + Lambda for enumeration visibility"],
+        scheduling: "This should primarily run on a schedule because current exposure state may persist without new mutation events.",
+        considerations: ["Treat this as posture plus hunting, not a pure real-time detection.", "Exception management is essential."],
+      },
+    },
   },
   {
     id: "det-086",
-    title: "CopySnapshot of Public or External Snapshot",
-    description: "Detects suspicious copying of snapshots that are not local/private baseline snapshots. In the consumer/attacker account, CopySnapshot of external or unapproved-region source is a strong signal. Exclude expected DR/migration workflows.",
+    title: "CopySnapshot of External or Public Snapshot",
+    description: "Detects snapshot copy activity where the source snapshot is externally owned, publicly exposed, or otherwise outside the approved local backup and DR baseline. This should be driven by source ownership and sharing context, not just the presence of sourceSnapshotId.",
     awsService: "EC2",
     relatedServices: ["EBS"],
     severity: "High",
@@ -7020,12 +11276,9 @@ detection:
   selection:
     eventSource: ec2.amazonaws.com
     eventName: CopySnapshot
-  filter_external:
-    requestParameters.sourceRegion|exists: true
-    requestParameters.sourceSnapshotId|exists: true
-  condition: selection and filter_external
+  condition: selection
 level: high
-# Refine: exclude sourceRegion = local region and known DR account IDs.`,
+# High-confidence use requires source ownership, sharing state, and approved region/account context.`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com eventName=CopySnapshot
 | where isnotnull(requestParameters.sourceRegion) AND isnotnull(requestParameters.sourceSnapshotId)
 | eval source_region=requestParameters.sourceRegion
@@ -7042,16 +11295,95 @@ ORDER BY eventTime DESC`,
 | filter ispresent(requestParameters.sourceSnapshotId)
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["CopySnapshot"] } }, null, 2),
+      lambda: `"""
+CopySnapshot of External or Public Snapshot
+Trigger: EventBridge rule matching CopySnapshot.
+Use for: Real-time evaluation of source snapshot ownership and sharing context.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "CopySnapshot":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-source-snapshot-ownership-and-sharing-check",
+        "alert": {
+            "rule_id": "det-086",
+            "title": "CopySnapshot of External or Public Snapshot",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "source_snapshot_id": detail.get("requestParameters", {}).get("sourceSnapshotId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.sourceSnapshotId", "requestParameters.sourceRegion", "recipientAccountId", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "CopySnapshot", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::999999999999:user/attacker" }, requestParameters: { sourceSnapshotId: "snap-xxx", sourceRegion: "us-east-1", destinationRegion: "us-east-1" }, recipientAccountId: "999999999999", sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify source snapshot and source region/account.", "Verify if copy was authorized.", "Check if source is public or external account."],
-    testingSteps: ["Copy a snapshot from another region or account.", "Verify detection triggers."],
+    investigationSteps: ["Identify the source snapshot, source region, and source ownership context.", "Verify whether the source snapshot was public, externally shared, or part of an approved DR or migration workflow.", "Check whether the copied snapshot is later restored or attached within the consumer account."],
+    testingSteps: ["Copy a snapshot that originates from another account or from a publicly exposed source into a test consumer account.", "Verify CloudTrail captures `sourceSnapshotId`, source region, and destination context.", "Run the detection and confirm it keys on source ownership and sharing state rather than merely on the existence of sourceRegion."],
+    lifecycle: {
+      whyItMatters: "In the consumer account, copying an external or public snapshot is a strong signal that storage data is being pulled in from outside the normal local backup chain. This can represent theft, unauthorized reuse, or suspicious restore behavior.",
+      threatContext: {
+        attackerBehavior: "An attacker or unauthorized operator may copy a publicly exposed or externally shared snapshot into their own account for later restoration and analysis.",
+        realWorldUsage: "Snapshot copying is attractive because it turns exposed or shared storage into a local asset that can be restored and mounted without further access to the source account.",
+        whyItMatters: "The important signal is where the source snapshot came from and whether that lineage is approved, not simply that a snapshot copy occurred.",
+        riskAndImpact: "If missed, externally sourced disk data can be brought into the environment and prepared for offline access under the cover of a normal EC2 storage operation.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "Source snapshot ownership and sharing inventory", "Approved DR and migration account or region allowlists"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.sourceSnapshotId", "requestParameters.sourceRegion", "requestParameters.destinationRegion", "recipientAccountId", "sourceIPAddress"],
+        loggingRequirements: ["CopySnapshot events must be ingested with source and destination context.", "The platform should know whether the source snapshot is self-owned, org-owned, shared, or public.", "Approved region-pair and source-account baselines should be maintained."],
+        limitations: ["SourceSnapshotId alone does not prove public or external origin.", "Many legitimate DR and migration workflows copy snapshots across regions or accounts.", "Without source ownership enrichment this rule can be noisy."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.sourceSnapshotId", normalizedPath: "aws.ebs.snapshot.source_id", notes: "Original snapshot being copied" },
+          { rawPath: "requestParameters.sourceRegion", normalizedPath: "aws.region.source", notes: "Source region of the copied snapshot" },
+          { rawPath: "requestParameters.destinationRegion", normalizedPath: "aws.region.destination", notes: "Destination region for the copied snapshot" },
+          { rawPath: "recipientAccountId", normalizedPath: "cloud.account.id", notes: "Consumer account receiving the copied snapshot" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["storage"], type: ["creation"], action: "CopySnapshot", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::999999999999:user/attacker", type: "IAMUser" },
+          aws: { ebs: { snapshot: { source_id: "snap-xxx" } }, region: { source: "us-east-1", destination: "us-east-1" } },
+          cloud: { account: { id: "999999999999" } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Source Snapshot Ownership", description: "Determine whether the source snapshot is self-owned, organization-owned, third-party shared, or public.", examples: ["public source snapshot", "approved DR account snapshot"], falsePositiveReduction: "Separates expected internal copy workflows from suspicious external ingestion." },
+        { dimension: "Approved Region and Account Baseline", description: "Model approved region pairs and source accounts for copy operations.", examples: ["us-east-1 to us-west-2 DR copy", "unexpected public snapshot import"], falsePositiveReduction: "Reduces noise from legitimate migration or DR activity." },
+        { dimension: "Follow-On Restore Behavior", description: "Track whether the copied snapshot is later restored into a volume or attached to compute.", examples: ["CreateVolume after copy", "AttachVolume to analysis host"], falsePositiveReduction: "Raises confidence when the external copy moves toward access." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should alert when CopySnapshot pulls data from a source snapshot that is public, externally owned, or otherwise outside the approved storage-copy baseline. The strongest implementation enriches the source snapshot with ownership and sharing state before deciding risk.",
+        conditions: ["eventSource equals ec2.amazonaws.com", "eventName equals CopySnapshot", "source snapshot is public, externally owned, or outside approved region or account baselines"],
+        tuningGuidance: "1. Do not rely on sourceRegion presence alone. 2. Build ownership and public-share context for the source snapshot. 3. Escalate when the copied snapshot is later restored or attached in the consumer account.",
+        whenToFire: "Fire when CopySnapshot ingests an unapproved external or public snapshot into the environment.",
+      },
+      simulationCommand: "aws ec2 copy-snapshot --source-region us-east-1 --source-snapshot-id snap-xxx --description 'external copy'",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with source ownership and region/account baselines; high with simple sourceSnapshotId presence checks",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with ownership lookups", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because copied snapshots are often restored shortly afterward.",
+        considerations: ["This is the consumer-account companion to owner-side snapshot exposure detections.", "Source ownership enrichment is the critical dependency."],
+      },
+    },
   },
   {
     id: "det-087",
-    title: "Public Snapshot Loot Chain",
-    description: "Detects copy + volume creation + attach sequence in the consumer account. CopySnapshot → CreateVolume from copied snapshot → AttachVolume. High-confidence public snapshot loot detection.",
+    title: "External Snapshot Copy Followed by Volume Rehydration",
+    description: "Detects a consumer-account storage theft workflow where an externally sourced or public snapshot is copied, restored into a volume, and then optionally attached. This should be modeled using explicit snapshot-to-volume lineage rather than actor-only time windows.",
     awsService: "EC2",
     relatedServices: ["EBS"],
     severity: "Critical",
@@ -7072,9 +11404,9 @@ detection:
     eventName:
       - CreateVolume
       - AttachVolume
-  condition: 1 of selection_*
+  condition: selection_copy
 level: critical
-# Full chain correlation requires SIEM.`,
+# Full chain correlation requires sourceSnapshotId, derived snapshot/volume lineage, and ordered stage progression.`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com (eventName=CopySnapshot OR eventName=CreateVolume OR eventName=AttachVolume)
 | eval actor=userIdentity.arn
 | eval is_copy=if(eventName="CopySnapshot", 1, 0)
@@ -7083,18 +11415,18 @@ level: critical
 | where mvcount(mvfilter(is_copy=1))>0 AND mvcount(mvfilter(is_volume=1))>0
 | table _time, actor, eventName, requestParameters.sourceSnapshotId, requestParameters.snapshotId`,
       cloudtrail: `WITH copy_evt AS (
-  SELECT userIdentity.arn AS actor, eventTime AS copy_time, requestParameters.sourceSnapshotId AS source_snap
+  SELECT userIdentity.arn AS actor, eventTime AS copy_time, requestParameters.sourceSnapshotId AS source_snap, requestParameters.snapshotId AS copied_snap
   FROM cloudtrail_logs
   WHERE eventSource = 'ec2.amazonaws.com'
     AND eventName = 'CopySnapshot'
 ),
 volume_evt AS (
-  SELECT userIdentity.arn AS actor, eventTime AS vol_time, eventName
+  SELECT userIdentity.arn AS actor, eventTime AS vol_time, eventName, requestParameters.snapshotId AS snapshot_id, requestParameters.volumeId AS volume_id
   FROM cloudtrail_logs
   WHERE eventSource = 'ec2.amazonaws.com'
     AND eventName IN ('CreateVolume', 'AttachVolume')
 )
-SELECT c.actor, c.copy_time, v.vol_time, v.eventName
+SELECT c.actor, c.copy_time, c.source_snap, c.copied_snap, v.vol_time, v.eventName, v.snapshot_id, v.volume_id
 FROM copy_evt c
 JOIN volume_evt v ON c.actor = v.actor
   AND v.vol_time > c.copy_time
@@ -7107,18 +11439,96 @@ ORDER BY c.copy_time DESC`,
 | filter cnt >= 2
 | sort cnt desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2.amazonaws.com"], eventName: ["CopySnapshot", "CreateVolume", "AttachVolume"] } }, null, 2),
+      lambda: `"""
+External Snapshot Copy Followed by Volume Rehydration
+Trigger: EventBridge rule matching CopySnapshot, CreateVolume, and AttachVolume.
+Use for: Stateful lineage correlation from copied snapshot to restored or attached volume.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") not in {"CopySnapshot", "CreateVolume", "AttachVolume"}:
+        return {"matched": False}
+
+    return {
+        "matched": "requires-copy-to-volume-lineage-correlation",
+        "alert": {
+            "rule_id": "det-087",
+            "title": "External Snapshot Copy Followed by Volume Rehydration",
+            "severity": "Critical",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "event_name": detail.get("eventName"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.sourceSnapshotId", "requestParameters.snapshotId", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2.amazonaws.com", eventName: "CopySnapshot", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::999999999999:user/attacker" }, requestParameters: { sourceSnapshotId: "snap-xxx", sourceRegion: "us-east-1" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify CopySnapshot → CreateVolume → AttachVolume sequence.", "Verify if workflow was authorized.", "Check source snapshot ownership and public status."],
-    testingSteps: ["Copy public snapshot, CreateVolume, AttachVolume.", "Run Splunk or Athena correlation query."],
+    investigationSteps: ["Trace the source snapshot through CopySnapshot into any created volume and later attachment.", "Verify whether the source snapshot was public or externally shared and whether the restore path was approved.", "Check which instance received the attached volume and whether it functions as an analysis or staging host."],
+    testingSteps: ["Copy a public or externally shared snapshot into a test account, create a volume from the copied snapshot, and attach it to an instance.", "Verify CloudTrail records the source snapshot ID, copied snapshot, and derived volume context.", "Run the detector and confirm it requires ordered lineage rather than just multiple storage actions by one actor."],
+    lifecycle: {
+      whyItMatters: "This is the high-confidence consumer-account storage theft chain. A copied external snapshot becomes much more suspicious when it is restored into a volume and moved toward live access.",
+      threatContext: {
+        attackerBehavior: "An attacker may copy a public or externally shared snapshot into their account, create a volume from it, and attach that volume to an instance for offline browsing or credential extraction.",
+        realWorldUsage: "This is one of the most practical storage-loot workflows because it converts a remote snapshot into a mounted disk that can be examined locally.",
+        whyItMatters: "The strongest signal is the ordered lineage from copied snapshot to restored volume and attachment, not just that the same user performed multiple APIs.",
+        riskAndImpact: "If missed, stolen snapshot data can be fully rehydrated and mounted without defenders recognizing the chain from exposure to access.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2", "Snapshot and volume lineage inventory"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.sourceSnapshotId", "requestParameters.snapshotId", "requestParameters.volumeId", "sourceIPAddress"],
+        loggingRequirements: ["CopySnapshot, CreateVolume, and AttachVolume events must all be ingested.", "The detector must carry lineage from the copied snapshot to the created volume and any later attachment.", "Source snapshot ownership or public-share state should be known before promoting severity."],
+        limitations: ["Actor-only joins are weak for this workflow.", "AttachVolume alone does not prove lineage unless a prior CreateVolume is linked.", "Legitimate DR restores can resemble the same pattern without good allowlists."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.sourceSnapshotId", normalizedPath: "aws.ebs.snapshot.source_id", notes: "Original external or public snapshot being copied" },
+          { rawPath: "requestParameters.snapshotId", normalizedPath: "aws.ebs.snapshot.id", notes: "Copied snapshot or restore lineage reference" },
+          { rawPath: "requestParameters.volumeId", normalizedPath: "aws.ebs.volume.id", notes: "Derived restored volume" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor performing the copy or restore sequence" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["storage"], type: ["creation"], action: "CopySnapshot", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::999999999999:user/attacker", type: "IAMUser" },
+          aws: { ebs: { snapshot: { source_id: "snap-xxx", id: "snap-copied-123" }, volume: { id: "vol-restored-123" } } },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Copy-to-Volume Lineage", description: "Track the copied snapshot into CreateVolume and any later AttachVolume stages.", examples: ["snap-xxx -> snap-copied-123 -> vol-restored-123"], falsePositiveReduction: "Separates true rehydration from unrelated storage operations." },
+        { dimension: "Source Snapshot Exposure State", description: "Confirm whether the source snapshot was public, externally shared, or otherwise outside approved ownership.", examples: ["public source snapshot", "approved shared DR snapshot"], falsePositiveReduction: "Ensures the consumer-account chain starts from a suspicious source." },
+        { dimension: "Destination Host Context", description: "Identify the instance that receives the restored volume and its likely role.", examples: ["analysis host", "prod workload", "temporary staging instance"], falsePositiveReduction: "Improves triage once the copied data reaches live compute." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should model a consumer-account restore chain: an external or public snapshot is copied, then a volume is created from that lineage, and optionally attached to a host. The detector should require explicit lineage between the copied snapshot and the restored volume before firing at critical severity.",
+        conditions: ["first eventName equals CopySnapshot for an external or public source snapshot", "second eventName equals CreateVolume over the copied snapshot lineage", "optional third stage equals AttachVolume of the derived volume", "stages occur within a short operational window"],
+        tuningGuidance: "1. Require lineage from source snapshot to copied snapshot to created volume. 2. Do not rely on actor-only grouping. 3. Escalate further when the restored volume is attached to a live host or the source data is sensitive.",
+        whenToFire: "Fire when an external or public snapshot is copied and then rehydrated into a volume, especially when that volume is attached for access.",
+      },
+      simulationCommand: "aws ec2 copy-snapshot --source-region us-east-1 --source-snapshot-id snap-xxx --description 'loot-chain-test'",
+      quality: {
+        signalQuality: 9,
+        falsePositiveRate: "Low-Medium with lineage tracking and approved-workflow allowlists; high with actor-only correlation",
+        expectedVolume: "Very low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["SIEM correlation engines", "Athena with storage lineage joins", "Panther / Chronicle / Datadog", "EventBridge + Lambda with temporary state"],
+        scheduling: "Near-real-time is preferred because copied snapshots are often restored quickly.",
+        considerations: ["This is one of the strongest consumer-account storage theft detections in the dataset.", "Lineage is the critical implementation dependency."],
+      },
+    },
   },
 
   // --- EC2 Instance Connect ---
   {
     id: "det-088",
     title: "EC2 Instance Connect Key Push",
-    description: "Baseline visibility for use of EC2 Instance Connect. SendSSHPublicKey can be legitimate troubleshooting/admin behavior but should be tracked because it creates SSH access. The temporary key lasts about 60 seconds.",
+    description: "Baseline visibility for EC2 Instance Connect use. `SendSSHPublicKey` is often legitimate for troubleshooting, but it represents an explicit short-lived SSH access grant and should be treated as interactive host-access telemetry rather than generic administration noise.",
     awsService: "EC2",
     relatedServices: [],
     severity: "Medium",
@@ -7148,16 +11558,95 @@ ORDER BY eventTime DESC`,
 | filter eventName = "SendSSHPublicKey"
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2-instance-connect"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2-instance-connect.amazonaws.com"], eventName: ["SendSSHPublicKey"] } }, null, 2),
+      lambda: `"""
+EC2 Instance Connect Key Push
+Trigger: EventBridge rule matching SendSSHPublicKey.
+Use for: Baseline visibility into EC2 Instance Connect access grants.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2-instance-connect.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "SendSSHPublicKey":
+        return {"matched": False}
+
+    return {
+        "matched": True,
+        "alert": {
+            "rule_id": "det-088",
+            "title": "EC2 Instance Connect Key Push",
+            "severity": "Medium",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "instance_id": detail.get("requestParameters", {}).get("instanceId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2-instance-connect.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.instanceId", "sourceIPAddress", "userAgent", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2-instance-connect.amazonaws.com", eventName: "SendSSHPublicKey", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/admin" }, requestParameters: { instanceId: "i-0abc123" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor and target instance.", "Verify if key push was authorized.", "Check sourceIPAddress and userAgent."],
-    testingSteps: ["Call SendSSHPublicKey.", "Verify CloudTrail captures the event.", "Run the detection."],
+    investigationSteps: ["Identify the actor, source IP, and target instance associated with the key push.", "Determine whether the instance normally permits EC2 Instance Connect and whether the actor is expected to use it.", "Check for follow-on login, secrets access, or other interactive-access indicators after the key push."],
+    testingSteps: ["Use `aws ec2-instance-connect send-ssh-public-key` against a test instance.", "Verify CloudTrail captures the target instance and actor context.", "Run the baseline rule and confirm it records the access grant without overfitting to admin role names."],
+    lifecycle: {
+      whyItMatters: "EC2 Instance Connect is a direct interactive access path to Linux instances. Even though the key is short-lived, the control-plane event is an important signal that an operator intentionally opened SSH access to a specific host.",
+      threatContext: {
+        attackerBehavior: "An attacker with the necessary permissions may push a temporary SSH key to a target instance to gain shell access without modifying long-term authorized keys.",
+        realWorldUsage: "This technique is attractive because it uses a native AWS feature and produces a concise control-plane event before hands-on-keyboard access.",
+        whyItMatters: "As with SSM, the control-plane access event is often the best high-fidelity precursor to later host or cloud abuse.",
+        riskAndImpact: "If missed, defenders may lose the clearest evidence that a temporary interactive access path was established to a workload.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2 Instance Connect", "EC2 inventory and instance tags"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.instanceId", "sourceIPAddress", "userAgent"],
+        loggingRequirements: ["CloudTrail must ingest SendSSHPublicKey events.", "The environment should resolve target instance ownership and sensitivity from EC2 inventory.", "Actor identity should be normalized across direct IAM users and assumed roles."],
+        limitations: ["CloudTrail shows the key push but not whether SSH login succeeded.", "The temporary key lifetime is short, so the event alone does not indicate persistence.", "Baseline volumes vary depending on how heavily EC2 Instance Connect is used operationally."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Primary actor requesting the key push" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role for assumed-role sessions" },
+          { rawPath: "requestParameters.instanceId", normalizedPath: "cloud.instance.id", notes: "Target instance receiving the SSH key" },
+          { rawPath: "sourceIPAddress", normalizedPath: "source.ip", notes: "Source IP of the operator" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["authentication"], type: ["start"], action: "SendSSHPublicKey", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/admin", type: "IAMUser" },
+          cloud: { instance: { id: "i-0abc123" } },
+          source: { ip: "203.0.113.10" },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Actor Authorization", description: "Determine whether the actor is expected to perform EC2 Instance Connect operations.", examples: ["platform engineer", "application role"], falsePositiveReduction: "Turns baseline visibility into stronger actor-based detections." },
+        { dimension: "Target Instance Context", description: "Resolve the target instance to environment, owner, and sensitivity.", examples: ["prod bastion", "ephemeral dev host"], falsePositiveReduction: "Improves triage when access targets important systems." },
+        { dimension: "Follow-On Access Signals", description: "Correlate the key push with later cloud or host-access activity.", examples: ["Secrets Manager access", "SSM session", "sensitive API use"], falsePositiveReduction: "Helps determine whether the key push led to suspicious operator behavior." },
+      ],
+      logicExplanation: {
+        humanReadable: "This should remain a broad visibility rule for every successful `SendSSHPublicKey` event. It establishes the interactive access baseline that higher-fidelity actor, target, and post-access detections depend on.",
+        conditions: ["eventSource equals ec2-instance-connect.amazonaws.com", "eventName equals SendSSHPublicKey", "errorCode is absent"],
+        tuningGuidance: "1. Keep this baseline broad. 2. Resolve actor and target context for triage. 3. Use separate detections for unauthorized actors, sensitive targets, and short-window post-access activity.",
+        whenToFire: "Fire on every successful EC2 Instance Connect key push for visibility.",
+      },
+      simulationCommand: "aws ec2-instance-connect send-ssh-public-key --instance-id i-0abc123 --instance-os-user ec2-user --ssh-public-key file://id_rsa.pub --availability-zone us-east-1a",
+      quality: {
+        signalQuality: 6,
+        falsePositiveRate: "Medium as a baseline visibility rule, low-medium with actor and target enrichment",
+        expectedVolume: "Environment-dependent",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda", "Athena", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is useful because interactive access is immediately actionable.",
+        considerations: ["This is the feeder rule for stronger EC2 Instance Connect detections.", "Instance inventory is the primary enrichment dependency."],
+      },
+    },
   },
   {
     id: "det-089",
-    title: "EC2 Instance Connect by Unexpected Actor",
-    description: "Detects SendSSHPublicKey by identities that normally should not perform interactive host access. Suspicious actors include IAM users outside ops/platform roles, application roles, and unusual assumed roles.",
+    title: "EC2 Instance Connect Outside Authorized Interactive Access Path",
+    description: "Detects `SendSSHPublicKey` from identities outside approved EC2 interactive-access workflows. This should rely on explicit actor authorization and session provenance, not role-name or username substring filtering.",
     awsService: "EC2",
     relatedServices: [],
     severity: "High",
@@ -7173,18 +11662,7 @@ detection:
   selection:
     eventSource: ec2-instance-connect.amazonaws.com
     eventName: SendSSHPublicKey
-  filter_known:
-    userIdentity.arn|contains:
-      - '/role/Admin'
-      - '/role/Platform'
-      - '/role/Ops'
-      - '/role/DevOps'
-      - '/user/admin'
-    userIdentity.sessionContext.sessionIssuer.arn|contains:
-      - '/role/Admin'
-      - '/role/Platform'
-      - '/role/Ops'
-  condition: selection and not filter_known
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2-instance-connect.amazonaws.com eventName=SendSSHPublicKey
 | where NOT (like(userIdentity.arn, "%/role/Admin%") OR like(userIdentity.arn, "%/role/Platform%") OR like(userIdentity.arn, "%/role/Ops%") OR like(userIdentity.arn, "%/role/DevOps%") OR like(userIdentity.arn, "%/user/admin%") OR like(userIdentity.sessionContext.sessionIssuer.arn, "%/role/Admin%") OR like(userIdentity.sessionContext.sessionIssuer.arn, "%/role/Platform%") OR like(userIdentity.sessionContext.sessionIssuer.arn, "%/role/Ops%"))
@@ -7203,19 +11681,97 @@ ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, requestParameters.instanceId, sourceIPAddress
 | filter eventSource = "ec2-instance-connect.amazonaws.com"
 | filter eventName = "SendSSHPublicKey"
-| filter userIdentity.arn not like /\\/role\\/(Admin|Platform|Ops|DevOps)/ and userIdentity.arn not like /\\/user\\/admin/
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2-instance-connect"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2-instance-connect.amazonaws.com"], eventName: ["SendSSHPublicKey"] } }, null, 2),
+      lambda: `"""
+EC2 Instance Connect Outside Authorized Interactive Access Path
+Trigger: EventBridge rule matching SendSSHPublicKey.
+Use for: Real-time authorization checks for EC2 interactive access.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2-instance-connect.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "SendSSHPublicKey":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-authorized-instance-connect-actor-check",
+        "alert": {
+            "rule_id": "det-089",
+            "title": "EC2 Instance Connect Outside Authorized Interactive Access Path",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "instance_id": detail.get("requestParameters", {}).get("instanceId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2-instance-connect.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.instanceId", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2-instance-connect.amazonaws.com", eventName: "SendSSHPublicKey", userIdentity: { type: "AssumedRole", arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session" }, requestParameters: { instanceId: "i-0abc123" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the actor type and ARN.", "Verify if this identity is authorized for Instance Connect.", "Update allowlist if legitimate."],
-    testingSteps: ["As a non-ops role, call SendSSHPublicKey.", "Verify detection triggers."],
+    investigationSteps: ["Identify the direct actor, session issuer, and any workflow provenance behind the key push.", "Verify whether this identity is explicitly approved for EC2 Instance Connect on the target environment or workload class.", "Determine whether the access came from a known helpdesk, break-glass, or infrastructure workflow or from an unexpected principal."],
+    testingSteps: ["As a non-approved identity, call `SendSSHPublicKey` against a monitored test instance.", "Verify CloudTrail captures the actor and session-issuer fields required for authorization checks.", "Run the detection and confirm it relies on explicit principal inventories rather than name-based allowlists."],
+    lifecycle: {
+      whyItMatters: "Only a limited set of identities should open interactive access to EC2 instances. When an unapproved actor uses EC2 Instance Connect, the event is a strong signal of abuse or control-plane misuse.",
+      threatContext: {
+        attackerBehavior: "An attacker operating through a compromised IAM user, assumed role, or workload principal may use EC2 Instance Connect to gain shell access to a target instance.",
+        realWorldUsage: "Instance Connect is attractive because it grants short-lived SSH access without persisting keys on the instance and produces only a small control-plane footprint.",
+        whyItMatters: "Authorization context matters more than whether a role name contains admin-like words.",
+        riskAndImpact: "If missed, unauthorized operators can gain interactive access to hosts under the cover of a legitimate AWS feature.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2 Instance Connect", "Authorized interactive-access principal inventory", "EC2 inventory and environment ownership"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.type", "userIdentity.arn", "userIdentity.sessionContext.sessionIssuer.arn", "requestParameters.instanceId", "sourceIPAddress"],
+        loggingRequirements: ["SendSSHPublicKey events must be ingested with full userIdentity context.", "The environment should maintain exact principals approved for EC2 interactive access.", "Actor-to-environment or actor-to-instance scope should be resolvable."],
+        limitations: ["Without principal inventories the rule degrades into weak anomaly detection.", "Legitimate emergency or break-glass access paths must be modeled explicitly.", "The event does not prove that the SSH session succeeded."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Primary actor requesting interactive access" },
+          { rawPath: "userIdentity.sessionContext.sessionIssuer.arn", normalizedPath: "aws.identity.session_issuer.arn", notes: "Underlying role or identity source" },
+          { rawPath: "requestParameters.instanceId", normalizedPath: "cloud.instance.id", notes: "Target instance for EC2 Instance Connect" },
+          { rawPath: "sourceIPAddress", normalizedPath: "source.ip", notes: "Originating source address of the actor" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["authentication"], type: ["start"], action: "SendSSHPublicKey", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:sts::123456789012:assumed-role/AppRole/session", type: "AssumedRole" },
+          cloud: { instance: { id: "i-0abc123" } },
+          source: { ip: "203.0.113.10" },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Authorized Interactive-Access Actors", description: "Exact inventory of identities allowed to use EC2 Instance Connect for each environment or workload set.", examples: ["platform engineer role", "approved helpdesk workflow"], falsePositiveReduction: "Replaces brittle role-name substring matching." },
+        { dimension: "Session Provenance", description: "Determine whether the actor arrived through an approved broker, federated workflow, or break-glass mechanism.", examples: ["SSO ops role", "unexplained app-role session"], falsePositiveReduction: "Explains whether the access path itself is trusted." },
+        { dimension: "Target Scope", description: "Model which hosts or environments each approved actor may access.", examples: ["dev fleet only", "prod bastions only"], falsePositiveReduction: "Stops broad allowlists from masking unauthorized target access." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect EC2 Instance Connect activity outside approved interactive-access workflows. It should match `SendSSHPublicKey`, resolve the actor and session provenance, and then check whether that principal is explicitly allowed to use EC2 Instance Connect against the target environment or workload scope.",
+        conditions: ["eventSource equals ec2-instance-connect.amazonaws.com", "eventName equals SendSSHPublicKey", "actor is not in the approved interactive-access inventory or actor is outside approved target scope or request lacks approved workflow provenance"],
+        tuningGuidance: "1. Use exact ARNs and principal IDs where possible. 2. Model actor-to-environment scope, not just global allowlists. 3. Treat break-glass access as a separate approved path with auditing requirements.",
+        whenToFire: "Fire when EC2 Instance Connect is used by an identity outside approved interactive-access paths.",
+      },
+      simulationCommand: "aws ec2-instance-connect send-ssh-public-key --instance-id i-0abc123 --instance-os-user ec2-user --ssh-public-key file://id_rsa.pub --availability-zone us-east-1a --profile dev-user",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with actor inventories and scope controls; high with role-name heuristics",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with actor and asset inventories", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because unauthorized interactive access is immediately actionable.",
+        considerations: ["This is the actor-centric EC2 Instance Connect detector.", "Principal inventory and scope modeling are the main dependencies."],
+      },
+    },
   },
   {
     id: "det-090",
-    title: "EC2 Instance Connect Key Push to Sensitive Target",
-    description: "Detects key push to sensitive or unusual instances: privileged, production, domain, secrets, bastion, or other sensitive patterns.",
+    title: "EC2 Instance Connect to Sensitive Target",
+    description: "Detects EC2 Instance Connect access to targets classified as sensitive, such as production, identity, secrets, or privileged infrastructure. This should depend on resolved asset classification, not instance ID substring matching.",
     awsService: "EC2",
     relatedServices: [],
     severity: "High",
@@ -7231,18 +11787,7 @@ detection:
   selection:
     eventSource: ec2-instance-connect.amazonaws.com
     eventName: SendSSHPublicKey
-  filter_target:
-    requestParameters.instanceId|contains:
-      - 'prod'
-      - 'Prod'
-      - 'production'
-      - 'dc'
-      - 'domain'
-      - 'bastion'
-      - 'secrets'
-      - 'breakglass'
-      - 'privileged'
-  condition: selection and filter_target
+  condition: selection
 level: high`,
       splunk: `index=aws sourcetype=aws:cloudtrail eventSource=ec2-instance-connect.amazonaws.com eventName=SendSSHPublicKey
 | where like(requestParameters.instanceId, "%prod%") OR like(requestParameters.instanceId, "%Prod%") OR like(requestParameters.instanceId, "%production%") OR like(requestParameters.instanceId, "%dc%") OR like(requestParameters.instanceId, "%domain%") OR like(requestParameters.instanceId, "%bastion%") OR like(requestParameters.instanceId, "%secrets%") OR like(requestParameters.instanceId, "%breakglass%") OR like(requestParameters.instanceId, "%privileged%")
@@ -7251,19 +11796,96 @@ level: high`,
 FROM cloudtrail_logs
 WHERE eventSource = 'ec2-instance-connect.amazonaws.com'
   AND eventName = 'SendSSHPublicKey'
-  AND (requestParameters.instanceId LIKE '%prod%' OR requestParameters.instanceId LIKE '%Prod%' OR requestParameters.instanceId LIKE '%production%' OR requestParameters.instanceId LIKE '%dc%' OR requestParameters.instanceId LIKE '%domain%' OR requestParameters.instanceId LIKE '%bastion%' OR requestParameters.instanceId LIKE '%secrets%' OR requestParameters.instanceId LIKE '%breakglass%' OR requestParameters.instanceId LIKE '%privileged%')
 ORDER BY eventTime DESC`,
       cloudwatch: `fields @timestamp, userIdentity.arn, requestParameters.instanceId, sourceIPAddress
 | filter eventSource = "ec2-instance-connect.amazonaws.com"
 | filter eventName = "SendSSHPublicKey"
-| filter requestParameters.instanceId like /prod|dc|domain|bastion|secrets|breakglass|privileged/i
 | sort @timestamp desc`,
       eventbridge: JSON.stringify({ source: ["aws.ec2-instance-connect"], "detail-type": ["AWS API Call via CloudTrail"], detail: { eventSource: ["ec2-instance-connect.amazonaws.com"], eventName: ["SendSSHPublicKey"] } }, null, 2),
+      lambda: `"""
+EC2 Instance Connect to Sensitive Target
+Trigger: EventBridge rule matching SendSSHPublicKey.
+Use for: Real-time target classification checks for EC2 interactive access.
+"""
+
+def lambda_handler(event, context):
+    detail = event.get("detail", {})
+    if detail.get("eventSource") != "ec2-instance-connect.amazonaws.com":
+        return {"matched": False}
+    if detail.get("eventName") != "SendSSHPublicKey":
+        return {"matched": False}
+
+    return {
+        "matched": "requires-sensitive-target-classification-check",
+        "alert": {
+            "rule_id": "det-090",
+            "title": "EC2 Instance Connect to Sensitive Target",
+            "severity": "High",
+            "actor": detail.get("userIdentity", {}).get("arn"),
+            "instance_id": detail.get("requestParameters", {}).get("instanceId"),
+            "event_time": detail.get("eventTime"),
+        },
+    }
+`,
     },
     relatedAttackSlugs: [],
     telemetry: { primaryLogSource: "AWS CloudTrail", generatingService: "ec2-instance-connect.amazonaws.com", importantFields: ["eventSource", "eventName", "userIdentity.arn", "requestParameters.instanceId", "sourceIPAddress", "eventTime"], exampleEvent: JSON.stringify({ eventVersion: "1.08", eventSource: "ec2-instance-connect.amazonaws.com", eventName: "SendSSHPublicKey", userIdentity: { type: "IAMUser", arn: "arn:aws:iam::123456789012:user/dev" }, requestParameters: { instanceId: "i-prod-db-0abc123" }, sourceIPAddress: "203.0.113.10", eventTime: "2025-02-10T12:45:00Z" }, null, 2) },
-    investigationSteps: ["Identify the target instance and its sensitivity.", "Verify if key push was authorized.", "Cross-reference with instance tags if available."],
-    testingSteps: ["Push key to an instance with 'prod' in its identifier.", "Verify detection triggers."],
+    investigationSteps: ["Resolve the target instance to its environment, owner, and sensitivity classification.", "Verify whether the actor was approved to access that class of target via EC2 Instance Connect.", "Review whether later cloud or host activity followed the interactive access on the sensitive system."],
+    testingSteps: ["Push a test key to an instance that is classified as sensitive in inventory, such as a bastion or production database host.", "Verify CloudTrail records the target instance ID and actor context.", "Run the detection and confirm it keys on asset classification rather than the text of the instance identifier."],
+    lifecycle: {
+      whyItMatters: "Interactive access to sensitive hosts carries much higher risk than access to ordinary development systems. Even legitimate operators should be tightly scoped when using EC2 Instance Connect on critical infrastructure.",
+      threatContext: {
+        attackerBehavior: "An attacker may target bastions, identity infrastructure, secrets hosts, or production systems using EC2 Instance Connect to obtain privileged shell access.",
+        realWorldUsage: "Sensitive infrastructure is the natural target for cloud interactive-access abuse because these hosts often provide credentials, trust paths, or direct access to crown-jewel data.",
+        whyItMatters: "The real signal comes from what the instance is, not whether its instance ID or name happens to contain a keyword.",
+        riskAndImpact: "If missed, unauthorized interactive access to high-value infrastructure can lead directly to credential theft, lateral movement, or service disruption.",
+      },
+      telemetryValidation: {
+        requiredLogSources: ["AWS CloudTrail management events for EC2 Instance Connect", "EC2 asset inventory and sensitivity classification"],
+        requiredFields: ["eventSource", "eventName", "eventTime", "userIdentity.arn", "requestParameters.instanceId", "sourceIPAddress", "userAgent"],
+        loggingRequirements: ["SendSSHPublicKey events must be ingested with target instance context.", "The environment should maintain sensitivity or workload classification for EC2 instances.", "Instance-to-environment and owner metadata should be accessible during enrichment."],
+        limitations: ["Without asset inventory the rule cannot reliably determine target sensitivity.", "CloudTrail does not prove whether SSH login succeeded after the key push.", "Some sensitive hosts may legitimately receive frequent interactive access from tightly controlled teams."],
+      },
+      dataModeling: {
+        rawToNormalized: [
+          { rawPath: "requestParameters.instanceId", normalizedPath: "cloud.instance.id", notes: "Target instance receiving the key push" },
+          { rawPath: "enrichment.instanceSensitivity", normalizedPath: "cloud.instance.sensitivity", notes: "Resolved criticality or workload classification" },
+          { rawPath: "userIdentity.arn", normalizedPath: "user.arn", notes: "Actor opening interactive access" },
+          { rawPath: "sourceIPAddress", normalizedPath: "source.ip", notes: "Source IP of the access request" },
+        ],
+        exampleNormalizedEvent: JSON.stringify({
+          "@timestamp": "2025-02-10T12:45:00Z",
+          event: { category: ["authentication"], type: ["start"], action: "SendSSHPublicKey", outcome: "success", provider: "aws" },
+          user: { arn: "arn:aws:iam::123456789012:user/dev", type: "IAMUser" },
+          cloud: { instance: { id: "i-0abc123", sensitivity: "production_bastion" } },
+          source: { ip: "203.0.113.10" },
+        }, null, 2),
+      },
+      enrichment: [
+        { dimension: "Target Sensitivity Classification", description: "Resolve whether the target instance is production, identity infrastructure, secrets-facing, break-glass, or otherwise privileged.", examples: ["production bastion", "directory services host", "secrets broker"], falsePositiveReduction: "Replaces meaningless instance-ID keyword filters with real asset context." },
+        { dimension: "Actor-to-Target Authorization", description: "Determine whether the actor is allowed to access that class of sensitive host.", examples: ["prod SRE only", "developer outside prod scope"], falsePositiveReduction: "Explains whether sensitive-host access is expected or suspicious." },
+        { dimension: "Operational Context", description: "Correlate maintenance windows, incident-response workflows, and break-glass procedures.", examples: ["planned maintenance", "untracked out-of-band access"], falsePositiveReduction: "Prevents authorized emergency operations from generating unnecessary escalations." },
+      ],
+      logicExplanation: {
+        humanReadable: "This rule should detect EC2 Instance Connect access to hosts classified as sensitive. The detector should resolve the target instance from inventory, determine its criticality, and then alert when interactive access is opened on that class of system.",
+        conditions: ["eventSource equals ec2-instance-connect.amazonaws.com", "eventName equals SendSSHPublicKey", "target instance is classified as sensitive or privileged", "optionally escalate further when actor is outside approved scope for that target class"],
+        tuningGuidance: "1. Classify targets through asset inventory, not name substrings. 2. Pair target sensitivity with actor scope to prioritize correctly. 3. Escalate strongly for production, identity, secrets, and break-glass infrastructure.",
+        whenToFire: "Fire when EC2 Instance Connect is used against a sensitive target, especially when the actor is not approved for that host class.",
+      },
+      simulationCommand: "aws ec2-instance-connect send-ssh-public-key --instance-id i-0abc123 --instance-os-user ec2-user --ssh-public-key file://id_rsa.pub --availability-zone us-east-1a",
+      quality: {
+        signalQuality: 8,
+        falsePositiveRate: "Low-Medium with accurate asset classification and access scope modeling; high with instance-name heuristics",
+        expectedVolume: "Low",
+        productionReadiness: "validated",
+      },
+      communityConfidence: { accurate: 0, needsTuning: 0, noisy: 0 },
+      deployment: {
+        whereItRuns: ["EventBridge + Lambda enrichment", "Athena with asset inventory joins", "Splunk", "Panther / Chronicle / Datadog"],
+        scheduling: "Real-time is preferred because sensitive-host access is immediately actionable.",
+        considerations: ["This is the target-centric EC2 Instance Connect detector.", "Asset classification is the main dependency."],
+      },
+    },
   },
   {
     id: "det-091",
