@@ -317,16 +317,16 @@ export default function CloudTrailAnalyzer() {
                 <CardTitle className="text-base">File Upload</CardTitle>
                 <p className="text-sm text-muted-foreground">
                   Upload CloudTrail log files or larger datasets. Supports single events, JSON arrays, `Records` bundles,
-                  `.jsonl`, and `.ndjson` up to 50MB.
+                  `.jsonl`, `.ndjson`, and `.csv` up to 50MB.
                 </p>
               </CardHeader>
               <CardContent>
                 <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer border-muted-foreground/25 hover:border-muted-foreground/50 transition-colors">
                   <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                  <span className="text-sm text-muted-foreground">Click or drag `.json`, `.jsonl`, or `.ndjson` file</span>
+                  <span className="text-sm text-muted-foreground">Click or drag `.json`, `.jsonl`, `.ndjson`, or `.csv` file</span>
                   <input
                     type="file"
-                    accept=".json,application/json,.jsonl,.ndjson"
+                    accept=".json,application/json,.jsonl,.ndjson,.csv,text/csv"
                     className="hidden"
                     onChange={(e) => {
                       const f = e.target.files?.[0];
