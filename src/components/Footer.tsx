@@ -5,29 +5,31 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import logoImg from "@/assets/logo.png";
-import { addSubscriber } from "@/pages/AdminSubscribers";
+import { supabase } from "@/integrations/supabase/client";
 
 export function Footer() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const handleSubscribe = (e: React.FormEvent) => {
+  const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !email.includes("@")) {
       toast.error("Please enter a valid email");
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      const added = addSubscriber(email);
-      if (added) {
-        toast.success("Subscribed! You'll receive the latest cloud security updates.");
-      } else {
+    const { error } = await supabase.from("subscribers").insert({ email });
+    if (error) {
+      if (error.code === "23505") {
         toast.info("You're already subscribed!");
+      } else {
+        toast.error("Something went wrong. Please try again.");
       }
-      setEmail("");
-      setLoading(false);
-    }, 300);
+    } else {
+      toast.success("Subscribed! You'll receive the latest cloud security updates.");
+    }
+    setEmail("");
+    setLoading(false);
   };
 
   return (

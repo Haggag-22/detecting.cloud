@@ -8,7 +8,7 @@ import { attackPaths } from "@/data/attackPaths";
 import { detections } from "@/data/detections";
 import { Shield, Route, Crosshair, Server, Mail, CheckCircle } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { addSubscriber } from "@/pages/AdminSubscribers";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useState } from "react";
 
@@ -17,25 +17,27 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
 
-  const handleSubscribe = (e: React.FormEvent) => {
+  const handleSubscribe = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !email.includes("@")) {
       toast.error("Please enter a valid email");
       return;
     }
     setLoading(true);
-    setTimeout(() => {
-      const added = addSubscriber(email);
-      if (added) {
-        toast.success("Subscribed! You'll receive the latest cloud security updates.");
-        setSubscribed(true);
-      } else {
+    const { error } = await supabase.from("subscribers").insert({ email });
+    if (error) {
+      if (error.code === "23505") {
         toast.info("You're already subscribed!");
         setSubscribed(true);
+      } else {
+        toast.error("Something went wrong. Please try again.");
       }
-      setEmail("");
-      setLoading(false);
-    }, 300);
+    } else {
+      toast.success("Subscribed! You'll receive the latest cloud security updates.");
+      setSubscribed(true);
+    }
+    setEmail("");
+    setLoading(false);
   };
 
   return (
