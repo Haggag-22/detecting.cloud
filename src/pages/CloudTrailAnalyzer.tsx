@@ -42,7 +42,6 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   FileJson,
   Upload,
-  Database,
   ClipboardPaste,
   CheckCircle2,
   AlertTriangle,
@@ -62,7 +61,6 @@ import {
 import {
   handlePasteInput,
   handleFileUpload,
-  handleDatasetUpload,
   type IngestionResult,
   type NormalizedCloudTrailEvent,
 } from "@/features/cloudtrail-analyzer";
@@ -159,24 +157,6 @@ export default function CloudTrailAnalyzer() {
         setResult(r);
         if (r.valid_count > 0) {
           toast({ title: `Parsed ${r.valid_count} event(s) from ${file.name}` });
-        } else if (r.errors.length > 0) {
-          toast({ title: r.errors[0].message, variant: "destructive" });
-        }
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [toast]
-  );
-
-  const processDataset = useCallback(
-    async (file: File) => {
-      setIsLoading(true);
-      try {
-        const r = await handleDatasetUpload(file);
-        setResult(r);
-        if (r.valid_count > 0) {
-          toast({ title: `Parsed ${r.valid_count} event(s) from dataset` });
         } else if (r.errors.length > 0) {
           toast({ title: r.errors[0].message, variant: "destructive" });
         }
@@ -298,7 +278,7 @@ export default function CloudTrailAnalyzer() {
         </div>
 
         <Tabs defaultValue="paste" className="space-y-6">
-          <TabsList className="grid w-full max-w-md grid-cols-3">
+          <TabsList className="grid w-full max-w-sm grid-cols-2">
             <TabsTrigger value="paste" className="gap-2">
               <ClipboardPaste className="h-4 w-4" />
               Paste Event
@@ -306,10 +286,6 @@ export default function CloudTrailAnalyzer() {
             <TabsTrigger value="file" className="gap-2">
               <Upload className="h-4 w-4" />
               File Upload
-            </TabsTrigger>
-            <TabsTrigger value="dataset" className="gap-2">
-              <Database className="h-4 w-4" />
-              Dataset
             </TabsTrigger>
           </TabsList>
 
@@ -340,48 +316,21 @@ export default function CloudTrailAnalyzer() {
               <CardHeader>
                 <CardTitle className="text-base">File Upload</CardTitle>
                 <p className="text-sm text-muted-foreground">
-                  Upload CloudTrail log files. Supports single event, multiple events, JSON arrays, or Records bundles.
+                  Upload CloudTrail log files or larger datasets. Supports single events, JSON arrays, `Records` bundles,
+                  `.jsonl`, and `.ndjson` up to 50MB.
                 </p>
               </CardHeader>
               <CardContent>
                 <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer border-muted-foreground/25 hover:border-muted-foreground/50 transition-colors">
                   <Upload className="h-8 w-8 text-muted-foreground mb-2" />
-                  <span className="text-sm text-muted-foreground">Click or drag .json file</span>
-                  <input
-                    type="file"
-                    accept=".json,application/json"
-                    className="hidden"
-                    onChange={(e) => {
-                      const f = e.target.files?.[0];
-                      if (f) processFile(f);
-                      e.target.value = "";
-                    }}
-                    disabled={isLoading}
-                  />
-                </label>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="dataset" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Dataset Upload</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                  Upload large CloudTrail datasets. Events are processed sequentially. Max 50MB.
-                </p>
-              </CardHeader>
-              <CardContent>
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer border-muted-foreground/25 hover:border-muted-foreground/50 transition-colors">
-                  <Database className="h-8 w-8 text-muted-foreground mb-2" />
-                  <span className="text-sm text-muted-foreground">Click or drag dataset file</span>
+                  <span className="text-sm text-muted-foreground">Click or drag `.json`, `.jsonl`, or `.ndjson` file</span>
                   <input
                     type="file"
                     accept=".json,application/json,.jsonl,.ndjson"
                     className="hidden"
                     onChange={(e) => {
                       const f = e.target.files?.[0];
-                      if (f) processDataset(f);
+                      if (f) processFile(f);
                       e.target.value = "";
                     }}
                     disabled={isLoading}
