@@ -134,12 +134,12 @@ function DetectionRuleSection({
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
-                  variant={moreTabs.includes(effectiveTab) ? "secondary" : "ghost"}
-                  size="sm"
-                  className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground gap-1"
-                >
-                  <MoreHorizontal className="h-3.5 w-3.5" />
-                  {moreTabs.includes(effectiveTab) ? formatLabels[effectiveTab] || effectiveTab : "More"}
+                   variant={moreTabs.includes(effectiveTab as typeof MORE_TAB_KEYS[number]) ? "secondary" : "ghost"}
+                   size="sm"
+                   className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground gap-1"
+                 >
+                   <MoreHorizontal className="h-3.5 w-3.5" />
+                   {moreTabs.includes(effectiveTab as typeof MORE_TAB_KEYS[number]) ? formatLabels[effectiveTab] || effectiveTab : "More"}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
