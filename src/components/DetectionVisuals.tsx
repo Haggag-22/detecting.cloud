@@ -2,7 +2,7 @@ import React from "react";
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Shield, ShieldAlert, ShieldCheck, Activity, Zap } from "lucide-react";
-import type { DetectionQuality, MitreMapping } from "@/data/detections";
+import type { DetectionQuality } from "@/data/detections";
 
 /** Animated severity gauge with arc visual */
 export function SeverityGauge({ severity }: { severity: string }) {

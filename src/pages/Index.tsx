@@ -6,9 +6,38 @@ import logoImg from "@/assets/logo.png";
 import { techniques } from "@/data/techniques";
 import { attackPaths } from "@/data/attackPaths";
 import { detections } from "@/data/detections";
-import { Shield, Route, Crosshair, Server } from "lucide-react";
+import { Shield, Route, Crosshair, Server, Mail, CheckCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { addSubscriber } from "@/pages/AdminSubscribers";
+import { toast } from "sonner";
+import { useState } from "react";
 
 const Index = () => {
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [subscribed, setSubscribed] = useState(false);
+
+  const handleSubscribe = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !email.includes("@")) {
+      toast.error("Please enter a valid email");
+      return;
+    }
+    setLoading(true);
+    setTimeout(() => {
+      const added = addSubscriber(email);
+      if (added) {
+        toast.success("Subscribed! You'll receive the latest cloud security updates.");
+        setSubscribed(true);
+      } else {
+        toast.info("You're already subscribed!");
+        setSubscribed(true);
+      }
+      setEmail("");
+      setLoading(false);
+    }, 300);
+  };
+
   return (
     <Layout>
       <section className="relative overflow-hidden min-h-screen flex items-center">
@@ -81,6 +110,46 @@ const Index = () => {
                   <span>{stat.label}</span>
                 </div>
               ))}
+            </motion.div>
+
+            {/* Subscribe Panel */}
+            <motion.div
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.6 }}
+              className="mt-12 max-w-md mx-auto"
+            >
+              <div className="rounded-xl border border-border/50 bg-card/60 backdrop-blur-sm p-6">
+                <div className="flex items-center justify-center gap-2 mb-3">
+                  <Mail className="h-5 w-5 text-primary" />
+                  <h3 className="font-semibold text-foreground text-sm">Stay Updated</h3>
+                </div>
+                <p className="text-xs text-muted-foreground mb-4">
+                  Get the latest cloud security research, detections & attack paths in your inbox.
+                </p>
+                {subscribed ? (
+                  <div className="flex items-center justify-center gap-2 text-sm text-primary">
+                    <CheckCircle className="h-4 w-4" />
+                    <span>You're subscribed!</span>
+                  </div>
+                ) : (
+                  <form onSubmit={handleSubscribe} className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        type="email"
+                        placeholder="your@email.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        className="pl-9 h-9 text-sm bg-background/50"
+                      />
+                    </div>
+                    <Button type="submit" size="sm" disabled={loading} className="h-9 px-5">
+                      Subscribe
+                    </Button>
+                  </form>
+                )}
+              </div>
             </motion.div>
           </motion.div>
         </div>
