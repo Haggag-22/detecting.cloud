@@ -11,6 +11,9 @@ import {
   SidebarMenuSubItem,
   SidebarMenuSubButton,
   SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
 } from "@/components/ui/sidebar";
 import {
   Collapsible,
@@ -22,7 +25,6 @@ import {
   Crosshair,
   ShieldCheck,
   ChevronRight,
-  ExternalLink,
   Bug,
   Route,
   Network as NetworkIcon,
@@ -39,9 +41,10 @@ import {
   FileJson,
   Github,
   Twitter,
+  Play,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { attackPaths, attackObjectiveLabels, type AttackObjective } from "@/data/attackPaths";
+import { attackPaths, type AttackObjective } from "@/data/attackPaths";
 import { techniques, techniqueCategories, type TechniqueCategory } from "@/data/techniques";
 import { detections, getDetectionsByService } from "@/data/detections";
 import { researchPosts } from "@/data/research";
@@ -103,7 +106,14 @@ interface SidebarChild {
   children?: { label: string; to: string }[];
 }
 
-function buildSections(): SidebarSection[] {
+interface SidebarNavStructure {
+  home: SidebarSection;
+  redTeam: SidebarSection[];
+  blueTeam: SidebarSection[];
+  about: SidebarSection;
+}
+
+function buildSidebarNav(): SidebarNavStructure {
   const attackPathChildren: SidebarChild[] = [
     { key: "ap-all", label: "All Attack Paths", icon: Crosshair, to: "/attack-paths" },
     ...attackPaths.map((ap) => ({
@@ -160,13 +170,14 @@ function buildSections(): SidebarSection[] {
     }),
   ];
 
-  return [
-    {
-      key: "home",
-      label: "Home",
-      icon: Home,
-      to: "/",
-    },
+  const home: SidebarSection = {
+    key: "home",
+    label: "Home",
+    icon: Home,
+    to: "/",
+  };
+
+  const redTeam: SidebarSection[] = [
     {
       key: "attack-paths",
       label: "Attack Paths",
@@ -182,13 +193,6 @@ function buildSections(): SidebarSection[] {
       children: techniqueChildren,
     },
     {
-      key: "detections",
-      label: "Detection Engineering",
-      icon: ShieldCheck,
-      to: "/detection-engineering",
-      children: detectionServiceChildren,
-    },
-    {
       key: "attack-graph",
       label: "Attack Graph",
       icon: NetworkIcon,
@@ -197,20 +201,30 @@ function buildSections(): SidebarSection[] {
     {
       key: "simulator",
       label: "Attack Simulator",
-      icon: Route,
+      icon: Play,
       to: "/simulator",
+    },
+    {
+      key: "threat-matrix",
+      label: "Threat Matrix",
+      icon: LayoutGrid,
+      to: "/detection-matrix",
+    },
+  ];
+
+  const blueTeam: SidebarSection[] = [
+    {
+      key: "detections",
+      label: "Detection Engineering",
+      icon: ShieldCheck,
+      to: "/detection-engineering",
+      children: detectionServiceChildren,
     },
     {
       key: "coverage",
       label: "Detection Coverage",
       icon: BarChart3,
       to: "/coverage",
-    },
-    {
-      key: "detection-matrix",
-      label: "Coverage Matrix",
-      icon: LayoutGrid,
-      to: "/detection-matrix",
     },
     {
       key: "cloudtrail-analyzer",
@@ -224,24 +238,110 @@ function buildSections(): SidebarSection[] {
       icon: Bug,
       to: "/community-rules",
     },
-    {
-      key: "about",
-      label: "About",
-      icon: Info,
-      to: "/about",
-    },
   ];
+
+  const about: SidebarSection = {
+    key: "about",
+    label: "About",
+    icon: Info,
+    to: "/about",
+  };
+
+  return { home, redTeam, blueTeam, about };
+}
+
+function renderTopLevelSection(
+  section: SidebarSection,
+  location: { pathname: string },
+  currentPath: string,
+  expanded: Record<string, boolean>,
+  toggleSection: (key: string) => void,
+) {
+  if (!section.children) {
+    const isActive =
+      section.to === "/"
+        ? location.pathname === "/"
+        : section.to
+          ? location.pathname.startsWith(section.to)
+          : false;
+    return (
+      <div className="px-2 py-0.5">
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild tooltip={section.label} isActive={isActive} className="text-sm font-medium">
+              <Link to={section.to || "#"}>
+                {section.icon && <section.icon className="h-4 w-4" />}
+                <span className="flex-1">{section.label}</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-2 py-0.5">
+      <Collapsible open={expanded[section.key] ?? false} onOpenChange={() => toggleSection(section.key)}>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <CollapsibleTrigger asChild>
+              <SidebarMenuButton
+                tooltip={section.label}
+                className="text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                {section.icon && <section.icon className="h-4 w-4" />}
+                <span className="flex-1">{section.label}</span>
+                <ChevronRight
+                  className={`h-3.5 w-3.5 transition-transform duration-200 ${expanded[section.key] ? "rotate-90" : ""}`}
+                />
+              </SidebarMenuButton>
+            </CollapsibleTrigger>
+
+            <CollapsibleContent>
+              {section.children && (
+                <SidebarMenuSub>
+                  {section.children.map((child) =>
+                    child.children && child.children.length > 0 ? (
+                      <NestedCollapsible
+                        key={child.key}
+                        item={child}
+                        currentPath={currentPath}
+                        expanded={expanded}
+                        toggleSection={toggleSection}
+                      />
+                    ) : (
+                      <SidebarMenuSubItem key={child.key}>
+                        <SidebarMenuSubButton asChild isActive={child.to === currentPath} size="sm">
+                          <Link to={child.to || "#"}>
+                            {child.customIcon ||
+                              (child.icon && <child.icon className={`h-3.5 w-3.5 ${child.iconColorClass || ""}`} />)}
+                            <span>{child.label}</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    ),
+                  )}
+                </SidebarMenuSub>
+              )}
+            </CollapsibleContent>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </Collapsible>
+    </div>
+  );
 }
 
 export function AppSidebar() {
   const location = useLocation();
   const currentPath = location.pathname + location.search;
-  const sections = buildSections();
+  const nav = buildSidebarNav();
+  const collapsibleSections = [...nav.redTeam, ...nav.blueTeam];
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
     const persisted = getPersistedState();
     const defaults: Record<string, boolean> = {};
-    sections.forEach((s) => {
+    collapsibleSections.forEach((s) => {
       if (s.to && location.pathname.startsWith(s.to) && s.to !== "/") {
         defaults[s.key] = true;
       }
@@ -265,7 +365,7 @@ export function AppSidebar() {
   detections.forEach((d) => allSearchItems.push({ label: d.title, to: `/detection-engineering?rule=${d.id}`, type: "Detection" }));
   researchPosts.forEach((p) => allSearchItems.push({ label: p.title, to: `/research/${p.slug}`, type: "Research" }));
   allSearchItems.push({ label: "CloudTrail Analyzer", to: "/cloudtrail-analyzer", type: "Tool" });
-  allSearchItems.push({ label: "Coverage Matrix", to: "/detection-matrix", type: "Tool" });
+  allSearchItems.push({ label: "Threat Matrix", to: "/detection-matrix", type: "Tool" });
 
   const searchResults = search.trim()
     ? allSearchItems.filter((item) => item.label.toLowerCase().includes(search.toLowerCase()))
@@ -316,91 +416,32 @@ export function AppSidebar() {
           </div>
         )}
 
-        {!search.trim() &&
-          sections.map((section) => {
-            if (!section.children) {
-              const isActive = section.to === "/" 
-                ? location.pathname === "/" 
-                : section.to ? location.pathname.startsWith(section.to) : false;
-              return (
-                <div key={section.key} className="px-2 py-0.5">
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <SidebarMenuButton asChild tooltip={section.label} isActive={isActive}
-                        className="text-sm font-medium"
-                      >
-                        <Link to={section.to || "#"}>
-                          {section.icon && <section.icon className="h-4 w-4" />}
-                          <span className="flex-1">{section.label}</span>
-                        </Link>
-                      </SidebarMenuButton>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
-                </div>
-              );
-            }
-
-            return (
-              <div key={section.key} className="px-2 py-0.5">
-                <Collapsible
-                  open={expanded[section.key] ?? false}
-                  onOpenChange={() => toggleSection(section.key)}
-                >
-                  <SidebarMenu>
-                    <SidebarMenuItem>
-                      <CollapsibleTrigger asChild>
-                        <SidebarMenuButton
-                          tooltip={section.label}
-                          className="text-sm font-medium text-muted-foreground hover:text-foreground"
-                        >
-                          {section.icon && <section.icon className="h-4 w-4" />}
-                          <span className="flex-1">{section.label}</span>
-                          <ChevronRight
-                            className={`h-3.5 w-3.5 transition-transform duration-200 ${
-                              expanded[section.key] ? "rotate-90" : ""
-                            }`}
-                          />
-                        </SidebarMenuButton>
-                      </CollapsibleTrigger>
-
-                      <CollapsibleContent>
-                        {section.children && (
-                          <SidebarMenuSub>
-                            {section.children.map((child) =>
-                              child.children && child.children.length > 0 ? (
-                                <NestedCollapsible
-                                  key={child.key}
-                                  item={child}
-                                  currentPath={currentPath}
-                                  expanded={expanded}
-                                  toggleSection={toggleSection}
-                                />
-                              ) : (
-                                <SidebarMenuSubItem key={child.key}>
-                                  <SidebarMenuSubButton
-                                    asChild
-                                    isActive={child.to === currentPath}
-                                    size="sm"
-                                  >
-                                    <Link to={child.to || "#"}>
-                                      {child.customIcon || (child.icon && (
-                                        <child.icon className={`h-3.5 w-3.5 ${child.iconColorClass || ""}`} />
-                                      ))}
-                                      <span>{child.label}</span>
-                                    </Link>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              )
-                            )}
-                          </SidebarMenuSub>
-                        )}
-                      </CollapsibleContent>
-                    </SidebarMenuItem>
-                  </SidebarMenu>
-                </Collapsible>
-              </div>
-            );
-          })}
+        {!search.trim() && (
+          <>
+            {renderTopLevelSection(nav.home, location, currentPath, expanded, toggleSection)}
+            <SidebarGroup className="border-l-2 border-red-500/25 pl-1.5 py-1">
+              <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-wider text-red-400/90">
+                Red team
+              </SidebarGroupLabel>
+              <SidebarGroupContent className="space-y-0">
+                {nav.redTeam.map((section) => (
+                  <div key={section.key}>{renderTopLevelSection(section, location, currentPath, expanded, toggleSection)}</div>
+                ))}
+              </SidebarGroupContent>
+            </SidebarGroup>
+            <SidebarGroup className="border-l-2 border-blue-500/25 pl-1.5 py-1">
+              <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-wider text-blue-400/90">
+                Blue team
+              </SidebarGroupLabel>
+              <SidebarGroupContent className="space-y-0">
+                {nav.blueTeam.map((section) => (
+                  <div key={section.key}>{renderTopLevelSection(section, location, currentPath, expanded, toggleSection)}</div>
+                ))}
+              </SidebarGroupContent>
+            </SidebarGroup>
+            {renderTopLevelSection(nav.about, location, currentPath, expanded, toggleSection)}
+          </>
+        )}
       </SidebarContent>
 
       {/* Footer with theme toggle and social links */}
