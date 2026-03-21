@@ -23,8 +23,6 @@ import {
   Grid3X3,
   Filter,
   AlertTriangle,
-  Users,
-  Route,
   ChevronRight,
   Sparkles,
 } from "lucide-react";
@@ -36,14 +34,22 @@ import {
   type TechniqueMatrixEntry,
   type CoverageBand,
   buildTechniqueMatrixEntries,
-  overallCoveragePercent,
   getTopDetectionGaps,
   getAllMatrixServices,
-  getUniqueCommunityAuthors,
 } from "@/lib/coverageMatrixModel";
 
 type CoverageFilter = "all" | "covered" | "partial" | "gaps";
-type SignalFilter = "all" | "High" | "Medium" | "Low";
+
+/** Matches Techniques Library sidebar accent colors */
+const TACTIC_HEADER_COLOR: Record<MatrixTactic, string> = {
+  "initial-access": "text-cyan-400",
+  "credential-access": "text-purple-400",
+  "privilege-escalation": "text-red-400",
+  persistence: "text-orange-400",
+  "lateral-movement": "text-blue-400",
+  exfiltration: "text-emerald-400",
+  "defense-evasion": "text-amber-400",
+};
 
 function coverageStyles(band: CoverageBand): string {
   switch (band) {
@@ -57,7 +63,7 @@ function coverageStyles(band: CoverageBand): string {
 }
 
 function TechniqueCard({ entry }: { entry: TechniqueMatrixEntry }) {
-  const { technique, coverage, detectionCount, signalQuality, testingStatus, attackPathCount } = entry;
+  const { technique, coverage, detectionCount, attackPathCount } = entry;
   const to = `/attack-paths/technique/${technique.id}`;
 
   return (
@@ -66,27 +72,29 @@ function TechniqueCard({ entry }: { entry: TechniqueMatrixEntry }) {
         <Link
           to={to}
           className={cn(
-            "group block rounded-lg border p-2.5 text-left transition-all duration-200",
+            "group block rounded-lg border p-3.5 text-left transition-all duration-200",
             "shadow-sm hover:shadow-md hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
             coverageStyles(coverage)
           )}
         >
-          <div className="flex items-start justify-between gap-1 mb-1">
-            <span className="text-[9px] font-mono text-muted-foreground truncate max-w-[140px]" title={technique.id}>
-              {technique.id}
-            </span>
+          <div className="flex items-start gap-2.5">
             <span
               className={cn(
-                "h-2 w-2 shrink-0 rounded-full mt-0.5",
+                "h-2.5 w-2.5 shrink-0 rounded-full mt-1.5",
                 coverage === "covered" && "bg-emerald-400",
                 coverage === "partial" && "bg-amber-400",
                 coverage === "none" && "bg-red-400"
               )}
             />
+            <div className="min-w-0 flex-1 space-y-1.5">
+              <p className="text-sm font-semibold text-foreground leading-snug break-words hyphens-auto group-hover:text-primary transition-colors">
+                {technique.name}
+              </p>
+              <p className="text-[9px] font-mono text-muted-foreground/80 break-all" title={technique.id}>
+                {technique.id}
+              </p>
+            </div>
           </div>
-          <p className="text-xs font-semibold text-foreground leading-snug line-clamp-2 group-hover:text-primary transition-colors">
-            {technique.shortName || technique.name}
-          </p>
           <div className="mt-2 flex flex-wrap gap-1">
             {technique.services.slice(0, 3).map((s) => (
               <span
@@ -100,15 +108,9 @@ function TechniqueCard({ entry }: { entry: TechniqueMatrixEntry }) {
               <span className="text-[9px] text-muted-foreground">+{technique.services.length - 3}</span>
             )}
           </div>
-          <div className="mt-2 grid grid-cols-2 gap-x-1 gap-y-0.5 text-[10px] text-muted-foreground">
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] text-muted-foreground">
             <span>
               Rules: <strong className="text-foreground">{detectionCount}</strong>
-            </span>
-            <span>
-              Signal: <strong className="text-foreground">{signalQuality}</strong>
-            </span>
-            <span>
-              Test: <strong className="text-foreground">{testingStatus}</strong>
             </span>
             <span>
               Paths: <strong className="text-foreground">{attackPathCount}</strong>
@@ -128,11 +130,9 @@ function TechniqueCard({ entry }: { entry: TechniqueMatrixEntry }) {
 export default function DetectionMatrix() {
   const baseEntries = useMemo(() => buildTechniqueMatrixEntries(), []);
   const allServices = useMemo(() => getAllMatrixServices(), []);
-  const communityAuthors = useMemo(() => getUniqueCommunityAuthors(), []);
 
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [coverageFilter, setCoverageFilter] = useState<CoverageFilter>("all");
-  const [signalFilter, setSignalFilter] = useState<SignalFilter>("all");
   const [onlyWithDetections, setOnlyWithDetections] = useState(false);
 
   const filtered = useMemo(() => {
@@ -142,10 +142,9 @@ export default function DetectionMatrix() {
       if (coverageFilter === "covered" && e.coverage !== "covered") return false;
       if (coverageFilter === "partial" && e.coverage !== "partial") return false;
       if (coverageFilter === "gaps" && e.coverage !== "none") return false;
-      if (signalFilter !== "all" && e.signalQuality !== signalFilter) return false;
       return true;
     });
-  }, [baseEntries, serviceFilter, coverageFilter, signalFilter, onlyWithDetections]);
+  }, [baseEntries, serviceFilter, coverageFilter, onlyWithDetections]);
 
   const byTactic = useMemo(() => {
     const map = new Map<MatrixTactic, TechniqueMatrixEntry[]>();
@@ -160,13 +159,11 @@ export default function DetectionMatrix() {
     return map;
   }, [filtered]);
 
-  const coveragePct = useMemo(() => overallCoveragePercent(baseEntries), [baseEntries]);
   const topGaps = useMemo(() => getTopDetectionGaps(baseEntries, 8), [baseEntries]);
 
   const resetFilters = useCallback(() => {
     setServiceFilter("all");
     setCoverageFilter("all");
-    setSignalFilter("all");
     setOnlyWithDetections(false);
   }, []);
 
@@ -175,42 +172,16 @@ export default function DetectionMatrix() {
   return (
     <Layout>
       <div className="container py-8 space-y-6">
-        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-primary mb-2">
-              <Grid3X3 className="h-6 w-6" />
-              <span className="text-sm font-medium uppercase tracking-wider">Detection engineering</span>
-            </div>
-            <h1 className="font-display text-3xl font-bold tracking-tight">Cloud coverage matrix</h1>
-            <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed">
-              ATT&amp;CK-inspired view of cloud techniques with live links to detection rules, attack paths, and
-              simulations. Filter by service, coverage, and signal quality to prioritize engineering work.
-            </p>
+        <div>
+          <div className="flex items-center gap-2 text-primary mb-2">
+            <Grid3X3 className="h-6 w-6" />
+            <span className="text-sm font-medium uppercase tracking-wider">Detection engineering</span>
           </div>
-          <Card className="shrink-0 border-border/60 bg-card/80 backdrop-blur-sm w-full lg:w-80">
-            <CardContent className="pt-5 pb-4 space-y-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-muted-foreground">Platform coverage</span>
-                <span className="text-2xl font-bold font-mono text-emerald-400">{coveragePct}%</span>
-              </div>
-              <div className="h-2 rounded-full bg-muted overflow-hidden">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-emerald-600 to-cyan-500 transition-all duration-500"
-                  style={{ width: `${coveragePct}%` }}
-                />
-              </div>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                <span className="flex items-center gap-1">
-                  <Users className="h-3.5 w-3.5" />
-                  {communityAuthors} community authors
-                </span>
-                <span className="flex items-center gap-1">
-                  <Route className="h-3.5 w-3.5" />
-                  {baseEntries.reduce((a, e) => a + e.attackPathCount, 0)} path refs
-                </span>
-              </div>
-            </CardContent>
-          </Card>
+          <h1 className="font-display text-3xl font-bold tracking-tight">Cloud coverage matrix</h1>
+          <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed">
+            Same tactics as the Techniques Library — one column per vector. Click a card for attack paths, detections,
+            and simulations. Filter by service and coverage.
+          </p>
         </div>
 
         <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-6">
@@ -257,20 +228,6 @@ export default function DetectionMatrix() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1.5 min-w-[140px]">
-                  <Label className="text-xs text-muted-foreground">Signal quality</Label>
-                  <Select value={signalFilter} onValueChange={(v) => setSignalFilter(v as SignalFilter)}>
-                    <SelectTrigger className="h-9 text-sm">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="Low">Low</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
                 <div className="flex items-center gap-2 pb-1">
                   <Switch id="only-dets" checked={onlyWithDetections} onCheckedChange={setOnlyWithDetections} />
                   <Label htmlFor="only-dets" className="text-sm cursor-pointer">
@@ -279,23 +236,34 @@ export default function DetectionMatrix() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="pt-0">
-              <ScrollArea className="w-full rounded-md border border-border/50">
-                <div className="flex gap-3 p-3 min-w-[min(100%,1200px)] lg:min-w-[1100px]">
+            <CardContent className="pt-0 space-y-2">
+              <p className="text-xs text-muted-foreground flex items-center gap-2 px-0.5">
+                <span className="inline-block rounded border border-border/60 px-1.5 py-0.5 font-mono text-[10px]">↔</span>
+                Scroll horizontally with the bar below to move through all tactics.
+              </p>
+              <ScrollArea className="w-full max-w-full rounded-md border border-border/50">
+                <div className="flex w-max gap-10 px-6 py-5">
                   {MATRIX_TACTIC_ORDER.map((tactic) => {
                     const col = byTactic.get(tactic) ?? [];
                     return (
                       <div
                         key={tactic}
-                        className="flex-shrink-0 w-[200px] sm:w-[220px] flex flex-col gap-2"
+                        className="flex w-[min(22rem,calc(100vw-3rem))] min-w-[17.5rem] max-w-[22rem] shrink-0 flex-col gap-3 sm:min-w-[22rem] sm:w-[22rem]"
                       >
-                        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur pb-2 border-b border-border/40">
-                          <h3 className="text-xs font-bold uppercase tracking-wide text-foreground">
+                        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur pb-3 border-b border-border/40 text-center px-1">
+                          <h3
+                            className={cn(
+                              "font-display font-bold uppercase tracking-[0.12em] text-[11px] sm:text-xs leading-tight text-balance antialiased",
+                              TACTIC_HEADER_COLOR[tactic]
+                            )}
+                          >
                             {matrixTacticLabels[tactic]}
                           </h3>
-                          <p className="text-[10px] text-muted-foreground mt-0.5">{col.length} techniques</p>
+                          <p className="text-[10px] text-muted-foreground mt-1.5 font-normal tabular-nums">
+                            {col.length} {col.length === 1 ? "technique" : "techniques"}
+                          </p>
                         </div>
-                        <div className="flex flex-col gap-2 pr-1 pb-4">
+                        <div className="flex flex-col gap-3 pr-1 pb-2">
                           {col.length === 0 ? (
                             <p className="text-[10px] text-muted-foreground italic px-1 py-4 text-center">
                               No matches
@@ -308,7 +276,10 @@ export default function DetectionMatrix() {
                     );
                   })}
                 </div>
-                <ScrollBar orientation="horizontal" />
+                <ScrollBar
+                  orientation="horizontal"
+                  className="h-3.5 border-t border-border/40 bg-muted/20 [&>[data-radix-scroll-area-thumb]]:bg-muted-foreground/40"
+                />
               </ScrollArea>
               <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
                 <Sparkles className="h-3.5 w-3.5" />
@@ -365,10 +336,6 @@ export default function DetectionMatrix() {
                   <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
                   Not covered — no linked detections
                 </div>
-                <p className="pt-2 border-t border-border/40">
-                  Signal quality aggregates <code className="text-[10px]">lifecycle.quality.signalQuality</code>{" "}
-                  from linked rules. Testing reflects simulation / testing steps on those rules.
-                </p>
               </CardContent>
             </Card>
           </div>

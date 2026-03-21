@@ -1,85 +1,39 @@
 /**
- * Detection coverage matrix — maps techniques to cloud ATT&CK-style tactics
- * and aggregates detection / signal / testing metadata from platform data.
+ * Detection coverage matrix — maps techniques to the same tactics as the Techniques Library sidebar.
  */
 
 import type { Technique, TechniqueCategory } from "@/data/techniques";
-import { techniques } from "@/data/techniques";
+import { techniques, techniqueCategories } from "@/data/techniques";
 import { detections, type Detection } from "@/data/detections";
 import { attackPaths } from "@/data/attackPaths";
 import { communityRules } from "@/data/communityRules";
 
-/** Matrix column tactics (order matches dashboard columns left → right) */
-export type MatrixTactic =
-  | "reconnaissance"
-  | "initial-access"
-  | "persistence"
-  | "privilege-escalation"
-  | "defense-evasion"
-  | "credential-access"
-  | "discovery"
-  | "lateral-movement"
-  | "exfiltration"
-  | "impact";
+/** Matrix columns = Techniques Library categories only (same order as sidebar under Techniques Library). */
+export type MatrixTactic = TechniqueCategory;
 
+/** Exact sidebar order: Initial Access → … → Defense Evasion */
 export const MATRIX_TACTIC_ORDER: MatrixTactic[] = [
-  "reconnaissance",
   "initial-access",
-  "persistence",
-  "privilege-escalation",
-  "defense-evasion",
   "credential-access",
-  "discovery",
+  "privilege-escalation",
+  "persistence",
   "lateral-movement",
   "exfiltration",
-  "impact",
+  "defense-evasion",
 ];
 
 export const matrixTacticLabels: Record<MatrixTactic, string> = {
-  reconnaissance: "Reconnaissance",
-  "initial-access": "Initial Access",
-  persistence: "Persistence",
-  "privilege-escalation": "Privilege Escalation",
-  "defense-evasion": "Defense Evasion",
-  "credential-access": "Credential Access",
-  discovery: "Discovery",
-  "lateral-movement": "Lateral Movement",
-  exfiltration: "Exfiltration",
-  impact: "Impact",
-};
-
-/** Default placement: library category → matrix column */
-const CATEGORY_TO_MATRIX: Record<TechniqueCategory, MatrixTactic> = {
-  "initial-access": "initial-access",
-  persistence: "persistence",
-  "privilege-escalation": "privilege-escalation",
-  "defense-evasion": "defense-evasion",
-  "credential-access": "credential-access",
-  "lateral-movement": "lateral-movement",
-  exfiltration: "exfiltration",
-};
-
-/**
- * Override placement for techniques that fit recon / discovery / impact
- * better than their library category (single column per technique).
- */
-const MATRIX_TACTIC_OVERRIDES: Partial<Record<string, MatrixTactic>> = {
-  "tech-ses-enumeration": "reconnaissance",
-  "tech-backup-enumeration": "reconnaissance",
-  "tech-ec2-userdata-disclosure": "discovery",
-  "tech-beanstalk-env-theft": "discovery",
-  "tech-codebuild-env-theft": "discovery",
-  "tech-resource-policy-misconfig": "discovery",
-  "tech-organizations-leave": "impact",
-  "tech-cloudtrail-disable": "impact",
-  "tech-dns-logs-deletion": "impact",
-  "tech-vpc-flow-logs-removal": "impact",
-  "tech-delete-detach-policy": "impact",
-  "tech-delete-permissions-boundary": "impact",
+  "initial-access": techniqueCategories["initial-access"].label,
+  "credential-access": techniqueCategories["credential-access"].label,
+  "privilege-escalation": techniqueCategories["privilege-escalation"].label,
+  persistence: techniqueCategories.persistence.label,
+  "lateral-movement": techniqueCategories["lateral-movement"].label,
+  exfiltration: techniqueCategories.exfiltration.label,
+  "defense-evasion": techniqueCategories["defense-evasion"].label,
 };
 
 export function getMatrixTacticForTechnique(t: Technique): MatrixTactic {
-  return MATRIX_TACTIC_OVERRIDES[t.id] ?? CATEGORY_TO_MATRIX[t.category];
+  return t.category;
 }
 
 export type CoverageBand = "covered" | "partial" | "none";
@@ -127,7 +81,6 @@ export function countAttackPathsForTechnique(techniqueId: string): number {
   return attackPaths.filter((ap) => ap.steps.some((s) => s.techniqueId === techniqueId)).length;
 }
 
-/** Unique community rule authors (platform-wide contributor count) */
 export function getUniqueCommunityAuthors(): number {
   return new Set(communityRules.map((r) => r.author)).size;
 }
@@ -157,7 +110,6 @@ export function buildTechniqueMatrixEntries(): TechniqueMatrixEntry[] {
   });
 }
 
-/** Overall coverage %: weighted covered=1, partial=0.5, none=0 */
 export function overallCoveragePercent(entries: TechniqueMatrixEntry[]): number {
   if (entries.length === 0) return 0;
   const score = entries.reduce((acc, e) => {
@@ -175,7 +127,6 @@ const SEVERITY_RANK: Record<string, number> = {
   Low: 1,
 };
 
-/** High-risk techniques with no platform detection coverage (ranked by path severity + usage) */
 export function getTopDetectionGaps(entries: TechniqueMatrixEntry[], limit = 8): TechniqueMatrixEntry[] {
   const gap = entries.filter((e) => e.coverage === "none");
   return gap
@@ -194,7 +145,6 @@ export function getTopDetectionGaps(entries: TechniqueMatrixEntry[], limit = 8):
     .map((x) => x.entry);
 }
 
-/** All distinct AWS services from techniques (for filter) */
 export function getAllMatrixServices(): string[] {
   const set = new Set<string>();
   techniques.forEach((t) => t.services.forEach((s) => set.add(s)));
