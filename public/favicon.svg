@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Detecting.Cloud">
+  <defs>
+    <linearGradient id="dc" x1="4" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2dd4bf" />
+      <stop offset="0.55" stop-color="#38bdf8" />
+      <stop offset="1" stop-color="#2563eb" />
+    </linearGradient>
+    <style>
+      /* Readable on dark tab strips (default) */
+      .rim {
+        stroke: rgba(255, 255, 255, 0.92);
+      }
+      @media (prefers-color-scheme: light) {
+        .rim {
+          stroke: rgba(15, 23, 42, 0.88);
+        }
+      }
+    </style>
+  </defs>
+  <rect
+    width="32"
+    height="32"
+    rx="8"
+    fill="url(#dc)"
+    class="rim"
+    stroke-width="1.25"
+  />
+</svg>

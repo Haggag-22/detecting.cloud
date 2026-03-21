@@ -190,13 +190,6 @@ export default function DetectionMatrix() {
           <PageTitleWithIcon team="red" icon={LayoutGrid} className="mb-0">
             Threat Matrix
           </PageTitleWithIcon>
-          <p className="text-muted-foreground mt-2 text-sm line-clamp-1 min-w-0 max-w-4xl">
-            Techniques by tactic—click a card for paths &amp; rules. Filter below ·{" "}
-            <Link to="/coverage" className="text-primary hover:underline font-medium">
-              Detection Coverage
-            </Link>{" "}
-            (blue-team).
-          </p>
         </div>
 
         <Card className="min-w-0 max-w-full overflow-hidden border-border/60">
