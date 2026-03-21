@@ -19,13 +19,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  LayoutGrid,
-  Filter,
-  Sparkles,
-  Minimize2,
-  Maximize2,
-} from "lucide-react";
+import { LayoutGrid, Filter, Sparkles, Plus, Minus } from "lucide-react";
 import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { cn } from "@/lib/utils";
 import {
@@ -40,7 +34,11 @@ import {
 
 type CoverageFilter = "all" | "covered" | "partial" | "gaps";
 
-const MATRIX_EXPANDED_KEY = "threat-matrix-expanded";
+const MATRIX_ZOOM_KEY = "threat-matrix-zoom";
+const ZOOM_MIN = 0.45;
+const ZOOM_MAX = 1.25;
+const ZOOM_STEP = 0.1;
+const ZOOM_DEFAULT = 1;
 
 /** Matches Techniques Library sidebar accent colors */
 const TACTIC_HEADER_COLOR: Record<MatrixTactic, string> = {
@@ -120,21 +118,35 @@ export default function DetectionMatrix() {
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [coverageFilter, setCoverageFilter] = useState<CoverageFilter>("all");
   const [onlyWithDetections, setOnlyWithDetections] = useState(false);
-  const [matrixExpanded, setMatrixExpanded] = useState(() => {
+  const [matrixZoom, setMatrixZoom] = useState(() => {
     try {
-      return sessionStorage.getItem(MATRIX_EXPANDED_KEY) !== "0";
+      const raw = sessionStorage.getItem(MATRIX_ZOOM_KEY);
+      if (raw == null) return ZOOM_DEFAULT;
+      const n = Number.parseFloat(raw);
+      if (!Number.isFinite(n)) return ZOOM_DEFAULT;
+      return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, n));
     } catch {
-      return true;
+      return ZOOM_DEFAULT;
     }
   });
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(MATRIX_EXPANDED_KEY, matrixExpanded ? "1" : "0");
+      sessionStorage.setItem(MATRIX_ZOOM_KEY, String(matrixZoom));
     } catch {
       /* ignore */
     }
-  }, [matrixExpanded]);
+  }, [matrixZoom]);
+
+  const zoomIn = useCallback(() => {
+    setMatrixZoom((z) => Math.min(ZOOM_MAX, Math.round((z + ZOOM_STEP) * 100) / 100));
+  }, []);
+
+  const zoomOut = useCallback(() => {
+    setMatrixZoom((z) => Math.max(ZOOM_MIN, Math.round((z - ZOOM_STEP) * 100) / 100));
+  }, []);
+
+  const resetZoom = useCallback(() => setMatrixZoom(ZOOM_DEFAULT), []);
 
   const filtered = useMemo(() => {
     return baseEntries.filter((e) => {
@@ -167,18 +179,14 @@ export default function DetectionMatrix() {
   }, []);
 
   const visibleCount = filtered.length;
-  const tacticsWithMatches = useMemo(
-    () => MATRIX_TACTIC_ORDER.filter((t) => (byTactic.get(t) ?? []).length > 0).length,
-    [byTactic]
-  );
+  const zoomPercent = Math.round(matrixZoom * 100);
+  const canZoomIn = matrixZoom < ZOOM_MAX - 1e-6;
+  const canZoomOut = matrixZoom > ZOOM_MIN + 1e-6;
 
   return (
     <Layout>
       <div className="container min-w-0 max-w-full overflow-x-hidden py-8 space-y-6">
         <div>
-          <div className="mb-2">
-            <span className="text-sm font-bold uppercase tracking-wider text-red-400/90">Red team</span>
-          </div>
           <PageTitleWithIcon team="red" icon={LayoutGrid} className="mb-0">
             Threat Matrix
           </PageTitleWithIcon>
@@ -246,93 +254,103 @@ export default function DetectionMatrix() {
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
               <div className="flex flex-wrap items-start justify-between gap-3 px-0.5">
-                <div className="min-w-0 flex-1 space-y-1">
-                  {matrixExpanded ? (
-                    <p className="text-xs text-muted-foreground flex items-center gap-2">
-                      <span className="inline-block shrink-0 rounded border border-border/60 px-1.5 py-0.5 font-mono text-[10px]">
-                        ↔
-                      </span>
-                      <span>
-                        Scroll horizontally with the bar below to move through all tactics.
-                      </span>
-                    </p>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground/90">Matrix minimized.</span>{" "}
-                      {visibleCount} {visibleCount === 1 ? "technique" : "techniques"} across {tacticsWithMatches}{" "}
-                      {tacticsWithMatches === 1 ? "tactic" : "tactics"} match your filters. Expand to browse columns.
-                    </p>
-                  )}
+                <p className="text-xs text-muted-foreground flex items-center gap-2 min-w-0 flex-1">
+                  <span className="inline-block shrink-0 rounded border border-border/60 px-1.5 py-0.5 font-mono text-[10px]">
+                    ↔
+                  </span>
+                  <span>
+                    Scroll horizontally to browse tactics. Use <strong className="text-foreground/80 font-medium">−</strong> /{" "}
+                    <strong className="text-foreground/80 font-medium">+</strong> to zoom out (see more columns) or zoom in.
+                  </span>
+                </p>
+                <div className="flex items-center gap-1 shrink-0" role="group" aria-label="Matrix zoom">
+                  <span className="text-[10px] tabular-nums text-muted-foreground w-10 text-right mr-0.5">{zoomPercent}%</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={zoomOut}
+                    disabled={!canZoomOut}
+                    aria-label="Zoom out matrix"
+                    title="Zoom out (see more)"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={zoomIn}
+                    disabled={!canZoomIn}
+                    aria-label="Zoom in matrix"
+                    title="Zoom in"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2 text-[10px] text-muted-foreground"
+                    onClick={resetZoom}
+                    disabled={Math.abs(matrixZoom - ZOOM_DEFAULT) < 1e-6}
+                    title="Reset zoom to 100%"
+                  >
+                    Reset
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-8 shrink-0 gap-1.5 text-xs"
-                  onClick={() => setMatrixExpanded((v) => !v)}
-                  aria-expanded={matrixExpanded}
-                  aria-controls="threat-matrix-scroll"
-                >
-                  {matrixExpanded ? (
-                    <>
-                      <Minimize2 className="h-3.5 w-3.5" />
-                      Minimize matrix
-                    </>
-                  ) : (
-                    <>
-                      <Maximize2 className="h-3.5 w-3.5" />
-                      Expand matrix
-                    </>
-                  )}
-                </Button>
               </div>
-              {matrixExpanded && (
-                <ScrollArea
-                  id="threat-matrix-scroll"
-                  className="max-w-full min-w-0 rounded-md border border-border/50"
+              <ScrollArea
+                id="threat-matrix-scroll"
+                className="max-w-full min-w-0 rounded-md border border-border/50"
+              >
+                {/* CSS zoom reflows layout so scroll bounds match the scaled view (better than transform for “see more columns”). */}
+                <div
+                  className="flex w-max min-w-0 gap-10 px-6 py-5"
+                  style={{ zoom: matrixZoom } as React.CSSProperties}
                 >
-                  <div className="flex w-max min-w-0 gap-10 px-6 py-5">
-                    {MATRIX_TACTIC_ORDER.map((tactic) => {
-                      const col = byTactic.get(tactic) ?? [];
-                      return (
-                        <div
-                          key={tactic}
-                          className="flex w-[22rem] min-w-[280px] max-w-[22rem] shrink-0 flex-col gap-3"
-                        >
-                          <div className="flex min-h-[5.25rem] flex-col items-center justify-center border-b border-border/40 bg-background/95 px-2 py-4 text-center backdrop-blur">
-                            <div className="flex flex-col items-center justify-center gap-1.5">
-                              <h3
-                                className={cn(
-                                  "font-display text-balance text-[11px] font-bold uppercase leading-snug tracking-[0.12em] antialiased sm:text-xs",
-                                  TACTIC_HEADER_COLOR[tactic]
-                                )}
-                              >
-                                {matrixTacticLabels[tactic]}
-                              </h3>
-                              <p className="text-[10px] font-normal tabular-nums leading-normal text-muted-foreground">
-                                {col.length} {col.length === 1 ? "technique" : "techniques"}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex flex-col gap-3 pr-1 pb-2">
-                            {col.length === 0 ? (
-                              <p className="text-[10px] text-muted-foreground italic px-1 py-4 text-center">
-                                No matches
-                              </p>
-                            ) : (
-                              col.map((entry) => <TechniqueCard key={entry.technique.id} entry={entry} />)
-                            )}
+                  {MATRIX_TACTIC_ORDER.map((tactic) => {
+                    const col = byTactic.get(tactic) ?? [];
+                    return (
+                      <div
+                        key={tactic}
+                        className="flex w-[22rem] min-w-[280px] max-w-[22rem] shrink-0 flex-col gap-3"
+                      >
+                        <div className="flex min-h-[5.25rem] flex-col items-center justify-center border-b border-border/40 bg-background/95 px-2 py-4 text-center backdrop-blur">
+                          <div className="flex flex-col items-center justify-center gap-1.5">
+                            <h3
+                              className={cn(
+                                "font-display text-balance text-[11px] font-bold uppercase leading-snug tracking-[0.12em] antialiased sm:text-xs",
+                                TACTIC_HEADER_COLOR[tactic]
+                              )}
+                            >
+                              {matrixTacticLabels[tactic]}
+                            </h3>
+                            <p className="text-[10px] font-normal tabular-nums leading-normal text-muted-foreground">
+                              {col.length} {col.length === 1 ? "technique" : "techniques"}
+                            </p>
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
-                  <ScrollBar
-                    orientation="horizontal"
-                    className="h-3.5 border-t border-border/40 bg-muted/20 [&>[data-radix-scroll-area-thumb]]:bg-muted-foreground/40"
-                  />
-                </ScrollArea>
-              )}
+                        <div className="flex flex-col gap-3 pr-1 pb-2">
+                          {col.length === 0 ? (
+                            <p className="text-[10px] text-muted-foreground italic px-1 py-4 text-center">
+                              No matches
+                            </p>
+                          ) : (
+                            col.map((entry) => <TechniqueCard key={entry.technique.id} entry={entry} />)
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <ScrollBar
+                  orientation="horizontal"
+                  className="h-3.5 border-t border-border/40 bg-muted/20 [&>[data-radix-scroll-area-thumb]]:bg-muted-foreground/40"
+                />
+              </ScrollArea>
               <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
                 <Sparkles className="h-3.5 w-3.5" />
                 Submit new rules for uncovered techniques via{" "}

@@ -3,8 +3,7 @@ import { Layout } from "@/components/Layout";
 import { detections, getDetectionsByService, getDefaultTelemetry, type Detection } from "@/data/detections";
 import { getTechniquesForDetection, getAttackPathsForDetection } from "@/lib/detectionCoverage";
 import { Badge } from "@/components/ui/badge";
-import { Search, Link as LinkIcon, ChevronRight, Copy, Download, Share2, Check, ShieldCheck } from "lucide-react";
-import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
+import { Search, Link as LinkIcon, ChevronRight, Copy, Download, Share2, Check } from "lucide-react";
 import { useSearchParams, Link } from "react-router-dom";
 import { getAwsServiceIcon } from "@/components/AwsIcons";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -149,14 +148,7 @@ const DetectionEngineeringPage = () => {
           <div className="flex items-start gap-5 mb-8">
             {ServiceIcon && <ServiceIcon size={40} />}
             <div className="flex-1 min-w-0">
-              <PageTitleWithIcon
-                team="blue"
-                icon={ShieldCheck}
-                className="mb-2"
-                titleClassName="font-display text-2xl font-bold"
-              >
-                {selectedDetection.title}
-              </PageTitleWithIcon>
+              <h1 className="font-display text-2xl font-bold mb-2">{selectedDetection.title}</h1>
               <p className="text-muted-foreground">{selectedDetection.description}</p>
               {hasLifecycle && selectedDetection.lifecycle?.whyItMatters && (
                 <p className="mt-3 text-sm text-primary/90 font-medium">
@@ -420,9 +412,7 @@ const DetectionEngineeringPage = () => {
   return (
     <Layout>
       <div className="container py-12">
-        <PageTitleWithIcon team="blue" icon={ShieldCheck}>
-          Detection Rules
-        </PageTitleWithIcon>
+        <h1 className="font-display text-3xl font-bold mb-2">Detection Rules</h1>
         <p className="text-muted-foreground mb-8">
           Cloud security detection rules organized by AWS service.
         </p>
