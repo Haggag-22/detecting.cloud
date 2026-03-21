@@ -4,8 +4,9 @@ import { attackPaths } from "@/data/attackPaths";
 import { getTechniqueById } from "@/data/techniques";
 import { Badge } from "@/components/ui/badge";
 import {
-  ChevronRight, AlertTriangle, Link as LinkIcon, Network, Play,
+  ChevronRight, AlertTriangle, Link as LinkIcon, Network, Play, Crosshair,
 } from "lucide-react";
+import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { useSearchParams, Link, Navigate } from "react-router-dom";
 import { AttackFlowChain } from "@/components/AttackFlowChain";
 
@@ -54,7 +55,9 @@ const AttackPathsPage = () => {
                   </Badge>
                 ))}
               </div>
-              <h1 className="font-display text-3xl font-bold mb-3">{activeAttackPath.title}</h1>
+              <PageTitleWithIcon team="red" icon={Crosshair} className="mb-3">
+                {activeAttackPath.title}
+              </PageTitleWithIcon>
               <p className="text-muted-foreground mb-4">{activeAttackPath.description}</p>
               <div className="flex flex-wrap gap-3">
                 <Link
@@ -115,7 +118,9 @@ const AttackPathsPage = () => {
   return (
     <Layout>
       <div className="container py-12">
-        <h1 className="font-display text-3xl font-bold mb-2">Attack Paths</h1>
+        <PageTitleWithIcon team="red" icon={Crosshair}>
+          Attack Paths
+        </PageTitleWithIcon>
         <p className="text-muted-foreground mb-8">
           Realistic attacker chains in cloud environments. Each path is composed of reusable technique steps that can be explored individually.
         </p>

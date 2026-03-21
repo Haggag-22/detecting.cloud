@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Play, ChevronRight, ChevronLeft, RotateCcw, ShieldCheck, ShieldOff, AlertTriangle, CheckCircle } from "lucide-react";
+import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -89,7 +90,9 @@ export default function AttackSimulator() {
     <Layout>
       <div className="container py-10">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2">Attack Path Simulator</h1>
+          <PageTitleWithIcon team="red" icon={Play}>
+            Attack Path Simulator
+          </PageTitleWithIcon>
           <p className="text-muted-foreground">
             Walk through real-world AWS attack chains step-by-step. See which techniques are detected and where your gaps are.
           </p>

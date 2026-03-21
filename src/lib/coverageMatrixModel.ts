@@ -1,5 +1,5 @@
 /**
- * Detection coverage matrix — maps techniques to the same tactics as the Techniques Library sidebar.
+ * Threat Matrix model — maps techniques to the same tactics as the Techniques Library (red-team view; coverage signals from rules/paths).
  */
 
 import type { Technique, TechniqueCategory } from "@/data/techniques";

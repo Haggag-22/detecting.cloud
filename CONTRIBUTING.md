@@ -67,7 +67,6 @@ src/data/
 ├── detections.ts       ← Core rules (do NOT modify)
 ├── techniques.ts       ← Technique library (do NOT modify)
 ├── attackPaths.ts      ← Attack paths (do NOT modify)
-├── research.ts         ← Research posts (do NOT modify)
 └── services.ts         ← AWS services (do NOT modify)
 ```
 

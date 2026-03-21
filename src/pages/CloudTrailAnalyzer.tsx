@@ -70,6 +70,7 @@ import { getTechniquesForDetections, getAttackPathsForDetections } from "@/featu
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { Link } from "react-router-dom";
+import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 
 type SortField = "event_time" | "event_name" | "event_source" | "aws_region" | "principal_arn" | "source_ip";
 type SortOrder = "asc" | "desc";
@@ -268,10 +269,9 @@ export default function CloudTrailAnalyzer() {
     <Layout>
       <div className="container max-w-[1800px] py-10">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-            <FileJson className="h-8 w-8 text-primary" />
+          <PageTitleWithIcon team="blue" icon={FileJson}>
             CloudTrail Analyzer
-          </h1>
+          </PageTitleWithIcon>
           <p className="text-muted-foreground">
             Ingest and parse AWS CloudTrail logs into a normalized format for detection testing, attack mapping, and timeline analysis.
           </p>

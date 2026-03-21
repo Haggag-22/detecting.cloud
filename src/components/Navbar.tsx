@@ -9,7 +9,6 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 
 const navLinks = [
   { label: "Home", to: "/" },
-  { label: "Research", to: "/research" },
   { label: "Attack Paths", to: "/attack-paths" },
   { label: "Simulator", to: "/simulator" },
   { label: "Attack Graph", to: "/attack-graph" },

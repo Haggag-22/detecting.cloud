@@ -6,7 +6,7 @@ import logoImg from "@/assets/logo.png";
 import { techniques } from "@/data/techniques";
 import { attackPaths } from "@/data/attackPaths";
 import { detections } from "@/data/detections";
-import { Shield, Route, Crosshair, Server, Mail, CheckCircle } from "lucide-react";
+import { Shield, Route, Crosshair, Server, Mail, CheckCircle, Home } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -71,6 +71,11 @@ const Index = () => {
               animate={{ opacity: 1, scale: 1 }}
               transition={{ duration: 0.5, delay: 0.1 }}
             />
+
+            <div className="flex items-center justify-center gap-2 mb-5 text-primary">
+              <Home className="h-6 w-6 shrink-0 text-primary" aria-hidden />
+              <span className="text-sm font-bold uppercase tracking-wider">Home</span>
+            </div>
 
             <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight mb-6">
               <span className="text-gradient">Detecting.Cloud</span>

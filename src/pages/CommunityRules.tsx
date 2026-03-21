@@ -5,7 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, ThumbsUp, Copy, Search, Filter, GitPullRequest } from "lucide-react";
+import { Bug, ThumbsUp, Copy, Search, Filter, GitPullRequest } from "lucide-react";
+import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { toast } from "sonner";
 import { communityRules } from "@/data/communityRules";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
@@ -49,10 +50,9 @@ export default function CommunityRules() {
       <div className="container py-10">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-              <Users className="h-8 w-8 text-primary" />
+            <PageTitleWithIcon team="blue" icon={Bug}>
               Community Rules
-            </h1>
+            </PageTitleWithIcon>
             <p className="text-muted-foreground">
               Community-contributed detection rules for AWS cloud security. Vote, copy, and contribute your own.
             </p>

@@ -1,17 +1,15 @@
 import { Layout } from "@/components/Layout";
 import { Link } from "react-router-dom";
-import { Shield, BookOpen, GitPullRequest } from "lucide-react";
+import { BookOpen, GitPullRequest, Info } from "lucide-react";
+import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 
 const AboutPage = () => {
   return (
     <Layout>
       <div className="container py-12 max-w-2xl">
-        <div className="flex items-center gap-3 mb-6">
-          <div className="rounded-lg bg-gradient-subtle p-3">
-            <Shield className="h-6 w-6 text-primary" />
-          </div>
-          <h1 className="font-display text-3xl font-bold">About Detecting.Cloud</h1>
-        </div>
+        <PageTitleWithIcon team="neutral" icon={Info} className="mb-6">
+          About Detecting.Cloud
+        </PageTitleWithIcon>
         <div className="space-y-4 text-muted-foreground leading-relaxed">
           <p>
             Detecting.Cloud is a research platform dedicated to cloud attack techniques, detection rules, and defensive security for AWS environments.
@@ -25,10 +23,22 @@ const AboutPage = () => {
 
           <h2 className="text-foreground font-display font-bold text-xl pt-6 flex items-center gap-2">
             <BookOpen className="h-5 w-5" />
-            Research Blog
+            Content library
           </h2>
           <p>
-            Our <Link to="/research" className="text-primary hover:underline font-medium">Research Library</Link> is a blog-style collection of in-depth articles on cloud attack techniques, IAM abuse, privilege escalation paths, and defensive strategies. Each post includes technical analysis, detection ideas, mitigations, and references. Subscribe via the footer to get new research and detections delivered to your inbox.
+            Explore{" "}
+            <Link to="/attack-paths" className="text-primary hover:underline font-medium">
+              attack paths
+            </Link>
+            , the{" "}
+            <Link to="/techniques" className="text-primary hover:underline font-medium">
+              techniques library
+            </Link>
+            , and{" "}
+            <Link to="/detection-engineering" className="text-primary hover:underline font-medium">
+              detection rules
+            </Link>{" "}
+            for AWS cloud security. Subscribe via the footer for updates.
           </p>
 
           <h2 className="text-foreground font-display font-bold text-xl pt-6">What We Cover</h2>

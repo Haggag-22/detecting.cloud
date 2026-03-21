@@ -4,8 +4,6 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Index from "./pages/Index";
-import Research from "./pages/Research";
-import Article from "./pages/Article";
 import AttackPaths from "./pages/AttackPaths";
 import DetectionEngineering from "./pages/DetectionEngineering";
 import About from "./pages/About";
@@ -31,15 +29,16 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/research" element={<Research />} />
-          <Route path="/research/:slug" element={<Article />} />
+          <Route path="/research" element={<Navigate to="/" replace />} />
+          <Route path="/research/:slug" element={<Navigate to="/" replace />} />
           <Route path="/attack-paths/technique/:id" element={<TechniqueDetail />} />
           <Route path="/attack-paths" element={<AttackPaths />} />
           <Route path="/techniques" element={<TechniquesLibrary />} />
           <Route path="/detection-engineering" element={<DetectionEngineering />} />
           <Route path="/attack-graph" element={<AttackGraph />} />
           <Route path="/coverage" element={<Coverage />} />
-          <Route path="/detection-matrix" element={<DetectionMatrix />} />
+          <Route path="/detection-matrix" element={<Navigate to="/threat-matrix" replace />} />
+          <Route path="/threat-matrix" element={<DetectionMatrix />} />
           <Route path="/simulator" element={<AttackSimulator />} />
           <Route path="/cloudtrail-analyzer" element={<CloudTrailAnalyzer />} />
           <Route path="/community-rules" element={<CommunityRules />} />

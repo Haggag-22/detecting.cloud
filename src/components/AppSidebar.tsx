@@ -35,19 +35,16 @@ import {
   Database,
   ShieldOff,
   Home,
-  Info,
   BarChart3,
   LayoutGrid,
   FileJson,
   Github,
-  Twitter,
   Play,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { attackPaths, type AttackObjective } from "@/data/attackPaths";
 import { techniques, techniqueCategories, type TechniqueCategory } from "@/data/techniques";
 import { detections, getDetectionsByService } from "@/data/detections";
-import { researchPosts } from "@/data/research";
 import { LucideIcon } from "lucide-react";
 import { getAwsServiceIcon } from "@/components/AwsIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -110,7 +107,6 @@ interface SidebarNavStructure {
   home: SidebarSection;
   redTeam: SidebarSection[];
   blueTeam: SidebarSection[];
-  about: SidebarSection;
 }
 
 function buildSidebarNav(): SidebarNavStructure {
@@ -208,7 +204,7 @@ function buildSidebarNav(): SidebarNavStructure {
       key: "threat-matrix",
       label: "Threat Matrix",
       icon: LayoutGrid,
-      to: "/detection-matrix",
+      to: "/threat-matrix",
     },
   ];
 
@@ -240,14 +236,7 @@ function buildSidebarNav(): SidebarNavStructure {
     },
   ];
 
-  const about: SidebarSection = {
-    key: "about",
-    label: "About",
-    icon: Info,
-    to: "/about",
-  };
-
-  return { home, redTeam, blueTeam, about };
+  return { home, redTeam, blueTeam };
 }
 
 function renderTopLevelSection(
@@ -363,9 +352,8 @@ export function AppSidebar() {
   attackPaths.forEach((ap) => allSearchItems.push({ label: ap.title, to: `/attack-paths?technique=${ap.slug}`, type: "Attack Path" }));
   techniques.forEach((t) => allSearchItems.push({ label: t.name, to: `/attack-paths/technique/${t.id}`, type: "Technique" }));
   detections.forEach((d) => allSearchItems.push({ label: d.title, to: `/detection-engineering?rule=${d.id}`, type: "Detection" }));
-  researchPosts.forEach((p) => allSearchItems.push({ label: p.title, to: `/research/${p.slug}`, type: "Research" }));
   allSearchItems.push({ label: "CloudTrail Analyzer", to: "/cloudtrail-analyzer", type: "Tool" });
-  allSearchItems.push({ label: "Threat Matrix", to: "/detection-matrix", type: "Tool" });
+  allSearchItems.push({ label: "Threat Matrix", to: "/threat-matrix", type: "Tool" });
 
   const searchResults = search.trim()
     ? allSearchItems.filter((item) => item.label.toLowerCase().includes(search.toLowerCase()))
@@ -439,7 +427,6 @@ export function AppSidebar() {
                 ))}
               </SidebarGroupContent>
             </SidebarGroup>
-            {renderTopLevelSection(nav.about, location, currentPath, expanded, toggleSection)}
           </>
         )}
       </SidebarContent>
@@ -452,10 +439,6 @@ export function AppSidebar() {
             <a href="https://github.com/Haggag-22/detecting.cloud" target="_blank" rel="noopener noreferrer"
               className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors">
               <Github className="h-4 w-4" />
-            </a>
-            <a href="https://twitter.com" target="_blank" rel="noopener noreferrer"
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors">
-              <Twitter className="h-4 w-4" />
             </a>
           </div>
         </div>

@@ -7,8 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import {
   ChevronRight, Shield, Link as LinkIcon, Network, Crosshair,
   KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff, Lock,
-  FileJson, Copy, Check, Terminal, Play,
+  FileJson, Copy, Check, Terminal, Play, Route,
 } from "lucide-react";
+import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { useState } from "react";
 import { LucideIcon } from "lucide-react";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
@@ -89,7 +90,9 @@ const TechniqueDetailPage = () => {
               <Badge key={svc} variant="outline" className="text-xs border-border text-muted-foreground">{svc}</Badge>
             ))}
           </div>
-          <h1 className="font-display text-3xl font-bold mb-3">{technique.name}</h1>
+          <PageTitleWithIcon team="red" icon={Route} className="mb-3">
+            {technique.name}
+          </PageTitleWithIcon>
           <p className="text-muted-foreground leading-relaxed mb-4">{technique.description}</p>
           <div className="flex flex-wrap gap-3">
             <Link

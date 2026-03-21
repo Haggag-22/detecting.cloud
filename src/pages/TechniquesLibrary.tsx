@@ -2,8 +2,9 @@ import { Layout } from "@/components/Layout";
 import { techniques, techniqueCategories, type TechniqueCategory } from "@/data/techniques";
 import { Badge } from "@/components/ui/badge";
 import {
-  Crosshair, KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff,
+  Crosshair, KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff, Route,
 } from "lucide-react";
+import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { Link } from "react-router-dom";
 import { LucideIcon } from "lucide-react";
 
@@ -41,7 +42,9 @@ export default function TechniquesLibrary() {
   return (
     <Layout>
       <div className="container py-12">
-        <h1 className="font-display text-3xl font-bold mb-2">Techniques Library</h1>
+        <PageTitleWithIcon team="red" icon={Route}>
+          Techniques Library
+        </PageTitleWithIcon>
         <p className="text-muted-foreground mb-8">
           Browse all attack techniques by category. Each technique represents a single attacker action that can appear in multiple attack chains.
         </p>

@@ -10,8 +10,9 @@ import {
 } from "recharts";
 import {
   CheckCircle2, XCircle, AlertCircle, AlertTriangle, Filter, Search,
-  TrendingUp,
+  TrendingUp, BarChart3,
 } from "lucide-react";
+import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 
 const categoryColors: Record<TechniqueCategory, string> = {
   "initial-access": "bg-cyan-500/15 text-cyan-400",
@@ -140,7 +141,9 @@ const CoveragePage = () => {
   return (
     <Layout>
       <div className="container py-12">
-        <h1 className="font-display text-3xl font-bold mb-2">Detection Coverage</h1>
+        <PageTitleWithIcon team="blue" icon={BarChart3}>
+          Detection Coverage
+        </PageTitleWithIcon>
         <p className="text-muted-foreground mb-8">
           Visualize which attack techniques have detection rules, identify coverage gaps, and prioritize rule development.
         </p>

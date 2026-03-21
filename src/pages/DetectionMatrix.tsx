@@ -20,12 +20,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  Grid3X3,
+  LayoutGrid,
   Filter,
   Sparkles,
   Minimize2,
   Maximize2,
 } from "lucide-react";
+import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { cn } from "@/lib/utils";
 import {
   MATRIX_TACTIC_ORDER,
@@ -175,14 +176,20 @@ export default function DetectionMatrix() {
     <Layout>
       <div className="container min-w-0 max-w-full overflow-x-hidden py-8 space-y-6">
         <div>
-          <div className="flex items-center gap-2 text-primary mb-2">
-            <Grid3X3 className="h-6 w-6" />
-            <span className="text-sm font-medium uppercase tracking-wider">Detection rules</span>
+          <div className="mb-2">
+            <span className="text-sm font-bold uppercase tracking-wider text-red-400/90">Red team</span>
           </div>
-          <h1 className="font-display text-3xl font-bold tracking-tight">Cloud coverage matrix</h1>
+          <PageTitleWithIcon team="red" icon={LayoutGrid} className="mb-0">
+            Threat Matrix
+          </PageTitleWithIcon>
           <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed">
-            Same tactics as the Techniques Library — one column per vector. Click a card for attack paths, detections,
-            and simulations. Filter by service and coverage.
+            Offensive map of cloud techniques by tactic (same columns as the Techniques Library). Cards show rules and
+            attack-path counts as coverage signals; open a technique for paths, detection rules, and simulations. Filter
+            by AWS service or defensive coverage to spot gaps—use{" "}
+            <Link to="/coverage" className="text-primary hover:underline font-medium">
+              Detection Coverage
+            </Link>{" "}
+            for the blue-team dashboard.
           </p>
         </div>
 

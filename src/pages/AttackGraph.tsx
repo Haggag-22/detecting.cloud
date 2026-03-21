@@ -21,7 +21,8 @@ import { techniques, getTechniqueById } from "@/data/techniques";
 import { detections } from "@/data/detections";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Shield, Crosshair, Eye, Cloud, FileText, Search, Route } from "lucide-react";
+import { Shield, Crosshair, Eye, Cloud, FileText, Search, Route, Network } from "lucide-react";
+import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { Input } from "@/components/ui/input";
 
 type GraphNodeType = "attack" | "technique" | "detection" | "service" | "logSource";
@@ -415,7 +416,9 @@ const AttackGraphPage = () => {
     <Layout>
       <div className="container py-8">
         <div className="mb-6">
-          <h1 className="font-display text-3xl font-bold mb-2">Attack & Detection Graph</h1>
+          <PageTitleWithIcon team="red" icon={Network}>
+            Attack &amp; Detection Graph
+          </PageTitleWithIcon>
           <p className="text-muted-foreground text-sm">
             Explore the knowledge graph of attack techniques, chains, detection rules, and AWS services.
           </p>
