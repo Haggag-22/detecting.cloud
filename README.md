@@ -1,6 +1,6 @@
 # Detecting.Cloud
 
-**Cloud Attack Research & Detection Engineering Platform**
+**Cloud Attack Research & Detection Rules Platform**
 
 [detecting.cloud](https://detecting.cloud) is an open-source platform focused on researching real-world cloud attack paths and building practical detection rules for defenders.
 

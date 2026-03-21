@@ -1,5 +1,5 @@
 // Central data model entities for the Detecting.Cloud platform
-// These entities power the Attack Graph, Detection Engineering, and sidebar navigation.
+// These entities power the Attack Graph, Detection Rules page, and sidebar navigation.
 
 // ─── AWS Service Entity ───
 export interface AwsService {

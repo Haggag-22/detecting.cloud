@@ -131,7 +131,7 @@ const DetectionEngineeringPage = () => {
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
             <Link to="/detection-engineering" className="hover:text-foreground transition-colors">
-              Detection Engineering
+              Detection Rules
             </Link>
             <ChevronRight className="h-3.5 w-3.5" />
             <Link
@@ -412,7 +412,7 @@ const DetectionEngineeringPage = () => {
   return (
     <Layout>
       <div className="container py-12">
-        <h1 className="font-display text-3xl font-bold mb-2">Detection Engineering</h1>
+        <h1 className="font-display text-3xl font-bold mb-2">Detection Rules</h1>
         <p className="text-muted-foreground mb-8">
           Cloud security detection rules organized by AWS service.
         </p>

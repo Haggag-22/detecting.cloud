@@ -4,7 +4,7 @@ import { ArticleCard } from "@/components/ArticleCard";
 import { researchPosts } from "@/data/research";
 import { Badge } from "@/components/ui/badge";
 
-const categories = ["All", "IAM Abuse", "Cloud Attacks", "Detection Engineering"];
+const categories = ["All", "IAM Abuse", "Cloud Attacks", "Detection Rules"];
 
 const ResearchPage = () => {
   const [activeFilter, setActiveFilter] = useState("All");

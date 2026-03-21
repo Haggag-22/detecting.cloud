@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +23,8 @@ import {
   Grid3X3,
   Filter,
   Sparkles,
+  Minimize2,
+  Maximize2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -36,6 +38,8 @@ import {
 } from "@/lib/coverageMatrixModel";
 
 type CoverageFilter = "all" | "covered" | "partial" | "gaps";
+
+const MATRIX_EXPANDED_KEY = "threat-matrix-expanded";
 
 /** Matches Techniques Library sidebar accent colors */
 const TACTIC_HEADER_COLOR: Record<MatrixTactic, string> = {
@@ -115,6 +119,21 @@ export default function DetectionMatrix() {
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [coverageFilter, setCoverageFilter] = useState<CoverageFilter>("all");
   const [onlyWithDetections, setOnlyWithDetections] = useState(false);
+  const [matrixExpanded, setMatrixExpanded] = useState(() => {
+    try {
+      return sessionStorage.getItem(MATRIX_EXPANDED_KEY) !== "0";
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(MATRIX_EXPANDED_KEY, matrixExpanded ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  }, [matrixExpanded]);
 
   const filtered = useMemo(() => {
     return baseEntries.filter((e) => {
@@ -147,6 +166,10 @@ export default function DetectionMatrix() {
   }, []);
 
   const visibleCount = filtered.length;
+  const tacticsWithMatches = useMemo(
+    () => MATRIX_TACTIC_ORDER.filter((t) => (byTactic.get(t) ?? []).length > 0).length,
+    [byTactic]
+  );
 
   return (
     <Layout>
@@ -154,7 +177,7 @@ export default function DetectionMatrix() {
         <div>
           <div className="flex items-center gap-2 text-primary mb-2">
             <Grid3X3 className="h-6 w-6" />
-            <span className="text-sm font-medium uppercase tracking-wider">Detection engineering</span>
+            <span className="text-sm font-medium uppercase tracking-wider">Detection rules</span>
           </div>
           <h1 className="font-display text-3xl font-bold tracking-tight">Cloud coverage matrix</h1>
           <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed">
@@ -215,52 +238,94 @@ export default function DetectionMatrix() {
               </div>
             </CardHeader>
             <CardContent className="pt-0 space-y-2">
-              <p className="text-xs text-muted-foreground flex items-center gap-2 px-0.5">
-                <span className="inline-block rounded border border-border/60 px-1.5 py-0.5 font-mono text-[10px]">↔</span>
-                Scroll horizontally with the bar below to move through all tactics.
-              </p>
-              <ScrollArea className="max-w-full min-w-0 rounded-md border border-border/50">
-                <div className="flex w-max min-w-0 gap-10 px-6 py-5">
-                  {MATRIX_TACTIC_ORDER.map((tactic) => {
-                    const col = byTactic.get(tactic) ?? [];
-                    return (
-                      <div
-                        key={tactic}
-                        className="flex w-[22rem] min-w-[280px] max-w-[22rem] shrink-0 flex-col gap-3"
-                      >
-                        <div className="flex min-h-[5.25rem] flex-col items-center justify-center border-b border-border/40 bg-background/95 px-2 py-4 text-center backdrop-blur">
-                          <div className="flex flex-col items-center justify-center gap-1.5">
-                            <h3
-                              className={cn(
-                                "font-display text-balance text-[11px] font-bold uppercase leading-snug tracking-[0.12em] antialiased sm:text-xs",
-                                TACTIC_HEADER_COLOR[tactic]
-                              )}
-                            >
-                              {matrixTacticLabels[tactic]}
-                            </h3>
-                            <p className="text-[10px] font-normal tabular-nums leading-normal text-muted-foreground">
-                              {col.length} {col.length === 1 ? "technique" : "techniques"}
-                            </p>
+              <div className="flex flex-wrap items-start justify-between gap-3 px-0.5">
+                <div className="min-w-0 flex-1 space-y-1">
+                  {matrixExpanded ? (
+                    <p className="text-xs text-muted-foreground flex items-center gap-2">
+                      <span className="inline-block shrink-0 rounded border border-border/60 px-1.5 py-0.5 font-mono text-[10px]">
+                        ↔
+                      </span>
+                      <span>
+                        Scroll horizontally with the bar below to move through all tactics.
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      <span className="font-medium text-foreground/90">Matrix minimized.</span>{" "}
+                      {visibleCount} {visibleCount === 1 ? "technique" : "techniques"} across {tacticsWithMatches}{" "}
+                      {tacticsWithMatches === 1 ? "tactic" : "tactics"} match your filters. Expand to browse columns.
+                    </p>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-8 shrink-0 gap-1.5 text-xs"
+                  onClick={() => setMatrixExpanded((v) => !v)}
+                  aria-expanded={matrixExpanded}
+                  aria-controls="threat-matrix-scroll"
+                >
+                  {matrixExpanded ? (
+                    <>
+                      <Minimize2 className="h-3.5 w-3.5" />
+                      Minimize matrix
+                    </>
+                  ) : (
+                    <>
+                      <Maximize2 className="h-3.5 w-3.5" />
+                      Expand matrix
+                    </>
+                  )}
+                </Button>
+              </div>
+              {matrixExpanded && (
+                <ScrollArea
+                  id="threat-matrix-scroll"
+                  className="max-w-full min-w-0 rounded-md border border-border/50"
+                >
+                  <div className="flex w-max min-w-0 gap-10 px-6 py-5">
+                    {MATRIX_TACTIC_ORDER.map((tactic) => {
+                      const col = byTactic.get(tactic) ?? [];
+                      return (
+                        <div
+                          key={tactic}
+                          className="flex w-[22rem] min-w-[280px] max-w-[22rem] shrink-0 flex-col gap-3"
+                        >
+                          <div className="flex min-h-[5.25rem] flex-col items-center justify-center border-b border-border/40 bg-background/95 px-2 py-4 text-center backdrop-blur">
+                            <div className="flex flex-col items-center justify-center gap-1.5">
+                              <h3
+                                className={cn(
+                                  "font-display text-balance text-[11px] font-bold uppercase leading-snug tracking-[0.12em] antialiased sm:text-xs",
+                                  TACTIC_HEADER_COLOR[tactic]
+                                )}
+                              >
+                                {matrixTacticLabels[tactic]}
+                              </h3>
+                              <p className="text-[10px] font-normal tabular-nums leading-normal text-muted-foreground">
+                                {col.length} {col.length === 1 ? "technique" : "techniques"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-3 pr-1 pb-2">
+                            {col.length === 0 ? (
+                              <p className="text-[10px] text-muted-foreground italic px-1 py-4 text-center">
+                                No matches
+                              </p>
+                            ) : (
+                              col.map((entry) => <TechniqueCard key={entry.technique.id} entry={entry} />)
+                            )}
                           </div>
                         </div>
-                        <div className="flex flex-col gap-3 pr-1 pb-2">
-                          {col.length === 0 ? (
-                            <p className="text-[10px] text-muted-foreground italic px-1 py-4 text-center">
-                              No matches
-                            </p>
-                          ) : (
-                            col.map((entry) => <TechniqueCard key={entry.technique.id} entry={entry} />)
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <ScrollBar
-                  orientation="horizontal"
-                  className="h-3.5 border-t border-border/40 bg-muted/20 [&>[data-radix-scroll-area-thumb]]:bg-muted-foreground/40"
-                />
-              </ScrollArea>
+                      );
+                    })}
+                  </div>
+                  <ScrollBar
+                    orientation="horizontal"
+                    className="h-3.5 border-t border-border/40 bg-muted/20 [&>[data-radix-scroll-area-thumb]]:bg-muted-foreground/40"
+                  />
+                </ScrollArea>
+              )}
               <p className="text-xs text-muted-foreground mt-3 flex items-center gap-1">
                 <Sparkles className="h-3.5 w-3.5" />
                 Submit new rules for uncovered techniques via{" "}

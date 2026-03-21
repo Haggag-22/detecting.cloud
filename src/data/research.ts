@@ -166,7 +166,7 @@ WHERE eventName IN ('StopLogging', 'DeleteTrail', 'UpdateTrail')
     author: "Detecting.Cloud Research",
     date: "2026-02-20",
     readTime: "10 min",
-    category: "Detection Engineering",
+    category: "Detection Rules",
     tags: ["AWS", "S3", "Data Exfiltration", "Detection"],
     preview: "Practical detection strategies for identifying and responding to S3 data exfiltration attempts in cloud environments.",
     content: `## Overview

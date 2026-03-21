@@ -77,7 +77,7 @@ export function Footer() {
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li><Link to="/research" className="hover:text-foreground transition-colors">Research</Link></li>
               <li><Link to="/attack-paths" className="hover:text-foreground transition-colors">Attack Paths</Link></li>
-              <li><Link to="/detection-engineering" className="hover:text-foreground transition-colors">Detection Engineering</Link></li>
+              <li><Link to="/detection-engineering" className="hover:text-foreground transition-colors">Detection Rules</Link></li>
               <li><Link to="/simulator" className="hover:text-foreground transition-colors">Attack Simulator</Link></li>
               <li><Link to="/community-rules" className="hover:text-foreground transition-colors">Community Rules</Link></li>
             </ul>

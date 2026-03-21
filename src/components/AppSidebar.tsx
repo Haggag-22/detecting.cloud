@@ -215,7 +215,7 @@ function buildSidebarNav(): SidebarNavStructure {
   const blueTeam: SidebarSection[] = [
     {
       key: "detections",
-      label: "Detection Engineering",
+      label: "Detection Rules",
       icon: ShieldCheck,
       to: "/detection-engineering",
       children: detectionServiceChildren,

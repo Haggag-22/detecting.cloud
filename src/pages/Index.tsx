@@ -75,7 +75,7 @@ const Index = () => {
             <h1 className="font-display text-4xl md:text-6xl font-bold tracking-tight mb-6">
               <span className="text-gradient">Detecting.Cloud</span>
               <br />
-              <span className="text-foreground/90">Cloud Attack Research &amp; Detection Engineering</span>
+              <span className="text-foreground/90">Cloud Attack Research &amp; Detection Rules</span>
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8 leading-relaxed">
               Researching real-world cloud attack paths and building practical detections for defenders.
