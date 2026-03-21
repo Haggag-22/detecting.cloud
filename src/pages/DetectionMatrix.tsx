@@ -190,14 +190,12 @@ export default function DetectionMatrix() {
           <PageTitleWithIcon team="red" icon={LayoutGrid} className="mb-0">
             Threat Matrix
           </PageTitleWithIcon>
-          <p className="text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed">
-            Offensive map of cloud techniques by tactic (same columns as the Techniques Library). Cards show rules and
-            attack-path counts as coverage signals; open a technique for paths, detection rules, and simulations. Filter
-            by AWS service or defensive coverage to spot gaps—use{" "}
+          <p className="text-muted-foreground mt-2 text-sm line-clamp-1 min-w-0 max-w-4xl">
+            Techniques by tactic—click a card for paths &amp; rules. Filter below ·{" "}
             <Link to="/coverage" className="text-primary hover:underline font-medium">
               Detection Coverage
             </Link>{" "}
-            for the blue-team dashboard.
+            (blue-team).
           </p>
         </div>
 
