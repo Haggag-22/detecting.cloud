@@ -35,6 +35,7 @@ import {
   Home,
   Info,
   BarChart3,
+  LayoutGrid,
   FileJson,
   Github,
   Twitter,
@@ -206,6 +207,12 @@ function buildSections(): SidebarSection[] {
       to: "/coverage",
     },
     {
+      key: "detection-matrix",
+      label: "Coverage Matrix",
+      icon: LayoutGrid,
+      to: "/detection-matrix",
+    },
+    {
       key: "cloudtrail-analyzer",
       label: "CloudTrail Analyzer",
       icon: FileJson,
@@ -258,6 +265,7 @@ export function AppSidebar() {
   detections.forEach((d) => allSearchItems.push({ label: d.title, to: `/detection-engineering?rule=${d.id}`, type: "Detection" }));
   researchPosts.forEach((p) => allSearchItems.push({ label: p.title, to: `/research/${p.slug}`, type: "Research" }));
   allSearchItems.push({ label: "CloudTrail Analyzer", to: "/cloudtrail-analyzer", type: "Tool" });
+  allSearchItems.push({ label: "Coverage Matrix", to: "/detection-matrix", type: "Tool" });
 
   const searchResults = search.trim()
     ? allSearchItems.filter((item) => item.label.toLowerCase().includes(search.toLowerCase()))

@@ -17,6 +17,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
   const navigate = useNavigate();
 
   const allItems = [
+    { title: "Coverage Matrix", description: "ATT&CK-style detection coverage dashboard", url: "/detection-matrix", type: "Tool" },
     ...researchPosts.map((p) => ({ title: p.title, description: p.preview, url: `/research/${p.slug}`, type: "Research" })),
     ...attackPaths.map((a) => ({ title: a.title, description: a.description, url: `/attack-paths?technique=${a.slug}`, type: "Attack Path" })),
     ...techniques.map((t) => ({ title: t.name, description: t.description, url: `/attack-paths/technique/${t.id}`, type: "Technique" })),
