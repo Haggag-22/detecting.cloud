@@ -22,8 +22,6 @@ import {
 import {
   Grid3X3,
   Filter,
-  AlertTriangle,
-  ChevronRight,
   Sparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -34,7 +32,6 @@ import {
   type TechniqueMatrixEntry,
   type CoverageBand,
   buildTechniqueMatrixEntries,
-  getTopDetectionGaps,
   getAllMatrixServices,
 } from "@/lib/coverageMatrixModel";
 
@@ -86,29 +83,13 @@ function TechniqueCard({ entry }: { entry: TechniqueMatrixEntry }) {
                 coverage === "none" && "bg-red-400"
               )}
             />
-            <div className="min-w-0 flex-1 space-y-1.5">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-foreground leading-snug break-words hyphens-auto group-hover:text-primary transition-colors">
                 {technique.name}
               </p>
-              <p className="text-[9px] font-mono text-muted-foreground/80 break-all" title={technique.id}>
-                {technique.id}
-              </p>
             </div>
           </div>
-          <div className="mt-2 flex flex-wrap gap-1">
-            {technique.services.slice(0, 3).map((s) => (
-              <span
-                key={s}
-                className="text-[9px] px-1 py-0 rounded bg-background/60 text-muted-foreground border border-border/40"
-              >
-                {s}
-              </span>
-            ))}
-            {technique.services.length > 3 && (
-              <span className="text-[9px] text-muted-foreground">+{technique.services.length - 3}</span>
-            )}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] text-muted-foreground">
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] text-muted-foreground">
             <span>
               Rules: <strong className="text-foreground">{detectionCount}</strong>
             </span>
@@ -159,8 +140,6 @@ export default function DetectionMatrix() {
     return map;
   }, [filtered]);
 
-  const topGaps = useMemo(() => getTopDetectionGaps(baseEntries, 8), [baseEntries]);
-
   const resetFilters = useCallback(() => {
     setServiceFilter("all");
     setCoverageFilter("all");
@@ -171,7 +150,7 @@ export default function DetectionMatrix() {
 
   return (
     <Layout>
-      <div className="container py-8 space-y-6">
+      <div className="container min-w-0 max-w-full overflow-x-hidden py-8 space-y-6">
         <div>
           <div className="flex items-center gap-2 text-primary mb-2">
             <Grid3X3 className="h-6 w-6" />
@@ -184,8 +163,7 @@ export default function DetectionMatrix() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_280px] gap-6">
-          <Card className="border-border/60">
+        <Card className="min-w-0 max-w-full overflow-hidden border-border/60">
             <CardHeader className="pb-3 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
@@ -241,27 +219,29 @@ export default function DetectionMatrix() {
                 <span className="inline-block rounded border border-border/60 px-1.5 py-0.5 font-mono text-[10px]">↔</span>
                 Scroll horizontally with the bar below to move through all tactics.
               </p>
-              <ScrollArea className="w-full max-w-full rounded-md border border-border/50">
-                <div className="flex w-max gap-10 px-6 py-5">
+              <ScrollArea className="max-w-full min-w-0 rounded-md border border-border/50">
+                <div className="flex w-max min-w-0 gap-10 px-6 py-5">
                   {MATRIX_TACTIC_ORDER.map((tactic) => {
                     const col = byTactic.get(tactic) ?? [];
                     return (
                       <div
                         key={tactic}
-                        className="flex w-[min(22rem,calc(100vw-3rem))] min-w-[17.5rem] max-w-[22rem] shrink-0 flex-col gap-3 sm:min-w-[22rem] sm:w-[22rem]"
+                        className="flex w-[22rem] min-w-[280px] max-w-[22rem] shrink-0 flex-col gap-3"
                       >
-                        <div className="sticky top-0 z-10 bg-background/95 backdrop-blur pb-3 border-b border-border/40 text-center px-1">
-                          <h3
-                            className={cn(
-                              "font-display font-bold uppercase tracking-[0.12em] text-[11px] sm:text-xs leading-tight text-balance antialiased",
-                              TACTIC_HEADER_COLOR[tactic]
-                            )}
-                          >
-                            {matrixTacticLabels[tactic]}
-                          </h3>
-                          <p className="text-[10px] text-muted-foreground mt-1.5 font-normal tabular-nums">
-                            {col.length} {col.length === 1 ? "technique" : "techniques"}
-                          </p>
+                        <div className="flex min-h-[5.25rem] flex-col items-center justify-center border-b border-border/40 bg-background/95 px-2 py-4 text-center backdrop-blur">
+                          <div className="flex flex-col items-center justify-center gap-1.5">
+                            <h3
+                              className={cn(
+                                "font-display text-balance text-[11px] font-bold uppercase leading-snug tracking-[0.12em] antialiased sm:text-xs",
+                                TACTIC_HEADER_COLOR[tactic]
+                              )}
+                            >
+                              {matrixTacticLabels[tactic]}
+                            </h3>
+                            <p className="text-[10px] font-normal tabular-nums leading-normal text-muted-foreground">
+                              {col.length} {col.length === 1 ? "technique" : "techniques"}
+                            </p>
+                          </div>
                         </div>
                         <div className="flex flex-col gap-3 pr-1 pb-2">
                           {col.length === 0 ? (
@@ -291,55 +271,6 @@ export default function DetectionMatrix() {
               </p>
             </CardContent>
           </Card>
-
-          <div className="space-y-4">
-            <Card className="border-red-500/20 bg-red-950/5">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2 text-red-400">
-                  <AlertTriangle className="h-4 w-4" />
-                  Top detection gaps
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  High-risk techniques with no linked platform detections (ranked by attack-path severity).
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                {topGaps.map((e) => (
-                  <Link
-                    key={e.technique.id}
-                    to={`/attack-paths/technique/${e.technique.id}`}
-                    className="flex items-center justify-between gap-2 rounded-md border border-border/50 bg-background/50 px-2.5 py-2 text-xs hover:border-primary/40 hover:bg-muted/30 transition-colors group"
-                  >
-                    <span className="line-clamp-2 font-medium text-foreground group-hover:text-primary">
-                      {e.technique.name}
-                    </span>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  </Link>
-                ))}
-              </CardContent>
-            </Card>
-
-            <Card className="border-border/60">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Legend</CardTitle>
-              </CardHeader>
-              <CardContent className="text-xs space-y-2 text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-                  Covered — all linked rule IDs resolve in the catalog
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-                  Partial — some IDs missing or stale
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
-                  Not covered — no linked detections
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
       </div>
     </Layout>
   );

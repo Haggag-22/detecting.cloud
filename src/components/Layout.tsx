@@ -50,8 +50,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
           onMouseDown={handleMouseDown}
           className="relative shrink-0 w-1 cursor-col-resize z-30 hover:bg-primary/30 transition-colors"
         />
-        <div className="flex-1 flex flex-col min-w-0">
-          <main className="flex-1">{children}</main>
+        <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
+          <main className="min-w-0 flex-1">{children}</main>
           <Footer />
         </div>
       </div>
