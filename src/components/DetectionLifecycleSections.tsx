@@ -2,18 +2,12 @@ import React, { useState, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ChevronDown, ChevronRight, ThumbsUp, AlertTriangle, ThumbsDown, Copy, Check, ExternalLink, MoreHorizontal } from "lucide-react";
+import { ChevronDown, ChevronRight, ThumbsUp, AlertTriangle, ThumbsDown, Copy, Check, ExternalLink } from "lucide-react";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
 import { QualityMetricsVisual } from "@/components/DetectionVisuals";
+import { SigmaRulePanel } from "@/components/SigmaRulePanel";
 import { Link } from "react-router-dom";
 import { techniqueCategories } from "@/data/techniques";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import type {
   Detection,
   DetectionLifecycle,
@@ -27,170 +21,46 @@ import type {
   DetectionLogicExplanation,
 } from "@/data/detections";
 
-const formatLabels: Record<string, string> = {
-  "detection-logic": "Detection Logic",
-  sigma: "Sigma",
-  cloudtrail: "CloudTrail Athena",
-  splunk: "Splunk",
-  lambda: "Lambda",
-  cloudwatch: "CloudWatch Insights",
-  eventbridge: "EventBridge",
-};
-
-function highlightCode(code: string, format: string): React.ReactNode {
-  if (format === "sigma") {
-    return code.split("\n").map((line, i) => {
-      const highlighted = line
-        .replace(/^(\s*)([\w-]+)(:)/gm, "$1<k>$2</k>$3")
-        .replace(/'([^']+)'/g, "<s>'$1'</s>");
-      return (
-        <span key={i}>
-          <span
-            dangerouslySetInnerHTML={{
-              __html: highlighted
-                .replace(/<k>/g, '<span class="text-yellow-400">')
-                .replace(/<\/k>/g, "</span>")
-                .replace(/<s>/g, '<span class="text-emerald-400">')
-                .replace(/<\/s>/g, "</span>"),
-            }}
-          />
-          {"\n"}
-        </span>
-      );
-    });
-  }
-  if (format === "splunk") {
-    const highlighted = code
-      .replace(/\b(index|sourcetype|where|table|stats|sort|like|OR|AND|NOT|IN|by|as)\b/gi, '<span class="text-yellow-400">$1</span>')
-      .replace(/\|/g, '<span class="text-accent">|</span>');
-    return <span dangerouslySetInnerHTML={{ __html: highlighted }} />;
-  }
-  if (format === "cloudtrail") {
-    const highlighted = code.replace(
-      /\b(SELECT|FROM|WHERE|AND|OR|ORDER BY|GROUP BY|HAVING|IN|LIKE|NOT|DESC|ASC|COUNT|SUM)\b/gi,
-      '<span class="text-yellow-400">$1</span>'
-    );
-    return <span dangerouslySetInnerHTML={{ __html: highlighted }} />;
-  }
-  if (format === "cloudwatch") {
-    const highlighted = code
-      .replace(/\b(fields|filter|sort|stats|count|like|in|by|desc|asc|not)\b/gi, '<span class="text-yellow-400">$1</span>')
-      .replace(/\|/g, '<span class="text-accent">|</span>');
-    return <span dangerouslySetInnerHTML={{ __html: highlighted }} />;
-  }
-  if (format === "eventbridge") {
-    return renderCodeWithColoredKeys(code, "json");
-  }
-  if (format === "lambda") {
-    const highlighted = code
-      .replace(/\b(def|import|from|return|if|else|for|in|and|or|not|True|False|None)\b/g, '<span class="text-yellow-400">$1</span>')
-      .replace(/\b(lambda_handler|event|context|detail|get)\b/g, '<span class="text-blue-400">$1</span>')
-      .replace(/#[^\n]*/g, '<span class="text-muted-foreground">$&</span>');
-    return <span dangerouslySetInnerHTML={{ __html: highlighted }} />;
-  }
-  return code;
-}
-
-const CORE_TAB_ORDER = ["detection-logic", "sigma", "cloudtrail", "splunk", "lambda"] as const;
-const MORE_TAB_KEYS = ["cloudwatch", "eventbridge"] as const;
-
 function DetectionRuleSection({
   detection,
   lifecycle,
-  formatLabels,
-  highlightCode,
   copiedId,
   setCopiedId,
 }: {
   detection: Detection;
   lifecycle: DetectionLifecycle;
-  formatLabels: Record<string, string>;
-  highlightCode: (code: string, format: string) => React.ReactNode;
   copiedId: string | null;
   setCopiedId: (id: string | null) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<string>("");
   const logic = lifecycle.logicExplanation;
-  const rules = detection.rules;
-
-  const coreTabs = CORE_TAB_ORDER.filter((key) => {
-    if (key === "detection-logic") return !!logic;
-    return !!rules[key as keyof typeof rules];
-  });
-  const moreTabs = MORE_TAB_KEYS.filter((key) => !!rules[key as keyof typeof rules]);
-  const defaultTab = coreTabs[0] ?? "sigma";
-  const effectiveTab = activeTab || defaultTab;
+  const sigma = detection.rules.sigma;
 
   return (
-    <Tabs value={effectiveTab} onValueChange={setActiveTab} className="mt-4">
-      <div className="flex flex-wrap items-center gap-1 border-b border-border/50 pb-2 mb-4">
-        <TabsList className="bg-muted border border-border/50 h-auto p-1 flex-wrap">
-          {coreTabs.map((key) => (
-            <TabsTrigger key={key} value={key} className="text-xs">
-              {formatLabels[key] || key}
-            </TabsTrigger>
-          ))}
-          {moreTabs.length > 0 && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                   variant={moreTabs.includes(effectiveTab as typeof MORE_TAB_KEYS[number]) ? "secondary" : "ghost"}
-                   size="sm"
-                   className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground gap-1"
-                 >
-                   <MoreHorizontal className="h-3.5 w-3.5" />
-                   {moreTabs.includes(effectiveTab as typeof MORE_TAB_KEYS[number]) ? formatLabels[effectiveTab] || effectiveTab : "More"}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start">
-                {moreTabs.map((key) => (
-                  <DropdownMenuItem key={key} onSelect={() => setActiveTab(key)}>
-                    {formatLabels[key] || key}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </TabsList>
-      </div>
+    <div className="mt-4 space-y-6">
+      <p className="text-sm text-muted-foreground">
+        Sigma is the canonical rule format. Use <span className="text-foreground font-medium">Convert</span> to
+        generate ES|QL, Splunk, Datadog, Athena, CloudWatch Insights, or EventBridge queries.
+      </p>
 
-      {/* Detection Logic tab */}
-      {logic && (
-        <TabsContent value="detection-logic" className="mt-0">
-          <DetectionLogicTab logic={logic} copiedId={copiedId} setCopiedId={setCopiedId} />
-        </TabsContent>
+      {sigma ? (
+        <SigmaRulePanel
+          sigma={sigma}
+          rules={detection.rules}
+          detectionId={detection.id}
+          copiedId={copiedId}
+          setCopiedId={setCopiedId}
+        />
+      ) : (
+        <p className="text-sm text-muted-foreground">No Sigma rule is available for this detection.</p>
       )}
 
-      {/* Rule format tabs */}
-      {[...coreTabs.filter((k) => k !== "detection-logic"), ...moreTabs].map((key) => {
-        const value = rules[key as keyof typeof rules];
-        if (!value || typeof value !== "string") return null;
-        return (
-          <TabsContent key={key} value={key} className="mt-0">
-            <div className="rounded-lg border border-border overflow-hidden">
-              <div className="px-4 py-2 bg-muted text-xs text-muted-foreground font-mono border-b border-border flex items-center justify-between">
-                <span>{formatLabels[key] || key}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    navigator.clipboard.writeText(value);
-                    setCopiedId(key);
-                    setTimeout(() => setCopiedId(null), 2000);
-                  }}
-                >
-                  {copiedId === key ? <><Check className="h-3 w-3 mr-1" /> Copied</> : <><Copy className="h-3 w-3 mr-1" /> Copy</>}
-                </Button>
-              </div>
-              <pre className="p-4 overflow-x-auto bg-muted/30 text-sm font-mono leading-relaxed">
-                <code>{highlightCode(value, key)}</code>
-              </pre>
-            </div>
-          </TabsContent>
-        );
-      })}
-    </Tabs>
+      {logic && (
+        <div className="pt-4 border-t border-border/50">
+          <h3 className="text-sm font-semibold mb-3">Detection Logic</h3>
+          <DetectionLogicTab logic={logic} copiedId={copiedId} setCopiedId={setCopiedId} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -417,8 +287,6 @@ export function DetectionLifecycleSections({
     [detection.id, hasVoted]
   );
 
-  const availableFormats = Object.entries(detection.rules).filter(([, v]) => !!v);
-
   return (
     <>
       {/* 1. Detection Overview - not collapsible, rendered by parent */}
@@ -451,13 +319,11 @@ export function DetectionLifecycleSections({
         </SectionCard>
       )}
 
-      {/* Phase 5: Detection Logic */}
+      {/* Phase 5: Detection Logic — Sigma canonical + converter */}
       <SectionCard title="Writing the Detection Rule" phase={5} collapsible defaultOpen>
         <DetectionRuleSection
           detection={detection}
           lifecycle={lifecycle}
-          formatLabels={formatLabels}
-          highlightCode={highlightCode}
           copiedId={copiedId}
           setCopiedId={setCopiedId}
         />

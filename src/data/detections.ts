@@ -1,6 +1,15 @@
-export type RuleFormat = "sigma" | "splunk" | "cloudtrail" | "cloudwatch" | "eventbridge" | "lambda";
+export type RuleFormat =
+  | "sigma"
+  | "splunk"
+  | "cloudtrail"
+  | "cloudwatch"
+  | "eventbridge"
+  | "lambda"
+  | "esql"
+  | "datadog";
 
 export interface RuleFormats {
+  /** Canonical detection rule format */
   sigma?: string;
   splunk?: string;
   cloudtrail?: string;
@@ -9,6 +18,10 @@ export interface RuleFormats {
   eventbridge?: string;
   /** AWS Lambda / Python implementation for real-time or enriched detections */
   lambda?: string;
+  /** Optional curated Elastic ES|QL (prefer Sigma convert when absent) */
+  esql?: string;
+  /** Optional curated Datadog query (prefer Sigma convert when absent) */
+  datadog?: string;
 }
 
 /** Telemetry source metadata for detection engineering context */

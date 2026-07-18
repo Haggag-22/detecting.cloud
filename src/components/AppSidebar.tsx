@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -7,100 +7,38 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarMenuSub,
-  SidebarMenuSubItem,
-  SidebarMenuSubButton,
   SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
 } from "@/components/ui/sidebar";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import {
   Search,
   Crosshair,
   ShieldCheck,
-  ChevronRight,
   Bug,
   Route,
   Network as NetworkIcon,
-  KeyRound,
-  TrendingUp,
-  Server,
-  Wifi,
-  Database,
-  ShieldOff,
-  Home,
   BarChart3,
   LayoutGrid,
   FileJson,
   Github,
   Play,
+  Home,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
-import { attackPaths, type AttackObjective } from "@/data/attackPaths";
-import { techniques, techniqueCategories, type TechniqueCategory } from "@/data/techniques";
-import { detections, getDetectionsByService } from "@/data/detections";
+import { attackPaths } from "@/data/attackPaths";
+import { techniques } from "@/data/techniques";
+import { detections } from "@/data/detections";
 import { LucideIcon } from "lucide-react";
-import { getAwsServiceIcon } from "@/components/AwsIcons";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import logoImg from "@/assets/logo.png";
-
-const STORAGE_KEY = "sidebar-expanded";
-
-function getPersistedState(): Record<string, boolean> {
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function persistState(state: Record<string, boolean>) {
-  sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-const objectiveColors: Record<AttackObjective, string> = {
-  "credential-access": "text-purple-400",
-  "privilege-escalation": "text-red-400",
-  "persistence": "text-orange-400",
-  "lateral-movement": "text-blue-400",
-  "exfiltration": "text-emerald-400",
-  "initial-access": "text-cyan-400",
-  "defense-evasion": "text-yellow-400",
-};
-
-const techniqueCategoryColors: Record<string, string> = {
-  "initial-access": "text-cyan-400",
-  "credential-access": "text-purple-400",
-  "privilege-escalation": "text-red-400",
-  "persistence": "text-orange-400",
-  "lateral-movement": "text-blue-400",
-  "exfiltration": "text-emerald-400",
-  "defense-evasion": "text-amber-400",
-};
 
 interface SidebarSection {
   key: string;
   label: string;
   icon?: LucideIcon;
-  to?: string;
-  children?: SidebarChild[];
-}
-
-interface SidebarChild {
-  key: string;
-  label: string;
-  icon?: LucideIcon;
-  iconColorClass?: string;
-  customIcon?: React.ReactNode;
-  to?: string;
-  children?: { label: string; to: string }[];
+  to: string;
 }
 
 interface SidebarNavStructure {
@@ -110,62 +48,6 @@ interface SidebarNavStructure {
 }
 
 function buildSidebarNav(): SidebarNavStructure {
-  const attackPathChildren: SidebarChild[] = [
-    { key: "ap-all", label: "All Attack Paths", icon: Crosshair, to: "/attack-paths" },
-    ...attackPaths.map((ap) => ({
-      key: `ap-${ap.slug}`,
-      label: ap.title.length > 35 ? ap.title.substring(0, 35) + "…" : ap.title,
-      icon: Route,
-      iconColorClass: objectiveColors[ap.objective],
-      to: `/attack-paths?technique=${ap.slug}`,
-    })),
-  ];
-
-  const techniqueCategoryIcons: Record<string, LucideIcon> = {
-    "initial-access": Crosshair,
-    "credential-access": KeyRound,
-    "privilege-escalation": TrendingUp,
-    "persistence": Server,
-    "lateral-movement": Wifi,
-    "exfiltration": Database,
-    "defense-evasion": ShieldOff,
-  };
-
-  const techniqueChildren: SidebarChild[] = [
-    { key: "tech-all", label: "All Techniques", icon: Route, to: "/techniques" },
-    ...(Object.keys(techniqueCategories) as TechniqueCategory[]).map((catKey) => {
-      const catTechs = techniques.filter((t) => t.category === catKey);
-      const colorClass = techniqueCategoryColors[catKey] || "text-muted-foreground";
-      return {
-        key: `tech-cat-${catKey}`,
-        label: techniqueCategories[catKey].label,
-        icon: techniqueCategoryIcons[catKey] || Crosshair,
-        iconColorClass: colorClass,
-        children: catTechs.map((t) => ({
-          label: t.name.length > 35 ? t.name.substring(0, 35) + "…" : t.name,
-          to: `/attack-paths/technique/${t.id}`,
-        })),
-      };
-    }).filter((c) => c.children.length > 0),
-  ];
-
-  const detectionsByService = getDetectionsByService();
-  const detectionServiceChildren: SidebarChild[] = [
-    { key: "det-all", label: "All Detections", icon: ShieldCheck, to: "/detection-engineering" },
-    ...Object.entries(detectionsByService).map(([service, rules]) => {
-      const ServiceIcon = getAwsServiceIcon(service);
-      return {
-        key: `det-svc-${service}`,
-        label: service,
-        customIcon: ServiceIcon ? <ServiceIcon size={14} /> : undefined,
-        children: rules.map((d) => ({
-          label: d.title.length > 40 ? d.title.substring(0, 40) + "…" : d.title,
-          to: `/detection-engineering?rule=${d.id}`,
-        })),
-      };
-    }),
-  ];
-
   const home: SidebarSection = {
     key: "home",
     label: "Home",
@@ -179,14 +61,12 @@ function buildSidebarNav(): SidebarNavStructure {
       label: "Attack Paths",
       icon: Crosshair,
       to: "/attack-paths",
-      children: attackPathChildren,
     },
     {
       key: "techniques",
       label: "Techniques Library",
       icon: Route,
       to: "/techniques",
-      children: techniqueChildren,
     },
     {
       key: "attack-graph",
@@ -214,7 +94,6 @@ function buildSidebarNav(): SidebarNavStructure {
       label: "Detection Rules",
       icon: ShieldCheck,
       to: "/detection-engineering",
-      children: detectionServiceChildren,
     },
     {
       key: "coverage",
@@ -239,84 +118,24 @@ function buildSidebarNav(): SidebarNavStructure {
   return { home, redTeam, blueTeam };
 }
 
-function renderTopLevelSection(
-  section: SidebarSection,
-  location: { pathname: string },
-  currentPath: string,
-  expanded: Record<string, boolean>,
-  toggleSection: (key: string) => void,
-) {
-  if (!section.children) {
-    const isActive =
-      section.to === "/"
-        ? location.pathname === "/"
-        : section.to
-          ? location.pathname.startsWith(section.to)
-          : false;
-    return (
-      <div className="px-2 py-0.5">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip={section.label} isActive={isActive} className="text-sm font-medium">
-              <Link to={section.to || "#"}>
-                {section.icon && <section.icon className="h-4 w-4" />}
-                <span className="flex-1">{section.label}</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </div>
-    );
-  }
+function renderNavLink(section: SidebarSection, location: { pathname: string }) {
+  const isActive =
+    section.to === "/"
+      ? location.pathname === "/"
+      : location.pathname.startsWith(section.to);
 
   return (
     <div className="px-2 py-0.5">
-      <Collapsible open={expanded[section.key] ?? false} onOpenChange={() => toggleSection(section.key)}>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <CollapsibleTrigger asChild>
-              <SidebarMenuButton
-                tooltip={section.label}
-                className="text-sm font-medium text-muted-foreground hover:text-foreground"
-              >
-                {section.icon && <section.icon className="h-4 w-4" />}
-                <span className="flex-1">{section.label}</span>
-                <ChevronRight
-                  className={`h-3.5 w-3.5 transition-transform duration-200 ${expanded[section.key] ? "rotate-90" : ""}`}
-                />
-              </SidebarMenuButton>
-            </CollapsibleTrigger>
-
-            <CollapsibleContent>
-              {section.children && (
-                <SidebarMenuSub>
-                  {section.children.map((child) =>
-                    child.children && child.children.length > 0 ? (
-                      <NestedCollapsible
-                        key={child.key}
-                        item={child}
-                        currentPath={currentPath}
-                        expanded={expanded}
-                        toggleSection={toggleSection}
-                      />
-                    ) : (
-                      <SidebarMenuSubItem key={child.key}>
-                        <SidebarMenuSubButton asChild isActive={child.to === currentPath} size="sm">
-                          <Link to={child.to || "#"}>
-                            {child.customIcon ||
-                              (child.icon && <child.icon className={`h-3.5 w-3.5 ${child.iconColorClass || ""}`} />)}
-                            <span>{child.label}</span>
-                          </Link>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ),
-                  )}
-                </SidebarMenuSub>
-              )}
-            </CollapsibleContent>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </Collapsible>
+      <SidebarMenu>
+        <SidebarMenuItem>
+          <SidebarMenuButton asChild tooltip={section.label} isActive={isActive} className="text-sm font-medium">
+            <Link to={section.to}>
+              {section.icon && <section.icon className="h-4 w-4" />}
+              <span className="flex-1">{section.label}</span>
+            </Link>
+          </SidebarMenuButton>
+        </SidebarMenuItem>
+      </SidebarMenu>
     </div>
   );
 }
@@ -325,27 +144,6 @@ export function AppSidebar() {
   const location = useLocation();
   const currentPath = location.pathname + location.search;
   const nav = buildSidebarNav();
-  const collapsibleSections = [...nav.redTeam, ...nav.blueTeam];
-
-  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => {
-    const persisted = getPersistedState();
-    const defaults: Record<string, boolean> = {};
-    collapsibleSections.forEach((s) => {
-      if (s.to && location.pathname.startsWith(s.to) && s.to !== "/") {
-        defaults[s.key] = true;
-      }
-    });
-    return { ...defaults, ...persisted };
-  });
-
-  useEffect(() => {
-    persistState(expanded);
-  }, [expanded]);
-
-  const toggleSection = (key: string) => {
-    setExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
   const [search, setSearch] = useState("");
 
   const allSearchItems: { label: string; to: string; type: string }[] = [];
@@ -362,7 +160,6 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-border/50">
       <SidebarHeader className="p-4 space-y-4">
-        {/* Logo & Brand */}
         <Link to="/" className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
           <img src={logoImg} alt="Detecting.Cloud logo" className="h-8 w-8 rounded-lg shrink-0" />
           <span className="font-display font-bold text-base tracking-tight group-data-[collapsible=icon]:hidden">
@@ -370,7 +167,6 @@ export function AppSidebar() {
           </span>
         </Link>
 
-        {/* Search */}
         <div className="relative group-data-[collapsible=icon]:hidden">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
           <SidebarInput
@@ -382,7 +178,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="overflow-y-auto will-change-scroll" style={{ overscrollBehavior: 'contain' }}>
+      <SidebarContent className="overflow-y-auto will-change-scroll" style={{ overscrollBehavior: "contain" }}>
         {search.trim() && (
           <div className="px-2 pb-2">
             {searchResults.length === 0 ? (
@@ -406,14 +202,14 @@ export function AppSidebar() {
 
         {!search.trim() && (
           <>
-            {renderTopLevelSection(nav.home, location, currentPath, expanded, toggleSection)}
+            {renderNavLink(nav.home, location)}
             <SidebarGroup className="border-l-2 border-red-500/25 pl-1.5 py-1">
               <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-wider text-red-400/90">
                 Red team
               </SidebarGroupLabel>
               <SidebarGroupContent className="space-y-0">
                 {nav.redTeam.map((section) => (
-                  <div key={section.key}>{renderTopLevelSection(section, location, currentPath, expanded, toggleSection)}</div>
+                  <div key={section.key}>{renderNavLink(section, location)}</div>
                 ))}
               </SidebarGroupContent>
             </SidebarGroup>
@@ -423,7 +219,7 @@ export function AppSidebar() {
               </SidebarGroupLabel>
               <SidebarGroupContent className="space-y-0">
                 {nav.blueTeam.map((section) => (
-                  <div key={section.key}>{renderTopLevelSection(section, location, currentPath, expanded, toggleSection)}</div>
+                  <div key={section.key}>{renderNavLink(section, location)}</div>
                 ))}
               </SidebarGroupContent>
             </SidebarGroup>
@@ -431,72 +227,21 @@ export function AppSidebar() {
         )}
       </SidebarContent>
 
-      {/* Footer with theme toggle and social links */}
       <SidebarFooter className="p-3 border-t border-border/50">
         <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center">
           <ThemeToggle />
           <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
-            <a href="https://github.com/Haggag-22/detecting.cloud" target="_blank" rel="noopener noreferrer"
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors">
+            <a
+              href="https://github.com/Haggag-22/detecting.cloud"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors"
+            >
               <Github className="h-4 w-4" />
             </a>
           </div>
         </div>
       </SidebarFooter>
     </Sidebar>
-  );
-}
-
-function NestedCollapsible({
-  item,
-  currentPath,
-  expanded,
-  toggleSection,
-}: {
-  item: SidebarChild;
-  currentPath: string;
-  expanded: Record<string, boolean>;
-  toggleSection: (key: string) => void;
-}) {
-  return (
-    <SidebarMenuSubItem>
-      <Collapsible
-        open={expanded[item.key] ?? false}
-        onOpenChange={() => toggleSection(item.key)}
-      >
-        <CollapsibleTrigger asChild>
-          <SidebarMenuSubButton size="sm" className="cursor-pointer">
-            {item.customIcon || (item.icon ? (
-              <item.icon className={`h-3.5 w-3.5 shrink-0 ${item.iconColorClass || ""}`} />
-            ) : (
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${item.iconColorClass ? item.iconColorClass.replace("text-", "bg-") : "bg-muted-foreground"}`} />
-            ))}
-            <span className={`flex-1 font-semibold ${item.iconColorClass || ""}`}>{item.label}</span>
-            <ChevronRight
-              className={`h-3 w-3 transition-transform duration-200 ${
-                expanded[item.key] ? "rotate-90" : ""
-              }`}
-            />
-          </SidebarMenuSubButton>
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <SidebarMenuSub>
-            {item.children?.map((child) => (
-              <SidebarMenuSubItem key={child.to}>
-                <SidebarMenuSubButton
-                  asChild
-                  isActive={currentPath === child.to}
-                  size="sm"
-                >
-                  <Link to={child.to}>
-                    <span className="truncate">{child.label}</span>
-                  </Link>
-                </SidebarMenuSubButton>
-              </SidebarMenuSubItem>
-            ))}
-          </SidebarMenuSub>
-        </CollapsibleContent>
-      </Collapsible>
-    </SidebarMenuSubItem>
   );
 }
