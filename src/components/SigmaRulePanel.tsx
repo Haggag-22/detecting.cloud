@@ -158,7 +158,7 @@ export function SigmaRulePanel({
           </div>
         </div>
 
-        <CodePanel
+        <CodeToolbar
           code={sigma}
           format="sigma"
           copiedId={copiedId}
