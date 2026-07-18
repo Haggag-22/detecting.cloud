@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { parseCondition, expandWildcards } from "./condition";
-import { convertSigma } from "./convert";
+import { convertSigma, listConvertibleTargets } from "./convert";
 import { parseSigmaRule } from "./parse";
+import { TARGET_LANGUAGES } from "./types";
 
 const SAMPLE_SIGMA = `title: IAM PassRole Privilege Escalation via Lambda
 status: experimental
@@ -49,10 +50,34 @@ describe("parseSigmaRule", () => {
   });
 });
 
+describe("listConvertibleTargets", () => {
+  it("exposes exactly the nine product targets", () => {
+    const ids = listConvertibleTargets().map((t) => t.id);
+    expect(ids).toEqual([
+      "cortexxdr",
+      "crowdstrike",
+      "datadog",
+      "snowflake",
+      "splunk",
+      "elasticsearch",
+      "opensearch",
+      "sentinelone",
+      "qradar",
+    ]);
+    expect(TARGET_LANGUAGES.every((t) => t.convertible)).toBe(true);
+    expect(ids).not.toContain("cloudtrail");
+    expect(ids).not.toContain("cloudwatch");
+    expect(ids).not.toContain("eventbridge");
+    expect(ids).not.toContain("lambda");
+    expect(ids).not.toContain("esql");
+  });
+});
+
 describe("convertSigma", () => {
-  it("converts to ES|QL", () => {
-    const result = convertSigma(SAMPLE_SIGMA, "esql");
+  it("converts to Elasticsearch (ES|QL)", () => {
+    const result = convertSigma(SAMPLE_SIGMA, "elasticsearch");
     expect(result.supported).toBe(true);
+    expect(result.label).toBe("Elasticsearch");
     expect(result.query).toContain("FROM logs-aws.cloudtrail-*");
     expect(result.query).toContain("lambda.amazonaws.com");
     expect(result.source).toBe("converted");
@@ -72,22 +97,43 @@ describe("convertSigma", () => {
     expect(result.query).toContain("@evt.name");
   });
 
-  it("converts to Athena / CloudWatch / EventBridge", () => {
-    expect(convertSigma(SAMPLE_SIGMA, "cloudtrail").query).toContain("SELECT");
-    expect(convertSigma(SAMPLE_SIGMA, "cloudwatch").query).toContain("fields");
-    const eb = convertSigma(SAMPLE_SIGMA, "eventbridge");
-    expect(eb.supported).toBe(true);
-    expect(JSON.parse(eb.query).detail.eventName).toContain("CreateFunction20150331");
+  it("converts to Cortex XDR, CrowdStrike, OpenSearch, SentinelOne, QRadar, Snowflake", () => {
+    const cortex = convertSigma(SAMPLE_SIGMA, "cortexxdr");
+    expect(cortex.supported).toBe(true);
+    expect(cortex.query).toContain("dataset =");
+    expect(cortex.query).toContain("CreateFunction20150331");
+
+    const cs = convertSigma(SAMPLE_SIGMA, "crowdstrike");
+    expect(cs.supported).toBe(true);
+    expect(cs.query).toContain("eventName=");
+
+    const os = convertSigma(SAMPLE_SIGMA, "opensearch");
+    expect(os.supported).toBe(true);
+    expect(os.query).toContain("eventName:");
+
+    const s1 = convertSigma(SAMPLE_SIGMA, "sentinelone");
+    expect(s1.supported).toBe(true);
+    expect(s1.query).toContain("eventName");
+
+    const qr = convertSigma(SAMPLE_SIGMA, "qradar");
+    expect(qr.supported).toBe(true);
+    expect(qr.query).toContain("SELECT");
+    expect(qr.query).toContain("FROM events");
+
+    const snow = convertSigma(SAMPLE_SIGMA, "snowflake");
+    expect(snow.supported).toBe(true);
+    expect(snow.query).toContain("SELECT");
+    expect(snow.query).toContain("FROM cloudtrail_logs");
   });
 
-  it("falls back to stored lambda and marks unsupported without store", () => {
-    const unsupported = convertSigma(SAMPLE_SIGMA, "lambda");
-    expect(unsupported.supported).toBe(false);
-    const stored = convertSigma(SAMPLE_SIGMA, "lambda", {
-      storedRules: { lambda: "def lambda_handler(event, context):\n    pass\n" },
+  it("falls back to stored curated query when provided", () => {
+    const result = convertSigma(SAMPLE_SIGMA, "elasticsearch", {
+      storedRules: { elasticsearch: "FROM logs-* | WHERE false" },
+      preferStored: true,
     });
-    expect(stored.supported).toBe(true);
-    expect(stored.source).toBe("stored");
+    expect(result.supported).toBe(true);
+    expect(result.source).toBe("stored");
+    expect(result.query).toBe("FROM logs-* | WHERE false");
   });
 
   it("prefers conversion over stored when preferStored is false", () => {

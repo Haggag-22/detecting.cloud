@@ -36,12 +36,7 @@ function DetectionRuleSection({
   const sigma = detection.rules.sigma;
 
   return (
-    <div className="mt-4 space-y-6">
-      <p className="text-sm text-muted-foreground">
-        Sigma is the canonical rule format. Use <span className="text-foreground font-medium">Convert</span> to
-        generate ES|QL, Splunk, Datadog, Athena, CloudWatch Insights, or EventBridge queries.
-      </p>
-
+    <div className="space-y-5">
       {sigma ? (
         <SigmaRulePanel
           sigma={sigma}
@@ -55,8 +50,8 @@ function DetectionRuleSection({
       )}
 
       {logic && (
-        <div className="pt-4 border-t border-border/50">
-          <h3 className="text-sm font-semibold mb-3">Detection Logic</h3>
+        <div className="pt-4 border-t border-border/40">
+          <h3 className="text-sm font-medium mb-3 text-foreground">Detection Logic</h3>
           <DetectionLogicTab logic={logic} copiedId={copiedId} setCopiedId={setCopiedId} />
         </div>
       )}
@@ -137,31 +132,45 @@ function SectionCard({
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const header = phase != null ? (
-    <span className="flex items-center gap-2">
-      <span className="text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded">Phase {phase}</span>
-      {title}
+  const header = (
+    <span className="flex items-center gap-3 min-w-0">
+      {phase != null && (
+        <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground/80">
+          {String(phase).padStart(2, "0")}
+        </span>
+      )}
+      <span className="truncate">{title}</span>
     </span>
-  ) : title;
+  );
 
   if (!collapsible) {
     return (
-      <div className="mb-8 rounded-lg border border-border/50 bg-card p-6">
-        <h2 className="font-display text-lg font-semibold mb-4">{header}</h2>
-        {children}
+      <div className="mb-4 rounded-lg border border-border/50 bg-card">
+        <div className="px-5 py-3.5 border-b border-border/40">
+          <h2 className="font-display text-base font-semibold tracking-tight">{header}</h2>
+        </div>
+        <div className="px-5 py-4">{children}</div>
       </div>
     );
   }
 
   return (
-    <Collapsible open={open} onOpenChange={setOpen} className="mb-8">
+    <Collapsible open={open} onOpenChange={setOpen} className="mb-4">
       <div className="rounded-lg border border-border/50 bg-card overflow-hidden">
-        <CollapsibleTrigger className="w-full flex items-center gap-2 px-6 py-4 text-left hover:bg-muted/30 transition-colors">
-          {open ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-          <h2 className="font-display text-lg font-semibold">{header}</h2>
+        <CollapsibleTrigger
+          className={`w-full flex items-center gap-2.5 px-5 py-3.5 text-left hover:bg-muted/20 transition-colors ${
+            open ? "border-b border-border/40" : ""
+          }`}
+        >
+          {open ? (
+            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          ) : (
+            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          )}
+          <h2 className="font-display text-base font-semibold tracking-tight">{header}</h2>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <div className="px-6 pb-6 pt-0">{children}</div>
+          <div className="px-5 py-4">{children}</div>
         </CollapsibleContent>
       </div>
     </Collapsible>
@@ -183,9 +192,9 @@ function CodeBlockWithCopy({
 }) {
   const id = `copy-${copyKey}`;
   return (
-    <div className="rounded-lg border border-border overflow-hidden">
-      <div className="px-4 py-2 bg-muted text-xs text-muted-foreground font-mono border-b border-border flex items-center justify-between">
-        <span>{language}</span>
+    <div className="rounded-lg border border-border/60 overflow-hidden bg-card">
+      <div className="px-3 py-1.5 bg-muted/40 text-xs text-muted-foreground font-mono border-b border-border/40 flex items-center justify-between">
+        <span className="uppercase tracking-wide text-[11px]">{language}</span>
         <Button
           variant="ghost"
           size="sm"
@@ -199,7 +208,7 @@ function CodeBlockWithCopy({
           {copiedId === id ? <><Check className="h-3 w-3 mr-1" /> Copied</> : <><Copy className="h-3 w-3 mr-1" /> Copy</>}
         </Button>
       </div>
-      <pre className="p-4 overflow-x-auto bg-muted/30 text-sm font-mono leading-relaxed">
+      <pre className="p-4 overflow-x-auto bg-muted/20 text-[13px] font-mono leading-relaxed">
         {["json", "hcl", "yaml"].includes(language) ? renderCodeWithColoredKeys(content, language) : <code>{content}</code>}
       </pre>
     </div>
@@ -365,7 +374,7 @@ export function DetectionLifecycleSections({
   );
 }
 
-const sectionLabelClass = "text-xs font-semibold uppercase tracking-wider mb-1 text-amber-400";
+const sectionLabelClass = "text-[11px] font-medium uppercase tracking-wider mb-1.5 text-muted-foreground";
 
 function ThreatContextSection({ context }: { context: ThreatContext }) {
   return (
@@ -481,8 +490,8 @@ function EnrichmentSection({ enrichment }: { enrichment: EnrichmentContext[] }) 
   return (
     <div className="space-y-4">
       {enrichment.map((e, i) => (
-        <div key={i} className="rounded-lg border border-border/50 p-4 space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">{e.dimension}</p>
+        <div key={i} className="rounded-md border border-border/40 bg-muted/10 px-4 py-3 space-y-2">
+          <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{e.dimension}</p>
           <p className="text-sm text-muted-foreground">{e.description}</p>
           <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1">
             {e.examples.map((ex, j) => (
@@ -490,8 +499,8 @@ function EnrichmentSection({ enrichment }: { enrichment: EnrichmentContext[] }) 
             ))}
           </ul>
           {e.falsePositiveReduction && (
-            <p className="text-xs text-primary/90 pt-1">
-              <strong>FP reduction:</strong> {e.falsePositiveReduction}
+            <p className="text-xs text-muted-foreground pt-1">
+              <span className="text-foreground/80">FP reduction:</span> {e.falsePositiveReduction}
             </p>
           )}
         </div>
@@ -523,14 +532,14 @@ function DetectionTestingSection({
       <div>
         <p className={`${sectionLabelClass} mb-2`}>Simulation</p>
         <p className="text-muted-foreground mb-2">Use the following command to simulate the attack in a lab environment:</p>
-        <pre className="rounded-lg border border-border bg-muted/30 p-4 font-mono text-xs overflow-x-auto">
+        <pre className="rounded-lg border border-border/60 bg-muted/20 p-4 font-mono text-[13px] overflow-x-auto leading-relaxed">
           {simulationCommand ?? "Run the relevant API call or CLI command for this detection."}
         </pre>
       </div>
       {exampleEvent && (
         <div>
           <p className={`${sectionLabelClass} mb-2`}>Expected Log Output</p>
-          <pre className="rounded-lg border border-border bg-muted/30 p-4 font-mono text-xs overflow-x-auto">
+          <pre className="rounded-lg border border-border/60 bg-muted/20 p-4 font-mono text-[13px] overflow-x-auto leading-relaxed">
             {exampleEvent}
           </pre>
         </div>

@@ -1,12 +1,14 @@
 /** Target query languages for Sigma conversion */
 export type SigmaTargetLanguage =
-  | "esql"
-  | "splunk"
+  | "cortexxdr"
+  | "crowdstrike"
   | "datadog"
-  | "cloudtrail"
-  | "cloudwatch"
-  | "eventbridge"
-  | "lambda";
+  | "snowflake"
+  | "splunk"
+  | "elasticsearch"
+  | "opensearch"
+  | "sentinelone"
+  | "qradar";
 
 export type SigmaFieldModifier =
   | "equals"
@@ -67,7 +69,7 @@ export interface ConvertOptions {
   storedRules?: Partial<Record<SigmaTargetLanguage | "sigma", string>>;
   /** Prefer stored curated queries when available (default: false — Sigma-first) */
   preferStored?: boolean;
-  /** Detection metadata for richer EventBridge / Lambda stubs */
+  /** Detection metadata for richer stubs */
   meta?: {
     id?: string;
     title?: string;
@@ -85,13 +87,15 @@ export interface TargetLanguageInfo {
 }
 
 export const TARGET_LANGUAGES: TargetLanguageInfo[] = [
-  { id: "esql", label: "Elastic ES|QL", shortLabel: "ES|QL", extension: "esql", convertible: true },
-  { id: "splunk", label: "Splunk SPL", shortLabel: "Splunk", extension: "spl", convertible: true },
+  { id: "cortexxdr", label: "Cortex XDR", shortLabel: "Cortex XDR", extension: "xql", convertible: true },
+  { id: "crowdstrike", label: "CrowdStrike", shortLabel: "CrowdStrike", extension: "cql", convertible: true },
   { id: "datadog", label: "Datadog", shortLabel: "Datadog", extension: "txt", convertible: true },
-  { id: "cloudtrail", label: "CloudTrail Athena", shortLabel: "Athena", extension: "sql", convertible: true },
-  { id: "cloudwatch", label: "CloudWatch Insights", shortLabel: "CloudWatch", extension: "cwl", convertible: true },
-  { id: "eventbridge", label: "EventBridge Pattern", shortLabel: "EventBridge", extension: "json", convertible: true },
-  { id: "lambda", label: "AWS Lambda (Python)", shortLabel: "Lambda", extension: "py", convertible: false },
+  { id: "snowflake", label: "Snowflake", shortLabel: "Snowflake", extension: "sql", convertible: true },
+  { id: "splunk", label: "Splunk", shortLabel: "Splunk", extension: "spl", convertible: true },
+  { id: "elasticsearch", label: "Elasticsearch", shortLabel: "Elasticsearch", extension: "esql", convertible: true },
+  { id: "opensearch", label: "OpenSearch", shortLabel: "OpenSearch", extension: "lucene", convertible: true },
+  { id: "sentinelone", label: "SentinelOne", shortLabel: "SentinelOne", extension: "s1ql", convertible: true },
+  { id: "qradar", label: "QRadar", shortLabel: "QRadar", extension: "aql", convertible: true },
 ];
 
 export function getTargetInfo(language: SigmaTargetLanguage): TargetLanguageInfo {

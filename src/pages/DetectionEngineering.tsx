@@ -541,9 +541,6 @@ function DetectionCard({ detection: det }: { detection: Detection }) {
             {tag}
           </Badge>
         ))}
-        <span className="text-[10px] text-muted-foreground ml-auto">
-          {det.rules.sigma ? "Sigma" : "No Sigma"}
-        </span>
       </div>
     </Link>
   );

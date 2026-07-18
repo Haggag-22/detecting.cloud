@@ -165,7 +165,139 @@ function escapeDatadog(s: string): string {
   return s.replace(/([:*\\])/g, "\\$1");
 }
 
-/** Extract eventName / eventSource values for EventBridge-style patterns */
+function quoteString(s: string): string {
+  return `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+}
+
+/** Cortex XDR XQL field predicate */
+export function matchToCortexXqlPredicate(m: SigmaFieldMatch): string {
+  const field = normalizeFieldPath(m.field);
+  const parts = m.values.map((v) => {
+    const s = valueToString(v);
+    switch (m.modifier) {
+      case "contains":
+        return `${field} contains ${quoteString(s)}`;
+      case "startswith":
+        return `${field} ~= ${quoteString(`^${escapeRegex(s)}`)}`;
+      case "endswith":
+        return `${field} ~= ${quoteString(`${escapeRegex(s)}$`)}`;
+      case "re":
+        return `${field} ~= ${quoteString(s)}`;
+      default:
+        if (typeof v === "boolean" || typeof v === "number") {
+          return `${field} = ${v}`;
+        }
+        return `${field} = ${quoteString(s)}`;
+    }
+  });
+  return joinAlts(parts, m.allValues);
+}
+
+/** CrowdStrike LogScale / CQL field clause */
+export function matchToCrowdStrikeClause(m: SigmaFieldMatch): string {
+  const field = normalizeFieldPath(m.field);
+  const parts = m.values.map((v) => {
+    const s = valueToString(v);
+    switch (m.modifier) {
+      case "contains":
+        return `${field}=*${s.replace(/\*/g, "\\*")}*`;
+      case "startswith":
+        return `${field}=${s.replace(/\*/g, "\\*")}*`;
+      case "endswith":
+        return `${field}=*${s.replace(/\*/g, "\\*")}`;
+      case "re":
+        return `${field}=/${s}/`;
+      default:
+        if (typeof v === "boolean" || typeof v === "number") {
+          return `${field}=${v}`;
+        }
+        return s.includes(" ") || /[|=()]/.test(s) ? `${field}=${quoteString(s)}` : `${field}=${s}`;
+    }
+  });
+  return joinAlts(parts, m.allValues);
+}
+
+/** OpenSearch / Lucene field clause */
+export function matchToLuceneClause(m: SigmaFieldMatch): string {
+  const field = normalizeFieldPath(m.field);
+  const parts = m.values.map((v) => {
+    const s = valueToString(v);
+    switch (m.modifier) {
+      case "contains":
+        return `${field}:*${escapeLucene(s)}*`;
+      case "startswith":
+        return `${field}:${escapeLucene(s)}*`;
+      case "endswith":
+        return `${field}:*${escapeLucene(s)}`;
+      case "re":
+        return `${field}:/${s}/`;
+      default:
+        if (typeof v === "boolean" || typeof v === "number") {
+          return `${field}:${v}`;
+        }
+        return s.includes(" ") || /[:()[\]{}]/.test(s)
+          ? `${field}:${quoteString(s)}`
+          : `${field}:${s}`;
+    }
+  });
+  if (parts.length === 1) return parts[0];
+  const joiner = m.allValues ? " AND " : " OR ";
+  return `(${parts.join(joiner)})`;
+}
+
+function escapeLucene(s: string): string {
+  return s.replace(/([+\-&|!(){}\[\]^"~*?:\\/])/g, "\\$1");
+}
+
+/** SentinelOne Deep Visibility style predicate */
+export function matchToSentinelOnePredicate(m: SigmaFieldMatch): string {
+  const field = normalizeFieldPath(m.field);
+  const parts = m.values.map((v) => {
+    const s = valueToString(v);
+    switch (m.modifier) {
+      case "contains":
+        return `${field} Contains ${quoteString(s)}`;
+      case "startswith":
+        return `${field} StartsWith ${quoteString(s)}`;
+      case "endswith":
+        return `${field} EndsWith ${quoteString(s)}`;
+      case "re":
+        return `${field} RegExp ${quoteString(s)}`;
+      default:
+        if (typeof v === "boolean" || typeof v === "number") {
+          return `${field} = ${v}`;
+        }
+        return `${field} = ${quoteString(s)}`;
+    }
+  });
+  return joinAlts(parts, m.allValues);
+}
+
+/** IBM QRadar AQL predicate */
+export function matchToQRadarPredicate(m: SigmaFieldMatch): string {
+  const field = `"${normalizeFieldPath(m.field).replace(/"/g, '""')}"`;
+  const parts = m.values.map((v) => {
+    const s = valueToString(v);
+    switch (m.modifier) {
+      case "contains":
+        return `${field} ILIKE '%${escapeSql(s)}%'`;
+      case "startswith":
+        return `${field} ILIKE '${escapeSql(s)}%'`;
+      case "endswith":
+        return `${field} ILIKE '%${escapeSql(s)}'`;
+      case "re":
+        return `${field} IMATCHES '${escapeSql(s)}'`;
+      default:
+        if (typeof v === "boolean" || typeof v === "number") {
+          return `${field}=${v}`;
+        }
+        return `${field}='${escapeSql(s)}'`;
+    }
+  });
+  return joinAlts(parts, m.allValues);
+}
+
+/** Extract eventName / eventSource values for pattern builders */
 export function extractSimpleEquals(
   matches: SigmaFieldMatch[],
   field: string

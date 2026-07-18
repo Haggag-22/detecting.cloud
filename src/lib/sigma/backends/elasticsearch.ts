@@ -2,7 +2,8 @@ import type { ParsedSigmaRule } from "../types";
 import { matchToEsqlPredicate } from "../field";
 import { defaultOutputFields, renderCondition } from "./shared";
 
-export function convertToEsql(rule: ParsedSigmaRule): { query: string; warnings: string[] } {
+/** Convert Sigma → Elasticsearch ES|QL (default Elastic query dialect). */
+export function convertToElasticsearch(rule: ParsedSigmaRule): { query: string; warnings: string[] } {
   const warnings = [...rule.parseWarnings];
   const { expression, warnings: condWarn } = renderCondition(rule, matchToEsqlPredicate, {
     wrapNot: (inner) => `NOT (${inner})`,
@@ -20,7 +21,7 @@ export function convertToEsql(rule: ParsedSigmaRule): { query: string; warnings:
   ];
 
   warnings.push(
-    "ES|QL assumes Elastic AWS CloudTrail integration field names; adjust the data stream if needed"
+    "Elasticsearch ES|QL assumes Elastic AWS CloudTrail integration field names; adjust the data stream if needed"
   );
   return { query: lines.join("\n"), warnings };
 }

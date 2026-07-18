@@ -1,8 +1,11 @@
-import { convertToAthena } from "./backends/athena";
-import { convertToCloudWatch } from "./backends/cloudwatch";
+import { convertToCortexXdr } from "./backends/cortexxdr";
+import { convertToCrowdStrike } from "./backends/crowdstrike";
 import { convertToDatadog } from "./backends/datadog";
-import { convertToEsql } from "./backends/esql";
-import { convertToEventBridge } from "./backends/eventbridge";
+import { convertToElasticsearch } from "./backends/elasticsearch";
+import { convertToOpenSearch } from "./backends/opensearch";
+import { convertToQRadar } from "./backends/qradar";
+import { convertToSentinelOne } from "./backends/sentinelone";
+import { convertToSnowflake } from "./backends/snowflake";
 import { convertToSplunk } from "./backends/splunk";
 import { parseSigmaRule } from "./parse";
 import {
@@ -15,13 +18,16 @@ import {
 
 type BackendFn = (rule: ReturnType<typeof parseSigmaRule>) => { query: string; warnings: string[] };
 
-const BACKENDS: Partial<Record<SigmaTargetLanguage, BackendFn>> = {
-  esql: convertToEsql,
-  splunk: convertToSplunk,
+const BACKENDS: Record<SigmaTargetLanguage, BackendFn> = {
+  cortexxdr: convertToCortexXdr,
+  crowdstrike: convertToCrowdStrike,
   datadog: convertToDatadog,
-  cloudtrail: convertToAthena,
-  cloudwatch: convertToCloudWatch,
-  eventbridge: convertToEventBridge,
+  snowflake: convertToSnowflake,
+  splunk: convertToSplunk,
+  elasticsearch: convertToElasticsearch,
+  opensearch: convertToOpenSearch,
+  sentinelone: convertToSentinelOne,
+  qradar: convertToQRadar,
 };
 
 function dedupeWarnings(warnings: string[]): string[] {
@@ -52,32 +58,6 @@ export function convertSigma(
       query: "",
       supported: false,
       warnings: ["No Sigma rule available to convert"],
-      source: "converted",
-      extension: info.extension,
-    };
-  }
-
-  // Lambda: stored-only (not a faithful Sigma compile target)
-  if (language === "lambda") {
-    if (stored) {
-      return {
-        language,
-        label: info.label,
-        query: stored,
-        supported: true,
-        warnings: ["Lambda handler is a curated implementation — not generated from Sigma"],
-        source: "stored",
-        extension: info.extension,
-      };
-    }
-    return {
-      language,
-      label: info.label,
-      query: "",
-      supported: false,
-      warnings: [
-        "Lambda Python handlers are not auto-generated from Sigma. Use a curated rule variant when available, or implement from the Sigma conditions manually.",
-      ],
       source: "converted",
       extension: info.extension,
     };
