@@ -131,14 +131,22 @@ export interface DetectionLifecycle {
   communityConfidence?: CommunityConfidence;
 }
 
+/** Top-level cloud / platform family for Detection Rules browse UI */
+export type DetectionCloudProvider = "aws" | "azure" | "gcp" | "kubernetes";
+
 export interface Detection {
   id: string;
   title: string;
   description: string;
-  /** Primary AWS service this rule belongs to */
+  /** Primary AWS service this rule belongs to (also used as service key for non-AWS later) */
   awsService: string;
   /** Additional AWS services involved in the attack/detection */
   relatedServices: string[];
+  /**
+   * Cloud provider bucket for the Detection Rules provider tabs.
+   * Defaults to `"aws"` when omitted (current catalog is AWS-first).
+   */
+  cloudProvider?: DetectionCloudProvider;
   severity: "Critical" | "High" | "Medium" | "Low";
   tags: string[];
   logSources: string[];
@@ -153,6 +161,10 @@ export interface Detection {
   testingSteps?: string[];
   /** Full detection lifecycle metadata (8-section page) */
   lifecycle?: DetectionLifecycle;
+}
+
+export function getDetectionCloudProvider(d: Detection): DetectionCloudProvider {
+  return d.cloudProvider ?? "aws";
 }
 
 export const detections: Detection[] = [
@@ -18383,18 +18395,51 @@ def lambda_handler(event, context):
  * Get detections grouped by PRIMARY AWS service only (for sidebar navigation).
  * Each rule appears once under its primary service — no duplicates.
  */
-export function getDetectionsByService(): Record<string, Detection[]> {
+export function getDetectionsByService(
+  provider?: DetectionCloudProvider | "all"
+): Record<string, Detection[]> {
   const grouped: Record<string, Detection[]> = {};
   const serviceOrder = ["IAM", "STS", "Lambda", "EC2", "S3", "EBS", "DynamoDB", "CloudTrail", "KMS", "EKS", "ECS", "Secrets Manager", "SSM", "SageMaker", "SES", "CodeBuild", "Elastic Beanstalk", "CloudFront", "Organizations"];
 
+  const pool =
+    !provider || provider === "all"
+      ? detections
+      : detections.filter((d) => getDetectionCloudProvider(d) === provider);
+
   for (const service of serviceOrder) {
-    const serviceDetections = detections.filter((d) => d.awsService === service);
+    const serviceDetections = pool.filter((d) => d.awsService === service);
     if (serviceDetections.length > 0) {
       grouped[service] = serviceDetections;
     }
   }
 
+  // Include any services not in the fixed AWS order (future Azure/GCP/K8s services)
+  for (const d of pool) {
+    if (!grouped[d.awsService]) {
+      grouped[d.awsService] = pool.filter((x) => x.awsService === d.awsService);
+    }
+  }
+
   return grouped;
+}
+
+/** Counts for the All / AWS / Azure / GCP / Kubernetes provider tabs */
+export function getDetectionCountsByCloudProvider(): Record<
+  "all" | DetectionCloudProvider,
+  number
+> {
+  const counts = {
+    all: detections.length,
+    aws: 0,
+    azure: 0,
+    gcp: 0,
+    kubernetes: 0,
+  } as Record<"all" | DetectionCloudProvider, number>;
+
+  for (const d of detections) {
+    counts[getDetectionCloudProvider(d)] += 1;
+  }
+  return counts;
 }
 
 /**

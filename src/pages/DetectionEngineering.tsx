@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
-import { detections, getDetectionsByService, getDefaultTelemetry, type Detection } from "@/data/detections";
+import { detections, getDetectionsByService, getDetectionCountsByCloudProvider, getDefaultTelemetry, type Detection } from "@/data/detections";
 import { getTechniquesForDetection, getAttackPathsForDetection } from "@/lib/detectionCoverage";
 import { Badge } from "@/components/ui/badge";
 import { Search, ChevronRight, Copy, Download, Share2, Check } from "lucide-react";
@@ -12,6 +12,7 @@ import { DetectionLifecycleSections } from "@/components/DetectionLifecycleSecti
 import { SeverityGauge } from "@/components/DetectionVisuals";
 import { SigmaRulePanel } from "@/components/SigmaRulePanel";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
+import { CloudProviderTabs, type CloudProviderId } from "@/components/CloudProviderTabs";
 
 const severityColors: Record<string, string> = {
   Critical: "bg-severity-critical/15 text-severity-critical",
@@ -34,12 +35,29 @@ const DetectionEngineeringPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const ruleParam = searchParams.get("rule");
   const serviceParam = searchParams.get("service");
+  const providerParam = (searchParams.get("provider") as CloudProviderId | null) ?? "all";
+  const activeProvider: CloudProviderId = ["all", "aws", "azure", "gcp", "kubernetes"].includes(providerParam)
+    ? providerParam
+    : "all";
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const { toast } = useToast();
 
-  const detectionsByService = getDetectionsByService();
+  const providerCounts = getDetectionCountsByCloudProvider();
+  const detectionsByService = getDetectionsByService(
+    activeProvider === "all" ? "all" : activeProvider
+  );
   const services = Object.keys(detectionsByService);
+
+  const setProvider = (id: CloudProviderId) => {
+    const next = new URLSearchParams(searchParams);
+    if (id === "all") next.delete("provider");
+    else next.set("provider", id);
+    next.delete("service");
+    next.delete("rule");
+    setSearchParams(next);
+    setSearch("");
+  };
 
   // If a specific rule is selected, show detailed view
   const selectedDetection = ruleParam ? detections.find((d) => d.id === ruleParam) : null;
@@ -340,10 +358,17 @@ const DetectionEngineeringPage = () => {
     );
   }
 
-  // ─── Service drill-down: list rules for one AWS service ───
-  if (serviceParam && services.includes(serviceParam)) {
+  // ─── Service drill-down: list rules for one service ───
+  const allServicesByName = getDetectionsByService("all");
+  if (serviceParam && allServicesByName[serviceParam]) {
     const ServiceIcon = getAwsServiceIcon(serviceParam);
-    const serviceRules = filterBySearch(detectionsByService[serviceParam] || []);
+    const serviceRules = filterBySearch(allServicesByName[serviceParam] || []);
+    const providerLabel =
+      activeProvider === "kubernetes"
+        ? "Kubernetes"
+        : activeProvider === "all"
+          ? null
+          : activeProvider.toUpperCase();
 
     return (
       <Layout>
@@ -353,6 +378,17 @@ const DetectionEngineeringPage = () => {
               Detection Rules
             </Link>
             <ChevronRight className="h-3.5 w-3.5" />
+            {providerLabel && (
+              <>
+                <Link
+                  to={`/detection-engineering?provider=${activeProvider}`}
+                  className="hover:text-foreground transition-colors"
+                >
+                  {providerLabel}
+                </Link>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </>
+            )}
             <span className="text-foreground">{serviceParam}</span>
           </div>
 
@@ -361,8 +397,8 @@ const DetectionEngineeringPage = () => {
             <div>
               <h1 className="font-display text-3xl font-bold mb-1">{serviceParam}</h1>
               <p className="text-muted-foreground">
-                {(detectionsByService[serviceParam] || []).length} detection{" "}
-                {(detectionsByService[serviceParam] || []).length === 1 ? "rule" : "rules"} for this service.
+                {(allServicesByName[serviceParam] || []).length} detection{" "}
+                {(allServicesByName[serviceParam] || []).length === 1 ? "rule" : "rules"} for this service.
               </p>
             </div>
           </div>
@@ -405,7 +441,7 @@ const DetectionEngineeringPage = () => {
     );
   }
 
-  // ─── Overview: AWS services with rule counts ───
+  // ─── Overview: cloud provider tabs + services with rule counts ───
   const serviceRows = services
     .map((service) => {
       const allRules = detectionsByService[service] || [];
@@ -418,9 +454,16 @@ const DetectionEngineeringPage = () => {
     <Layout>
       <div className="container py-12">
         <h1 className="font-display text-3xl font-bold mb-2">Detection Rules</h1>
-        <p className="text-muted-foreground mb-8">
-          Sigma-first cloud detection rules organized by AWS service. Select a service to browse its rules.
+        <p className="text-muted-foreground mb-6">
+          Sigma-first detection rules organized by cloud provider and service. Select a provider, then a service to
+          browse rules.
         </p>
+
+        <CloudProviderTabs
+          value={activeProvider}
+          counts={providerCounts}
+          onChange={setProvider}
+        />
 
         <div className="relative max-w-md mb-8">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -432,38 +475,50 @@ const DetectionEngineeringPage = () => {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {serviceRows.map(({ service, total, matching }) => {
-            const ServiceIcon = getAwsServiceIcon(service);
-            const count = search ? matching : total;
-            return (
-              <button
-                key={service}
-                type="button"
-                onClick={() => setSearchParams({ service })}
-                className="rounded-lg border border-border/50 bg-card p-5 text-left hover:border-primary/30 transition-colors group flex items-center gap-3"
-              >
-                {ServiceIcon && <ServiceIcon size={28} />}
-                <div className="flex-1 min-w-0">
-                  <h2 className="font-display font-semibold text-base group-hover:text-primary transition-colors">
-                    {service}
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    {count} {count === 1 ? "rule" : "rules"}
-                    {search && matching !== total ? ` matching` : ""}
-                  </p>
-                </div>
-                <Badge variant="outline" className="text-xs border-border text-muted-foreground shrink-0">
-                  {count}
-                </Badge>
-                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-foreground transition-colors" />
-              </button>
-            );
-          })}
-        </div>
-
-        {serviceRows.length === 0 && (
-          <p className="text-muted-foreground text-sm py-8 text-center">No services match your search.</p>
+        {serviceRows.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {serviceRows.map(({ service, total, matching }) => {
+              const ServiceIcon = getAwsServiceIcon(service);
+              const count = search ? matching : total;
+              return (
+                <button
+                  key={service}
+                  type="button"
+                  onClick={() => {
+                    const next: Record<string, string> = { service };
+                    if (activeProvider !== "all") next.provider = activeProvider;
+                    setSearchParams(next);
+                  }}
+                  className="rounded-lg border border-border/50 bg-card p-5 text-left hover:border-primary/30 transition-colors group flex items-center gap-3"
+                >
+                  {ServiceIcon && <ServiceIcon size={28} />}
+                  <div className="flex-1 min-w-0">
+                    <h2 className="font-display font-semibold text-base group-hover:text-primary transition-colors">
+                      {service}
+                    </h2>
+                    <p className="text-xs text-muted-foreground">
+                      {count} {count === 1 ? "rule" : "rules"}
+                      {search && matching !== total ? ` matching` : ""}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-xs border-border text-muted-foreground shrink-0">
+                    {count}
+                  </Badge>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-foreground transition-colors" />
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border/60 bg-card/40 px-6 py-14 text-center">
+            <p className="text-sm text-muted-foreground">
+              {activeProvider === "all"
+                ? "No services match your search."
+                : `No ${
+                    activeProvider === "kubernetes" ? "Kubernetes" : activeProvider.toUpperCase()
+                  } detection rules yet. AWS rules are available under the AWS tab.`}
+            </p>
+          </div>
         )}
       </div>
     </Layout>
