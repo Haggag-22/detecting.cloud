@@ -13,11 +13,9 @@ import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
-const severityColor: Record<string, string> = {
-  Critical: "bg-red-500/20 text-red-400 border-red-500/30",
-  High: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-  Medium: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-};
+import { SEVERITY_OUTLINE_CLASS } from "@/lib/severityStyles";
+
+const severityColor = SEVERITY_OUTLINE_CLASS;
 
 export default function AttackSimulator() {
   const [searchParams, setSearchParams] = useSearchParams();

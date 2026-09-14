@@ -10,7 +10,7 @@ import { Shield, Route, Crosshair, Server, Mail, CheckCircle, Home } from "lucid
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useState } from "react";
+import { CountBadge } from "@/components/CountBadge";
 
 const Index = () => {
   const [email, setEmail] = useState("");
@@ -113,7 +113,7 @@ const Index = () => {
               ].map((stat) => (
                 <div key={stat.label} className="flex items-center gap-2">
                   <stat.icon className="h-4 w-4 text-primary/70" />
-                  <span className="font-semibold text-foreground">{stat.count}</span>
+                  <CountBadge>{stat.count}</CountBadge>
                   <span>{stat.label}</span>
                 </div>
               ))}

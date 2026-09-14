@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Shield, Crosshair, Eye, Cloud, FileText, Search, Route, Network } from "lucide-react";
 import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
+import { severityBadgeClass } from "@/lib/severityStyles";
 import { Input } from "@/components/ui/input";
 
 type GraphNodeType = "attack" | "technique" | "detection" | "service" | "logSource";
@@ -350,10 +351,7 @@ function GraphNodeComponent({ data }: NodeProps<Node<GraphNodeData>>) {
         </span>
       </div>
       {data.severity && (
-        <Badge className={`text-[10px] mt-1 border-0 ${
-          data.severity === "Critical" ? "bg-destructive/20 text-destructive" :
-          data.severity === "High" ? "bg-primary/20 text-primary" : "bg-accent/20 text-accent"
-        }`}>
+        <Badge className={`text-[10px] mt-1 border-0 ${severityBadgeClass(data.severity)}`}>
           {data.severity}
         </Badge>
       )}
@@ -473,10 +471,7 @@ const AttackGraphPage = () => {
                       <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">{ap.title}</span>
                     </div>
                     <p className="text-xs text-muted-foreground line-clamp-2">{ap.description}</p>
-                    <Badge className={`text-[10px] mt-2 border-0 ${
-                      ap.severity === "Critical" ? "bg-destructive/20 text-destructive" :
-                      ap.severity === "High" ? "bg-primary/20 text-primary" : "bg-accent/20 text-accent"
-                    }`}>
+                    <Badge className={`text-[10px] mt-2 border-0 ${severityBadgeClass(ap.severity)}`}>
                       {ap.severity}
                     </Badge>
                   </button>

@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { communityRules } from "@/data/communityRules";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
 
+import { SEVERITY_OUTLINE_CLASS } from "@/lib/severityStyles";
+
 const formatColors: Record<string, string> = {
   sigma: "bg-blue-500/20 text-blue-400 border-blue-500/30",
   splunk: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
@@ -18,12 +20,7 @@ const formatColors: Record<string, string> = {
   cloudwatch: "bg-purple-500/20 text-purple-400 border-purple-500/30",
 };
 
-const severityColors: Record<string, string> = {
-  Critical: "bg-red-500/20 text-red-400 border-red-500/30",
-  High: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-  Medium: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  Low: "bg-muted text-muted-foreground",
-};
+const severityColors = SEVERITY_OUTLINE_CLASS;
 
 export default function CommunityRules() {
   const [searchTerm, setSearchTerm] = useState("");

@@ -1,5 +1,6 @@
 import { Layout } from "@/components/Layout";
 import { techniques, techniqueCategories, type TechniqueCategory } from "@/data/techniques";
+import { CountBadge } from "@/components/CountBadge";
 import { Badge } from "@/components/ui/badge";
 import {
   Crosshair, KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff, Route, ChevronRight,
@@ -149,9 +150,7 @@ export default function TechniquesLibrary() {
                       <h2 className={`font-display font-semibold text-base group-hover:opacity-90 ${categoryIconColor[catKey] || ""}`}>
                         {techniqueCategories[catKey].label}
                       </h2>
-                      <Badge variant="outline" className="text-xs border-border text-muted-foreground shrink-0">
-                        {count}
-                      </Badge>
+                      <CountBadge>{count}</CountBadge>
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {count} {count === 1 ? "technique" : "techniques"}

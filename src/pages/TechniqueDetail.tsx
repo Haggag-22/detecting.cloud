@@ -13,6 +13,7 @@ import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { useState } from "react";
 import { LucideIcon } from "lucide-react";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
+import { SEVERITY_BADGE_CLASS } from "@/lib/severityStyles";
 
 const categoryIcon: Record<string, LucideIcon> = {
   "initial-access": Crosshair,
@@ -44,11 +45,7 @@ const categoryColor: Record<string, string> = {
   "defense-evasion": "bg-amber-500/15 text-amber-400",
 };
 
-const severityColor: Record<string, string> = {
-  Critical: "bg-severity-critical/15 text-severity-critical",
-  High: "bg-severity-high/15 text-severity-high",
-  Medium: "bg-severity-medium/15 text-severity-medium",
-};
+const severityColor = SEVERITY_BADGE_CLASS;
 
 const TechniqueDetailPage = () => {
   const { id } = useParams<{ id: string }>();

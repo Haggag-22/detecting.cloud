@@ -30,11 +30,20 @@ import { detectionsFromRules } from "./loadRulesFromDir";
 
 export const detections: Detection[] = detectionsFromRules;
 
+/** Identity-related AWS services shown under IAM in Detection Rules / Coverage */
+const IAM_BROWSE_SERVICES = new Set([
+  "STS",
+  "IAM Identity Center",
+  "Directory Service",
+  "SSO",
+]);
+
 /**
- * Browse/nav primary service. STS is folded into IAM so it is not a separate category.
+ * Browse/nav primary service. Identity services (STS, IAM Identity Center,
+ * Directory Service) fold into IAM so they are not separate empty categories.
  */
 export function getBrowseService(service: string): string {
-  return service === "STS" ? "IAM" : service;
+  return IAM_BROWSE_SERVICES.has(service) ? "IAM" : service;
 }
 
 /**
@@ -74,8 +83,6 @@ export function getDetectionsByService(
     "ELB",
     "Route 53",
     "Glue",
-    "Directory Service",
-    "IAM Identity Center",
   ];
 
   const pool =
@@ -122,7 +129,7 @@ export function getDetectionCountsByCloudProvider(): Record<
 
 /**
  * Get detections for a specific service (primary + related).
- * STS is treated as part of IAM for browse/filter.
+ * Identity services are treated as part of IAM for browse/filter.
  */
 export function getDetectionsForService(service: string): Detection[] {
   const browse = getBrowseService(service);
@@ -130,8 +137,13 @@ export function getDetectionsForService(service: string): Detection[] {
     const primary = getBrowseService(d.awsService);
     if (primary === browse) return true;
     if (d.relatedServices.includes(service) || d.relatedServices.includes(browse)) return true;
-    // Visiting IAM also includes rules tagged related to STS
-    if (browse === "IAM" && (d.awsService === "STS" || d.relatedServices.includes("STS"))) return true;
+    if (
+      browse === "IAM" &&
+      (IAM_BROWSE_SERVICES.has(d.awsService) ||
+        d.relatedServices.some((s) => IAM_BROWSE_SERVICES.has(s)))
+    ) {
+      return true;
+    }
     return false;
   });
 }
@@ -176,8 +188,6 @@ export function getServicesWithDetections(): string[] {
     "ELB",
     "Route 53",
     "Glue",
-    "Directory Service",
-    "IAM Identity Center",
   ];
   const ordered = order.filter((s) => services.has(s));
   const rest = [...services].filter((s) => !order.includes(s)).sort();

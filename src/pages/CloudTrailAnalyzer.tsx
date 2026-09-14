@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { CountBadge } from "@/components/CountBadge";
+import { SEVERITY_OUTLINE_CLASS } from "@/lib/severityStyles";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select,
@@ -601,9 +603,7 @@ function EventFilters({
               <Filter className="h-3.5 w-3.5" />
               Event Names
               {selectedEventNames.size > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                  {selectedEventNames.size}
-                </Badge>
+                <CountBadge className="ml-1">{selectedEventNames.size}</CountBadge>
               )}
             </Button>
           </PopoverTrigger>
@@ -638,9 +638,7 @@ function EventFilters({
               <Filter className="h-3.5 w-3.5" />
               Sources
               {selectedEventSources.size > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                  {selectedEventSources.size}
-                </Badge>
+                <CountBadge className="ml-1">{selectedEventSources.size}</CountBadge>
               )}
             </Button>
           </PopoverTrigger>
@@ -672,9 +670,7 @@ function EventFilters({
               <Filter className="h-3.5 w-3.5" />
               Regions
               {selectedRegions.size > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                  {selectedRegions.size}
-                </Badge>
+                <CountBadge className="ml-1">{selectedRegions.size}</CountBadge>
               )}
             </Button>
           </PopoverTrigger>
@@ -796,12 +792,7 @@ function EventFilters({
   );
 }
 
-const severityColors: Record<string, string> = {
-  Critical: "bg-red-500/20 text-red-400 border-red-500/30",
-  High: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-  Medium: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  Low: "bg-muted text-muted-foreground",
-};
+const severityColors = SEVERITY_OUTLINE_CLASS;
 
 function DetectionBadges({ results }: { results: DetectionResult[] }) {
   if (results.length === 0) return <span className="text-sm text-muted-foreground">No matches</span>;

@@ -16,6 +16,8 @@ import {
 import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { getServiceIconOrFallback } from "@/components/AwsIcons";
 import { CloudProviderTabs, type CloudProviderId } from "@/components/CloudProviderTabs";
+import { getServiceCardClassName } from "@/lib/serviceCardColors";
+import { CountBadge } from "@/components/CountBadge";
 import { cn } from "@/lib/utils";
 
 const categoryColors: Record<TechniqueCategory, string> = {
@@ -48,20 +50,13 @@ function techniqueMatchesService(techniqueServices: string[], detectionService: 
       : detectionService === "Secrets Manager"
         ? ["Secrets Manager", "SecretsManager"]
         : detectionService === "IAM"
-          ? ["IAM", "STS"]
+          ? ["IAM", "STS", "IAM Identity Center", "Directory Service", "SSO"]
           : [detectionService];
   return techniqueServices.some((s) => aliases.includes(s));
 }
 
-const severityScore: Record<string, number> = { Critical: 4, High: 3, Medium: 2, Low: 1 };
-
-function getPriorityLabel(score: number): string {
-  if (score >= 9) return "Critical";
-  if (score >= 7) return "High";
-  if (score >= 4) return "Medium";
-  if (score >= 1) return "Low";
-  return "—";
-}
+/** Coverage matrix uses AWS attack techniques only — hide other providers for now */
+const COVERAGE_PROVIDER_TABS: CloudProviderId[] = ["all", "aws"];
 
 const CoveragePage = () => {
   const [categoryFilter, setCategoryFilter] = useState<TechniqueCategory | "all">("all");
@@ -69,14 +64,17 @@ const CoveragePage = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [serviceSearch, setServiceSearch] = useState("");
   const [provider, setProvider] = useState<CloudProviderId>("all");
-  const [sortBy, setSortBy] = useState<"status" | "priority">("status");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const matrixRef = useRef<HTMLDivElement>(null);
 
+  const coverageProvider: CloudProviderId = COVERAGE_PROVIDER_TABS.includes(provider)
+    ? provider
+    : "all";
+
   const providerCounts = getDetectionCountsByCloudProvider();
   const detectionsByService = useMemo(
-    () => getDetectionsByService(provider === "all" ? "all" : provider),
-    [provider]
+    () => getDetectionsByService(coverageProvider === "all" ? "all" : coverageProvider),
+    [coverageProvider]
   );
 
   const analysis = useMemo(() => {
@@ -121,10 +119,7 @@ const CoveragePage = () => {
       const status = getCoverageStatus(t.detectionIds);
       const appearsIn = attackPaths.filter((ap) => ap.steps.some((s) => s.techniqueId === t.id));
       const pathCount = appearsIn.length;
-      const maxSeverity = appearsIn.reduce((max, ap) => Math.max(max, severityScore[ap.severity] || 0), 0);
-      const priorityScore = status === "none" ? maxSeverity * 2 + pathCount : 0;
-      const priorityLabel = status === "none" ? getPriorityLabel(priorityScore) : "—";
-      return { ...t, status, pathCount, priorityScore, priorityLabel };
+      return { ...t, status, pathCount };
     });
   }, [attackPaths]);
 
@@ -144,19 +139,12 @@ const CoveragePage = () => {
 
   const sorted = useMemo(() => {
     const order = sortOrder === "desc" ? 1 : -1;
+    const statusOrder = { none: 0, partial: 1, covered: 2 };
     return [...filtered].sort((a, b) => {
-      if (sortBy === "status") {
-        const statusOrder = { none: 0, partial: 1, covered: 2 };
-        const diff = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
-        return diff * order;
-      }
-      if (sortBy === "priority") {
-        const diff = a.priorityScore - b.priorityScore;
-        return diff * order;
-      }
-      return 0;
+      const diff = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
+      return diff * order;
     });
-  }, [filtered, sortBy, sortOrder]);
+  }, [filtered, sortOrder]);
 
   const serviceRows = useMemo(() => {
     const q = serviceSearch.trim().toLowerCase();
@@ -177,7 +165,11 @@ const CoveragePage = () => {
   };
 
   const emptyProviderLabel =
-    provider === "kubernetes" ? "Kubernetes" : provider === "all" ? null : provider.toUpperCase();
+    coverageProvider === "kubernetes"
+      ? "Kubernetes"
+      : coverageProvider === "all"
+        ? null
+        : coverageProvider.toUpperCase();
 
   return (
     <Layout>
@@ -222,11 +214,14 @@ const CoveragePage = () => {
           </div>
         </div>
 
-        {/* Coverage by Service — same services as Detection Rules */}
+        {/* Service coverage — same services as Detection Rules */}
         <div className="mb-8">
-          <h2 className="font-display text-lg font-semibold mb-4">Coverage by Service</h2>
-
-          <CloudProviderTabs value={provider} counts={providerCounts} onChange={selectProvider} />
+          <CloudProviderTabs
+            value={coverageProvider}
+            counts={providerCounts}
+            onChange={selectProvider}
+            visibleProviders={COVERAGE_PROVIDER_TABS}
+          />
 
           <div className="relative w-full sm:max-w-md mb-6">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -249,25 +244,29 @@ const CoveragePage = () => {
                     type="button"
                     onClick={() => selectService(svc.service)}
                     className={cn(
-                      "rounded-lg border bg-card p-5 text-left transition-colors group flex items-center gap-3",
-                      active
-                        ? "border-primary/50 bg-primary/5"
-                        : "border-border/50 hover:border-primary/30"
+                      getServiceCardClassName({ active }),
+                      "px-4 py-3.5 text-left group flex items-center gap-3"
                     )}
                   >
-                    <ServiceIcon size={28} />
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-display font-semibold text-base group-hover:text-primary transition-colors">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <ServiceIcon size={28} className="shrink-0" />
+                      <h3 className="font-display font-semibold text-base truncate group-hover:text-primary transition-colors">
                         {svc.service}
                       </h3>
-                      <p className="text-xs text-muted-foreground">
-                        {svc.ruleCount} {svc.ruleCount === 1 ? "rule" : "rules"}
-                        {svc.total > 0 ? ` · ${svc.covered}/${svc.total} techniques · ${svc.pct}%` : ""}
-                      </p>
                     </div>
-                    <Badge variant="outline" className="text-xs border-border text-muted-foreground shrink-0">
-                      {svc.total > 0 ? `${svc.pct}%` : svc.ruleCount}
-                    </Badge>
+                    <div className="flex flex-col items-end gap-0.5 shrink-0 text-xs text-muted-foreground">
+                      <span className="tabular-nums">
+                        {svc.ruleCount} {svc.ruleCount === 1 ? "rule" : "rules"}
+                      </span>
+                      {svc.total > 0 ? (
+                        <span className="tabular-nums">
+                          {svc.covered}/{svc.total} techniques
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/50">—</span>
+                      )}
+                    </div>
+                    <CountBadge>{svc.total > 0 ? `${svc.pct}%` : svc.ruleCount}</CountBadge>
                     <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-foreground transition-colors" />
                   </button>
                 );
@@ -344,34 +343,25 @@ const CoveragePage = () => {
                 <option key={svc.service} value={svc.service}>{svc.service}</option>
               ))}
             </select>
-            <span className="text-xs text-muted-foreground ml-2">Sort by:</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as "status" | "priority")}
-              className="rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary/50"
-            >
-              <option value="status">Status (Gap / Covered)</option>
-              <option value="priority">Priority</option>
-            </select>
+            <span className="text-xs text-muted-foreground ml-2">Sort by status:</span>
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
               className="rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary/50"
             >
-              <option value="desc">Descending</option>
-              <option value="asc">Ascending</option>
+              <option value="desc">Gaps first</option>
+              <option value="asc">Covered first</option>
             </select>
           </div>
 
           <div className="rounded-lg border border-border/50 overflow-hidden">
-            <div className="grid grid-cols-[1fr_140px_120px_100px_110px_120px_100px] gap-x-6 gap-y-0 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted px-4 py-3 border-b border-border">
-              <span>Technique</span>
+            <div className="grid grid-cols-[1fr_140px_120px_100px_110px_120px] gap-x-6 gap-y-0 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted px-4 py-3 border-b border-border">
+              <span>Attack Technique</span>
               <span>Category</span>
               <span>Services</span>
               <span>In Paths</span>
               <span>Detections</span>
               <span>Status</span>
-              <span>Priority</span>
             </div>
             <div className="divide-y divide-border/50">
               {sorted.map((tech) => {
@@ -383,7 +373,7 @@ const CoveragePage = () => {
                   <Link
                     key={tech.id}
                     to={`/attack-paths/technique/${tech.id}`}
-                    className="grid grid-cols-[1fr_140px_120px_100px_110px_120px_100px] gap-x-6 gap-y-0 px-4 py-3 hover:bg-muted/50 transition-colors items-center"
+                    className="grid grid-cols-[1fr_140px_120px_100px_110px_120px] gap-x-6 gap-y-0 px-4 py-3 hover:bg-muted/50 transition-colors items-center"
                   >
                     <span className="font-medium text-sm text-foreground">{tech.name}</span>
                     <Badge className={`text-[10px] border-0 w-fit ${categoryColors[tech.category]}`}>
@@ -411,16 +401,6 @@ const CoveragePage = () => {
                           <span className="text-xs text-red-400">Gap</span>
                         </>
                       )}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {tech.priorityLabel !== "—" && (
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${
-                          tech.priorityLabel === "Critical" ? "bg-destructive" :
-                          tech.priorityLabel === "High" ? "bg-orange-400" :
-                          tech.priorityLabel === "Medium" ? "bg-yellow-400" : "bg-muted-foreground"
-                        }`} />
-                      )}
-                      <span className="text-xs text-muted-foreground">{tech.priorityLabel}</span>
                     </div>
                   </Link>
                 );

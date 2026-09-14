@@ -1,7 +1,7 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Layout } from "@/components/Layout";
-import { Badge } from "@/components/ui/badge";
+import { CountBadge } from "@/components/CountBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -197,9 +197,9 @@ export default function DetectionMatrix() {
               <div className="flex flex-wrap items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
                 <CardTitle className="text-base">Filters</CardTitle>
-                <Badge variant="secondary" className="font-mono text-xs">
-                  {visibleCount} / {baseEntries.length} techniques
-                </Badge>
+                <CountBadge className="text-xs">
+                  {visibleCount} / {baseEntries.length}
+                </CountBadge>
                 <Button variant="ghost" size="sm" className="h-7 text-xs ml-auto" onClick={resetFilters}>
                   Reset
                 </Button>

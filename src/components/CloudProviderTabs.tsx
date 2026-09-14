@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { CountBadge } from "@/components/CountBadge";
 
 export type CloudProviderId = "all" | "aws" | "azure" | "gcp" | "kubernetes";
 
@@ -47,9 +48,21 @@ type CloudProviderTabsProps = {
   counts: Record<CloudProviderId, number>;
   onChange: (id: CloudProviderId) => void;
   className?: string;
+  /** Omit providers not listed; defaults to all tabs */
+  visibleProviders?: CloudProviderId[];
 };
 
-export function CloudProviderTabs({ value, counts, onChange, className }: CloudProviderTabsProps) {
+export function CloudProviderTabs({
+  value,
+  counts,
+  onChange,
+  className,
+  visibleProviders,
+}: CloudProviderTabsProps) {
+  const providers = visibleProviders
+    ? CLOUD_PROVIDERS.filter((p) => visibleProviders.includes(p.id))
+    : CLOUD_PROVIDERS;
+
   return (
     <div
       className={cn(
@@ -59,7 +72,7 @@ export function CloudProviderTabs({ value, counts, onChange, className }: CloudP
       role="tablist"
       aria-label="Cloud providers"
     >
-      {CLOUD_PROVIDERS.map((p) => {
+      {providers.map((p) => {
         const active = value === p.id;
         const count = counts[p.id] ?? 0;
         return (
@@ -76,16 +89,7 @@ export function CloudProviderTabs({ value, counts, onChange, className }: CloudP
           >
             {p.id !== "all" && <ProviderIcon id={p.id} />}
             <span className="font-medium leading-none">{p.label}</span>
-            <span
-              className={cn(
-                "inline-flex h-[26px] min-w-[26px] items-center justify-center rounded-full px-1.5 text-xs tabular-nums",
-                active
-                  ? "bg-primary/15 text-primary"
-                  : "bg-muted text-muted-foreground"
-              )}
-            >
-              {count}
-            </span>
+            <CountBadge>{count}</CountBadge>
             {active && (
               <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-teal-400" />
             )}

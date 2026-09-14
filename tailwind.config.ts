@@ -70,6 +70,7 @@ export default {
           critical: "hsl(var(--severity-critical))",
           high: "hsl(var(--severity-high))",
           medium: "hsl(var(--severity-medium))",
+          low: "hsl(var(--severity-low))",
         },
         cat: {
           credential: "hsl(var(--cat-credential))",

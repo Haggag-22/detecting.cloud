@@ -5,6 +5,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { ChevronDown, ChevronRight, ThumbsUp, AlertTriangle, ThumbsDown, Copy, Check, ExternalLink } from "lucide-react";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
 import { QualityMetricsVisual } from "@/components/DetectionVisuals";
+import { CountBadge } from "@/components/CountBadge";
 import { SigmaRulePanel } from "@/components/SigmaRulePanel";
 import { Link } from "react-router-dom";
 import { techniqueCategories } from "@/data/techniques";
@@ -134,9 +135,7 @@ function SectionCard({
   const header = (
     <span className="flex items-center gap-3 min-w-0">
       {phase != null && (
-        <span className="shrink-0 inline-flex items-center justify-center min-w-[2rem] h-7 px-2 rounded-md bg-primary/20 border border-primary/40 font-mono text-[12px] font-semibold tabular-nums text-primary">
-          {String(phase).padStart(2, "0")}
-        </span>
+        <CountBadge size="md">{String(phase).padStart(2, "0")}</CountBadge>
       )}
       <span className="truncate text-foreground">{title}</span>
     </span>

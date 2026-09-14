@@ -10,11 +10,9 @@ import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { useSearchParams, Link, Navigate } from "react-router-dom";
 import { AttackFlowChain } from "@/components/AttackFlowChain";
 
-const severityColor: Record<string, string> = {
-  Critical: "bg-severity-critical/15 text-severity-critical",
-  High: "bg-severity-high/15 text-severity-high",
-  Medium: "bg-severity-medium/15 text-severity-medium",
-};
+import { SEVERITY_BADGE_CLASS } from "@/lib/severityStyles";
+
+const severityColor = SEVERITY_BADGE_CLASS;
 
 const AttackPathsPage = () => {
   const [searchParams] = useSearchParams();

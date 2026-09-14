@@ -14,6 +14,9 @@ import { SeverityGauge } from "@/components/DetectionVisuals";
 import { SigmaRulePanel } from "@/components/SigmaRulePanel";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
 import { CloudProviderTabs, type CloudProviderId } from "@/components/CloudProviderTabs";
+import { CountBadge } from "@/components/CountBadge";
+import { getServiceCardClassName } from "@/lib/serviceCardColors";
+import { cn } from "@/lib/utils";
 
 const SEVERITY_OPTIONS = ["Critical", "High", "Medium", "Low"] as const;
 type SeverityFilter = "all" | (typeof SEVERITY_OPTIONS)[number];
@@ -26,12 +29,8 @@ const severityRank: Record<string, number> = {
   Low: 3,
 };
 
-const severityColors: Record<string, string> = {
-  Critical: "bg-severity-critical/15 text-severity-critical",
-  High: "bg-severity-high/15 text-severity-high",
-  Medium: "bg-severity-medium/15 text-severity-medium",
-  Low: "bg-muted text-muted-foreground",
-};
+import { SeverityPill } from "@/components/SeverityPill";
+import { SEVERITY_BADGE_CLASS } from "@/lib/severityStyles";
 
 function downloadFile(content: string, filename: string) {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
@@ -78,17 +77,6 @@ const DetectionEngineeringPage = () => {
   // If a specific rule is selected, show detailed view
   const selectedDetection = ruleParam ? detections.find((d) => d.id === ruleParam) : null;
 
-  // Related rules (where service appears in relatedServices but not primary) — same provider only
-  const relatedRules = serviceParam
-    ? detections.filter(
-        (d) =>
-          getBrowseService(d.awsService) !== serviceParam &&
-          (d.relatedServices.includes(serviceParam) ||
-            (serviceParam === "IAM" && d.relatedServices.includes("STS"))) &&
-          (activeProvider === "all" || getDetectionCloudProvider(d) === activeProvider)
-      )
-    : [];
-
   const matchesSearch = (d: Detection) => {
     if (!search) return true;
     const s = search.toLowerCase();
@@ -132,8 +120,6 @@ const DetectionEngineeringPage = () => {
     setSeverityFilter("all");
     setSortBy("severity");
   };
-
-  const filteredRelated = filterRules(relatedRules);
 
   if (selectedDetection) {
     const browseService = getBrowseService(selectedDetection.awsService);
@@ -193,7 +179,7 @@ const DetectionEngineeringPage = () => {
             <DetectionLifecycleSections
               detection={selectedDetection}
               lifecycle={selectedDetection.lifecycle}
-              severityColors={severityColors}
+              severityColors={SEVERITY_BADGE_CLASS}
               copiedId={copiedId}
               setCopiedId={setCopiedId}
               coveredTechniques={coveredTechniques}
@@ -304,7 +290,7 @@ const DetectionEngineeringPage = () => {
                               className="block rounded-lg border border-border/50 bg-card p-4 hover:border-primary/30 transition-colors"
                             >
                               <div className="flex items-center gap-2 mb-1">
-                                <Badge className={`text-xs border-0 ${severityColors[ap.severity]}`}>
+                                <Badge className={`text-xs border-0 ${SEVERITY_BADGE_CLASS[ap.severity] ?? SEVERITY_BADGE_CLASS.Low}`}>
                                   {ap.severity}
                                 </Badge>
                                 <span className="font-medium text-sm">{ap.title}</span>
@@ -412,22 +398,6 @@ const DetectionEngineeringPage = () => {
               </p>
             )}
           </div>
-
-          {filteredRelated.length > 0 && (
-            <div className="mt-10 pt-8 border-t border-border">
-              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-4">
-                Related Detection Rules
-              </h2>
-              <p className="text-xs text-muted-foreground mb-4">
-                These rules belong to other services but involve {serviceParam} in the attack chain.
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {filteredRelated.map((det) => (
-                  <DetectionCard key={det.id} detection={det} />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </Layout>
     );
@@ -484,21 +454,16 @@ const DetectionEngineeringPage = () => {
                     if (activeProvider !== "all") next.provider = activeProvider;
                     setSearchParams(next);
                   }}
-                  className="rounded-lg border border-border/50 bg-card p-5 text-left hover:border-primary/30 transition-colors group flex items-center gap-3"
+                  className={cn(
+                    getServiceCardClassName(),
+                    "px-4 py-3.5 text-left group flex items-center gap-3"
+                  )}
                 >
-                  {ServiceIcon && <ServiceIcon size={28} />}
-                  <div className="flex-1 min-w-0">
-                    <h2 className="font-display font-semibold text-base group-hover:text-primary transition-colors">
-                      {service}
-                    </h2>
-                    <p className="text-xs text-muted-foreground">
-                      {count} {count === 1 ? "rule" : "rules"}
-                      {(search || severityFilter !== "all") && matching !== total ? ` matching` : ""}
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-xs border-border text-muted-foreground shrink-0">
-                    {count}
-                  </Badge>
+                  {ServiceIcon && <ServiceIcon size={28} className="shrink-0" />}
+                  <h2 className="font-display font-semibold text-base truncate flex-1 min-w-0 group-hover:text-primary transition-colors">
+                    {service}
+                  </h2>
+                  <CountBadge>{count}</CountBadge>
                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-foreground transition-colors" />
                 </button>
               );
@@ -651,30 +616,6 @@ function CodeBlockWithCopy({
           : <code>{content}</code>}
       </pre>
     </div>
-  );
-}
-
-function SeverityPill({ severity }: { severity: string }) {
-  const styles: Record<string, string> = {
-    Critical: "border-severity-critical/35 bg-severity-critical/10 text-severity-critical",
-    High: "border-severity-high/35 bg-severity-high/10 text-severity-high",
-    Medium: "border-severity-medium/35 bg-severity-medium/10 text-severity-medium",
-    Low: "border-border bg-muted/40 text-muted-foreground",
-  };
-  const dots: Record<string, string> = {
-    Critical: "bg-severity-critical",
-    High: "bg-severity-high",
-    Medium: "bg-severity-medium",
-    Low: "bg-muted-foreground/60",
-  };
-
-  return (
-    <span
-      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium leading-none ${styles[severity] ?? styles.Low}`}
-    >
-      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${dots[severity] ?? dots.Low}`} />
-      {severity}
-    </span>
   );
 }
 
