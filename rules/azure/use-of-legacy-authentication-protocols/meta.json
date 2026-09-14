@@ -1,0 +1,26 @@
+{
+  "id": "az-091",
+  "title": "Use of Legacy Authentication Protocols",
+  "description": "Alert on when legacy authentication has been used on an account",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "initial-access",
+    "credential-access",
+    "stealth",
+    "t1078 004"
+  ],
+  "logSources": [
+    "Azure Sign-in Logs"
+  ],
+  "falsePositives": [
+    "User has been put in acception group so they can use legacy authentication"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,21 @@
+{
+  "id": "det-171",
+  "title": "AWS S3 Data Management Tampering",
+  "description": "Detects when a user tampers with S3 data management in Amazon Web Services.",
+  "awsService": "S3",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Low",
+  "tags": [
+    "S3",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "A S3 configuration change may be done by a system or network administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment. S3 configuration change from unfamiliar users or hosts should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

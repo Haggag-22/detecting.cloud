@@ -1,0 +1,22 @@
+{
+  "id": "az-005",
+  "title": "Azure Active Directory Hybrid Health AD FS Service Delete",
+  "description": "This detection uses azureactivity logs (Administrative category) to identify the deletion of an Azure AD Hybrid health AD FS service instance in a tenant. A threat actor can create a new AD Health ADFS service and create a fake server to spoof AD FS signing logs. The health AD FS service can then be deleted after it is not longer needed via HTTP requests to Azure.",
+  "awsService": "Azure Activity",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Azure Activity",
+    "defense-impairment",
+    "t1578 003"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Legitimate AAD Health AD FS service instances being deleted in a tenant"
+  ],
+  "relatedAttackSlugs": []
+}

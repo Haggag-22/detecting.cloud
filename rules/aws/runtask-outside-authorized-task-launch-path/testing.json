@@ -1,0 +1,5 @@
+[
+  "As an identity outside the approved ECS launch set, call RunTask against a monitored cluster.",
+  "Verify CloudTrail captures actor and task-family context.",
+  "Run the detection and confirm it relies on authorization scope and workflow provenance rather than actor-name text."
+]

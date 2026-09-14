@@ -1,0 +1,23 @@
+{
+  "id": "gcp-018",
+  "title": "Google Workspace User Granted Admin Privileges",
+  "description": "Detects when an Google Workspace user is granted admin privileges.",
+  "awsService": "Google Workspace",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "Google Workspace",
+    "privilege-escalation",
+    "persistence",
+    "t1098"
+  ],
+  "logSources": [
+    "Google Workspace Audit"
+  ],
+  "falsePositives": [
+    "Google Workspace admin role privileges, may be modified by system administrators."
+  ],
+  "relatedAttackSlugs": []
+}

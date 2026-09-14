@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, requestParameters.overrides, sourceIPAddress
+| filter eventSource = "ecs.amazonaws.com"
+| filter eventName = "RunTask"
+| sort @timestamp desc

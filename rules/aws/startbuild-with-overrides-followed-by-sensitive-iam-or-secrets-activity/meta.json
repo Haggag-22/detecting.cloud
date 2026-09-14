@@ -1,0 +1,28 @@
+{
+  "id": "det-129",
+  "title": "StartBuild with Overrides Followed by Sensitive IAM or Secrets Activity",
+  "description": "High-confidence CodeBuild abuse detection. This should correlate override-backed build launches with later sensitive IAM, STS, secrets, or decryption activity using ordered sequence and stable build identity linkage.",
+  "awsService": "CodeBuild",
+  "relatedServices": [
+    "IAM",
+    "STS",
+    "Secrets Manager",
+    "KMS",
+    "S3"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "CodeBuild",
+    "Credential Theft",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate build using secrets",
+    "Expected workload"
+  ],
+  "relatedAttackSlugs": []
+}

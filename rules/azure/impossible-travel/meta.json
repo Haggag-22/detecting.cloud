@@ -1,0 +1,25 @@
+{
+  "id": "az-064",
+  "title": "Impossible Travel",
+  "description": "Identifies user activities originating from geographically distant locations within a time period shorter than the time it takes to travel from the first location to the second.",
+  "awsService": "Entra ID Protection",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Protection",
+    "stealth",
+    "t1078",
+    "persistence",
+    "privilege-escalation",
+    "initial-access"
+  ],
+  "logSources": [
+    "Azure riskdetection"
+  ],
+  "falsePositives": [
+    "Connecting to a VPN, performing activity and then dropping and performing additional activity."
+  ],
+  "relatedAttackSlugs": []
+}

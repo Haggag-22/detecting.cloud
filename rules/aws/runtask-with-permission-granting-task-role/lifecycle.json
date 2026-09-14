@@ -1,0 +1,126 @@
+{
+  "whyItMatters": "ECS task launches become much more important when the task activates a role with material privilege. The security value comes from the resolved task role and its permissions, not from how the task or role is named.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may use RunTask to execute a workload under a powerful task role and then access secrets, assume roles, or modify cloud control-plane resources.",
+    "realWorldUsage": "Short-lived ECS tasks are attractive because they blend into ordinary operations while still providing controlled code execution and role credentials.",
+    "whyItMatters": "The strongest signal is what the task role can do after launch, not whether the task family contains words like admin.",
+    "riskAndImpact": "If missed, a single ad hoc task run can silently activate broad permissions through a neutrally named task definition or overridden role."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for ECS",
+      "ECS task-definition inventory",
+      "IAM role and policy inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.cluster",
+      "requestParameters.taskDefinition",
+      "requestParameters.overrides",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "RunTask telemetry must be ingested with overrides preserved.",
+      "The platform should resolve taskRoleArn and executionRoleArn from the task definition.",
+      "Task-role permissions should be semantically classified before alerting at high severity."
+    ],
+    "limitations": [
+      "The raw RunTask event usually does not contain the fully resolved role without ECS task-definition lookups.",
+      "Name-based matching is unreliable for both task definitions and roles.",
+      "Some privileged task roles are legitimate in tightly controlled service environments."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.taskDefinition",
+        "normalizedPath": "aws.ecs.task_definition.arn",
+        "notes": "Launched task definition"
+      },
+      {
+        "rawPath": "requestParameters.overrides.taskRoleArn",
+        "normalizedPath": "aws.ecs.run_task.override_task_role_arn",
+        "notes": "Runtime task-role override if present"
+      },
+      {
+        "rawPath": "enrichment.resolvedTaskRoleArn",
+        "normalizedPath": "aws.iam.role.arn",
+        "notes": "Final resolved task role used by the task"
+      },
+      {
+        "rawPath": "enrichment.permissionClass",
+        "normalizedPath": "aws.iam.role.permission_class",
+        "notes": "Semantic privilege class of the resolved task role"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"compute\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"RunTask\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ecs\": {\n      \"cluster\": {\n        \"name\": \"prod\"\n      },\n      \"task_definition\": {\n        \"arn\": \"web-task:12\"\n      },\n      \"run_task\": {\n        \"override_task_role_arn\": \"arn:aws:iam::123456789012:role/ProdOpsRole\"\n      }\n    },\n    \"iam\": {\n      \"role\": {\n        \"arn\": \"arn:aws:iam::123456789012:role/ProdOpsRole\",\n        \"permission_class\": \"admin_equivalent\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Resolved Task Role Permission Class",
+      "description": "Classify the final task role as admin-equivalent, role-chaining, secrets-accessing, pass-role capable, or lower risk.",
+      "examples": [
+        "AdministratorAccess",
+        "sts:AssumeRole + secretsmanager:GetSecretValue"
+      ],
+      "falsePositiveReduction": "Captures real privilege even when names are neutral."
+    },
+    {
+      "dimension": "Execution Role vs Task Role Split",
+      "description": "Distinguish image-pull and logging permissions from application permissions available to the container.",
+      "examples": [
+        "execution role only",
+        "powerful task role"
+      ],
+      "falsePositiveReduction": "Prevents over-alerting on benign execution roles while highlighting application-role risk."
+    },
+    {
+      "dimension": "Cluster and Task Family Context",
+      "description": "Determine whether the cluster, task family, and role pairing is normal for the environment.",
+      "examples": [
+        "prod cluster with ad hoc ops task",
+        "unexpected task role on customer-facing service"
+      ],
+      "falsePositiveReduction": "Separates service design from suspicious workload activation."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should resolve the task's final task role, whether from the task definition or a runtime override, then classify that role semantically. The detection becomes high value when the task role grants material privilege such as role chaining, secrets access, or broad administration.",
+    "conditions": [
+      "eventSource equals ecs.amazonaws.com",
+      "eventName equals RunTask",
+      "resolved task role is classified as admin-equivalent, role-chaining, secrets-accessing, pass-role capable, or otherwise high-risk"
+    ],
+    "tuningGuidance": "1. Resolve the final task role before evaluating risk. 2. Do not depend on task-definition or role-name substrings. 3. Escalate when the actor is unexpected or the task uses runtime overrides.",
+    "whenToFire": "Fire when RunTask activates a task role whose effective permissions materially expand what the workload can do."
+  },
+  "simulationCommand": "aws ecs run-task --cluster prod --task-definition web-task:12 --overrides '{\"taskRoleArn\":\"arn:aws:iam::123456789012:role/ProdOpsRole\"}'",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with resolved role classification; high with name heuristics",
+    "expectedVolume": "Low in mature ECS environments",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with ECS and IAM inventory",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because the task role can be used immediately after launch.",
+    "considerations": [
+      "This is the permission-aware companion to `det-070`.",
+      "Task-definition and role resolution are mandatory dependencies."
+    ]
+  }
+}

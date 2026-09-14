@@ -1,0 +1,25 @@
+{
+  "id": "az-082",
+  "title": "Azure Kubernetes Cluster Created or Deleted",
+  "description": "Detects when a Azure Kubernetes Cluster is created or deleted.",
+  "awsService": "AKS",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Low",
+  "tags": [
+    "AZURE",
+    "AKS",
+    "impact",
+    "t1485",
+    "t1496",
+    "t1489"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Kubernetes cluster being created or  deleted may be performed by a system administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Kubernetes cluster created or deleted from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

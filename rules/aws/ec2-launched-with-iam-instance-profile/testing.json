@@ -1,0 +1,5 @@
+[
+  "Launch an EC2 instance with an IAM instance profile attached.",
+  "Verify the RunInstances event includes iamInstanceProfile in CloudTrail.",
+  "Run the detection and confirm the baseline event is generated before any privilege-specific enrichment."
+]

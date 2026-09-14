@@ -1,0 +1,15 @@
+title: IAM Policy Version with Admin Access
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: CreatePolicyVersion
+    requestParameters.setAsDefault: true
+  admin_doc:
+    requestParameters.policyDocument|contains:
+      - '"Action":"*"'
+      - '"Resource":"*"'
+  condition: selection and admin_doc
+level: critical

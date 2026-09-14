@@ -1,0 +1,5 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.family, requestParameters.taskRoleArn, requestParameters.containerDefinitions, sourceIPAddress
+| filter eventSource = "ecs.amazonaws.com"
+| filter eventName = "RegisterTaskDefinition"
+| filter requestParameters.containerDefinitions like /docker.io/|ghcr.io/|quay.io//
+| sort @timestamp desc

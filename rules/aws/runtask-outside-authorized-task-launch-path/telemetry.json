@@ -1,0 +1,16 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "ecs.amazonaws.com",
+  "importantFields": [
+    "eventSource",
+    "eventName",
+    "userIdentity.type",
+    "userIdentity.arn",
+    "userIdentity.sessionContext.sessionIssuer.arn",
+    "requestParameters.cluster",
+    "requestParameters.taskDefinition",
+    "sourceIPAddress",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"ecs.amazonaws.com\",\n  \"eventName\": \"RunTask\",\n  \"userIdentity\": {\n    \"type\": \"IAMUser\",\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\"\n  },\n  \"requestParameters\": {\n    \"cluster\": \"prod\",\n    \"taskDefinition\": \"backdoor-task:1\"\n  },\n  \"sourceIPAddress\": \"203.0.113.10\",\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

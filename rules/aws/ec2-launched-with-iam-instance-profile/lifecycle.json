@@ -1,0 +1,120 @@
+{
+  "whyItMatters": "Launching compute with an IAM instance profile activates a role in a workload context. Even when legitimate, this is the feeder event for more specific detections about privileged profiles, unexpected launchers, and follow-on credential use.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may launch EC2 with an instance profile to gain access to role credentials via IMDS and use the instance as a staging point for further abuse.",
+    "realWorldUsage": "Compute-attached role abuse is a common pattern because it blends into normal infrastructure behavior while providing durable, refreshable credentials.",
+    "whyItMatters": "The meaningful signal starts with role activation on compute, even if you need later enrichment to know how dangerous it was.",
+    "riskAndImpact": "If missed, a seemingly ordinary instance launch can become the entry point for privilege escalation, secrets access, or cross-account movement through the attached role."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "IAM inventory for instance profile to role resolution"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.iamInstanceProfile",
+      "requestParameters.instancesSet",
+      "sourceIPAddress",
+      "userAgent",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must preserve iamInstanceProfile details in RunInstances requests.",
+      "The platform should resolve instance profiles to backing roles and effective permissions.",
+      "Downstream use of the resulting role should be available for later correlation."
+    ],
+    "limitations": [
+      "The launch event alone does not reveal whether the backing role is privileged.",
+      "Large environments may produce high baseline volume from normal automation.",
+      "Without profile-to-role resolution this remains a feeder event only."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.iamInstanceProfile.name",
+        "normalizedPath": "aws.ec2.instance_profile.name",
+        "notes": "Instance profile attached at launch"
+      },
+      {
+        "rawPath": "requestParameters.instancesSet.items[].instanceType",
+        "normalizedPath": "cloud.instance.type",
+        "notes": "EC2 instance characteristics"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor launching the instance"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"compute\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"RunInstances\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ec2\": {\n      \"instance_profile\": {\n        \"name\": \"AdminInstanceProfile\"\n      }\n    }\n  },\n  \"cloud\": {\n    \"instance\": {\n      \"type\": \"t2.micro\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Profile-to-Role Resolution",
+      "description": "Resolve the instance profile to the actual IAM role and its trust and permission model.",
+      "examples": [
+        "WebAppProfile -> WebAppRole"
+      ],
+      "falsePositiveReduction": "Turns a generic profile name into actionable IAM context."
+    },
+    {
+      "dimension": "Provisioning Workflow Context",
+      "description": "Determine whether the launch came from Auto Scaling, approved IaC, SSM automation, or manual operator action.",
+      "examples": [
+        "Auto Scaling service role",
+        "manual CLI launch"
+      ],
+      "falsePositiveReduction": "Separates routine provisioning from ad hoc compute creation."
+    },
+    {
+      "dimension": "Role Activation Follow-On",
+      "description": "Correlate later STS sessions or sensitive API use from the attached role.",
+      "examples": [
+        "GetSecretValue after launch",
+        "AssumeRole from instance role"
+      ],
+      "falsePositiveReduction": "Moves the signal from baseline visibility to role-abuse detection."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain a baseline compute-role activation rule. It alerts whenever RunInstances includes an instance profile, then relies on profile-to-role resolution, launcher context, and follow-on credential use to determine risk.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals RunInstances",
+      "requestParameters.iamInstanceProfile exists",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep the event match broad. 2. Resolve the profile to the backing role immediately. 3. Escalate based on role privilege and follow-on activity rather than the launch alone.",
+    "whenToFire": "Fire on every successful EC2 launch with an attached instance profile for visibility, with higher priority when the role is privileged or the launch path is unusual."
+  },
+  "simulationCommand": "aws ec2 run-instances --image-id ami-1234567890abcdef0 --instance-type t3.micro --iam-instance-profile Name=AdminInstanceProfile",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium as baseline visibility, low-medium with role resolution and workflow context",
+    "expectedVolume": "Environment-dependent",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time or scheduled analytics both work because this is direct control-plane telemetry.",
+    "considerations": [
+      "Use this as the feeder rule for `det-066`, `det-067`, and `det-069`.",
+      "Profile-to-role resolution is the key enrichment dependency."
+    ]
+  }
+}

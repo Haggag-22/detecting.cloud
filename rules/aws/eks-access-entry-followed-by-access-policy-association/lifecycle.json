@@ -1,0 +1,123 @@
+{
+  "whyItMatters": "This is the highest-confidence EKS access-management chain in the set because it captures the transition from a new access subject to effective authorized access on the cluster.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may create an access entry for a chosen principal and immediately associate an access policy to operationalize that access.",
+    "realWorldUsage": "This is a practical and durable cluster-access escalation path because it uses official EKS authorization objects rather than transient kubeconfig abuse.",
+    "whyItMatters": "The strongest signal is the ordered chain over the same principal and cluster, not simply that two related event names occurred in a window.",
+    "riskAndImpact": "If missed, defenders may see setup events separately and fail to recognize that a new, effective cluster access path was established end-to-end."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EKS",
+      "Cluster governance and approved onboarding workflows"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.principalArn",
+      "requestParameters.clusterName",
+      "requestParameters.policyArn",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "Both CreateAccessEntry and AssociateAccessPolicy must be ingested.",
+      "The detector must correlate on exact principal ARN and cluster name.",
+      "Approved cluster onboarding workflows should be modeled for suppression."
+    ],
+    "limitations": [
+      "Some legitimate provisioning pipelines perform both actions together.",
+      "Actor-only joins are weaker than principal-plus-cluster correlation.",
+      "Policy criticality still needs to be evaluated separately for prioritization."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.principalArn",
+        "normalizedPath": "aws.eks.access_entry.principal_arn",
+        "notes": "Principal receiving the new EKS authorization path"
+      },
+      {
+        "rawPath": "requestParameters.clusterName",
+        "normalizedPath": "aws.eks.cluster.name",
+        "notes": "Cluster receiving the new authorization path"
+      },
+      {
+        "rawPath": "requestParameters.policyArn",
+        "normalizedPath": "aws.eks.access_policy.arn",
+        "notes": "Policy associated after the access entry is created"
+      },
+      {
+        "rawPath": "eventName",
+        "normalizedPath": "event.action",
+        "notes": "Stage of the EKS authorization chain"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateAccessEntry\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"eks\": {\n      \"cluster\": {\n        \"name\": \"prod\"\n      },\n      \"access_entry\": {\n        \"principal_arn\": \"arn:aws:iam::123456789012:user/attacker\"\n      },\n      \"access_policy\": {\n        \"arn\": \"arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Exact Entity Linkage",
+      "description": "Correlate both events over the same principal ARN and cluster name.",
+      "examples": [
+        "user/attacker + prod cluster"
+      ],
+      "falsePositiveReduction": "Prevents unrelated access-management events from forming a false chain."
+    },
+    {
+      "dimension": "Workflow Provenance",
+      "description": "Determine whether the sequence came from approved cluster onboarding or break-glass procedures.",
+      "examples": [
+        "Terraform onboarding pipeline",
+        "manual untracked access grant"
+      ],
+      "falsePositiveReduction": "Separates legitimate setup from suspicious privilege establishment."
+    },
+    {
+      "dimension": "Policy Impact",
+      "description": "Classify the effect of the associated policy after the access entry is created.",
+      "examples": [
+        "cluster admin",
+        "limited namespace access"
+      ],
+      "falsePositiveReduction": "Helps prioritize the resulting access chain."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model an EKS access-establishment sequence: first an access entry is created for a principal on a cluster, then a policy is associated to that same principal and cluster. The detector should require exact principal-plus-cluster linkage and event order.",
+    "conditions": [
+      "first eventName equals CreateAccessEntry",
+      "second eventName equals AssociateAccessPolicy for the same principal ARN and cluster name",
+      "association occurs within 15 minutes"
+    ],
+    "tuningGuidance": "1. Correlate on exact principal plus cluster. 2. Require order. 3. Escalate further when the associated policy is broad or the actor is outside approved access-management workflows.",
+    "whenToFire": "Fire when a new EKS access entry is quickly operationalized by a policy association for the same principal and cluster."
+  },
+  "simulationCommand": "aws eks create-access-entry --cluster-name prod --principal-arn arn:aws:iam::123456789012:user/demo-user",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with approved-workflow context; low when principal-plus-cluster linkage is exact",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with ordered event windows",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is preferred because access establishment may be immediately exploitable.",
+    "considerations": [
+      "This is one of the highest-fidelity EKS access-management detections in the set.",
+      "Exact principal-plus-cluster correlation is the core dependency."
+    ]
+  }
+}

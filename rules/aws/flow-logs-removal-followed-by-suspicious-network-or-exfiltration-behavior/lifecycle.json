@@ -1,0 +1,124 @@
+{
+  "whyItMatters": "Telemetry removal becomes much more suspicious when it is followed by network-control changes or data-access activity. This sequence strongly suggests flow logs were deleted to reduce visibility before later abuse.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may delete flow logs and then rapidly modify network paths, expose data, retrieve secrets, or perform exfiltration-adjacent actions.",
+    "realWorldUsage": "This is attractive because it lowers the chance that subsequent network or data-theft behavior is observed by defenders.",
+    "whyItMatters": "The strongest signal is the ordered chain from defense evasion into follow-on abuse, not any single action alone.",
+    "riskAndImpact": "If missed, defenders may not recognize that suspicious network or data activity was preceded by deliberate telemetry reduction."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "AWS CloudTrail management events for Secrets Manager, KMS, and related services"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.flowLogIds",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "DeleteFlowLogs and follow-on suspicious events must be ingested into the same analytics environment.",
+      "Actor or account identity should be normalized across sessions where possible.",
+      "The engine must support ordered short-window correlation."
+    ],
+    "limitations": [
+      "Actor-only joins can be noisy without target and workflow context.",
+      "Some legitimate maintenance may involve telemetry changes followed by additional infra work.",
+      "The model should be tuned to local network and secrets workflows."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor deleting flow logs or performing follow-on actions"
+      },
+      {
+        "rawPath": "requestParameters.flowLogIds",
+        "normalizedPath": "aws.ec2.flow_log.ids",
+        "notes": "Flow logs removed during the first stage"
+      },
+      {
+        "rawPath": "follow_on.eventName",
+        "normalizedPath": "related.event.action",
+        "notes": "Suspicious action after telemetry removal"
+      },
+      {
+        "rawPath": "userIdentity.accountId",
+        "normalizedPath": "cloud.account.id",
+        "notes": "Account context for correlation where actor identity changes"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"DeleteFlowLogs\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ec2\": {\n      \"flow_log\": {\n        \"ids\": [\n          \"fl-0abc123\"\n        ]\n      }\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"ModifySnapshotAttribute\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Stable Actor or Account Linkage",
+      "description": "Normalize actor and account context so telemetry removal can be correlated to later suspicious activity reliably.",
+      "examples": [
+        "same IAM user",
+        "same account with session changes"
+      ],
+      "falsePositiveReduction": "Improves fidelity of the ordered chain."
+    },
+    {
+      "dimension": "Follow-On Activity Class",
+      "description": "Classify the later action as network exposure, secrets access, snapshot abuse, or related exfiltration behavior.",
+      "examples": [
+        "CreateRoute",
+        "GetSecretValue",
+        "ModifySnapshotAttribute"
+      ],
+      "falsePositiveReduction": "Makes the post-deletion abuse path easier to triage."
+    },
+    {
+      "dimension": "Target Telemetry Importance",
+      "description": "Resolve how important the deleted flow logs were to visibility over the affected environment.",
+      "examples": [
+        "prod egress telemetry",
+        "noncritical dev telemetry"
+      ],
+      "falsePositiveReduction": "Raises urgency when important telemetry was removed before abuse."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a defense-evasion-to-action sequence: flow logs are deleted and then suspicious network, secrets, or exfiltration-adjacent behavior occurs soon afterward. It should require event order and stable actor or account linkage.",
+    "conditions": [
+      "first eventSource equals ec2.amazonaws.com and eventName equals DeleteFlowLogs",
+      "second event is a modeled suspicious action by the same normalized actor or linked account context",
+      "follow-on activity occurs within 30 minutes"
+    ],
+    "tuningGuidance": "1. Require order. 2. Normalize actor or account identity for correlation. 3. Escalate further when the deleted flow logs covered sensitive network segments or the actor was unauthorized to remove them.",
+    "whenToFire": "Fire when flow-log deletion is followed quickly by suspicious network-control or exfiltration-adjacent activity."
+  },
+  "simulationCommand": "aws ec2 delete-flow-logs --flow-log-ids fl-0abc123 && aws secretsmanager get-secret-value --secret-id ExampleSecret",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with ordered correlation and local workflow context",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with ordered event windows",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is preferred because the evasion-to-action window is short.",
+    "considerations": [
+      "This is the highest-fidelity flow-log deletion detector in the family.",
+      "Ordered correlation and actor/account linkage are the main dependencies."
+    ]
+  }
+}

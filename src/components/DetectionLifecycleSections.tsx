@@ -17,7 +17,6 @@ import type {
   EnrichmentContext,
   DetectionQuality,
   CommunityConfidence,
-  DeploymentInfo,
   DetectionLogicExplanation,
 } from "@/data/detections";
 
@@ -135,19 +134,19 @@ function SectionCard({
   const header = (
     <span className="flex items-center gap-3 min-w-0">
       {phase != null && (
-        <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground/80">
+        <span className="shrink-0 inline-flex items-center justify-center min-w-[2rem] h-7 px-2 rounded-md bg-primary/20 border border-primary/40 font-mono text-[12px] font-semibold tabular-nums text-primary">
           {String(phase).padStart(2, "0")}
         </span>
       )}
-      <span className="truncate">{title}</span>
+      <span className="truncate text-foreground">{title}</span>
     </span>
   );
 
   if (!collapsible) {
     return (
       <div className="mb-4 rounded-lg border border-border/50 bg-card">
-        <div className="px-5 py-3.5 border-b border-border/40">
-          <h2 className="font-display text-base font-semibold tracking-tight">{header}</h2>
+        <div className="px-5 py-3.5 border-b border-border/40 bg-primary/10">
+          <h2 className="font-display text-base font-semibold tracking-tight text-foreground">{header}</h2>
         </div>
         <div className="px-5 py-4">{children}</div>
       </div>
@@ -156,18 +155,18 @@ function SectionCard({
 
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="mb-4">
-      <div className="rounded-lg border border-border/50 bg-card overflow-hidden">
+      <div className="rounded-lg border border-primary/25 bg-card overflow-hidden">
         <CollapsibleTrigger
-          className={`w-full flex items-center gap-2.5 px-5 py-3.5 text-left hover:bg-muted/20 transition-colors ${
-            open ? "border-b border-border/40" : ""
+          className={`w-full flex items-center gap-2.5 px-5 py-3.5 text-left bg-primary/10 hover:bg-primary/15 transition-colors ${
+            open ? "border-b border-primary/20" : ""
           }`}
         >
           {open ? (
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <ChevronDown className="h-3.5 w-3.5 text-primary shrink-0" />
           ) : (
-            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <ChevronRight className="h-3.5 w-3.5 text-primary shrink-0" />
           )}
-          <h2 className="font-display text-base font-semibold tracking-tight">{header}</h2>
+          <h2 className="font-display text-base font-semibold tracking-tight text-foreground">{header}</h2>
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="px-5 py-4">{children}</div>
@@ -342,13 +341,6 @@ export function DetectionLifecycleSections({
       <SectionCard title="Testing the Detection" phase={6} collapsible defaultOpen>
         <DetectionTestingSection detection={detection} simulationCommand={lifecycle.simulationCommand} />
       </SectionCard>
-
-      {/* Phase 7: Deployment */}
-      {lifecycle.deployment && (
-        <SectionCard title="Deployment and CI/CD" phase={7} collapsible defaultOpen>
-          <DeploymentSection deployment={lifecycle.deployment} />
-        </SectionCard>
-      )}
 
       {/* Detection Quality & Community */}
       <SectionCard title="Detection Quality & Community" collapsible defaultOpen>
@@ -552,37 +544,6 @@ function DetectionTestingSection({
           ))}
         </ol>
       </div>
-    </div>
-  );
-}
-
-function DeploymentSection({ deployment }: { deployment: DeploymentInfo }) {
-  return (
-    <div className="space-y-4 text-sm">
-      <div>
-        <p className={`${sectionLabelClass} mb-2`}>Where It Runs</p>
-        <ul className="list-disc list-inside text-muted-foreground space-y-1">
-          {deployment.whereItRuns.map((w, i) => (
-            <li key={i}>{w}</li>
-          ))}
-        </ul>
-      </div>
-      {deployment.scheduling && (
-        <div>
-          <p className={`${sectionLabelClass} mb-2`}>Scheduling</p>
-          <p className="text-muted-foreground">{deployment.scheduling}</p>
-        </div>
-      )}
-      {deployment.considerations && deployment.considerations.length > 0 && (
-        <div>
-          <p className={`${sectionLabelClass} mb-2`}>Practical Considerations</p>
-          <ul className="list-disc list-inside text-muted-foreground space-y-1">
-            {deployment.considerations.map((c, i) => (
-              <li key={i}>{c}</li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }

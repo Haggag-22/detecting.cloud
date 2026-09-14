@@ -1,0 +1,27 @@
+{
+  "id": "det-091",
+  "title": "EC2 Instance Connect Followed by Sensitive Cloud Activity",
+  "description": "High-confidence post-access detection for EC2 Instance Connect. This should correlate a key push with later sensitive cloud activity from the same operator identity or access path, using ordered sequence and normalized actor identity rather than loose co-occurrence.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "SSM",
+    "Secrets Manager",
+    "KMS",
+    "S3",
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "EC2",
+    "Instance Connect",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate admin session followed by expected API use"
+  ],
+  "relatedAttackSlugs": []
+}

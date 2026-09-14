@@ -1,0 +1,21 @@
+{
+  "id": "az-048",
+  "title": "Azure Device No Longer Managed or Compliant",
+  "description": "Identifies when a device in azure is no longer managed or compliant",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "impact"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Administrator may have forgotten to review the device."
+  ],
+  "relatedAttackSlugs": []
+}

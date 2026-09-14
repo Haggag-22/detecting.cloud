@@ -1,0 +1,5 @@
+[
+  "Identify the target user and whether it is sensitive.",
+  "Verify if the password change was authorized.",
+  "Check if the user was recently involved in an incident."
+]

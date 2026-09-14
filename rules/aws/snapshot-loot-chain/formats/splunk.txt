@@ -1,0 +1,9 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com (eventName=CreateSnapshot OR eventName=CreateSnapshots OR eventName=ModifySnapshotAttribute OR eventName=CopySnapshot OR eventName=CreateVolume OR eventName=AttachVolume)
+| eval actor=userIdentity.arn
+| eval is_create=if(eventName IN ("CreateSnapshot","CreateSnapshots"), 1, 0)
+| eval is_share=if(eventName="ModifySnapshotAttribute", 1, 0)
+| eval is_copy=if(eventName="CopySnapshot", 1, 0)
+| eval is_volume=if(eventName IN ("CreateVolume","AttachVolume"), 1, 0)
+| transaction actor maxspan=4h
+| where mvcount(mvfilter(is_create=1))>0 AND (mvcount(mvfilter(is_share=1))>0 OR mvcount(mvfilter(is_copy=1))>0) AND mvcount(mvfilter(is_volume=1))>0
+| table _time, actor, eventName, requestParameters.snapshotId, requestParameters.sourceSnapshotId

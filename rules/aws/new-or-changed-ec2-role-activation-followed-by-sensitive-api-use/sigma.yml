@@ -1,0 +1,21 @@
+title: RunInstances with IAM Profile Followed by Privileged API Use
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_launch:
+    eventSource: ec2.amazonaws.com
+    eventName:
+      - RunInstances
+      - AssociateIamInstanceProfile
+      - ReplaceIamInstanceProfileAssociation
+  selection_sensitive:
+    eventName:
+      - AssumeRole
+      - GetSecretValue
+      - CreateSnapshot
+      - AttachRolePolicy
+      - PutRolePolicy
+  condition: selection_launch
+level: critical
+# Full correlation requires profile-to-role resolution and pivoting to workload-role activity.

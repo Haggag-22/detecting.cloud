@@ -1,0 +1,23 @@
+{
+  "id": "gcp-001",
+  "title": "GCP Access Policy Deleted",
+  "description": "Detects when an access policy that is applied to a GCP cloud resource is deleted. An adversary would be able to remove access policies to gain access to a GCP cloud resource.",
+  "awsService": "GCP IAM",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "GCP IAM",
+    "persistence",
+    "privilege-escalation",
+    "t1098"
+  ],
+  "logSources": [
+    "GCP Audit Logs"
+  ],
+  "falsePositives": [
+    "Legitimate administrative activities"
+  ],
+  "relatedAttackSlugs": []
+}

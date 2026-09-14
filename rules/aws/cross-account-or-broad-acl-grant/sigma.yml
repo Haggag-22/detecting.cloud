@@ -1,0 +1,21 @@
+title: Cross-Account or Broad ACL Grant
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: s3.amazonaws.com
+    eventName:
+      - PutBucketAcl
+      - PutObjectAcl
+  filter_public:
+    requestParameters.acl|contains:
+      - 'public-read'
+      - 'public-read-write'
+      - 'authenticated-read'
+  filter_grant:
+    requestParameters.AccessControlPolicy|contains:
+      - 'Grant'
+      - 'Grantee'
+  condition: selection and (filter_public or filter_grant)
+level: critical

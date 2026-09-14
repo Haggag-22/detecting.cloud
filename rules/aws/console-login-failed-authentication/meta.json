@@ -1,0 +1,21 @@
+{
+  "id": "det-183",
+  "title": "Console Login Failed Authentication",
+  "description": "Detects failed AWS console login attempts due to authentication failures. Monitoring these events is crucial for identifying potential brute-force attacks or unauthorized access attempts to AWS accounts.",
+  "awsService": "CloudTrail",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "CloudTrail",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate failed login attempts by authorized users. Investigate the source of repeated failed login attempts."
+  ],
+  "relatedAttackSlugs": []
+}

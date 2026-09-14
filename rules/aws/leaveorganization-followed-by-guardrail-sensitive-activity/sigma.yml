@@ -1,0 +1,20 @@
+title: LeaveOrganization Followed by Guardrail-Sensitive Activity
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_leave:
+    eventSource: organizations.amazonaws.com
+    eventName: LeaveOrganization
+  selection_sensitive:
+    eventName:
+      - PutUserPolicy
+      - AttachRolePolicy
+      - PutRolePolicy
+      - CreateAccessKey
+      - PutKeyPolicy
+      - UpdateTrail
+      - StopLogging
+  condition: selection_leave
+level: critical
+# Full correlation requires ordered sequence and stable account or actor linkage across the leave attempt and follow-on guardrail-sensitive actions.

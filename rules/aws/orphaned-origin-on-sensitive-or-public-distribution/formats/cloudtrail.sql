@@ -1,0 +1,1 @@
+-- Posture: Same as det-137, filter for distributions where Aliases.Items contains prod/www/customer domains

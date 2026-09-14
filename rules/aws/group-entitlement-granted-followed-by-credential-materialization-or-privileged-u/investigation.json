@@ -1,0 +1,5 @@
+[
+  "Identify the added user.",
+  "Review activity by that user within 15 minutes.",
+  "Verify if CreateAccessKey, AssumeRole, or other sensitive actions were expected."
+]

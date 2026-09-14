@@ -1,0 +1,125 @@
+{
+  "whyItMatters": "SetDefaultPolicyVersion can instantly reactivate old permissions across every attached user, group, and role without changing any attachments, making it a stealthy way to restore risky access that already exists in history.",
+  "threatContext": {
+    "attackerBehavior": "An attacker who can call iam:SetDefaultPolicyVersion can select a previous customer-managed policy version that is broader or known to be dangerous.",
+    "realWorldUsage": "Rollback to an earlier policy version is a practical abuse path because older versions often survive as dormant rollback points.",
+    "whyItMatters": "The operative risk is not the policy name but what the selected version actually grants and whether that version is attached to sensitive principals.",
+    "riskAndImpact": "If undetected, a single SetDefaultPolicyVersion call can restore admin or broad access across many attached principals, enabling account takeover, persistence, or access to sensitive data."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.policyArn",
+      "requestParameters.versionId",
+      "sourceIPAddress",
+      "eventTime"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events for IAM must be enabled.",
+      "A policy version catalog must exist, built from CreatePolicyVersion history or GetPolicyVersion enrichment.",
+      "The system must know the prior default version to compare before and after state."
+    ],
+    "limitations": [
+      "SetDefaultPolicyVersion events do not include the selected policy document inline, only policyArn and versionId.",
+      "If older policy versions were created before log retention or never cataloged, live enrichment is required.",
+      "This API applies to customer-managed policies, not inline policies."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.policyArn",
+        "normalizedPath": "aws.iam.policy.arn",
+        "notes": "Managed policy being switched"
+      },
+      {
+        "rawPath": "requestParameters.versionId",
+        "normalizedPath": "aws.iam.policy.selected_version",
+        "notes": "Version selected by SetDefaultPolicyVersion"
+      },
+      {
+        "rawPath": "enrichment.previousDefaultVersionId",
+        "normalizedPath": "aws.iam.policy.previous_default_version",
+        "notes": "Cached prior default version"
+      },
+      {
+        "rawPath": "enrichment.selectedVersionClassification",
+        "normalizedPath": "aws.iam.policy.selected_version_classification",
+        "notes": "Semantic risk label for selected version"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"SetDefaultPolicyVersion\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"policy\": {\n        \"arn\": \"arn:aws:iam::123456789012:policy/TargetPolicy\",\n        \"selected_version\": \"v1\",\n        \"previous_default_version\": \"v3\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Policy Version Catalog",
+      "description": "Store each policy version's parsed document, semantic risk class, and document hash by policyArn and versionId.",
+      "examples": [
+        "v1 classified as broad_allow",
+        "v3 classified as restrictive_control"
+      ],
+      "falsePositiveReduction": "Lets the rule alert on actual risky content instead of guessing from names."
+    },
+    {
+      "dimension": "Before/After Permission Diff",
+      "description": "Compare the selected version to the previous default to determine whether permissions expanded or restrictive controls were removed.",
+      "examples": [
+        "adds Action * on Resource *",
+        "reintroduces iam:PassRole",
+        "removes explicit deny"
+      ],
+      "falsePositiveReduction": "Suppresses benign rollbacks and focuses on reactivation that increases effective power."
+    },
+    {
+      "dimension": "Blast Radius",
+      "description": "Measure how many principals are attached and whether they are privileged, production, or cross-account exposed.",
+      "examples": [
+        "policy attached to three admin roles",
+        "policy used by break-glass role"
+      ],
+      "falsePositiveReduction": "Keeps low-impact policy maintenance visible while prioritizing high-risk reversions."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should not care whether a policy ARN contains Admin or PowerUser. It should ask whether the selected version is known to be risky or whether switching to it increases permissions compared with the prior default.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals SetDefaultPolicyVersion",
+      "requestParameters.policyArn and requestParameters.versionId are present",
+      "selected policy version is classified as risky or is broader than the previous default version"
+    ],
+    "tuningGuidance": "1. Keep a persistent version catalog keyed by policyArn and versionId. 2. Treat known risky version reactivated as the highest-confidence branch. 3. Allowlist approved IAM release pipelines and emergency rollback operators by stable identity attributes, not name substrings.",
+    "whenToFire": "Fire when SetDefaultPolicyVersion reactivates a version previously classified as dangerous or materially broadens effective permissions compared with the prior default."
+  },
+  "simulationCommand": "aws iam set-default-policy-version --policy-arn arn:aws:iam::123456789012:policy/TargetPolicy --version-id v1",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with policy-version content and diff enrichment; high if implemented as ARN keyword matching",
+    "expectedVolume": "Very low in most environments; spikes mainly during managed policy maintenance",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda with GetPolicyVersion enrichment",
+      "SIEM or analytics platform with historical policy-version catalog",
+      "Athena only if policy versions are pre-materialized into an enrichment table"
+    ],
+    "scheduling": "Best as real-time or near-real-time with enrichment; scheduled queries are workable if policy-version state is continuously materialized.",
+    "considerations": [
+      "This rule is weak without version-content enrichment.",
+      "Track previous default version so you can detect broadening rather than mere change.",
+      "Attachment inventory sharply improves prioritization."
+    ]
+  }
+}

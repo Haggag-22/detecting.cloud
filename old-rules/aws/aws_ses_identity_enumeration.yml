@@ -1,0 +1,26 @@
+title: AWS SES Identity Enumeration
+id: 5b4ee0c1-0701-4b99-8bb3-b893583cc845
+status: experimental
+description: |
+    Detects SES identity listing and verification attribute reads used for reconnaissance before abuse.
+references:
+    - https://detecting.cloud/detection-engineering?rule=det-106
+author: Detecting.Cloud / SOF-ELK
+date: 2026-07-17
+tags:
+    - attack.discovery
+    - attack.t1526
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: ses.amazonaws.com
+        eventName:
+            - ListIdentities
+            - GetIdentityVerificationAttributes
+            - ListVerifiedEmailAddresses
+    condition: selection
+falsepositives:
+    - Legitimate administration, automation, or platform engineering activity.
+level: medium

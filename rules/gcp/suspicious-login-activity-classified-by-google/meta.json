@@ -1,0 +1,25 @@
+{
+  "id": "gcp-017",
+  "title": "Suspicious Login Activity Classified By Google",
+  "description": "Detects Google Workspace login activity that's classified as suspicious by Google.",
+  "awsService": "Google Workspace",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "Google Workspace",
+    "initial-access",
+    "privilege-escalation",
+    "persistence",
+    "stealth",
+    "t1078 004"
+  ],
+  "logSources": [
+    "Google Workspace Audit"
+  ],
+  "falsePositives": [
+    "Legitimate logins"
+  ],
+  "relatedAttackSlugs": []
+}

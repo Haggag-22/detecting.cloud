@@ -1,0 +1,24 @@
+{
+  "id": "det-096",
+  "title": "EKS Access Entry Created",
+  "description": "Baseline visibility whenever a new EKS access entry is created. Access entries are security-sensitive because they establish a principal-to-cluster authorization foothold, even before broader policies are associated.",
+  "awsService": "EKS",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EKS",
+    "Access Entry",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate platform administration",
+    "Cluster bootstrap"
+  ],
+  "relatedAttackSlugs": []
+}

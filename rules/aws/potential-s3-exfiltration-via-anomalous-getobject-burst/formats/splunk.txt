@@ -1,0 +1,5 @@
+index=aws sourcetype=aws:cloudtrail eventName=GetObject
+| bin _time span=15m
+| stats count as downloads dc(requestParameters.key) as distinct_objects values(sourceIPAddress) as src_ips by _time, userIdentity.arn, requestParameters.bucketName
+| where downloads >= 25 AND distinct_objects >= 25
+| sort -downloads

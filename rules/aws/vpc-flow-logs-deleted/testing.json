@@ -1,0 +1,5 @@
+[
+  "Call DeleteFlowLogs.",
+  "Verify CloudTrail captures the event.",
+  "Run the detection."
+]

@@ -1,0 +1,6 @@
+[
+  "Correlate srcAddr with Lambda ENI IPs.",
+  "Identify which Lambda function made the external connection.",
+  "Verify if the destination is an approved external API.",
+  "Review Lambda function code for data exfiltration."
+]

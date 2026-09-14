@@ -1,0 +1,25 @@
+{
+  "id": "det-117",
+  "title": "LeaveOrganization Followed by Guardrail-Sensitive Activity",
+  "description": "High-confidence organization-escape chain detection. This should correlate a leave attempt with later IAM, KMS, or logging-control changes using ordered sequence and account linkage rather than loose event aggregation.",
+  "awsService": "Organizations",
+  "relatedServices": [
+    "IAM",
+    "KMS",
+    "CloudTrail"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "Organizations",
+    "LeaveOrganization",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate post-leave account setup"
+  ],
+  "relatedAttackSlugs": []
+}

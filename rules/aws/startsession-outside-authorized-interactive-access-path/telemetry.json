@@ -1,0 +1,16 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "ssm.amazonaws.com",
+  "importantFields": [
+    "eventSource",
+    "eventName",
+    "userIdentity.type",
+    "userIdentity.arn",
+    "userIdentity.principalId",
+    "userIdentity.sessionContext.sessionIssuer.arn",
+    "requestParameters.target",
+    "sourceIPAddress",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"ssm.amazonaws.com\",\n  \"eventName\": \"StartSession\",\n  \"userIdentity\": {\n    \"type\": \"AssumedRole\",\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\"\n  },\n  \"requestParameters\": {\n    \"target\": \"i-0abc123\"\n  },\n  \"sourceIPAddress\": \"203.0.113.10\",\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

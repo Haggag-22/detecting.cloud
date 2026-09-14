@@ -1,0 +1,125 @@
+{
+  "whyItMatters": "The most important distinction in modern S3 ACL monitoring is whether the ACL change actually matters. This rule isolates the subset of ACL mutations that can still alter access behavior.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may prefer ACL changes on legacy or exception-based buckets because those targets still respect ACL grants and can be abused for persistence or sharing.",
+    "realWorldUsage": "This matters most in older estates, migration gaps, or workloads that retained ACL semantics for compatibility.",
+    "whyItMatters": "A successful ACL request is not enough; defenders need to know whether the target still honors ACLs.",
+    "riskAndImpact": "If missed, defenders may under-prioritize real access changes or over-prioritize ineffective no-op ACL requests."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail for S3 ACL operations",
+      "S3 object ownership or bucket configuration inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "errorCode",
+      "userIdentity.arn",
+      "requestParameters.bucketName",
+      "requestParameters.key",
+      "requestParameters.acl"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must capture successful ACL mutations.",
+      "The environment must know whether the target bucket uses `BucketOwnerEnforced` or still honors ACLs.",
+      "ACL-effectiveness enrichment should be refreshed reliably."
+    ],
+    "limitations": [
+      "The event alone cannot determine effectiveness without external bucket-ownership context.",
+      "Object-level nuance may still matter for some workloads.",
+      "Legacy buckets may legitimately use ACLs as part of normal operations."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.bucketName",
+        "normalizedPath": "s3.bucket.name",
+        "notes": "Target bucket whose ACL was changed"
+      },
+      {
+        "rawPath": "requestParameters.key",
+        "normalizedPath": "file.path",
+        "notes": "Target object for PutObjectAcl where present"
+      },
+      {
+        "rawPath": "enrichment.objectOwnershipMode",
+        "normalizedPath": "s3.bucket.object_ownership",
+        "notes": "Whether ACLs are effective on the target"
+      },
+      {
+        "rawPath": "errorCode",
+        "normalizedPath": "error.code",
+        "notes": "Should be absent for successful effective ACL change"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"file\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"PutBucketAcl\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"s3\": {\n    \"bucket\": {\n      \"name\": \"legacy-bucket\",\n      \"object_ownership\": \"ObjectWriter\"\n    },\n    \"acl\": {\n      \"canned\": \"public-read\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Object Ownership Mode",
+      "description": "Determine whether the target uses `BucketOwnerEnforced` or another mode where ACLs remain effective.",
+      "examples": [
+        "BucketOwnerEnforced",
+        "ObjectWriter"
+      ],
+      "falsePositiveReduction": "Separates effective ACL changes from ineffective ones."
+    },
+    {
+      "dimension": "Legacy Bucket Classification",
+      "description": "Classify whether the bucket is a legacy or exception path where ACLs are expected.",
+      "examples": [
+        "legacy website bucket",
+        "modern private data bucket"
+      ],
+      "falsePositiveReduction": "Improves triage of materially risky ACL changes."
+    },
+    {
+      "dimension": "Grant Impact",
+      "description": "Assess whether the effective ACL preserved private access or broadened it.",
+      "examples": [
+        "private reset",
+        "public-read"
+      ],
+      "falsePositiveReduction": "Directs investigations toward the highest-risk effective changes."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect successful ACL mutations only when the target still honors ACLs. It should match `PutBucketAcl` or `PutObjectAcl`, require success, and then use bucket ownership context to determine whether the ACL change is materially effective.",
+    "conditions": [
+      "eventSource equals s3.amazonaws.com",
+      "eventName equals PutBucketAcl or PutObjectAcl",
+      "errorCode is absent",
+      "target bucket or object still honors ACLs and is not effectively neutralized by BucketOwnerEnforced"
+    ],
+    "tuningGuidance": "1. Keep the success check exact. 2. Resolve object-ownership state before alerting. 3. Escalate further when the effective ACL also broadens access or touches sensitive targets.",
+    "whenToFire": "Fire when an ACL change succeeds on a target where ACLs are still effective."
+  },
+  "simulationCommand": "aws s3api put-bucket-acl --bucket legacy-bucket --acl public-read",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with ownership enrichment",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with bucket-ownership joins",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because effective ACL changes can alter access immediately.",
+    "considerations": [
+      "This is the effective-state branch of the S3 ACL family.",
+      "Bucket ownership enrichment is the main dependency."
+    ]
+  }
+}

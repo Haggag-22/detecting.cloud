@@ -1,0 +1,5 @@
+[
+  "As an identity outside the approved ACL-management set, run `PutBucketAcl` or `PutObjectAcl` on a monitored target.",
+  "Verify CloudTrail records the actor and target context.",
+  "Run the detector and confirm it relies on exact authorization and workflow provenance rather than storage-role naming patterns."
+]

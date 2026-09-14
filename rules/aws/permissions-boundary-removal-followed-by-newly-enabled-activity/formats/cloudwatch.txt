@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.arn, eventName, eventSource
+| filter (eventSource = "iam.amazonaws.com" and eventName in ["DeleteRolePermissionsBoundary", "DeleteUserPermissionsBoundary"])
+  or eventName in ["AssumeRole", "CreateAccessKey", "AttachUserPolicy", "AttachRolePolicy", "PutUserPolicy", "PutRolePolicy", "GetSecretValue", "Decrypt"]
+| stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
+| filter cnt > 1
+| sort cnt desc

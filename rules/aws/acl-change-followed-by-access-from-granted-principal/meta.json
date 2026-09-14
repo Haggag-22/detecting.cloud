@@ -1,0 +1,21 @@
+{
+  "id": "det-135",
+  "title": "ACL Change Followed by Access from Granted Principal",
+  "description": "High-confidence S3 ACL persistence or exposure detection. This should correlate an ACL grant with later S3 access by the granted principal or resolved recipient account using ordered linkage, not bucket-only co-occurrence.",
+  "awsService": "S3",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "S3",
+    "ACL",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate ACL then expected access"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.clusterName, requestParameters.principalArn, sourceIPAddress
+| filter eventSource = "eks.amazonaws.com"
+| filter eventName = "CreateAccessEntry"
+| sort @timestamp desc

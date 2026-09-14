@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.arn, eventName, eventSource, requestParameters.projectName
+| filter (eventSource = "codebuild.amazonaws.com" and eventName = "StartBuild")
+  or eventName in ["GetSecretValue", "CreateAccessKey", "AssumeRole", "Decrypt"]
+| stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
+| filter cnt > 1
+| sort cnt desc

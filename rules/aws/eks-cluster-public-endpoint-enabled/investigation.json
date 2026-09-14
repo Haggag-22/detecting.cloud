@@ -1,0 +1,6 @@
+[
+  "Identify who enabled public endpoint or expanded publicAccessCidrs.",
+  "Verify if this was for development cluster access.",
+  "Assess exposure of the API server.",
+  "Restrict public access if unauthorized."
+]

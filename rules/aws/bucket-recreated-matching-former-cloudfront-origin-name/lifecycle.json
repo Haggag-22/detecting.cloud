@@ -1,0 +1,122 @@
+{
+  "whyItMatters": "Name reuse is the clearest control-plane signal that an orphaned origin may be moving from posture risk into active takeover. Once the bucket name is reclaimed, the distribution may again resolve to live content.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may claim a bucket name that was previously orphaned from a CloudFront distribution to serve content through the trusted edge path.",
+    "realWorldUsage": "This typically appears after stale-origin conditions are left unresolved and the bucket namespace becomes available again.",
+    "whyItMatters": "Unlike precursor deletion or posture-only checks, this event suggests the missing origin name has been claimed and may now be operational.",
+    "riskAndImpact": "If missed, defenders may lose the narrow window before the reclaimed bucket starts serving attacker-controlled objects behind CloudFront."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail for CreateBucket",
+      "Baseline of deleted buckets that were still referenced by CloudFront origins"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.bucketName",
+      "recipientAccountId",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CreateBucket events must be ingested centrally where possible.",
+      "The platform must maintain a baseline of risky bucket names derived from orphaned-origin detections or precursor deletions.",
+      "Cross-account visibility improves fidelity when reuse happens outside the originally affected account."
+    ],
+    "limitations": [
+      "Detection quality depends on maintaining a good orphaned-origin name baseline.",
+      "Org-local visibility may miss name reuse in external accounts.",
+      "Same-owner recreation during remediation can appear similar to takeover unless ownership context is checked."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.bucketName",
+        "normalizedPath": "s3.bucket.name",
+        "notes": "Recreated bucket name"
+      },
+      {
+        "rawPath": "recipientAccountId",
+        "normalizedPath": "cloud.account.id",
+        "notes": "Account recreating the bucket"
+      },
+      {
+        "rawPath": "enrichment.orphanedOriginMatch",
+        "normalizedPath": "aws.cloudfront.origin.orphaned_name_match",
+        "notes": "Whether name matches risky orphaned-origin baseline"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor creating the bucket"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"storage\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateBucket\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::999999999999:user/attacker\",\n    \"type\": \"IAMUser\"\n  },\n  \"cloud\": {\n    \"account\": {\n      \"id\": \"999999999999\"\n    }\n  },\n  \"s3\": {\n    \"bucket\": {\n      \"name\": \"deleted-victim-bucket\"\n    }\n  },\n  \"aws\": {\n    \"cloudfront\": {\n      \"origin\": {\n        \"orphaned_name_match\": true\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Orphaned-Origin Name Baseline",
+      "description": "Track bucket names that were deleted while still referenced by CloudFront distributions.",
+      "examples": [
+        "deleted-victim-bucket"
+      ],
+      "falsePositiveReduction": "Focuses attention on high-risk name reuse only."
+    },
+    {
+      "dimension": "Recreation Ownership",
+      "description": "Determine whether the recreating account is the expected owner or an unexpected account.",
+      "examples": [
+        "same remediation account",
+        "different external account"
+      ],
+      "falsePositiveReduction": "Separates benign restoration from possible takeover."
+    },
+    {
+      "dimension": "Distribution Exposure",
+      "description": "Identify whether the reclaimed bucket name still maps to public or sensitive distributions.",
+      "examples": [
+        "customer-facing distribution",
+        "low-risk internal distribution"
+      ],
+      "falsePositiveReduction": "Improves severity and response ordering."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect `CreateBucket` when the created bucket name matches a previously orphaned CloudFront origin name. It is the name-reuse detector for the orphaned-origin family.",
+    "conditions": [
+      "eventSource equals s3.amazonaws.com",
+      "eventName equals CreateBucket",
+      "created bucket name matches the baseline of orphaned or deleted CloudFront-origin bucket names"
+    ],
+    "tuningGuidance": "1. Maintain the risky-name baseline carefully. 2. Check recreating account ownership immediately. 3. Escalate strongest when the name still maps to a public or sensitive distribution.",
+    "whenToFire": "Fire when a bucket is created using a name associated with a known orphaned CloudFront origin."
+  },
+  "simulationCommand": "aws s3api create-bucket --bucket deleted-victim-bucket --region us-east-1",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with ownership validation and good risky-name baselines",
+    "expectedVolume": "Extremely low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with orphaned-name baselines",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because name reuse may quickly turn into active content takeover.",
+    "considerations": [
+      "This is the name-reuse branch of the orphaned-origin family.",
+      "Risky-name baselines and ownership validation are the main dependencies."
+    ]
+  }
+}

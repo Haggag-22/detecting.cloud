@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects successful AWS console logins that originate from countries or IP addresses that are not recognized as legitimate for the organization. Such logins from unusual locations can indicate compromised credentials or unauthorized access. Behavioral rule: this rule anchors on the successful ConsoleLogin event only. The geo (awsRegion/country) and source IP allow-lists have no portable fixed values and MUST be tuned per environment by adding a negated filter for the organization's legitimate regions/countries and source IP ranges before deployment; otherwise every successful console login will match.",
+  "threatContext": {
+    "attackerBehavior": "Detects successful AWS console logins that originate from countries or IP addresses that are not recognized as legitimate for the organization. Such logins from unusual locations can indicate compromised credentials or unauthorized access. Behavioral rule: this rule anchors on the successful ConsoleLogin event only. The geo (awsRegion/country) and source IP allow-lists have no portable fixed values and MUST be tuned per environment by adding a negated filter for the organization's legitimate regions/countries and source IP ranges before deployment; otherwise every successful console login will match.",
+    "whyItMatters": "Detects successful AWS console logins that originate from countries or IP addresses that are not recognized as legitimate for the organization. Such logins from unusual locations can indicate compromised credentials or unauthorized access. Behavioral rule: this rule anchors on the successful ConsoleLogin event only. The geo (awsRegion/country) and source IP allow-lists have no portable fixed values and MUST be tuned per environment by adding a negated filter for the organization's legitimate regions/countries and source IP ranges before deployment; otherwise every successful console login will match.",
+    "riskAndImpact": "Abuse related to CloudTrail can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects successful AWS console logins that originate from countries or IP addresses that are not recognized as legitimate for the organization. Such logins from unusual locations can indicate compromised credentials or unauthorized access. Behavioral rule: this rule anchors on the successful ConsoleLogin event only. The geo (awsRegion/country) and source IP allow-lists have no portable fixed values and MUST be tuned per environment by adding a negated filter for the organization's legitimate regions/countries and source IP ranges before deployment; otherwise every successful console login will match.",
+    "whenToFire": "When CloudTrail shows activity matching this AWS Console Login From Unusual Location detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

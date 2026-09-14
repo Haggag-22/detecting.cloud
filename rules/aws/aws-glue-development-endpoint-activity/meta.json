@@ -1,0 +1,21 @@
+{
+  "id": "det-154",
+  "title": "AWS Glue Development Endpoint Activity",
+  "description": "Detects the creation, deletion, or update of AWS Glue development endpoints. Glue dev endpoints provide an interactive environment with an attached IAM role for data processing, which adversaries can abuse to obtain code execution and escalate privileges by leveraging the endpoint's role.",
+  "awsService": "Glue",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Low",
+  "tags": [
+    "Glue",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Glue development endpoint activity performed by a data engineer or administrator."
+  ],
+  "relatedAttackSlugs": []
+}

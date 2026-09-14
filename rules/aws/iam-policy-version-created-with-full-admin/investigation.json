@@ -1,0 +1,6 @@
+[
+  "Identify who created the policy version.",
+  "Inspect the new policy document for Action:* and Resource:*.",
+  "Verify whether the identity was attached to the policy.",
+  "Review recent privilege escalation activity."
+]

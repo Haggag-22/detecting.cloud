@@ -1,0 +1,5 @@
+[
+  "Push a temporary SSH key to a test instance, then perform `GetSecretValue`, `AssumeRole`, or IAM policy modification within 15 minutes.",
+  "Verify both the access event and later sensitive API activity appear in CloudTrail.",
+  "Run the detector and confirm it requires ordered correlation rather than simple grouping by ARN."
+]

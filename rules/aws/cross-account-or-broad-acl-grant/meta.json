@@ -1,0 +1,23 @@
+{
+  "id": "det-133",
+  "title": "Cross-Account or Broad ACL Grant",
+  "description": "Detects materially risky ACL grants that expose S3 buckets or objects to public, authenticated, or external-account access. This should parse grant scope rather than rely on loose text heuristics alone.",
+  "awsService": "S3",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "S3",
+    "ACL",
+    "Persistence",
+    "Cross-Account"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Authorized cross-account sharing",
+    "Legacy public bucket"
+  ],
+  "relatedAttackSlugs": []
+}

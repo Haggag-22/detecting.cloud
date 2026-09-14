@@ -1,0 +1,5 @@
+[
+  "Identify who created the login profile.",
+  "Verify if the target user should have console access.",
+  "Check if the environment prefers SSO over IAM console passwords."
+]

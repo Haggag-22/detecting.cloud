@@ -1,0 +1,27 @@
+{
+  "id": "det-003",
+  "title": "Potential S3 Exfiltration via Anomalous GetObject Burst",
+  "description": "Detects unusual bursts of S3 GetObject activity against sensitive buckets or prefixes that may indicate data exfiltration.",
+  "awsService": "S3",
+  "relatedServices": [
+    "IAM",
+    "CloudTrail"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "S3",
+    "Data Exfiltration",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail S3 Data Events"
+  ],
+  "falsePositives": [
+    "Legitimate data pipeline operations",
+    "Backup processes"
+  ],
+  "relatedAttackSlugs": [
+    "s3-data-exfiltration"
+  ]
+}

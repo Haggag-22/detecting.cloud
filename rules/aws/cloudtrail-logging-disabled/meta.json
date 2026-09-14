@@ -1,0 +1,23 @@
+{
+  "id": "det-002",
+  "title": "CloudTrail Logging Disabled",
+  "description": "Detects when CloudTrail logging is stopped or the trail is deleted — a critical defense evasion technique.",
+  "awsService": "CloudTrail",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "CloudTrail",
+    "Evasion",
+    "Defense"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Planned maintenance or CloudTrail reconfiguration"
+  ],
+  "relatedAttackSlugs": []
+}

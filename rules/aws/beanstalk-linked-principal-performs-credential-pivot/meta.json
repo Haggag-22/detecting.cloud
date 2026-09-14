@@ -1,0 +1,25 @@
+{
+  "id": "det-118",
+  "title": "Beanstalk-Linked Principal Performs Credential Pivot",
+  "description": "Baseline visibility when a principal linked to an Elastic Beanstalk environment pivots into stronger credential paths such as `CreateAccessKey` or `AssumeRole`. The signal should rely on resolved Beanstalk linkage, not string matching on principal names.",
+  "awsService": "IAM",
+  "relatedServices": [
+    "Elastic Beanstalk",
+    "STS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "Elastic Beanstalk",
+    "IAM",
+    "Credential Pivot"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate Beanstalk role usage",
+    "Expected CI/CD"
+  ],
+  "relatedAttackSlugs": []
+}

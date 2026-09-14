@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.arn, eventName, eventSource, requestParameters.target
+| filter (eventSource = "ssm.amazonaws.com" and eventName = "StartSession")
+  or eventName in ["GetSecretValue", "Decrypt", "AssumeRole", "CreateAccessKey", "PutUserPolicy", "AttachRolePolicy", "PutRolePolicy", "CreateSnapshot", "CreateSnapshots"]
+| stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
+| filter cnt > 1
+| sort cnt desc

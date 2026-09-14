@@ -1,0 +1,13 @@
+title: Organizations SCP Change
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: organizations.amazonaws.com
+    eventName:
+      - DetachPolicy
+      - DeletePolicy
+      - UpdatePolicy
+  condition: selection
+level: critical

@@ -1,0 +1,125 @@
+{
+  "whyItMatters": "Only a limited set of identities should open interactive access to EC2 instances. When an unapproved actor uses EC2 Instance Connect, the event is a strong signal of abuse or control-plane misuse.",
+  "threatContext": {
+    "attackerBehavior": "An attacker operating through a compromised IAM user, assumed role, or workload principal may use EC2 Instance Connect to gain shell access to a target instance.",
+    "realWorldUsage": "Instance Connect is attractive because it grants short-lived SSH access without persisting keys on the instance and produces only a small control-plane footprint.",
+    "whyItMatters": "Authorization context matters more than whether a role name contains admin-like words.",
+    "riskAndImpact": "If missed, unauthorized operators can gain interactive access to hosts under the cover of a legitimate AWS feature."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2 Instance Connect",
+      "Authorized interactive-access principal inventory",
+      "EC2 inventory and environment ownership"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.instanceId",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "SendSSHPublicKey events must be ingested with full userIdentity context.",
+      "The environment should maintain exact principals approved for EC2 interactive access.",
+      "Actor-to-environment or actor-to-instance scope should be resolvable."
+    ],
+    "limitations": [
+      "Without principal inventories the rule degrades into weak anomaly detection.",
+      "Legitimate emergency or break-glass access paths must be modeled explicitly.",
+      "The event does not prove that the SSH session succeeded."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Primary actor requesting interactive access"
+      },
+      {
+        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
+        "normalizedPath": "aws.identity.session_issuer.arn",
+        "notes": "Underlying role or identity source"
+      },
+      {
+        "rawPath": "requestParameters.instanceId",
+        "normalizedPath": "cloud.instance.id",
+        "notes": "Target instance for EC2 Instance Connect"
+      },
+      {
+        "rawPath": "sourceIPAddress",
+        "normalizedPath": "source.ip",
+        "notes": "Originating source address of the actor"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"authentication\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"SendSSHPublicKey\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\"\n  },\n  \"cloud\": {\n    \"instance\": {\n      \"id\": \"i-0abc123\"\n    }\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized Interactive-Access Actors",
+      "description": "Exact inventory of identities allowed to use EC2 Instance Connect for each environment or workload set.",
+      "examples": [
+        "platform engineer role",
+        "approved helpdesk workflow"
+      ],
+      "falsePositiveReduction": "Replaces brittle role-name substring matching."
+    },
+    {
+      "dimension": "Session Provenance",
+      "description": "Determine whether the actor arrived through an approved broker, federated workflow, or break-glass mechanism.",
+      "examples": [
+        "SSO ops role",
+        "unexplained app-role session"
+      ],
+      "falsePositiveReduction": "Explains whether the access path itself is trusted."
+    },
+    {
+      "dimension": "Target Scope",
+      "description": "Model which hosts or environments each approved actor may access.",
+      "examples": [
+        "dev fleet only",
+        "prod bastions only"
+      ],
+      "falsePositiveReduction": "Stops broad allowlists from masking unauthorized target access."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect EC2 Instance Connect activity outside approved interactive-access workflows. It should match `SendSSHPublicKey`, resolve the actor and session provenance, and then check whether that principal is explicitly allowed to use EC2 Instance Connect against the target environment or workload scope.",
+    "conditions": [
+      "eventSource equals ec2-instance-connect.amazonaws.com",
+      "eventName equals SendSSHPublicKey",
+      "actor is not in the approved interactive-access inventory or actor is outside approved target scope or request lacks approved workflow provenance"
+    ],
+    "tuningGuidance": "1. Use exact ARNs and principal IDs where possible. 2. Model actor-to-environment scope, not just global allowlists. 3. Treat break-glass access as a separate approved path with auditing requirements.",
+    "whenToFire": "Fire when EC2 Instance Connect is used by an identity outside approved interactive-access paths."
+  },
+  "simulationCommand": "aws ec2-instance-connect send-ssh-public-key --instance-id i-0abc123 --instance-os-user ec2-user --ssh-public-key file://id_rsa.pub --availability-zone us-east-1a --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with actor inventories and scope controls; high with role-name heuristics",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with actor and asset inventories",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because unauthorized interactive access is immediately actionable.",
+    "considerations": [
+      "This is the actor-centric EC2 Instance Connect detector.",
+      "Principal inventory and scope modeling are the main dependencies."
+    ]
+  }
+}

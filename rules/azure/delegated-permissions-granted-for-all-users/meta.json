@@ -1,0 +1,22 @@
+{
+  "id": "az-029",
+  "title": "Delegated Permissions Granted For All Users",
+  "description": "Detects when highly privileged delegated permissions are granted on behalf of all users",
+  "awsService": "Entra ID Apps",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Apps",
+    "credential-access",
+    "t1528"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "When the permission is legitimately needed for the app"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,5 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.tableName, requestParameters.deletionProtectionEnabled, sourceIPAddress
+| filter eventSource = "dynamodb.amazonaws.com"
+| filter eventName = "UpdateTable"
+| filter requestParameters.deletionProtectionEnabled = false
+| sort @timestamp desc

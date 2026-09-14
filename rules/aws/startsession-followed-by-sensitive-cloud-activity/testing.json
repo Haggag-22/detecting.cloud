@@ -1,0 +1,5 @@
+[
+  "Start an SSM session from a test identity, then perform GetSecretValue, AssumeRole, or CreateSnapshot within 15 minutes.",
+  "Verify both the StartSession event and later sensitive API use appear in CloudTrail.",
+  "Run the correlation and confirm it requires ordered short-window behavior rather than simple event co-occurrence."
+]

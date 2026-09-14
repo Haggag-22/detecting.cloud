@@ -1,0 +1,5 @@
+[
+  "Call CreateSnapshot or CreateSnapshots on a test volume.",
+  "Verify CloudTrail captures the source volume context.",
+  "Run the detection and confirm it provides baseline visibility before exfiltration-oriented enrichment."
+]

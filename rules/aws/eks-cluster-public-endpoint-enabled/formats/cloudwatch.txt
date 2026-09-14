@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, eventName, requestParameters.name, requestParameters.resourcesVpcConfig, sourceIPAddress
+| filter eventName in ["CreateCluster", "UpdateClusterConfig"]
+| filter requestParameters.resourcesVpcConfig.endpointPublicAccess = true or requestParameters.resourcesVpcConfig.publicAccessCidrs like /0.0.0.0/0/
+| sort @timestamp desc

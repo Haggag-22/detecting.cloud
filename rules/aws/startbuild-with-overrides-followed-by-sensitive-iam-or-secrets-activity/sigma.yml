@@ -1,0 +1,17 @@
+title: StartBuild with Overrides Followed by Sensitive Activity
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_start:
+    eventSource: codebuild.amazonaws.com
+    eventName: StartBuild
+  selection_sensitive:
+    eventName:
+      - GetSecretValue
+      - CreateAccessKey
+      - AssumeRole
+      - Decrypt
+  condition: selection_start
+level: critical
+# Full correlation requires ordered sequence and stable actor or build-role linkage.

@@ -1,0 +1,5 @@
+[
+  "Identify the actor, source IP, and target instance associated with the key push.",
+  "Determine whether the instance normally permits EC2 Instance Connect and whether the actor is expected to use it.",
+  "Check for follow-on login, secrets access, or other interactive-access indicators after the key push."
+]

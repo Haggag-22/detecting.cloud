@@ -1,0 +1,25 @@
+{
+  "id": "az-057",
+  "title": "Guest User Invited By Non Approved Inviters",
+  "description": "Detects when a user that doesn't have permissions to invite a guest user attempts to invite one.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "initial-access",
+    "persistence",
+    "stealth",
+    "t1078 004"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "A non malicious user is unaware of the proper process"
+  ],
+  "relatedAttackSlugs": []
+}

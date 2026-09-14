@@ -1,0 +1,26 @@
+{
+  "id": "det-080",
+  "title": "Snapshot Created Outside Authorized Backup or Infrastructure Path",
+  "description": "Detects snapshot creation by actors outside approved backup, storage, or infrastructure-administration workflows. This should rely on exact actor inventories and volume sensitivity, not backup or admin role-name substrings.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "EBS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EC2",
+    "EBS",
+    "Snapshot",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "DLM",
+    "Backup automation",
+    "Approved infra pipelines"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.policyArn, requestParameters.versionId
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "SetDefaultPolicyVersion"
+| sort @timestamp desc

@@ -1,0 +1,26 @@
+{
+  "id": "det-043",
+  "title": "Permissions Boundary Removal Followed by Newly Enabled Activity",
+  "description": "Correlates permissions-boundary deletion with follow-on privileged activity that plausibly becomes possible because the control was removed. This should track the actor, the affected principal, and any newly usable sessions rather than simply matching unrelated sensitive events.",
+  "awsService": "IAM",
+  "relatedServices": [
+    "STS",
+    "Secrets Manager",
+    "KMS",
+    "S3"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "IAM",
+    "Permissions Boundary",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate boundary removal followed by normal admin workflow"
+  ],
+  "relatedAttackSlugs": []
+}

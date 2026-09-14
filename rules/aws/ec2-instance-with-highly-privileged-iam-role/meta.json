@@ -1,0 +1,25 @@
+{
+  "id": "det-014",
+  "title": "EC2 Instance with Highly Privileged IAM Role",
+  "description": "Detects EC2 instances launched with IAM roles that have administrative or highly permissive policies.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EC2",
+    "Privilege Escalation",
+    "IAM Role"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Management instances that legitimately require elevated access"
+  ],
+  "relatedAttackSlugs": [
+    "ec2-metadata-abuse"
+  ]
+}

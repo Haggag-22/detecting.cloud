@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, requestParameters.clusterName, requestParameters.principalArn, requestParameters.policyArn, requestParameters.accessScope, sourceIPAddress
+| filter eventSource = "eks.amazonaws.com"
+| filter eventName = "AssociateAccessPolicy"
+| sort @timestamp desc

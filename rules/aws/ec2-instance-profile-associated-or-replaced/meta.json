@@ -1,0 +1,26 @@
+{
+  "id": "det-068",
+  "title": "EC2 Instance Profile Associated or Replaced",
+  "description": "Baseline visibility for attaching or swapping an instance profile on an existing EC2 instance. Attackers may prefer adding or replacing a profile on live compute rather than launching new infrastructure.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EC2",
+    "Instance Profile",
+    "PassRole",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate instance profile association",
+    "Auto Scaling replacement",
+    "Approved remediation workflows"
+  ],
+  "relatedAttackSlugs": []
+}

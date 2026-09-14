@@ -1,0 +1,125 @@
+{
+  "whyItMatters": "This is the high-confidence consumer-account storage theft chain. A copied external snapshot becomes much more suspicious when it is restored into a volume and moved toward live access.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may copy a public or externally shared snapshot into their account, create a volume from it, and attach that volume to an instance for offline browsing or credential extraction.",
+    "realWorldUsage": "This is one of the most practical storage-loot workflows because it converts a remote snapshot into a mounted disk that can be examined locally.",
+    "whyItMatters": "The strongest signal is the ordered lineage from copied snapshot to restored volume and attachment, not just that the same user performed multiple APIs.",
+    "riskAndImpact": "If missed, stolen snapshot data can be fully rehydrated and mounted without defenders recognizing the chain from exposure to access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "Snapshot and volume lineage inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.sourceSnapshotId",
+      "requestParameters.snapshotId",
+      "requestParameters.volumeId",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CopySnapshot, CreateVolume, and AttachVolume events must all be ingested.",
+      "The detector must carry lineage from the copied snapshot to the created volume and any later attachment.",
+      "Source snapshot ownership or public-share state should be known before promoting severity."
+    ],
+    "limitations": [
+      "Actor-only joins are weak for this workflow.",
+      "AttachVolume alone does not prove lineage unless a prior CreateVolume is linked.",
+      "Legitimate DR restores can resemble the same pattern without good allowlists."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.sourceSnapshotId",
+        "normalizedPath": "aws.ebs.snapshot.source_id",
+        "notes": "Original external or public snapshot being copied"
+      },
+      {
+        "rawPath": "requestParameters.snapshotId",
+        "normalizedPath": "aws.ebs.snapshot.id",
+        "notes": "Copied snapshot or restore lineage reference"
+      },
+      {
+        "rawPath": "requestParameters.volumeId",
+        "normalizedPath": "aws.ebs.volume.id",
+        "notes": "Derived restored volume"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor performing the copy or restore sequence"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"storage\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CopySnapshot\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::999999999999:user/attacker\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ebs\": {\n      \"snapshot\": {\n        \"source_id\": \"snap-xxx\",\n        \"id\": \"snap-copied-123\"\n      },\n      \"volume\": {\n        \"id\": \"vol-restored-123\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Copy-to-Volume Lineage",
+      "description": "Track the copied snapshot into CreateVolume and any later AttachVolume stages.",
+      "examples": [
+        "snap-xxx -> snap-copied-123 -> vol-restored-123"
+      ],
+      "falsePositiveReduction": "Separates true rehydration from unrelated storage operations."
+    },
+    {
+      "dimension": "Source Snapshot Exposure State",
+      "description": "Confirm whether the source snapshot was public, externally shared, or otherwise outside approved ownership.",
+      "examples": [
+        "public source snapshot",
+        "approved shared DR snapshot"
+      ],
+      "falsePositiveReduction": "Ensures the consumer-account chain starts from a suspicious source."
+    },
+    {
+      "dimension": "Destination Host Context",
+      "description": "Identify the instance that receives the restored volume and its likely role.",
+      "examples": [
+        "analysis host",
+        "prod workload",
+        "temporary staging instance"
+      ],
+      "falsePositiveReduction": "Improves triage once the copied data reaches live compute."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a consumer-account restore chain: an external or public snapshot is copied, then a volume is created from that lineage, and optionally attached to a host. The detector should require explicit lineage between the copied snapshot and the restored volume before firing at critical severity.",
+    "conditions": [
+      "first eventName equals CopySnapshot for an external or public source snapshot",
+      "second eventName equals CreateVolume over the copied snapshot lineage",
+      "optional third stage equals AttachVolume of the derived volume",
+      "stages occur within a short operational window"
+    ],
+    "tuningGuidance": "1. Require lineage from source snapshot to copied snapshot to created volume. 2. Do not rely on actor-only grouping. 3. Escalate further when the restored volume is attached to a live host or the source data is sensitive.",
+    "whenToFire": "Fire when an external or public snapshot is copied and then rehydrated into a volume, especially when that volume is attached for access."
+  },
+  "simulationCommand": "aws ec2 copy-snapshot --source-region us-east-1 --source-snapshot-id snap-xxx --description 'loot-chain-test'",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with lineage tracking and approved-workflow allowlists; high with actor-only correlation",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with storage lineage joins",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is preferred because copied snapshots are often restored quickly.",
+    "considerations": [
+      "This is one of the strongest consumer-account storage theft detections in the dataset.",
+      "Lineage is the critical implementation dependency."
+    ]
+  }
+}

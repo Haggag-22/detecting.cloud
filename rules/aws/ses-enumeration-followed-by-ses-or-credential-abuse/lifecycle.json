@@ -1,0 +1,122 @@
+{
+  "whyItMatters": "Reconnaissance followed by action is one of the clearest behavioral patterns in cloud abuse. In SES, enumeration that quickly turns into policy changes or credential creation is a strong signal of malicious intent.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may enumerate SES identities and then move directly into SES policy manipulation, notification changes, identity verification abuse, or credential-oriented actions that support outbound abuse.",
+    "realWorldUsage": "This is practical because the reconnaissance reveals the SES landscape and the follow-on action operationalizes that knowledge quickly.",
+    "whyItMatters": "The strongest signal is the ordered shift from discovery into write or credential-affecting activity, not either stage alone.",
+    "riskAndImpact": "If missed, defenders may not recognize that benign-looking SES reads were the precursor to active abuse or account compromise."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for SES",
+      "AWS CloudTrail management events for IAM and related services"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "SES reads and follow-on SES or IAM writes must be ingested into the same analytics environment.",
+      "Actor identity should be normalized across IAM users and assumed roles.",
+      "The detection engine must support ordered short-window correlation."
+    ],
+    "limitations": [
+      "Some legitimate SES administration may enumerate before making expected changes.",
+      "Actor-only joins can still be noisy without workflow context.",
+      "The model needs tuning if SES automation regularly performs read-then-write sequences."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor performing SES reconnaissance and follow-on action"
+      },
+      {
+        "rawPath": "eventName",
+        "normalizedPath": "event.action",
+        "notes": "SES or credential action at each stage"
+      },
+      {
+        "rawPath": "eventSource",
+        "normalizedPath": "event.source",
+        "notes": "Service generating the action"
+      },
+      {
+        "rawPath": "sourceIPAddress",
+        "normalizedPath": "source.ip",
+        "notes": "Source IP of the actor"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"discovery\"\n    ],\n    \"type\": [\n      \"info\"\n    ],\n    \"action\": \"ListIdentities\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/attacker\",\n    \"type\": \"IAMUser\"\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"PutIdentityPolicy\"\n    }\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Stable Actor Identity",
+      "description": "Normalize actor identity across direct and assumed-role sessions so SES reads and later abuse actions can be linked reliably.",
+      "examples": [
+        "IAM user",
+        "assumed app role"
+      ],
+      "falsePositiveReduction": "Improves correlation fidelity."
+    },
+    {
+      "dimension": "Action Class",
+      "description": "Classify the follow-on activity as SES policy abuse, notification manipulation, identity verification abuse, or credential-related action.",
+      "examples": [
+        "PutIdentityPolicy",
+        "CreateAccessKey"
+      ],
+      "falsePositiveReduction": "Makes the recon-to-action path easier to triage."
+    },
+    {
+      "dimension": "SES Governance Context",
+      "description": "Understand whether the actor and account normally perform SES administration.",
+      "examples": [
+        "email operations account",
+        "non-SES workload account"
+      ],
+      "falsePositiveReduction": "Raises confidence when the sequence appears in an unusual SES context."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a SES recon-to-action chain: an actor enumerates SES identities, then performs SES write activity or a credential-related action soon afterward. It should require event order and stable actor identity to avoid loose same-user aggregation.",
+    "conditions": [
+      "first eventSource equals ses.amazonaws.com and eventName equals ListIdentities or GetIdentityVerificationAttributes",
+      "second event is SES write activity or CreateAccessKey by the same normalized actor identity",
+      "follow-on action occurs within 30 minutes"
+    ],
+    "tuningGuidance": "1. Require order. 2. Normalize actor identity across sessions. 3. Escalate further when the actor is unauthorized for SES or when SES is rarely used in the account.",
+    "whenToFire": "Fire when SES reconnaissance is followed quickly by SES write activity or credential abuse from the same operator identity."
+  },
+  "simulationCommand": "aws ses list-identities --identity-type EmailAddress && aws iam create-access-key --user-name demo-user",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with workflow context and stable identity mapping",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with ordered event windows",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is preferred because recon-to-action windows are short and actionable.",
+    "considerations": [
+      "This is the highest-fidelity SES abuse detector in the set.",
+      "Ordered correlation and stable actor identity are the key dependencies."
+    ]
+  }
+}

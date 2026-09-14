@@ -1,0 +1,22 @@
+{
+  "id": "det-048",
+  "title": "IAM Login Profile Created",
+  "description": "Baseline visibility when a console password is created for an IAM user. In mature AWS environments this is often rare and high-signal, but severity should still be informed by identity posture, console-access policy, and target user type.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "IAM",
+    "Login Profile",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate onboarding of new IAM users with console access",
+    "Migration from SSO to IAM users"
+  ],
+  "relatedAttackSlugs": []
+}

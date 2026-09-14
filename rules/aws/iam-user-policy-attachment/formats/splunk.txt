@@ -1,0 +1,4 @@
+index=aws sourcetype=aws:cloudtrail (eventName=AttachUserPolicy OR eventName=PutUserPolicy)
+| where NOT like(userIdentity.principalId, "%terraform%") AND NOT like(userIdentity.principalId, "%cloudformation%")
+| where like(requestParameters.policyArn, "%AdministratorAccess%") OR like(requestParameters.policyArn, "%IAMFullAccess%") OR like(requestParameters.policyArn, "%PowerUserAccess%") OR like(requestParameters.policyDocument, "%\"Action\":\"*\"%") OR like(requestParameters.policyDocument, "%\"iam:PassRole\"%") OR like(requestParameters.policyDocument, "%\"sts:AssumeRole\"%") OR like(requestParameters.policyDocument, "%\"secretsmanager:GetSecretValue\"%") OR like(requestParameters.policyDocument, "%\"kms:Decrypt\"%")
+| table _time, userIdentity.type, userIdentity.arn, eventName, requestParameters.userName, requestParameters.policyArn, sourceIPAddress

@@ -1,0 +1,19 @@
+{
+  "source": [
+    "aws.sagemaker"
+  ],
+  "detail-type": [
+    "AWS API Call via CloudTrail"
+  ],
+  "detail": {
+    "eventSource": [
+      "sagemaker.amazonaws.com"
+    ],
+    "eventName": [
+      "CreateNotebookInstanceLifecycleConfig",
+      "UpdateNotebookInstanceLifecycleConfig",
+      "CreateNotebookInstance",
+      "UpdateNotebookInstance"
+    ]
+  }
+}

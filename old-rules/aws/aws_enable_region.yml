@@ -1,0 +1,25 @@
+title: AWS EnableRegion Command Monitoring
+id: 54374c56-4aac-4b86-930a-32a6cb11d454
+status: experimental
+description: |
+    Detects the use of the EnableRegion command in AWS CloudTrail logs. This command allows an AWS account to enable additional regions. Monitoring this activity is crucial because adversaries might enable new, less-monitored regions to establish persistence, exfiltrate data, or conduct other malicious activities, potentially bypassing existing security controls that are not configured for those new regions.
+references:
+    - https://attack.mitre.org/techniques/T1136/003/
+    - https://attack.mitre.org/detectionstrategies/DET0319/
+    - https://docs.aws.amazon.com/accounts/latest/reference/API_EnableRegion.html
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.persistence
+    - attack.t1136.003
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: 'account.amazonaws.com'
+        eventName: 'EnableRegion'
+    condition: selection
+falsepositives:
+    - Legitimate use of the EnableRegion command by authorized administrators.
+level: medium

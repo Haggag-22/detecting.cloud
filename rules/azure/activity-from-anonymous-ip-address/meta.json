@@ -1,0 +1,25 @@
+{
+  "id": "az-061",
+  "title": "Activity From Anonymous IP Address",
+  "description": "Identifies that users were active from an IP address that has been identified as an anonymous proxy IP address.",
+  "awsService": "Entra ID Protection",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Protection",
+    "stealth",
+    "t1078",
+    "persistence",
+    "privilege-escalation",
+    "initial-access"
+  ],
+  "logSources": [
+    "Azure riskdetection"
+  ],
+  "falsePositives": [
+    "We recommend investigating the sessions flagged by this detection in the context of other sign-ins from the user."
+  ],
+  "relatedAttackSlugs": []
+}

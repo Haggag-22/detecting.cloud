@@ -1,0 +1,5 @@
+[
+  "Call `StartBuild` against a test CodeBuild project.",
+  "Verify CloudTrail captures the project and request context.",
+  "Run the baseline rule and confirm it records all build launches."
+]

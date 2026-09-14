@@ -1,0 +1,5 @@
+[
+  "Run a task with an override that changes taskRoleArn from the default definition to a stronger role.",
+  "Verify CloudTrail captures the override structure.",
+  "Run the detection and confirm it alerts on the privilege delta, not merely on the existence of the override field."
+]

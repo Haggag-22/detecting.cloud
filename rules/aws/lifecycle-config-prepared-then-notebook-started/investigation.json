@@ -1,0 +1,5 @@
+[
+  "Trace the sequence from lifecycle-config creation or notebook association into `StartNotebookInstance` for the same notebook or attached config lineage.",
+  "Verify whether the notebook start was expected after the config change and whether the actor was authorized for both stages.",
+  "Check the notebook execution role and post-start activity for sensitive API use."
+]

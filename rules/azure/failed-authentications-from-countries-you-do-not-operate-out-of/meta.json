@@ -1,0 +1,26 @@
+{
+  "id": "az-017",
+  "title": "Failed Authentications From Countries You Do Not Operate Out Of",
+  "description": "Detect failed authentications from countries you do not operate out of.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Low",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "initial-access",
+    "credential-access",
+    "stealth",
+    "t1078 004"
+  ],
+  "logSources": [
+    "Azure Sign-in Logs"
+  ],
+  "falsePositives": [
+    "If this was approved by System Administrator."
+  ],
+  "relatedAttackSlugs": []
+}

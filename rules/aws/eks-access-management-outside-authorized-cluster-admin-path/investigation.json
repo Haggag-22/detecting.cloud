@@ -1,0 +1,5 @@
+[
+  "Identify the actor, session issuer, and any automation or workflow provenance behind the EKS access-management change.",
+  "Verify whether this identity is explicitly approved to manage cluster authorization for the target cluster.",
+  "Determine whether the change came from a known IaC or platform workflow or from an unexpected principal."
+]

@@ -1,0 +1,128 @@
+{
+  "whyItMatters": "Interactive access by the wrong identity is a strong signal because only a narrow set of operators should be able to open live shells into managed infrastructure.",
+  "threatContext": {
+    "attackerBehavior": "An attacker using a workload role, developer session, or unapproved human identity may open a Session Manager shell to gain hands-on access to live systems.",
+    "realWorldUsage": "Unexpected-actor interactive access is common in post-compromise workflows because it leverages native AWS administration mechanisms instead of network-exposed services.",
+    "whyItMatters": "Authorization context matters more than whether a role or user name looks like admin.",
+    "riskAndImpact": "If missed, attackers can gain shell access to instances from identities that were never meant to perform interactive administration."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for SSM",
+      "Authorized interactive-access actor inventory",
+      "Target authorization scope mappings"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.principalId",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.target",
+      "sourceIPAddress",
+      "userAgent",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "StartSession events must be ingested with actor context intact.",
+      "The environment should maintain exact principal inventories for allowed interactive access.",
+      "The detector should understand actor-to-target scope and workflow provenance."
+    ],
+    "limitations": [
+      "Without actor inventory this becomes noisy.",
+      "Federated and chained role sessions need stable identity modeling.",
+      "Legitimate helpdesk or break-glass paths can still look suspicious without workflow context."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Session initiator"
+      },
+      {
+        "rawPath": "userIdentity.principalId",
+        "normalizedPath": "user.id",
+        "notes": "Stable actor identifier"
+      },
+      {
+        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
+        "normalizedPath": "aws.identity.session_issuer.arn",
+        "notes": "Underlying role for assumed sessions"
+      },
+      {
+        "rawPath": "requestParameters.target",
+        "normalizedPath": "cloud.instance.id",
+        "notes": "Interactive session target"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"session\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"StartSession\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\",\n    \"id\": \"AROAXXXXX:session\"\n  },\n  \"cloud\": {\n    \"instance\": {\n      \"id\": \"i-0abc123\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized Interactive Access Actors",
+      "description": "Exact inventory of principals allowed to open Session Manager sessions.",
+      "examples": [
+        "SSM admin role",
+        "approved helpdesk role"
+      ],
+      "falsePositiveReduction": "Replaces brittle role-name allowlists."
+    },
+    {
+      "dimension": "Actor-to-Target Scope",
+      "description": "Determine whether the actor is allowed to open sessions to this target or environment.",
+      "examples": [
+        "prod platform admin",
+        "dev operator to dev hosts only"
+      ],
+      "falsePositiveReduction": "Makes scope violations much higher signal."
+    },
+    {
+      "dimension": "Workflow Provenance",
+      "description": "Correlate maintenance windows, incident-response workflows, helpdesk tickets, and break-glass context.",
+      "examples": [
+        "IR triage session",
+        "manual untracked shell"
+      ],
+      "falsePositiveReduction": "Separates sanctioned access from suspicious interactive use."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should be an actor-authorization rule for Session Manager. It should alert when StartSession occurs outside approved interactive-access workflows or when the actor is outside allowed target scope.",
+    "conditions": [
+      "eventSource equals ssm.amazonaws.com",
+      "eventName equals StartSession",
+      "actor is not in the approved interactive-access inventory or actor is outside allowed target scope, or request lacks approved workflow provenance"
+    ],
+    "tuningGuidance": "1. Use exact ARNs and principalIds. 2. Model target scope explicitly. 3. Escalate when the target is sensitive or follow-on actions look suspicious.",
+    "whenToFire": "Fire when StartSession is initiated outside authorized interactive access paths, especially to production or sensitive systems."
+  },
+  "simulationCommand": "aws ssm start-session --target i-0abc123 --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium without actor inventory, low-medium with target scope and workflow enrichment",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with lookup tables",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because suspicious interactive access deserves immediate review.",
+    "considerations": [
+      "Use this as the actor-centric companion to the StartSession baseline.",
+      "Actor inventory and target scope quality are the main dependencies."
+    ]
+  }
+}

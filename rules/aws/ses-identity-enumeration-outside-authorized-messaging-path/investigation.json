@@ -1,0 +1,5 @@
+[
+  "Identify the actor, session issuer, and source IP behind the SES enumeration request.",
+  "Verify whether this identity is approved to inspect SES identities or verification state.",
+  "Determine whether the request came from trusted messaging automation or an unexpected application or workload principal."
+]

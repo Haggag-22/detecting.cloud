@@ -1,0 +1,23 @@
+{
+  "id": "az-114",
+  "title": "Bulk Deletion Changes To Privileged Account Permissions",
+  "description": "Detects when a user is removed from a privileged role. Bulk changes should be investigated.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "t1098"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Legtimate administrator actions of removing members from a role"
+  ],
+  "relatedAttackSlugs": []
+}

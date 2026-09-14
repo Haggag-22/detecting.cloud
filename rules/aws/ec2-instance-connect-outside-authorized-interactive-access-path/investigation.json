@@ -1,0 +1,5 @@
+[
+  "Identify the direct actor, session issuer, and any workflow provenance behind the key push.",
+  "Verify whether this identity is explicitly approved for EC2 Instance Connect on the target environment or workload class.",
+  "Determine whether the access came from a known helpdesk, break-glass, or infrastructure workflow or from an unexpected principal."
+]

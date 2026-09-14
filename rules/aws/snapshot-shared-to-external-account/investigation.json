@@ -1,0 +1,5 @@
+[
+  "Identify the snapshot, actor, and recipient account IDs added to the permission set.",
+  "Verify whether the recipient accounts are approved DR, migration, or organization-owned destinations.",
+  "Check whether the same snapshot was later copied, restored, or made public."
+]

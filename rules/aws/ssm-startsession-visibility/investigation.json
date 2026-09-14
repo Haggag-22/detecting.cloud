@@ -1,0 +1,5 @@
+[
+  "Identify the actor, session issuer, and target instance or managed node.",
+  "Verify whether the session was authorized for that actor and target.",
+  "Review source IP, user agent, target sensitivity, and any follow-on actions after session start."
+]

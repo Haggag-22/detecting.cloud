@@ -1,0 +1,25 @@
+{
+  "id": "az-113",
+  "title": "User Added To Privilege Role",
+  "description": "Detects when a user is added to a privileged role.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "persistence",
+    "initial-access",
+    "privilege-escalation",
+    "stealth",
+    "t1078 004"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Legtimate administrator actions of adding members from a role"
+  ],
+  "relatedAttackSlugs": []
+}

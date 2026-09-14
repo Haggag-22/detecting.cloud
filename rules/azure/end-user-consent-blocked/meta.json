@@ -1,0 +1,22 @@
+{
+  "id": "az-032",
+  "title": "End User Consent Blocked",
+  "description": "Detects when end user consent is blocked due to risk-based consent.",
+  "awsService": "Entra ID Apps",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID Apps",
+    "credential-access",
+    "t1528"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

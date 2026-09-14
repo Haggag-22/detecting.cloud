@@ -1,0 +1,6 @@
+[
+  "Identify instances launched with httpTokens: optional (IMDSv1).",
+  "Assess SSRF risk for applications on those instances.",
+  "Plan migration to IMDSv2.",
+  "Review instance usage for credential access attempts."
+]

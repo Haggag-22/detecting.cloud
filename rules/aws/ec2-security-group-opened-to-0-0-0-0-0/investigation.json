@@ -1,0 +1,6 @@
+[
+  "Identify who modified the security group.",
+  "Verify if 0.0.0.0/0 was intentionally added (e.g., web server).",
+  "Review the affected instances and exposed ports.",
+  "Check for lateral movement or data exfiltration risk."
+]

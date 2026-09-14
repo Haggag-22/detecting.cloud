@@ -1,0 +1,5 @@
+[
+  "Identify the exact flow-log deletion event and the ordered follow-on activity that occurred within 30 minutes.",
+  "Determine whether the same normalized actor or account performed later network-control changes, secrets access, or exfiltration-adjacent actions.",
+  "Assess whether the deletion was used to reduce visibility immediately before suspicious behavior."
+]

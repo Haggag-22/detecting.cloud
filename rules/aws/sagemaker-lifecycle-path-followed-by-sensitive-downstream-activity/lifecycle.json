@@ -1,0 +1,123 @@
+{
+  "whyItMatters": "A lifecycle-config path becomes highly suspicious when it is followed by sensitive cloud activity. This sequence is one of the clearest indicators that startup-code execution was used to operationalize access or extract secrets.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may attach or trigger a lifecycle config and then use the notebook or its execution role to access secrets, decrypt data, assume roles, or mutate IAM permissions.",
+    "realWorldUsage": "This pattern is practical because startup scripts can prepare a notebook environment and then immediately leverage the notebook's cloud permissions for follow-on abuse.",
+    "whyItMatters": "The strongest signal is the ordered chain from SageMaker startup path to later sensitive API use, not either side alone.",
+    "riskAndImpact": "If missed, defenders may not connect notebook startup manipulation with the cloud credential or data-access activity that followed it."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for SageMaker",
+      "AWS CloudTrail management events for Secrets Manager, KMS, STS, IAM, and related services"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.notebookInstanceName",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "SageMaker lifecycle-path events and follow-on sensitive API events must be ingested into the same analytics environment.",
+      "The detector should normalize direct actor identity and notebook execution-role identity.",
+      "Notebook execution-role resolution should be available for downstream attribution."
+    ],
+    "limitations": [
+      "CloudTrail does not show the commands executed inside the notebook.",
+      "Actor-only joins may miss execution-role pivots unless role attribution is enriched.",
+      "Some legitimate notebooks routinely access secrets or S3 after startup."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Operator who prepared or started the notebook"
+      },
+      {
+        "rawPath": "requestParameters.notebookInstanceName",
+        "normalizedPath": "aws.sagemaker.notebook.name",
+        "notes": "Notebook involved in the lifecycle path"
+      },
+      {
+        "rawPath": "follow_on.eventName",
+        "normalizedPath": "related.event.action",
+        "notes": "Sensitive action after notebook preparation or start"
+      },
+      {
+        "rawPath": "enrichment.executionRoleArn",
+        "normalizedPath": "aws.sagemaker.notebook.execution_role.arn",
+        "notes": "Resolved notebook execution role where available"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"StartNotebookInstance\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"sagemaker\": {\n      \"notebook\": {\n        \"name\": \"target\",\n        \"execution_role\": {\n          \"arn\": \"arn:aws:iam::123456789012:role/SageMakerExecRole\"\n        }\n      }\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"GetSecretValue\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Execution Role Attribution",
+      "description": "Resolve which IAM role the notebook runs as after start.",
+      "examples": [
+        "SageMakerExecRole with Secrets Manager access"
+      ],
+      "falsePositiveReduction": "Improves correlation from notebook startup into later API activity."
+    },
+    {
+      "dimension": "Notebook Sensitivity",
+      "description": "Classify the notebook by business function, data sensitivity, and environment.",
+      "examples": [
+        "prod feature notebook",
+        "sandbox experiment"
+      ],
+      "falsePositiveReduction": "Raises urgency when startup abuse affects high-value notebooks."
+    },
+    {
+      "dimension": "Follow-On Activity Class",
+      "description": "Group later actions into secrets access, role chaining, IAM mutation, or other abuse classes.",
+      "examples": [
+        "GetSecretValue",
+        "AssumeRole",
+        "AttachRolePolicy"
+      ],
+      "falsePositiveReduction": "Makes the post-start abuse path easier to triage."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a short-window post-start SageMaker abuse sequence: a notebook is updated or started along a lifecycle-config path, and then sensitive cloud activity occurs from the same operator identity or the notebook's execution role. It should require event order and stable identity mapping.",
+    "conditions": [
+      "first eventSource equals sagemaker.amazonaws.com and eventName equals UpdateNotebookInstance or StartNotebookInstance",
+      "second event is a sensitive cloud API by the same normalized operator identity or the resolved notebook execution role",
+      "follow-on activity occurs within 30 minutes"
+    ],
+    "tuningGuidance": "1. Require event order. 2. Map notebooks to execution roles. 3. Escalate further when the actor is unauthorized for SageMaker lifecycle management or the notebook is sensitive.",
+    "whenToFire": "Fire when a SageMaker lifecycle path is followed quickly by sensitive cloud activity from the same operator or notebook execution role."
+  },
+  "simulationCommand": "aws sagemaker start-notebook-instance --notebook-instance-name target && aws secretsmanager get-secret-value --secret-id ExampleSecret",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium depending on notebook workloads and execution-role modeling",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with ordered event windows",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is preferred because post-start abuse may happen quickly.",
+    "considerations": [
+      "This is the strongest SageMaker lifecycle abuse detector in the set.",
+      "Execution-role attribution is the main implementation dependency."
+    ]
+  }
+}

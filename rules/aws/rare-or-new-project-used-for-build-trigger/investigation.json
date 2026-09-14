@@ -1,0 +1,5 @@
+[
+  "Identify the actor, project, and whether this actor-to-project pair is first-seen or rarely observed.",
+  "Verify whether the project is normally started by the actor or only by other pipeline identities.",
+  "Assess the project's privilege level and whether the rare launch was followed by overrides or sensitive activity."
+]

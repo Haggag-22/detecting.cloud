@@ -1,0 +1,22 @@
+{
+  "id": "det-101",
+  "title": "Notebook Lifecycle Configuration Created or Updated",
+  "description": "Baseline visibility for SageMaker notebook lifecycle configuration creation or update. Lifecycle configs are security-sensitive because they can execute code automatically when notebooks start, making them a common persistence or privilege-enablement control point.",
+  "awsService": "SageMaker",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "SageMaker",
+    "Lifecycle Config",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate ML platform admin",
+    "Approved lifecycle scripts"
+  ],
+  "relatedAttackSlugs": []
+}

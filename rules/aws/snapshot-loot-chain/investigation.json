@@ -1,0 +1,5 @@
+[
+  "Build the complete storage lineage from snapshot creation through exposure or copy and then into derived volumes and attachments.",
+  "Verify whether the chain matches approved DR, migration, or public collaboration workflows.",
+  "Confirm whether the snapshot was exposed publicly, shared cross-account, copied, or restored into a live instance outside expected controls."
+]

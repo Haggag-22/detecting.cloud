@@ -1,0 +1,25 @@
+{
+  "id": "det-121",
+  "title": "Beanstalk-Derived Privileges Used Outside Approved Access Path",
+  "description": "Detects IAM or STS pivots from Beanstalk-linked principals when the acting identity is outside approved privilege-use workflows. This should rely on exact actor authorization and Beanstalk linkage, not ARN substring matching.",
+  "awsService": "IAM",
+  "relatedServices": [
+    "Elastic Beanstalk",
+    "STS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "Elastic Beanstalk",
+    "IAM",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Known Beanstalk roles with IAM admin",
+    "Platform automation"
+  ],
+  "relatedAttackSlugs": []
+}

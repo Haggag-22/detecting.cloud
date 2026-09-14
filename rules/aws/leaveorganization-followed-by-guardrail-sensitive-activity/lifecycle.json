@@ -1,0 +1,124 @@
+{
+  "whyItMatters": "A leave attempt becomes much more suspicious when it is followed by guardrail-sensitive activity. This sequence suggests the account was trying to shed organizational control before changing policies, keys, or logging.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may leave or attempt to leave the organization and then quickly create access keys, loosen IAM or KMS controls, or reduce logging to consolidate access.",
+    "realWorldUsage": "This is attractive because leaving the organization can weaken inherited guardrails just before the attacker performs high-impact changes.",
+    "whyItMatters": "The strongest signal is the ordered chain from organization escape into direct guardrail-sensitive changes.",
+    "riskAndImpact": "If missed, defenders may not recognize that post-leave control changes were part of a deliberate governance-escape sequence."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for Organizations",
+      "AWS CloudTrail management events for IAM, KMS, CloudTrail, and related services"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.accountId",
+      "recipientAccountId",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "LeaveOrganization and follow-on guardrail-sensitive events must be ingested into the same analytics environment.",
+      "The detector should correlate on stable account context and actor identity where available.",
+      "The engine must support ordered time-window correlation."
+    ],
+    "limitations": [
+      "Actor identity may not always remain stable after the leave attempt, so account linkage is important.",
+      "Some legitimate account setup after an approved leave may generate similar sequences.",
+      "The model requires tuning to local governance workflows."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "recipientAccountId",
+        "normalizedPath": "cloud.account.target_id",
+        "notes": "Account attempting to leave the organization"
+      },
+      {
+        "rawPath": "userIdentity.accountId",
+        "normalizedPath": "cloud.account.id",
+        "notes": "Account context for later guardrail-sensitive actions"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor associated with the leave attempt or later changes"
+      },
+      {
+        "rawPath": "follow_on.eventName",
+        "normalizedPath": "related.event.action",
+        "notes": "Guardrail-sensitive action after the leave attempt"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"LeaveOrganization\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"cloud\": {\n    \"account\": {\n      \"target_id\": \"123456789012\"\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"CreateAccessKey\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Stable Account Linkage",
+      "description": "Correlate the leave attempt to later actions using recipient account and actor context.",
+      "examples": [
+        "same member account after leave",
+        "same root actor"
+      ],
+      "falsePositiveReduction": "Improves fidelity when actor identity changes after the leave attempt."
+    },
+    {
+      "dimension": "Follow-On Activity Class",
+      "description": "Classify later actions as IAM persistence, KMS control change, logging reduction, or other guardrail-sensitive behavior.",
+      "examples": [
+        "CreateAccessKey",
+        "StopLogging",
+        "PutKeyPolicy"
+      ],
+      "falsePositiveReduction": "Makes the escape-to-action path easier to triage."
+    },
+    {
+      "dimension": "Governance Transition Context",
+      "description": "Determine whether the account was legitimately leaving the organization for migration or divestiture.",
+      "examples": [
+        "approved migration",
+        "untracked leave"
+      ],
+      "falsePositiveReduction": "Separates legitimate governance transitions from suspicious post-escape hardening bypass."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model an organization-escape sequence: a member account attempts to leave the organization and then guardrail-sensitive activity occurs soon afterward in the same account context. It should require event order and stable account or actor linkage.",
+    "conditions": [
+      "first eventSource equals organizations.amazonaws.com and eventName equals LeaveOrganization",
+      "second event is a modeled guardrail-sensitive action linked to the same account or normalized actor context",
+      "follow-on activity occurs within 1 hour"
+    ],
+    "tuningGuidance": "1. Require event order. 2. Correlate primarily on account context, then actor where possible. 3. Escalate further when the account is high-value or the leave attempt was root-initiated.",
+    "whenToFire": "Fire when a leave attempt is followed quickly by IAM, KMS, or logging-control changes in the same account context."
+  },
+  "simulationCommand": "aws organizations leave-organization && aws iam create-access-key --user-name demo-user",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with governance workflow context and stable account linkage",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with ordered event windows",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is preferred because post-escape guardrail changes are immediately actionable.",
+    "considerations": [
+      "This is the highest-fidelity LeaveOrganization chain in the family.",
+      "Ordered correlation and stable account linkage are the main dependencies."
+    ]
+  }
+}

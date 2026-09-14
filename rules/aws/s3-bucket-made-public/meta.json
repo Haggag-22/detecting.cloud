@@ -1,0 +1,23 @@
+{
+  "id": "det-018",
+  "title": "S3 Bucket Made Public",
+  "description": "Detects when S3 Public Access Block settings are removed, potentially exposing bucket contents.",
+  "awsService": "S3",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "S3",
+    "Public Access",
+    "Data Exposure"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Static website hosting buckets"
+  ],
+  "relatedAttackSlugs": [
+    "s3-data-exfiltration"
+  ]
+}

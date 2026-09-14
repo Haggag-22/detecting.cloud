@@ -1,0 +1,23 @@
+{
+  "id": "gcp-009",
+  "title": "Google Workspace Application Access Level Modified",
+  "description": "Detects when an access level is changed for a Google workspace application. An access level is part of BeyondCorp Enterprise which is Google Workspace's way of enforcing Zero Trust model. An adversary would be able to remove access levels to gain easier access to Google workspace resources.",
+  "awsService": "Google Workspace",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "Google Workspace",
+    "persistence",
+    "privilege-escalation",
+    "t1098 003"
+  ],
+  "logSources": [
+    "Google Workspace Audit"
+  ],
+  "falsePositives": [
+    "Legitimate administrative activities changing the access levels for an application"
+  ],
+  "relatedAttackSlugs": []
+}

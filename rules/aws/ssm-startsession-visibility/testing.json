@@ -1,0 +1,5 @@
+[
+  "Call `aws ssm start-session --target i-xxx` against a managed test instance.",
+  "Verify CloudTrail captures the StartSession event and target identifier.",
+  "Run the detection and confirm it provides baseline visibility before actor or target-sensitivity enrichment."
+]

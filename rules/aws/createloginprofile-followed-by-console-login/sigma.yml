@@ -1,0 +1,14 @@
+title: CreateLoginProfile Followed by Console Login
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_create:
+    eventSource: iam.amazonaws.com
+    eventName: CreateLoginProfile
+  selection_login:
+    eventSource: signin.amazonaws.com
+    eventName: ConsoleLogin
+  condition: selection_create
+level: critical
+# Full correlation requires exact target-user linkage across IAM and sign-in telemetry.

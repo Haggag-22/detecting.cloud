@@ -1,0 +1,22 @@
+{
+  "id": "det-092",
+  "title": "Serial Console SSH Public Key Sent",
+  "description": "Baseline visibility for serial console access. Serial console is rarer and generally higher risk than standard EC2 Instance Connect because it bypasses normal network paths and often appears during deep recovery, break-glass, or potentially adversarial host access.",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EC2",
+    "Serial Console",
+    "Lateral Movement"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate recovery operations",
+    "Approved serial console access"
+  ],
+  "relatedAttackSlugs": []
+}

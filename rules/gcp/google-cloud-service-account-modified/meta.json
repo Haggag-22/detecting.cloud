@@ -1,0 +1,22 @@
+{
+  "id": "gcp-024",
+  "title": "Google Cloud Service Account Modified",
+  "description": "Identifies when a service account is modified in Google Cloud.",
+  "awsService": "GCP IAM",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "GCP IAM",
+    "impact"
+  ],
+  "logSources": [
+    "GCP Audit Logs"
+  ],
+  "falsePositives": [
+    "Service Account being modified may be performed by a system administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Service Account modified from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

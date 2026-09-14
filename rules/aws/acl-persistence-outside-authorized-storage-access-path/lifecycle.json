@@ -1,0 +1,125 @@
+{
+  "whyItMatters": "Only a narrow set of storage administrators and trusted automation should manage ACLs. An unexpected actor changing ACLs is a strong signal of persistence, exposure, or policy bypass in ACL-enabled paths.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may use a compromised app role, developer identity, or unusual session to change S3 ACLs and preserve access or enable later exfiltration.",
+    "realWorldUsage": "This is attractive because ACL changes can be fast, targeted, and less obvious than bucket-policy rewrites in legacy environments.",
+    "whyItMatters": "Actor authorization is the key control question, not whether the role name looks like storage administration.",
+    "riskAndImpact": "If missed, defenders may overlook unauthorized storage-control changes that alter real data access paths."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail for S3 ACL operations",
+      "Authorized ACL-manager inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.bucketName",
+      "requestParameters.key",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "ACL mutations must be ingested with full actor context.",
+      "The environment should maintain exact principals or workflows allowed to manage ACLs for sensitive buckets.",
+      "Trusted automation provenance should be modeled explicitly."
+    ],
+    "limitations": [
+      "Without actor inventories the rule becomes a noisy anomaly detector.",
+      "Some break-glass or migration workflows may legitimately change ACLs under non-obvious identities.",
+      "The actor signal is strongest when combined with ACL-effectiveness and grant-scope context."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor changing the ACL"
+      },
+      {
+        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
+        "normalizedPath": "aws.identity.session_issuer.arn",
+        "notes": "Underlying role where relevant"
+      },
+      {
+        "rawPath": "requestParameters.bucketName",
+        "normalizedPath": "s3.bucket.name",
+        "notes": "Bucket whose ACL was modified"
+      },
+      {
+        "rawPath": "requestParameters.key",
+        "normalizedPath": "file.path",
+        "notes": "Object key for object ACL changes"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"file\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"PutBucketAcl\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\"\n  },\n  \"s3\": {\n    \"bucket\": {\n      \"name\": \"target\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized ACL Managers",
+      "description": "Exact inventory of identities or workflows allowed to manage ACLs.",
+      "examples": [
+        "storage admin role",
+        "terraform pipeline"
+      ],
+      "falsePositiveReduction": "Replaces brittle name-based allowlists."
+    },
+    {
+      "dimension": "Workflow Provenance",
+      "description": "Determine whether the mutation came from trusted automation or an unexpected manual session.",
+      "examples": [
+        "CloudFormation pipeline",
+        "interactive console session"
+      ],
+      "falsePositiveReduction": "Separates expected infrastructure changes from suspicious ones."
+    },
+    {
+      "dimension": "Target Sensitivity",
+      "description": "Classify the target bucket or object by business and data sensitivity.",
+      "examples": [
+        "customer data bucket",
+        "public website bucket"
+      ],
+      "falsePositiveReduction": "Improves prioritization of unauthorized ACL changes."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect S3 ACL changes outside approved storage-management paths. It should match `PutBucketAcl` or `PutObjectAcl`, resolve actor and workflow provenance, and then check whether the identity is explicitly allowed to manage ACLs on the target.",
+    "conditions": [
+      "eventSource equals s3.amazonaws.com",
+      "eventName equals PutBucketAcl or PutObjectAcl",
+      "actor is not in the approved ACL-manager inventory for the target or request lacks approved automation provenance"
+    ],
+    "tuningGuidance": "1. Use exact actor inventories. 2. Model automation provenance separately from manual sessions. 3. Escalate further when the target is sensitive or the ACL change broadens access.",
+    "whenToFire": "Fire when a bucket or object ACL is changed outside approved storage access paths."
+  },
+  "simulationCommand": "aws s3api put-bucket-acl --bucket target --acl private --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with actor inventories and workflow provenance",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with actor inventories",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because unauthorized ACL changes can alter access immediately.",
+    "considerations": [
+      "This is the actor-centric branch of the S3 ACL family.",
+      "Actor authorization and workflow provenance are the main dependencies."
+    ]
+  }
+}

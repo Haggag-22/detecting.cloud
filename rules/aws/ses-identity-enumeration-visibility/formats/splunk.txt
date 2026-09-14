@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ses.amazonaws.com (eventName=ListIdentities OR eventName=GetIdentityVerificationAttributes)
+| table _time, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.identityType, requestParameters.identities, sourceIPAddress

@@ -1,0 +1,30 @@
+title: AWS Direct Cloud VM Connection Via Instance Connect Or SSM Session
+id: 67b02aeb-1275-4633-a649-bacadc0300b8
+status: experimental
+description: |
+    Detects direct interactive connections to EC2 instances via EC2 Instance Connect (SendSSHPublicKey) or SSM Session Manager (StartSession). Adversaries use these managed channels to reach cloud VMs without traditional inbound SSH/RDP exposure. Also covers the parent Remote Services (T1021) scope for IaaS.
+references:
+    - https://attack.mitre.org/techniques/T1021/008/
+    - https://docs.aws.amazon.com/ec2-instance-connect/latest/APIReference/API_SendSSHPublicKey.html
+    - https://attack.mitre.org/detectionstrategies/DET0211/
+    - https://attack.mitre.org/detectionstrategies/DET0269/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.lateral-movement
+    - attack.t1021
+    - attack.t1021.008
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection_instance_connect:
+        eventSource: ec2-instance-connect.amazonaws.com
+        eventName: SendSSHPublicKey
+    selection_ssm_session:
+        eventSource: ssm.amazonaws.com
+        eventName: StartSession
+    condition: 1 of selection_*
+falsepositives:
+    - Administrators using EC2 Instance Connect or Session Manager for legitimate maintenance.
+level: medium

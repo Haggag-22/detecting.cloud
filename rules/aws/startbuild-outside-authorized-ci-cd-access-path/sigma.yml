@@ -1,0 +1,10 @@
+title: StartBuild by Unexpected Actor
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: codebuild.amazonaws.com
+    eventName: StartBuild
+  condition: selection
+level: high

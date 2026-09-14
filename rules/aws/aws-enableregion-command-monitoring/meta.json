@@ -1,0 +1,21 @@
+{
+  "id": "det-153",
+  "title": "AWS EnableRegion Command Monitoring",
+  "description": "Detects the use of the EnableRegion command in AWS CloudTrail logs. This command allows an AWS account to enable additional regions. Monitoring this activity is crucial because adversaries might enable new, less-monitored regions to establish persistence, exfiltrate data, or conduct other malicious activities, potentially bypassing existing security controls that are not configured for those new regions.",
+  "awsService": "Organizations",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "Organizations",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate use of the EnableRegion command by authorized administrators."
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,5 @@
+[
+  "Create a Lambda with a role containing 'Admin' or 'AdministratorAccess'.",
+  "Observe CloudTrail CreateFunction event.",
+  "Run the detection query to confirm the alert triggers."
+]

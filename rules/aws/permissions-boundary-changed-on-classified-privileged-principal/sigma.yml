@@ -1,0 +1,12 @@
+title: Boundary Change on Sensitive Principal
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - PutRolePermissionsBoundary
+      - PutUserPermissionsBoundary
+  condition: selection
+level: high

@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects resource-creating activity in AWS regions outside the organization's normally-used set. Adversaries operate in unused/unsupported regions to evade monitoring. Tune the region filter to the regions your organization actively uses.",
+  "threatContext": {
+    "attackerBehavior": "Detects resource-creating activity in AWS regions outside the organization's normally-used set. Adversaries operate in unused/unsupported regions to evade monitoring. Tune the region filter to the regions your organization actively uses.",
+    "whyItMatters": "Detects resource-creating activity in AWS regions outside the organization's normally-used set. Adversaries operate in unused/unsupported regions to evade monitoring. Tune the region filter to the regions your organization actively uses.",
+    "riskAndImpact": "Abuse related to EC2 can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects resource-creating activity in AWS regions outside the organization's normally-used set. Adversaries operate in unused/unsupported regions to evade monitoring. Tune the region filter to the regions your organization actively uses.",
+    "whenToFire": "When CloudTrail shows activity matching this AWS Resource Activity In Unused Region detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

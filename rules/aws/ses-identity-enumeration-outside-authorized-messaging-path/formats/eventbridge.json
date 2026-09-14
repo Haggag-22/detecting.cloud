@@ -1,0 +1,17 @@
+{
+  "source": [
+    "aws.ses"
+  ],
+  "detail-type": [
+    "AWS API Call via CloudTrail"
+  ],
+  "detail": {
+    "eventSource": [
+      "ses.amazonaws.com"
+    ],
+    "eventName": [
+      "ListIdentities",
+      "GetIdentityVerificationAttributes"
+    ]
+  }
+}

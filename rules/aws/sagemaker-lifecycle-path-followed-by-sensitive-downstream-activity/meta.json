@@ -1,0 +1,28 @@
+{
+  "id": "det-105",
+  "title": "SageMaker Lifecycle Path Followed by Sensitive Downstream Activity",
+  "description": "High-confidence post-execution detection for SageMaker. This should correlate lifecycle-config association or notebook start with later sensitive API activity from the same operator identity or notebook execution role path.",
+  "awsService": "SageMaker",
+  "relatedServices": [
+    "Secrets Manager",
+    "KMS",
+    "S3",
+    "IAM",
+    "STS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "SageMaker",
+    "Lifecycle Config",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate notebook workload using secrets/S3",
+    "Expected ML pipeline"
+  ],
+  "relatedAttackSlugs": []
+}

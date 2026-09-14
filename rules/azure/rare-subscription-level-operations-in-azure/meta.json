@@ -1,0 +1,22 @@
+{
+  "id": "az-116",
+  "title": "Rare Subscription-level Operations In Azure",
+  "description": "Identifies IPs from which users grant access to other users on azure resources and alerts when a previously unseen source IP address is used.",
+  "awsService": "Azure Activity",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Azure Activity",
+    "t1003",
+    "credential-access"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Valid change"
+  ],
+  "relatedAttackSlugs": []
+}

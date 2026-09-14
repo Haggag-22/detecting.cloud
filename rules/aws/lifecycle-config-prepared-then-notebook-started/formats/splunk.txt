@@ -1,0 +1,8 @@
+index=aws sourcetype=aws:cloudtrail eventSource=sagemaker.amazonaws.com (eventName=CreateNotebookInstanceLifecycleConfig OR eventName=UpdateNotebookInstanceLifecycleConfig OR eventName=UpdateNotebookInstance OR eventName=StartNotebookInstance)
+| eval actor=userIdentity.arn
+| eval notebook=coalesce(requestParameters.notebookInstanceName, requestParameters.lifecycleConfigName, requestParameters.notebookInstanceLifecycleConfigName)
+| eval is_config=if(eventName IN ("CreateNotebookInstanceLifecycleConfig","UpdateNotebookInstanceLifecycleConfig","UpdateNotebookInstance"), 1, 0)
+| eval is_start=if(eventName="StartNotebookInstance", 1, 0)
+| transaction actor maxspan=30m
+| where mvcount(mvfilter(is_config=1))>0 AND mvcount(mvfilter(is_start=1))>0
+| table _time, actor, eventName, notebook

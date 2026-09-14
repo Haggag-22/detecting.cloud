@@ -1,0 +1,24 @@
+{
+  "id": "det-010",
+  "title": "IAM Access Key Created for Another User",
+  "description": "Detects when an IAM user creates access keys for a different user, potentially establishing backdoor access.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "Persistence",
+    "Access Keys"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Automated onboarding scripts",
+    "Admin creating keys for service accounts"
+  ],
+  "relatedAttackSlugs": [
+    "iam-backdoor-policies"
+  ]
+}

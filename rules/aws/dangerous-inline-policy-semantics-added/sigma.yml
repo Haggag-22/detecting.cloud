@@ -1,0 +1,22 @@
+title: Suspicious Inline Policy Privilege Escalation
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - PutRolePolicy
+      - PutUserPolicy
+  risky_policy:
+    requestParameters.policyDocument|contains:
+      - '"Action":"*"'
+      - '"Resource":"*"'
+      - 'iam:*'
+      - 'sts:AssumeRole'
+      - 'iam:PassRole'
+      - 'kms:Decrypt'
+      - 'secretsmanager:GetSecretValue'
+      - 's3:GetObject'
+  condition: selection and risky_policy
+level: critical

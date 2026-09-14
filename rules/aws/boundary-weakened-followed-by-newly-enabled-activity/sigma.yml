@@ -1,0 +1,21 @@
+title: Boundary Change Followed by Privileged or Sensitive Action
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_boundary:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - PutRolePermissionsBoundary
+      - PutUserPermissionsBoundary
+  selection_sensitive:
+    eventName:
+      - AssumeRole
+      - CreatePolicyVersion
+      - SetDefaultPolicyVersion
+      - PassRole
+      - GetSecretValue
+      - Decrypt
+  condition: selection_boundary
+level: critical
+# Full correlation requires boundary state, target principal, and session lineage.

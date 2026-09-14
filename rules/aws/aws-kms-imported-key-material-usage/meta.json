@@ -1,0 +1,22 @@
+{
+  "id": "det-163",
+  "title": "AWS KMS Imported Key Material Usage",
+  "description": "Detects the import or deletion of key material in AWS KMS, which can be used as part of ransomware attacks. This activity is uncommon and provides a high certainty signal.",
+  "awsService": "KMS",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "KMS",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate use cases for imported key material are rare, but may include, Organizations with hybrid cloud architectures that import external key material for compliance requirements.",
+    "Development or testing environments that simulate external key management scenarios. Even in these cases, such activity is typically infrequent and should not add significant noise."
+  ],
+  "relatedAttackSlugs": []
+}

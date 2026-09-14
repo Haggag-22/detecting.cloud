@@ -1,0 +1,5 @@
+[
+  "Call `DescribeConfigurationSettings` in a lab environment, then perform `GetSecretValue`, `AssumeRole`, `Decrypt`, or `CreateAccessKey` within 30 minutes.",
+  "Verify both the recon event and later privileged use appear in CloudTrail.",
+  "Run the detector and confirm it requires ordered recon-to-use correlation."
+]

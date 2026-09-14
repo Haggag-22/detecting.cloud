@@ -1,0 +1,17 @@
+title: EKS Public Endpoint Enabled
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: eks.amazonaws.com
+    eventName:
+      - CreateCluster
+      - UpdateClusterConfig
+  public_endpoint:
+    requestParameters.resourcesVpcConfig.endpointPublicAccess: true
+  wide_cidr:
+    requestParameters.resourcesVpcConfig.publicAccessCidrs:
+      - '0.0.0.0/0'
+  condition: selection and (public_endpoint or wide_cidr)
+level: high

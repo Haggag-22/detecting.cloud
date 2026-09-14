@@ -1,0 +1,122 @@
+{
+  "whyItMatters": "Password resets on sensitive, dormant, or console-ineligible users are materially riskier than resets on ordinary employee accounts because they can activate high-value or unexpected identities.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may reset a privileged, dormant, break-glass, or API-only user's password to gain access to a more useful identity than their starting foothold.",
+    "realWorldUsage": "Attackers often target the most operationally valuable identities rather than random IAM users, especially when trying to preserve access.",
+    "whyItMatters": "The strongest signal is target-user criticality and eligibility for console access, not whether the username string contains admin.",
+    "riskAndImpact": "If missed, a single password reset can reactivate or compromise exactly the users that matter most for privilege escalation and persistence."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.userName",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "User inventory should classify privileged, break-glass, dormant, API-only, and non-console users.",
+      "Historical console posture and MFA state should be available as enrichment."
+    ],
+    "limitations": [
+      "Username strings are not reliable sensitivity indicators.",
+      "The AWS root account is not represented through UpdateLoginProfile for IAM users.",
+      "Without identity metadata this rule loses much of its value."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.userName",
+        "normalizedPath": "aws.iam.target_user.name",
+        "notes": "User whose password was updated"
+      },
+      {
+        "rawPath": "enrichment.userType",
+        "normalizedPath": "aws.iam.target_user.type",
+        "notes": "Human, service, API-only, break-glass, dormant, etc."
+      },
+      {
+        "rawPath": "enrichment.userCriticality",
+        "normalizedPath": "aws.iam.target_user.criticality",
+        "notes": "Privileged or high-value user class"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor performing the reset"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"UpdateLoginProfile\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_user\": {\n        \"name\": \"break-glass-user\",\n        \"type\": \"break-glass\",\n        \"criticality\": \"privileged\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "User Sensitivity Classification",
+      "description": "Determine whether the target is privileged, break-glass, dormant, API-only, or otherwise special.",
+      "examples": [
+        "break-glass account",
+        "API-only service user"
+      ],
+      "falsePositiveReduction": "Avoids relying on fragile username patterns."
+    },
+    {
+      "dimension": "Historical Console Posture",
+      "description": "Check whether the user previously had console access, recent ConsoleLogin events, and MFA state.",
+      "examples": [
+        "never used console",
+        "no MFA"
+      ],
+      "falsePositiveReduction": "Raises confidence when the reset affects an unusual or newly reactivated identity."
+    },
+    {
+      "dimension": "Reset Context",
+      "description": "Correlate actor authorization, incident response context, and maintenance windows.",
+      "examples": [
+        "approved break-glass rotation",
+        "manual untracked reset"
+      ],
+      "falsePositiveReduction": "Separates real operational resets from suspicious targeting of sensitive users."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This is the target-centric companion to unauthorized password-reset detections. It should alert when UpdateLoginProfile affects a privileged, dormant, or console-ineligible user, then use actor context and console posture to determine urgency.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals UpdateLoginProfile",
+      "target user is classified as privileged, break-glass, dormant, API-only, or otherwise unusual for console access"
+    ],
+    "tuningGuidance": "1. Use identity metadata instead of username patterns. 2. Ignore root-style name heuristics for IAM-user logic. 3. Escalate when the reset is followed by sign-in or performed by an unexpected actor.",
+    "whenToFire": "Fire when a password reset affects a sensitive or console-ineligible user, especially when that user should rarely be touched or quickly becomes active afterward."
+  },
+  "simulationCommand": "aws iam update-login-profile --user-name break-glass-user --password 'ExampleTempPassword123!' --password-reset-required",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with user classification and console-posture enrichment",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with identity inventory",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because sensitive-user resets deserve immediate review.",
+    "considerations": [
+      "This is the target-centric companion to `det-053`.",
+      "User classification quality is the main dependency."
+    ]
+  }
+}

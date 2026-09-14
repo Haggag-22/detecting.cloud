@@ -1,0 +1,21 @@
+title: Flow Logs Removal Followed by Suspicious Behavior
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_delete:
+    eventSource: ec2.amazonaws.com
+    eventName: DeleteFlowLogs
+  selection_suspicious:
+    eventName:
+      - AttachInternetGateway
+      - CreateRoute
+      - AuthorizeSecurityGroupIngress
+      - AuthorizeSecurityGroupEgress
+      - CreateNetworkAclEntry
+      - ModifySnapshotAttribute
+      - GetSecretValue
+      - Decrypt
+  condition: selection_delete
+level: critical
+# Full correlation requires ordered sequence and stable actor or account linkage across telemetry removal and follow-on activity.

@@ -1,0 +1,5 @@
+[
+  "Identify the user that received the login profile.",
+  "Review ConsoleLogin events for that user within 24 hours.",
+  "Check if the login was from an unusual IP or without MFA."
+]

@@ -1,0 +1,11 @@
+title: Unencrypted EBS Volume Created
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName: CreateVolume
+    requestParameters.encrypted: false
+  condition: selection
+level: medium

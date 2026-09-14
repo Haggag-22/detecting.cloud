@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.arn, eventName, eventSource, requestParameters.flowLogIds
+| filter (eventSource = "ec2.amazonaws.com" and eventName = "DeleteFlowLogs")
+  or eventName in ["AttachInternetGateway", "CreateRoute", "AuthorizeSecurityGroupIngress", "AuthorizeSecurityGroupEgress", "CreateNetworkAclEntry", "ModifySnapshotAttribute", "GetSecretValue", "Decrypt"]
+| stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
+| filter cnt > 1
+| sort cnt desc

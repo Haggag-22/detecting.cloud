@@ -1,0 +1,21 @@
+{
+  "id": "det-051",
+  "title": "CreateLoginProfile Followed by Console Login",
+  "description": "High-confidence correlation for persistence or account takeover. CreateLoginProfile for user X followed by ConsoleLogin success for the same IAM user within 24 hours. Escalate if login succeeds without MFA or from unusual source IP.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "IAM",
+    "Login Profile",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate onboarding followed by user's first console login"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,5 @@
+[
+  "Launch EC2 with an instance profile whose backing role grants AdministratorAccess or strong pass-role or secrets access.",
+  "Verify the profile-to-role mapping is available to the detector.",
+  "Run the detection and confirm the alert is based on resolved permissions rather than profile naming."
+]

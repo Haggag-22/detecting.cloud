@@ -1,0 +1,22 @@
+{
+  "id": "gcp-005",
+  "title": "Google Cloud Re-identifies Sensitive Information",
+  "description": "Identifies when sensitive information is re-identified in google Cloud.",
+  "awsService": "Cloud DLP",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "Cloud DLP",
+    "impact",
+    "t1565"
+  ],
+  "logSources": [
+    "GCP Audit Logs"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,139 @@
+{
+  "whyItMatters": "Inline policies can be added directly to an existing user or role without creating a new managed policy, making them a fast and low-friction way to escalate privileges or establish persistence.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with iam:PutRolePolicy or iam:PutUserPolicy can embed new permissions directly onto an existing principal they control or can later assume.",
+    "realWorldUsage": "IAM abuse research consistently documents inline policy modification as a reliable escalation path because it does not require creating a new identity or changing trust relationships.",
+    "whyItMatters": "A raw PutRolePolicy or PutUserPolicy event is only a change signal. The high-fidelity detection is whether the resulting inline policy materially expands the principal's power.",
+    "riskAndImpact": "If missed, an attacker can silently add admin-like permissions to an existing principal, assume more privileged roles, exfiltrate secrets, tamper with IAM state, or maintain durable privileged access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.roleName",
+      "requestParameters.userName",
+      "requestParameters.policyName",
+      "requestParameters.policyDocument",
+      "sourceIPAddress",
+      "eventTime",
+      "recipientAccountId"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events for IAM must be enabled.",
+      "The ingestion pipeline must preserve the full requestParameters.policyDocument payload.",
+      "The detection pipeline must decode and parse policyDocument before evaluation in production."
+    ],
+    "limitations": [
+      "Inline policies are not versioned, so historical before/after comparison depends on separate state capture.",
+      "CloudTrail shows the submitted document, not a precomputed effective-permissions result.",
+      "Pure string-matching implementations will miss semantically equivalent but differently formatted documents."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "eventSource",
+        "normalizedPath": "event.source",
+        "notes": "IAM API source"
+      },
+      {
+        "rawPath": "eventName",
+        "normalizedPath": "event.action",
+        "notes": "PutRolePolicy or PutUserPolicy"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor ARN"
+      },
+      {
+        "rawPath": "requestParameters.roleName",
+        "normalizedPath": "aws.iam.target_role.name",
+        "notes": "Target role"
+      },
+      {
+        "rawPath": "requestParameters.userName",
+        "normalizedPath": "aws.iam.target_user.name",
+        "notes": "Target user"
+      },
+      {
+        "rawPath": "requestParameters.policyDocument",
+        "normalizedPath": "aws.iam.policy.document",
+        "notes": "Inline policy JSON requiring parsing"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"PutRolePolicy\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_role\": {\n        \"name\": \"TargetRole\"\n      },\n      \"policy\": {\n        \"name\": \"EscalationPolicy\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Policy Semantics",
+      "description": "Classify the inline policy by effect, action breadth, resource breadth, privilege-escalation primitives, and restrictive conditions.",
+      "examples": [
+        "Allow Action * Resource *",
+        "Allow iam:PassRole on *",
+        "Allow sts:AssumeRole on broad resources"
+      ],
+      "falsePositiveReduction": "Separates genuinely dangerous permissions from benign inline policies that merely contain sensitive-looking strings."
+    },
+    {
+      "dimension": "Target Principal Context",
+      "description": "Identify whether the target is a production workload role, dormant IAM user, break-glass account, or already privileged principal.",
+      "examples": [
+        "Dormant IAM user receives new inline policy",
+        "Application role in production gets PassRole"
+      ],
+      "falsePositiveReduction": "Raises priority for self-targeting, dormant, or sensitive principals."
+    },
+    {
+      "dimension": "Actor and Session Provenance",
+      "description": "Correlate actor ARN, session issuer, MFA, source IP, and approved IAM admin roles.",
+      "examples": [
+        "Known Terraform role",
+        "Expected IAM admin role from corporate VPN"
+      ],
+      "falsePositiveReduction": "Allows tightly controlled admin and automation paths to be suppressed without weakening the semantic rule."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should alert on inline policies that are dangerous in substance, not on policies that happen to contain certain substrings. The production implementation should parse the policy document, evaluate Allow statements, normalize Action and Resource lists, and score the policy based on whether it grants wildcard admin, privilege-escalation primitives, or broad access to secrets and credentials.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals PutRolePolicy or PutUserPolicy",
+      "requestParameters.policyDocument parses successfully as JSON",
+      "at least one Allow statement grants wildcard admin, privilege-escalation actions, or broad secret and credential access"
+    ],
+    "tuningGuidance": "1. Maintain a semantic action taxonomy instead of a keyword list. 2. Lower severity for narrowly scoped AssumeRole or PassRole statements with strong conditions. 3. Raise severity when the actor modifies its own role or user, or when the target principal is sensitive or dormant.",
+    "whenToFire": "Fire when a newly added inline policy materially expands a principal's effective power through admin-like access, privilege-escalation actions, or broad secret and credential access."
+  },
+  "simulationCommand": "aws iam put-role-policy --role-name TargetRole --policy-name EscalationPolicy --policy-document file://dangerous-inline-policy.json",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium-Low after semantic parsing, target-context enrichment, and approved actor allowlisting",
+    "expectedVolume": "Low in mature environments; higher where inline policies are still common",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Splunk or SIEM with JSON parsing",
+      "Athena with preprocessing",
+      "EventBridge + Lambda with policy parsing",
+      "Panther, Chronicle, or Datadog"
+    ],
+    "scheduling": "Real-time is practical if parsing happens in Lambda or SIEM ingestion; scheduled analytics also work if parsed policy fields are materialized.",
+    "considerations": [
+      "Do not rely on raw LIKE matching against policyDocument.",
+      "Treat policy parsing as required for production fidelity.",
+      "Preserve normalized semantic classification so multiple detections can reuse it."
+    ]
+  }
+}

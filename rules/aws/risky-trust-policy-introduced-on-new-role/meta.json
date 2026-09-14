@@ -1,0 +1,23 @@
+{
+  "id": "det-061",
+  "title": "Risky Trust Policy Introduced on New Role",
+  "description": "Detects newly created roles whose trust policy introduces external-account trust, root trust, broad principals, or missing trust constraints that make the role suitable for persistence or cross-account abuse. This should be driven by trust-policy semantics rather than raw text matching.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "CreateRole",
+    "Persistence"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate cross-account role",
+    "Approved third-party integrations",
+    "Expected service-trust role provisioning"
+  ],
+  "relatedAttackSlugs": []
+}

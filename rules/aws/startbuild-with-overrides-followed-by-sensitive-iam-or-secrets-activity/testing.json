@@ -1,0 +1,5 @@
+[
+  "Launch a build with `buildspecOverride` or `environmentVariablesOverride`, then have the build or derived role perform `GetSecretValue`, `AssumeRole`, `Decrypt`, or `CreateAccessKey` within 30 minutes.",
+  "Verify both the build launch and follow-on sensitive actions appear in CloudTrail.",
+  "Run the detector and confirm it requires ordered sequence plus override presence."
+]

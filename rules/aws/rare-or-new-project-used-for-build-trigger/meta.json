@@ -1,0 +1,24 @@
+{
+  "id": "det-200",
+  "title": "Rare or New Project Used for Build Trigger",
+  "description": "Detects first-seen or rare actor-to-project CodeBuild launches. Attackers may prefer dormant or unfamiliar projects that hold useful secrets or deployment power but draw less scrutiny.",
+  "awsService": "CodeBuild",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "CodeBuild",
+    "Credential Theft",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate use of dormant project",
+    "New project in pipeline"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,21 @@
+{
+  "id": "gcp-006",
+  "title": "Google Cloud DNS Zone Modified or Deleted",
+  "description": "Identifies when a DNS Zone is modified or deleted in Google Cloud.",
+  "awsService": "Cloud DNS",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "Cloud DNS",
+    "impact"
+  ],
+  "logSources": [
+    "GCP Audit Logs"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

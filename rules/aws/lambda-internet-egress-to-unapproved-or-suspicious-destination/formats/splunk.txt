@@ -1,0 +1,7 @@
+index=aws sourcetype=aws:cloudwatchlogs:vpcflow
+| lookup lambda_eni_mapping interfaceId OUTPUT functionName, approvedDestinations
+| where isnotnull(functionName)
+| where flowDirection="egress" AND action="ACCEPT"
+| where NOT cidrmatch("10.0.0.0/8", dstAddr) AND NOT cidrmatch("172.16.0.0/12", dstAddr) AND NOT cidrmatch("192.168.0.0/16", dstAddr)
+| stats sum(bytes) as total_bytes count by functionName, dstAddr, dstPort
+| where dstPort IN (4444,8080,8443) OR total_bytes > 10485760

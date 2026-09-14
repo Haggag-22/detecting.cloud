@@ -1,0 +1,6 @@
+[
+  "Identify the identity that modified the inline policy.",
+  "Verify whether the change was authorized.",
+  "Inspect the policy document for excessive permissions.",
+  "Review userIdentity.sessionContext.sessionIssuer.arn for assumed roles."
+]

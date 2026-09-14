@@ -1,0 +1,125 @@
+{
+  "whyItMatters": "Serial console is already a high-signal access path. When it is followed by persistence, credential, or privilege-affecting activity, the sequence becomes one of the clearest indicators of host-enabled cloud abuse.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may use serial console to recover host access and then pivot into IAM persistence, secrets access, or later interactive sessions and privilege changes.",
+    "realWorldUsage": "This is a realistic abuse chain because serial console can restore or deepen host control while the follow-on cloud actions expose how that access was operationalized.",
+    "whyItMatters": "The strongest evidence is the ordered chain from low-level access to sensitive cloud behavior, not the presence of either side independently.",
+    "riskAndImpact": "If missed, defenders may fail to connect a rare serial-console event with the credential or persistence actions that followed it."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2 Instance Connect",
+      "AWS CloudTrail management events for IAM, SSM, Secrets Manager, and related services"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.instanceId",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "Serial-console and follow-on management events must be ingested into the same analytics environment.",
+      "Actor identity should be normalized across direct and assumed-role sessions.",
+      "The correlation engine must support ordered short-window joins."
+    ],
+    "limitations": [
+      "CloudTrail cannot show what was done inside the serial-console session.",
+      "Some legitimate recovery actions may be followed by expected remediation changes.",
+      "Actor-only joins can still be noisy without operator and target context."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Primary actor performing the serial-console access or later cloud action"
+      },
+      {
+        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
+        "normalizedPath": "aws.identity.session_issuer.arn",
+        "notes": "Underlying role where relevant"
+      },
+      {
+        "rawPath": "requestParameters.instanceId",
+        "normalizedPath": "cloud.instance.id",
+        "notes": "Target host for serial-console access"
+      },
+      {
+        "rawPath": "follow_on.eventName",
+        "normalizedPath": "related.event.action",
+        "notes": "Sensitive action after the serial-console event"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"authentication\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"SendSerialConsoleSSHPublicKey\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"cloud\": {\n    \"instance\": {\n      \"id\": \"i-0abc123\"\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"UpdateLoginProfile\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Stable Actor Identity",
+      "description": "Normalize direct and assumed-role identities so the serial-console operator can be matched to later cloud actions.",
+      "examples": [
+        "IAM user",
+        "assumed recovery role"
+      ],
+      "falsePositiveReduction": "Improves correlation fidelity across role changes."
+    },
+    {
+      "dimension": "Target Host Context",
+      "description": "Resolve what kind of host received the serial-console access and what privileges it may expose.",
+      "examples": [
+        "identity-related host",
+        "prod bastion",
+        "recovery target"
+      ],
+      "falsePositiveReduction": "Explains why later persistence or credential actions matter."
+    },
+    {
+      "dimension": "Follow-On Activity Class",
+      "description": "Group later actions into persistence, credential creation, secrets access, or IAM mutation.",
+      "examples": [
+        "CreateAccessKey",
+        "UpdateLoginProfile",
+        "GetSecretValue"
+      ],
+      "falsePositiveReduction": "Makes the abuse path easier to understand and prioritize."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a short-window post-access sequence: an actor uses serial console and then performs persistence, credential, or privilege-affecting cloud actions soon afterward. It should require ordered correlation and stable actor identity.",
+    "conditions": [
+      "first eventSource equals ec2-instance-connect.amazonaws.com and eventName equals SendSerialConsoleSSHPublicKey",
+      "second event is a sensitive cloud API by the same normalized actor identity",
+      "follow-on activity occurs within 15 minutes"
+    ],
+    "tuningGuidance": "1. Require event order. 2. Normalize actor identity across direct and assumed-role sessions. 3. Escalate further when the serial-console target is sensitive or the actor was not approved to use serial console in the first place.",
+    "whenToFire": "Fire when serial-console access is followed quickly by persistence, credential, or privilege-affecting cloud activity from the same operator identity."
+  },
+  "simulationCommand": "aws ec2-instance-connect send-serial-console-ssh-public-key --instance-id i-0abc123 --serial-port 0 --ssh-public-key file://id_rsa.pub && aws iam update-login-profile --user-name demo-user --password 'ExamplePassw0rd!'",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium depending on recovery workflows and operator context",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with ordered event windows",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is preferred because the post-access abuse window is short and actionable.",
+    "considerations": [
+      "This is one of the strongest serial-console detections in the set.",
+      "Ordered correlation and stable identity normalization are critical."
+    ]
+  }
+}

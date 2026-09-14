@@ -1,0 +1,150 @@
+{
+  "whyItMatters": "IMDSv1 exposure is one of the most practical precursor signals for EC2 credential theft. It does not prove an attacker already stole credentials, but it identifies instances where SSRF or code execution can be converted into role-credential access with minimal friction.",
+  "threatContext": {
+    "attackerBehavior": "An attacker who gains code execution on an EC2 instance, or who exploits SSRF in an application running on that instance, can query the metadata endpoint at 169.254.169.254 to retrieve temporary IAM role credentials. When IMDSv1 remains enabled, the metadata service accepts simple unauthenticated requests, which makes credential theft substantially easier than on IMDSv2-only instances.",
+    "realWorldUsage": "Credential theft from EC2 metadata services is a well-known cloud attack path and was central to several widely discussed AWS breaches, including Capital One's SSRF-driven compromise. AWS and GuardDuty guidance also treat off-instance use of EC2 role credentials as a meaningful threat scenario worth dedicated detection coverage.",
+    "whyItMatters": "The initial metadata retrieval is usually invisible to CloudTrail, so defenders benefit from exposure detection that flags instances where the attack path is open before credentials are abused.",
+    "riskAndImpact": "A compromised instance role can be used to access data, call privileged APIs, move laterally, create persistence, or operate from outside the original instance if the credentials are exfiltrated."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for EC2)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.metadataOptions.httpTokens",
+      "requestParameters.httpTokens",
+      "requestParameters.instanceId",
+      "sourceIPAddress",
+      "eventTime"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must include EC2 RunInstances and ModifyInstanceMetadataOptions",
+      "The logging pipeline must preserve metadata options fields from requestParameters",
+      "GuardDuty can provide complementary detection for actual instance-credential exfiltration but is not required for this exposure rule"
+    ],
+    "limitations": [
+      "This rule detects IMDSv1 exposure, not the metadata fetch itself",
+      "Actual IMDS credential retrieval from 169.254.169.254 is not logged in CloudTrail",
+      "Some legacy workloads intentionally run with httpTokens=optional and require exception handling"
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "eventSource",
+        "normalizedPath": "event.source",
+        "notes": "EC2 API source"
+      },
+      {
+        "rawPath": "eventName",
+        "normalizedPath": "event.action",
+        "notes": "Instance launch or metadata option change"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor configuring the instance"
+      },
+      {
+        "rawPath": "requestParameters.metadataOptions.httpTokens",
+        "normalizedPath": "aws.ec2.metadata.http_tokens",
+        "notes": "RunInstances metadata configuration"
+      },
+      {
+        "rawPath": "requestParameters.httpTokens",
+        "normalizedPath": "aws.ec2.metadata.http_tokens",
+        "notes": "ModifyInstanceMetadataOptions path"
+      },
+      {
+        "rawPath": "requestParameters.instanceId",
+        "normalizedPath": "cloud.instance.id",
+        "notes": "Existing instance being modified"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"RunInstances\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"instance\": {\n      \"id\": \"i-0abc123\"\n    }\n  },\n  \"aws\": {\n    \"ec2\": {\n      \"metadata\": {\n        \"http_tokens\": \"optional\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Instance Role Sensitivity",
+      "description": "Classify the IAM role attached to the instance to determine whether IMDS exposure could yield broad data, admin, or security-tool access.",
+      "examples": [
+        "Role can read S3 data lake",
+        "Role has secretsmanager:GetSecretValue",
+        "Role attached to management instance"
+      ],
+      "falsePositiveReduction": "Prioritizes truly dangerous IMDS exposure over low-privilege or sandbox instances."
+    },
+    {
+      "dimension": "Workload SSRF / RCE Exposure",
+      "description": "Combine with application exposure context such as public-facing web services, known SSRF risk, or internet accessibility.",
+      "examples": [
+        "Internet-facing ALB target",
+        "Known SSRF-prone application",
+        "Public subnet web tier"
+      ],
+      "falsePositiveReduction": "Elevates instances where IMDSv1 is realistically exploitable rather than merely misconfigured."
+    },
+    {
+      "dimension": "Lifecycle and Exception Context",
+      "description": "Track whether the instance belongs to a golden image pipeline, temporary test environment, or approved legacy exception list.",
+      "examples": [
+        "AMI build account",
+        "Legacy workload exception",
+        "Migration waiver expires in 30 days"
+      ],
+      "falsePositiveReduction": "Reduces repeated alerts from known transitional workloads while preserving visibility."
+    },
+    {
+      "dimension": "Credential Misuse Correlation",
+      "description": "Correlate with GuardDuty InstanceCredentialExfiltration findings or anomalous API use from the instance role shortly after launch or configuration changes.",
+      "examples": [
+        "GuardDuty UnauthorizedAccess:IAMUser/InstanceCredentialExfiltration",
+        "GetCallerIdentity from unusual IP",
+        "Cross-account role usage from instance credentials"
+      ],
+      "falsePositiveReduction": "Turns posture exposure into a higher-confidence incident when abuse signals appear."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection flags EC2 instances that are launched or modified with IMDS token usage set to optional, which means IMDSv1 remains available. The rule is intentionally framed as exposure detection rather than theft detection: CloudTrail shows when the risky configuration is created, but not when an attacker actually queries the metadata endpoint. Covering both RunInstances and ModifyInstanceMetadataOptions matters because insecure metadata settings can be introduced at launch or downgraded after the instance already exists. In production, this rule should feed both security monitoring and hardening workflows, and it becomes more valuable when combined with role-sensitivity enrichment and GuardDuty exfiltration findings.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals RunInstances and requestParameters.metadataOptions.httpTokens equals optional",
+      "or eventName equals ModifyInstanceMetadataOptions and requestParameters.httpTokens equals optional"
+    ],
+    "tuningGuidance": "1. Maintain explicit exception lists for legacy workloads that cannot yet enforce IMDSv2. 2. Raise severity when the instance profile is sensitive, the workload is internet-facing, or the instance sits in a production subnet. 3. Pair this exposure detector with downstream credential-misuse detections such as GuardDuty InstanceCredentialExfiltration findings or anomalous role API usage.",
+    "whenToFire": "Fire whenever a new or existing instance is configured with httpTokens=optional. Even if the workload is legitimate, the configuration materially increases the likelihood of SSRF-driven credential theft and should be reviewed or remediated."
+  },
+  "simulationCommand": "aws ec2 run-instances --image-id ami-1234567890abcdef0 --instance-type t3.micro --iam-instance-profile Name=WebRole --metadata-options \"HttpTokens=optional,HttpEndpoint=enabled\"",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium (legacy or transitional workloads may intentionally allow IMDSv1)",
+    "expectedVolume": "Low to moderate depending on migration status and EC2 launch frequency",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query)",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Batch: every 5-15 minutes; Real-time: EventBridge on RunInstances and ModifyInstanceMetadataOptions",
+    "considerations": [
+      "This is best treated as an exposure signal feeding hardening workflows",
+      "GuardDuty should be considered a complementary control for actual off-instance credential use",
+      "Account-level IMDSv2 enforcement can reduce launch-time noise by preventing insecure launches entirely"
+    ]
+  }
+}

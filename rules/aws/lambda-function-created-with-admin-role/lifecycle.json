@@ -1,0 +1,153 @@
+{
+  "whyItMatters": "Creating a Lambda function is common; creating one with a materially over-privileged execution role is not. This is a classic hidden PassRole escalation path because the dangerous action is embedded inside CreateFunction.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with lambda:CreateFunction and iam:PassRole can create a new Lambda function and attach a powerful execution role. Once the function is invoked, the attacker gains code execution under that role's permissions, which can provide administrative access, secret retrieval, or access to sensitive data stores.",
+    "realWorldUsage": "PassRole abuse through service creation is a well-established AWS privilege-escalation pattern in red-team tradecraft, pentest writeups, and cloud attack-path research. Lambda is one of the most practical abuse paths because it lets an attacker operationalize a more privileged role immediately.",
+    "whyItMatters": "This event should be treated as high signal when the execution role being attached is classified as high risk, especially if the caller is not part of an approved deployment workflow.",
+    "riskAndImpact": "If missed, the attacker can gain durable execution under a stronger role, access secrets or KMS-protected data, modify IAM or logging controls, and establish serverless persistence."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for Lambda)",
+      "IAM role inventory for role sensitivity enrichment"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.functionName",
+      "requestParameters.role",
+      "sourceIPAddress",
+      "awsRegion",
+      "recipientAccountId",
+      "eventTime"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled for Lambda API activity.",
+      "The pipeline must preserve requestParameters.role because the passed execution role ARN lives there.",
+      "Maintain an enrichment table that classifies IAM roles by effective privilege and business sensitivity."
+    ],
+    "limitations": [
+      "CloudTrail does not emit iam:PassRole as a separate API event; the detection must infer role passing from CreateFunction.",
+      "High-fidelity alerting depends on role sensitivity enrichment; raw role-name matching is only a fallback.",
+      "This covers new function creation, not later role changes through UpdateFunctionConfiguration."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "eventSource",
+        "normalizedPath": "event.source",
+        "notes": "CloudTrail service that handled the request"
+      },
+      {
+        "rawPath": "eventName",
+        "normalizedPath": "event.action",
+        "notes": "Lambda CreateFunction API action"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Caller identity"
+      },
+      {
+        "rawPath": "requestParameters.functionName",
+        "normalizedPath": "aws.lambda.function.name",
+        "notes": "New Lambda function name"
+      },
+      {
+        "rawPath": "requestParameters.role",
+        "normalizedPath": "aws.iam.passed_role.arn",
+        "notes": "Execution role attached during CreateFunction"
+      },
+      {
+        "rawPath": "sourceIPAddress",
+        "normalizedPath": "source.ip",
+        "notes": "Network origin of the request"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"CreateFunction20150331\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"aws\": {\n    \"lambda\": {\n      \"function\": {\n        \"name\": \"my-function\"\n      }\n    },\n    \"iam\": {\n      \"passed_role\": {\n        \"arn\": \"arn:aws:iam::123456789012:role/AdministratorAccess\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Execution Role Sensitivity",
+      "description": "Classify the passed role by attached permissions, allowed actions, and whether it grants administrative, secrets, IAM, KMS, or security-tool access.",
+      "examples": [
+        "Role has AdministratorAccess attached",
+        "Role can call iam:* or organizations:*",
+        "Role can access secretsmanager:GetSecretValue"
+      ],
+      "falsePositiveReduction": "Separates genuinely dangerous role delegation from ordinary low-privilege function deployments."
+    },
+    {
+      "dimension": "Identity Context",
+      "description": "Add ownership and identity metadata for the caller to determine whether the actor is expected to deploy Lambda functions with sensitive roles.",
+      "examples": [
+        "SSO permission set name",
+        "CI/CD bot inventory",
+        "Session issuer ARN for assumed roles"
+      ],
+      "falsePositiveReduction": "Suppresses approved deployment identities while escalating developer, workload, or unusual assumed-role activity."
+    },
+    {
+      "dimension": "Deployment Provenance",
+      "description": "Track whether the function creation came from an approved pipeline, IaC system, or known deployment account.",
+      "examples": [
+        "Created by Terraform runner",
+        "CodePipeline execution ID",
+        "Known deployment account"
+      ],
+      "falsePositiveReduction": "Makes routine platform deployments easier to suppress without losing high-risk ad hoc creations."
+    },
+    {
+      "dimension": "Behavioral Baseline",
+      "description": "Measure whether the caller has previously created functions or passed this role before.",
+      "examples": [
+        "First time this actor used CreateFunction",
+        "First time this role was passed to Lambda",
+        "Out-of-hours deployment"
+      ],
+      "falsePositiveReduction": "Raises priority when the event is novel for the identity or environment."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection identifies Lambda CreateFunction requests where the passed execution role is classified as high risk, rather than relying only on fragile role-name keywords. The correct engineering approach is to inspect requestParameters.role from the Lambda API event and enrich that ARN with authoritative IAM role sensitivity data such as attached policies, privilege level, and access to security-critical services.",
+    "conditions": [
+      "eventSource equals lambda.amazonaws.com",
+      "eventName equals CreateFunction20150331",
+      "requestParameters.role exists",
+      "passed execution role is classified as high risk by enrichment or policy analysis"
+    ],
+    "tuningGuidance": "1. Replace simple string matching with a maintained role-sensitivity inventory built from IAM policy analysis. 2. Allowlist approved CI/CD, Terraform, CloudFormation, and platform deployment identities. 3. Increase severity when the passed role enables IAM, Secrets Manager, KMS, cross-account access, or production data access.",
+    "whenToFire": "Fire when a Lambda function is created with a role classified as high risk, especially in production accounts or when performed by a developer, workload role, or unusual source IP."
+  },
+  "simulationCommand": "aws lambda create-function --function-name backdoor-fn --runtime python3.12 --handler lambda_function.lambda_handler --zip-file fileb://function.zip --role arn:aws:iam::123456789012:role/AdminRole",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium (mostly approved platform deployment activity after actor and role-sensitivity tuning)",
+    "expectedVolume": "Low in mature environments; bursty during deployment windows",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query with IAM role enrichment)",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "EventBridge + Lambda enrichment function"
+    ],
+    "scheduling": "Batch: every 5-15 minutes in Athena or SIEM pipelines. Real-time: EventBridge on CreateFunction20150331 with downstream enrichment of the passed role ARN.",
+    "considerations": [
+      "This rule is substantially better when role sensitivity is computed from IAM policies instead of inferred from role names.",
+      "Preserve requestParameters.role through parsing and normalization.",
+      "Pair with detections for UpdateFunctionConfiguration, UpdateFunctionCode, and unusual Lambda invocation to catch full abuse chains."
+    ]
+  }
+}

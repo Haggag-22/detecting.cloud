@@ -1,0 +1,22 @@
+{
+  "id": "det-145",
+  "title": "AWS Console Login From Unusual Location",
+  "description": "Detects successful AWS console logins that originate from countries or IP addresses that are not recognized as legitimate for the organization. Such logins from unusual locations can indicate compromised credentials or unauthorized access. Behavioral rule: this rule anchors on the successful ConsoleLogin event only. The geo (awsRegion/country) and source IP allow-lists have no portable fixed values and MUST be tuned per environment by adding a negated filter for the organization's legitimate regions/countries and source IP ranges before deployment; otherwise every successful console login will match.",
+  "awsService": "CloudTrail",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "CloudTrail",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate logins from trusted countries and IP addresses. Tune the geo/IP allow-list per environment.",
+    "Logins through services hosted through cloud providers in other regions."
+  ],
+  "relatedAttackSlugs": []
+}

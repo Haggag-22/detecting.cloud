@@ -1,0 +1,28 @@
+{
+  "id": "det-001",
+  "title": "IAM PassRole Privilege Escalation",
+  "description": "Detects when iam:PassRole is used to pass an administrative role to a Lambda function or other AWS service.",
+  "awsService": "IAM",
+  "relatedServices": [
+    "Lambda",
+    "STS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "IAM",
+    "PassRole",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate DevOps automation creating Lambda functions with appropriate roles"
+  ],
+  "relatedAttackSlugs": [
+    "aws-passrole-abuse",
+    "iam-privilege-escalation",
+    "lambda-privilege-escalation"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "az-123",
+  "title": "Azure Unusual Authentication Interruption",
+  "description": "Detects when there is a interruption in the authentication process.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "initial-access",
+    "stealth",
+    "t1078"
+  ],
+  "logSources": [
+    "Azure Sign-in Logs"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

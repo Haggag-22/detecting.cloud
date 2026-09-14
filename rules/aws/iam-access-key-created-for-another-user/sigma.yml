@@ -1,0 +1,15 @@
+title: IAM Access Key Created for Another User
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: CreateAccessKey
+  target_specified:
+    requestParameters.userName|exists: true
+  same_user:
+    userIdentity.type: IAMUser
+    userIdentity.userName|fieldref: requestParameters.userName
+  condition: selection and target_specified and not same_user
+level: high

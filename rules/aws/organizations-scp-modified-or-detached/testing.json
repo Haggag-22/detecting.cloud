@@ -1,0 +1,5 @@
+[
+  "Detach or update a Service Control Policy in Organizations.",
+  "Verify CloudTrail captures DetachPolicy, DeletePolicy, or UpdatePolicy.",
+  "Run the detection to confirm the alert triggers."
+]

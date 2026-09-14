@@ -1,0 +1,18 @@
+{
+  "source": [
+    "aws.organizations"
+  ],
+  "detail-type": [
+    "AWS API Call via CloudTrail"
+  ],
+  "detail": {
+    "eventSource": [
+      "organizations.amazonaws.com"
+    ],
+    "eventName": [
+      "DetachPolicy",
+      "DeletePolicy",
+      "UpdatePolicy"
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+title: CodeBuild StartBuild Visibility
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: codebuild.amazonaws.com
+    eventName: StartBuild
+  condition: selection
+level: medium

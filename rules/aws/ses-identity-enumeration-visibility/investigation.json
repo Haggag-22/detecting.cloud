@@ -1,0 +1,5 @@
+[
+  "Identify the actor, request type, and whether the enumeration was broad or narrowly targeted.",
+  "Verify whether the identity has a legitimate reason to inspect SES identities or verification state.",
+  "Check for burst enumeration, follow-on SES policy changes, or credential-oriented abuse after the read activity."
+]

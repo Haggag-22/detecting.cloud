@@ -1,0 +1,21 @@
+{
+  "id": "det-150",
+  "title": "AWS EFS Fileshare Deletion",
+  "description": "Detects when an AWS EFS Fileshare is deleted via the DeleteFileSystem API call. This action can indicate an attempt to disrupt availability or destroy data. Adversaries might delete file systems to impact operations or cover their tracks. Note that an EFS file system cannot be deleted if it has active mount targets, implying that mount targets would need to be deleted first.",
+  "awsService": "EFS",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EFS",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "A file system may be legitimately deleted by a system or storage administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment."
+  ],
+  "relatedAttackSlugs": []
+}

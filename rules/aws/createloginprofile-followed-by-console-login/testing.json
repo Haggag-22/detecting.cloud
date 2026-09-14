@@ -1,0 +1,5 @@
+[
+  "Create a login profile, then log in via console within 24h.",
+  "Verify both events in CloudTrail.",
+  "Run the Splunk or Athena correlation query."
+]

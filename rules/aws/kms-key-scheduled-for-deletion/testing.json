@@ -1,0 +1,5 @@
+[
+  "Schedule key deletion for a test KMS key.",
+  "Verify CloudTrail captures ScheduleKeyDeletion.",
+  "Run the detection to confirm the alert triggers."
+]

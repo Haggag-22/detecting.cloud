@@ -1,0 +1,5 @@
+[
+  "Identify the actor, session issuer, and target project behind the build launch.",
+  "Verify whether this identity is explicitly approved to start that project or invoke builds through a trusted workflow.",
+  "Determine whether the request came from a known pipeline path or an unexpected manual or workload principal."
+]

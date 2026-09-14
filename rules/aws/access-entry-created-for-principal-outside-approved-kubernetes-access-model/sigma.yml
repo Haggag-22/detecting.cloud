@@ -1,0 +1,10 @@
+title: Access Entry Created for Suspicious Principal
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: eks.amazonaws.com
+    eventName: CreateAccessEntry
+  condition: selection
+level: high

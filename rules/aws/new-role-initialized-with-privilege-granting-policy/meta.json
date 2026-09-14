@@ -1,0 +1,23 @@
+{
+  "id": "det-062",
+  "title": "New Role Initialized with Privilege-Granting Policy",
+  "description": "Correlates CreateRole with immediate managed-policy attachment or inline-policy creation that turns the role into admin-equivalent, takeover-enabling, or otherwise high-risk infrastructure. This should be based on policy semantics, not wildcard string matching alone.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "IAM",
+    "CreateRole",
+    "Persistence",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate role creation with appropriate policies",
+    "Approved platform automation"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,21 @@
+title: Lifecycle Config Injection Followed by Sensitive Activity
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_sagemaker:
+    eventSource: sagemaker.amazonaws.com
+    eventName:
+      - UpdateNotebookInstance
+      - StartNotebookInstance
+  selection_sensitive:
+    eventName:
+      - GetSecretValue
+      - Decrypt
+      - AssumeRole
+      - CreateAccessKey
+      - PutUserPolicy
+      - AttachRolePolicy
+  condition: selection_sagemaker
+level: critical
+# Full correlation requires ordered sequence plus stable actor or execution-role identity.

@@ -1,0 +1,25 @@
+{
+  "id": "az-120",
+  "title": "Azure Subscription Permission Elevation Via AuditLogs",
+  "description": "Detects when a user has been elevated to manage all Azure Subscriptions. This change should be investigated immediately if it isn't planned. This setting could allow an attacker access to Azure subscriptions in your environment.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "initial-access",
+    "stealth",
+    "t1078"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "If this was approved by System Administrator."
+  ],
+  "relatedAttackSlugs": []
+}

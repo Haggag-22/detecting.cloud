@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com eventName=DeleteFlowLogs
+| table _time, userIdentity.arn, eventName, requestParameters.flowLogIds, sourceIPAddress
+# Enrich: lookup flowLogIds to VPC/subnet; filter where resource has prod|egress|security|domain in name/tags

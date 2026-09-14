@@ -1,0 +1,121 @@
+{
+  "whyItMatters": "An entitlement change becomes much stronger evidence of abuse when the target user immediately materializes credentials, signs in, or performs privileged activity using the newly granted access.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may add a user to a powerful group and then quickly create access keys, log in, assume roles, or access secrets as that user.",
+    "realWorldUsage": "This is the highest-value group membership abuse pattern because it ties an entitlement change directly to operational use.",
+    "whyItMatters": "The real signal is entitlement grant plus use by the added user, not simply seeing the add event next to unrelated sensitive actions.",
+    "riskAndImpact": "If missed, privilege expansion through group membership can transition into active persistence or data access before anyone reviews the configuration change."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail IAM management events",
+      "CloudTrail sign-in events where ConsoleLogin is used"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "requestParameters.groupName",
+      "requestParameters.userName",
+      "userIdentity.arn",
+      "sourceIPAddress",
+      "responseElements.ConsoleLogin"
+    ],
+    "loggingRequirements": [
+      "Group-add telemetry must be correlated with later CreateAccessKey, ConsoleLogin, AssumeRole, IAM mutation, and secrets access events.",
+      "The platform should resolve whether the destination group is actually high-risk.",
+      "Target-user linkage must work across IAM and sign-in telemetry."
+    ],
+    "limitations": [
+      "Simple username extraction from userIdentity.arn is brittle for some identity types.",
+      "S3 GetObject style behavior is not available without S3 data events.",
+      "Not every follow-on action was necessarily enabled by the group add unless group privilege is confirmed first."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.groupName",
+        "normalizedPath": "aws.iam.group.name",
+        "notes": "Granted group"
+      },
+      {
+        "rawPath": "requestParameters.userName",
+        "normalizedPath": "aws.iam.target_user.name",
+        "notes": "User added to the group"
+      },
+      {
+        "rawPath": "follow_on.eventName",
+        "normalizedPath": "related.event.action",
+        "notes": "Later credential creation, sign-in, or privileged action"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"AddUserToGroup\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"group\": {\n        \"name\": \"AdminGroup\"\n      },\n      \"target_user\": {\n        \"name\": \"compromised-user\"\n      }\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"CreateAccessKey\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Destination Group Risk",
+      "description": "Confirm whether the granted group materially expands access.",
+      "examples": [
+        "admin-equivalent group",
+        "assume-role heavy group"
+      ],
+      "falsePositiveReduction": "Prevents ordinary onboarding from entering the high-confidence branch."
+    },
+    {
+      "dimension": "Follow-on Access Path",
+      "description": "Track whether the target user materialized credentials, logged in, or used privileged APIs after the grant.",
+      "examples": [
+        "CreateAccessKey",
+        "ConsoleLogin",
+        "GetSecretValue"
+      ],
+      "falsePositiveReduction": "Distinguishes entitlement change from actual abuse."
+    },
+    {
+      "dimension": "Time-to-Use and Actor Context",
+      "description": "Measure how quickly the target becomes active and whether the grant came from an unexpected actor.",
+      "examples": [
+        "access key created within 5 minutes",
+        "manual cross-team grant"
+      ],
+      "falsePositiveReduction": "Raises confidence for deliberate abuse sequences."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should be the high-confidence entitlement-abuse rule for group membership. First confirm the user was added to a high-risk group, then correlate later credential creation, console use, or privileged actions by that same target user in a short window.",
+    "conditions": [
+      "first eventName equals AddUserToGroup",
+      "destination group is high-risk",
+      "follow-on action by the same target user occurs within 15 minutes",
+      "follow-on action is CreateAccessKey, ConsoleLogin, AssumeRole, AttachUserPolicy, PutUserPolicy, GetSecretValue, or similar high-risk use"
+    ],
+    "tuningGuidance": "1. Confirm group privilege first. 2. Correlate on the added user, not just the actor who made the change. 3. Include ConsoleLogin and credential materialization because they are often the most direct proof of use.",
+    "whenToFire": "Fire when a user is added to a high-risk group and then quickly creates credentials, logs in, or performs privileged actions using the newly granted access."
+  },
+  "simulationCommand": "aws iam add-user-to-group --group-name AdminGroup --user-name compromised-user && aws iam create-access-key --user-name compromised-user",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with group-risk confirmation and target-user correlation",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with identity and group inventories",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with short-lived state"
+    ],
+    "scheduling": "Best in near-real-time because the follow-on use window is short and actionable.",
+    "considerations": [
+      "This is the strongest group-membership abuse branch in the family.",
+      "Target-user correlation matters more than raw event proximity."
+    ]
+  }
+}

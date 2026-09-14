@@ -1,0 +1,5 @@
+[
+  "Associate a lifecycle config to a notebook, start the notebook, and have the notebook execution role call `GetSecretValue` or `AssumeRole` within 30 minutes.",
+  "Verify both the SageMaker event and later sensitive API calls appear in CloudTrail.",
+  "Run the detector and confirm it requires ordered post-start correlation rather than loose same-actor aggregation."
+]

@@ -1,0 +1,25 @@
+{
+  "id": "az-112",
+  "title": "Too Many Global Admins",
+  "description": "Identifies an event where there are there are too many accounts assigned the Global Administrator role.",
+  "awsService": "Entra ID PIM",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID PIM",
+    "initial-access",
+    "stealth",
+    "t1078",
+    "persistence",
+    "privilege-escalation"
+  ],
+  "logSources": [
+    "Azure pim"
+  ],
+  "falsePositives": [
+    "Investigate if threshold setting in PIM is too low."
+  ],
+  "relatedAttackSlugs": []
+}

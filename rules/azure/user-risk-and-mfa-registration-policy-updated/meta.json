@@ -1,0 +1,21 @@
+{
+  "id": "az-124",
+  "title": "User Risk and MFA Registration Policy Updated",
+  "description": "Detects changes and updates to the user risk and MFA registration policy. Attackers can modified the policies to Bypass MFA, weaken security thresholds, facilitate further attacks, maintain persistence.",
+  "awsService": "Entra ID Protection",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Protection",
+    "persistence"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Known updates by administrators."
+  ],
+  "relatedAttackSlugs": []
+}

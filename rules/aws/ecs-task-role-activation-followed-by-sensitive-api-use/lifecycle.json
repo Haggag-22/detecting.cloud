@@ -1,0 +1,123 @@
+{
+  "whyItMatters": "A task launch becomes high-confidence abuse when the resulting task role quickly performs sensitive API activity. This is the clearest signal that the launched workload was used operationally, not just scheduled or tested.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may launch an ECS task, obtain task credentials from the container environment, and then use the task role to access secrets, assume roles, or mutate IAM and ECS resources.",
+    "realWorldUsage": "This is a common workload-abuse chain because the initial launch and later API use occur under different identities and can be missed if only the human launcher is tracked.",
+    "whyItMatters": "The right pivot is the resolved task role that becomes active after launch, not the original RunTask caller.",
+    "riskAndImpact": "If missed, a single ad hoc task can transition from launch to active cloud abuse before defenders connect the workload execution to the later API trail."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for ECS",
+      "AWS CloudTrail management events for STS, IAM, Secrets Manager, ECS and related services",
+      "ECS task-definition inventory",
+      "IAM role inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "requestParameters.taskDefinition",
+      "requestParameters.overrides",
+      "requestParameters.roleArn",
+      "userIdentity.arn",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "RunTask events must be ingested with overrides preserved.",
+      "The platform must resolve the launched task's final task role.",
+      "Follow-on CloudTrail events must preserve the runtime role identity in userIdentity or session issuer fields."
+    ],
+    "limitations": [
+      "Joining on the original human launcher misses the real task-role activity path.",
+      "CloudWatch-style simple counts do not prove ordered correlation.",
+      "Some sensitive data-plane access still depends on broader logging coverage."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.taskDefinition",
+        "normalizedPath": "aws.ecs.task_definition.arn",
+        "notes": "Task definition used at launch"
+      },
+      {
+        "rawPath": "enrichment.resolvedTaskRoleArn",
+        "normalizedPath": "aws.iam.role.arn",
+        "notes": "Resolved task role activated by the launch"
+      },
+      {
+        "rawPath": "follow_on.eventName",
+        "normalizedPath": "related.event.action",
+        "notes": "Sensitive API action later performed by the task role"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"compute\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"RunTask\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ecs\": {\n      \"task_definition\": {\n        \"arn\": \"backdoor-task:1\"\n      }\n    },\n    \"iam\": {\n      \"role\": {\n        \"arn\": \"arn:aws:iam::123456789012:role/TaskSecretsRole\"\n      }\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"GetSecretValue\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Resolved Task Role Identity",
+      "description": "Map the launched task to the final task role actually available in the container.",
+      "examples": [
+        "TaskSecretsRole",
+        "ProdOpsTaskRole"
+      ],
+      "falsePositiveReduction": "Matches how real post-launch abuse appears in telemetry."
+    },
+    {
+      "dimension": "Sensitive Use Class",
+      "description": "Classify follow-on activity as secrets access, role chaining, IAM mutation, or ECS control-plane abuse.",
+      "examples": [
+        "GetSecretValue",
+        "AssumeRole",
+        "RegisterTaskDefinition"
+      ],
+      "falsePositiveReduction": "Explains why the task-role use is dangerous."
+    },
+    {
+      "dimension": "Task Launch Context",
+      "description": "Track cluster criticality, overrides, task-family rarity, and whether the launch path was expected.",
+      "examples": [
+        "prod cluster ad hoc task",
+        "runtime role override"
+      ],
+      "falsePositiveReduction": "Separates benign automation from suspicious workload activation."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a chain: RunTask activates a task role, then the resolved task role performs sensitive actions soon afterward. The detector should pivot to the runtime task-role identity and not rely on the RunTask caller being the same as the later CloudTrail actor.",
+    "conditions": [
+      "first eventName equals RunTask",
+      "task launch resolves to a final task role",
+      "follow-on sensitive action is performed by that task role within 15 minutes",
+      "follow-on action is AssumeRole, GetSecretValue, AttachRolePolicy, PutRolePolicy, RegisterTaskDefinition, or similarly high-risk behavior"
+    ],
+    "tuningGuidance": "1. Resolve the final task role before correlating. 2. Treat task-role activity as distinct from the original launcher. 3. Escalate when the task role itself is privileged or the launch used overrides.",
+    "whenToFire": "Fire when an ECS task launch is followed quickly by sensitive API use from the resulting task role."
+  },
+  "simulationCommand": "aws ecs run-task --cluster prod --task-definition backdoor-task:1",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with resolved task-role correlation",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with ECS and IAM inventory",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Best in near-real-time because the launch-to-abuse window is short and actionable.",
+    "considerations": [
+      "This should be one of the highest-fidelity ECS role-abuse detections in the dataset.",
+      "Resolved task-role identity is the key implementation detail."
+    ]
+  }
+}

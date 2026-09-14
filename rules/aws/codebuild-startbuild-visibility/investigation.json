@@ -1,0 +1,5 @@
+[
+  "Identify the actor, project, and any request overrides associated with the build launch.",
+  "Verify whether the build launch was expected for that actor and project.",
+  "Check whether the same project or actor later accesses secrets, assumes roles, or performs unusual cloud actions."
+]

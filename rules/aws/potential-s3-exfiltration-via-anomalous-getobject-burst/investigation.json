@@ -1,0 +1,6 @@
+[
+  "Identify the identity and bucket with high download volume.",
+  "Verify if the activity matches known pipelines or backups.",
+  "Check for anomalous download patterns (time, volume).",
+  "Review S3 access logs for exfiltration indicators."
+]

@@ -1,0 +1,33 @@
+title: AWS STS AssumeRole Into Sensitive Role
+id: ca9d1e68-09ed-4136-a69e-86d9809f48c8
+status: experimental
+description: |
+    Detects AssumeRole targeting sensitive administrative or organization access roles.
+references:
+    - https://detecting.cloud/detection-engineering?rule=det-130
+author: Detecting.Cloud / SOF-ELK
+date: 2026-07-17
+tags:
+    - attack.privilege-escalation
+    - attack.lateral-movement
+    - attack.t1548
+    - attack.t1550.001
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: sts.amazonaws.com
+        eventName: AssumeRole
+    selection_role:
+        requestParameters|contains:
+            - AdministratorAccess
+            - OrganizationAccountAccessRole
+            - PowerUser
+            - '/Admin'
+            - 'role/Admin'
+            - 'SecurityAudit'
+    condition: selection and selection_role
+falsepositives:
+    - Legitimate administration, automation, or platform engineering activity.
+level: critical

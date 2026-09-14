@@ -1,0 +1,21 @@
+{
+  "id": "det-115",
+  "title": "LeaveOrganization Called by Root Context",
+  "description": "Detects `LeaveOrganization` when executed through root context. Root-initiated organization escape is among the highest-signal variants because it implies maximal control over the member account.",
+  "awsService": "Organizations",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "Organizations",
+    "LeaveOrganization",
+    "Root"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Authorized root-initiated leave"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,26 @@
+{
+  "id": "az-020",
+  "title": "Azure AD Only Single Factor Authentication Required",
+  "description": "Detect when users are authenticating without MFA being required.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Low",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "initial-access",
+    "credential-access",
+    "stealth",
+    "defense-impairment"
+  ],
+  "logSources": [
+    "Azure Sign-in Logs"
+  ],
+  "falsePositives": [
+    "If this was approved by System Administrator."
+  ],
+  "relatedAttackSlugs": []
+}

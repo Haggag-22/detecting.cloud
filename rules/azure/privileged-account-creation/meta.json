@@ -1,0 +1,25 @@
+{
+  "id": "az-115",
+  "title": "Privileged Account Creation",
+  "description": "Detects when a new admin is created.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "initial-access",
+    "persistence",
+    "privilege-escalation",
+    "stealth",
+    "t1078 004"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "A legitimate new admin account being created"
+  ],
+  "relatedAttackSlugs": []
+}

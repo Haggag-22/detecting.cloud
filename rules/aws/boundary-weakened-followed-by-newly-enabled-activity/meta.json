@@ -1,0 +1,26 @@
+{
+  "id": "det-047",
+  "title": "Boundary Weakened Followed by Newly Enabled Activity",
+  "description": "Correlates boundary change with near-term privileged activity that plausibly becomes possible because the new boundary is weaker. This should track the affected principal, boundary ARN, and follow-on session lineage rather than just the same actor string.",
+  "awsService": "IAM",
+  "relatedServices": [
+    "STS",
+    "Secrets Manager",
+    "KMS",
+    "S3"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "IAM",
+    "Permissions Boundary",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate boundary change followed by normal admin workflow"
+  ],
+  "relatedAttackSlugs": []
+}

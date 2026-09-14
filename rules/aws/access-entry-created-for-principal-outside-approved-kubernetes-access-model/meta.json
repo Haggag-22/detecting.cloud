@@ -1,0 +1,24 @@
+{
+  "id": "det-097",
+  "title": "Access Entry Created for Principal Outside Approved Kubernetes Access Model",
+  "description": "Detects access entries granted to principals that are not expected to receive Kubernetes access for the target cluster. This should depend on principal type, ownership, and cluster access models rather than ARN substring heuristics.",
+  "awsService": "EKS",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EKS",
+    "Access Entry",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Approved platform engineering roles",
+    "Known bootstrap/node roles"
+  ],
+  "relatedAttackSlugs": []
+}

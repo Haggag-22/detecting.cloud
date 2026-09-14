@@ -1,0 +1,22 @@
+{
+  "id": "det-108",
+  "title": "SES Identity Enumeration Outside Authorized Messaging Path",
+  "description": "Detects SES identity-enumeration activity by identities outside approved messaging, email, or platform workflows. This should rely on explicit actor authorization rather than role-name substring allowlists.",
+  "awsService": "SES",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "SES",
+    "Reconnaissance",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Known email/messaging admin",
+    "SES automation roles"
+  ],
+  "relatedAttackSlugs": []
+}

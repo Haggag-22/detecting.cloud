@@ -1,0 +1,8 @@
+index=aws sourcetype=aws:cloudtrail eventSource=s3.amazonaws.com (eventName=CreateBucket OR eventName=PutObject)
+| eval bucket=requestParameters.bucketName
+| eval actor=coalesce(userIdentity.arn, userIdentity.accountId)
+| eval is_create=if(eventName="CreateBucket", 1, 0)
+| eval is_put=if(eventName="PutObject", 1, 0)
+| transaction bucket maxspan=1h
+| where mvcount(mvfilter(is_create=1))>0 AND mvcount(mvfilter(is_put=1))>0
+| table _time, bucket, actor, eventName

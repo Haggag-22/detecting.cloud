@@ -1,0 +1,12 @@
+title: EC2 Instance Profile Associated or Replaced
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName:
+      - AssociateIamInstanceProfile
+      - ReplaceIamInstanceProfileAssociation
+  condition: selection
+level: medium

@@ -1,0 +1,28 @@
+title: AWS Glue Development Endpoint Activity
+id: 6d118b22-8bc9-4419-aee4-8b131af12127
+status: experimental
+description: |
+    Detects the creation, deletion, or update of AWS Glue development endpoints. Glue dev endpoints provide an interactive environment with an attached IAM role for data processing, which adversaries can abuse to obtain code execution and escalate privileges by leveraging the endpoint's role.
+references:
+    - https://attack.mitre.org/techniques/T1078/004/
+    - https://attack.mitre.org/detectionstrategies/DET0546/
+    - https://docs.aws.amazon.com/glue/latest/webapi/API_CreateDevEndpoint.html
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.privilege-escalation
+    - attack.t1078.004
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: glue.amazonaws.com
+        eventName:
+            - CreateDevEndpoint
+            - DeleteDevEndpoint
+            - UpdateDevEndpoint
+    condition: selection
+falsepositives:
+    - Glue development endpoint activity performed by a data engineer or administrator.
+level: low

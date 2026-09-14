@@ -1,0 +1,24 @@
+{
+  "id": "det-083",
+  "title": "Snapshot Loot Chain",
+  "description": "High-confidence multi-stage storage exfiltration and rehydration detection. This should model ordered lineage from snapshot creation to exposure or copy and then to volume creation or attachment, using entity linkage rather than actor-only aggregation.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "EBS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "EC2",
+    "EBS",
+    "Snapshot",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate DR or migration with approved sharing"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,11 @@
+title: Burst Beanstalk Environment Enumeration
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: elasticbeanstalk.amazonaws.com
+    eventName: DescribeConfigurationSettings
+  condition: selection
+level: high
+# Threshold: >5 distinct app+env in 15 min. Implement in SIEM.

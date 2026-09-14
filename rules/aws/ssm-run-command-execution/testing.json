@@ -1,0 +1,5 @@
+[
+  "Run SSM SendCommand or StartSession on an instance.",
+  "Verify CloudTrail captures the event.",
+  "Run the detection to confirm the alert triggers."
+]

@@ -1,0 +1,16 @@
+title: IAM PassRole Privilege Escalation via Lambda
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: lambda.amazonaws.com
+    eventName: CreateFunction20150331
+  selection_role:
+    requestParameters.role|contains:
+      - 'Admin'
+      - 'AdministratorAccess'
+      - 'PowerUser'
+      - 'OrganizationAccountAccessRole'
+  condition: selection and selection_role
+level: critical

@@ -1,0 +1,23 @@
+{
+  "id": "det-186",
+  "title": "GuardDuty Detector Deleted Or Updated",
+  "description": "Detects successful deletion or disabling of an AWS GuardDuty detector, possibly by an attacker trying to avoid detection of its malicious activities. Upon deletion, GuardDuty stops monitoring the environment and all existing findings are lost. Verify with the user identity that this activity is legitimate.",
+  "awsService": "GuardDuty",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "GuardDuty",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate detector deletion by an admin (e.g., during account decommissioning).",
+    "Temporary disablement for troubleshooting (verify via change management tickets).",
+    "Automated deployment tools (e.g. Terraform) managing GuardDuty state."
+  ],
+  "relatedAttackSlugs": []
+}

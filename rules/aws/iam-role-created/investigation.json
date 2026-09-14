@@ -1,0 +1,5 @@
+[
+  "Identify who created the role.",
+  "Inspect the trust policy (assumeRolePolicyDocument).",
+  "Verify if the role creation was authorized."
+]

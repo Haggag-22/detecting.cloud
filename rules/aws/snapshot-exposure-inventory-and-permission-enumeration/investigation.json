@@ -1,0 +1,5 @@
+[
+  "Run scheduled inventory over owned snapshots and inspect current `createVolumePermission` state.",
+  "Identify snapshots with `groups=[\"all\"]` or external account IDs not on approved allowlists.",
+  "Separately review who is enumerating snapshot permissions through `DescribeSnapshotAttribute` and why."
+]

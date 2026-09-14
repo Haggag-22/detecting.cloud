@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.bucketName, recipientAccountId, sourceIPAddress
+| filter eventSource = "s3.amazonaws.com"
+| filter eventName = "CreateBucket"
+| sort @timestamp desc

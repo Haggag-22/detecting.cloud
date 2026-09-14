@@ -1,0 +1,139 @@
+{
+  "whyItMatters": "Policy removals made outside approved IAM administration paths are strong indicators of privilege abuse, weak governance, or compromised identities operating beyond their intended scope.",
+  "threatContext": {
+    "attackerBehavior": "A developer role, workload identity, EC2 instance profile, or misused human identity may detach or delete IAM policies from principals it should not be managing.",
+    "realWorldUsage": "Unexpected-actor IAM removals are common in post-compromise cloud abuse because removing controls is often easier than adding new permissions.",
+    "whyItMatters": "This is the actor-centric companion to harmful-removal detections. The question is whether the caller should ever be removing IAM policies from that target in that context.",
+    "riskAndImpact": "If missed, a compromised or out-of-scope identity can strip controls from privileged principals, setting up follow-on escalation or persistence."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "errorCode",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.principalId",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "sourceIPAddress",
+      "userAgent",
+      "requestParameters.roleName",
+      "requestParameters.userName",
+      "requestParameters.policyArn",
+      "requestParameters.policyName"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "Actor authorization decisions require an approved IAM-change registry.",
+      "Target ownership and policy sensitivity should be available as enrichment."
+    ],
+    "limitations": [
+      "Without an authorized-actor inventory this rule becomes noisy.",
+      "Expected decommissioning and automation workflows can look suspicious without change provenance.",
+      "CloudTrail alone does not prove whether the removed control was harmful."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor ARN"
+      },
+      {
+        "rawPath": "userIdentity.principalId",
+        "normalizedPath": "user.id",
+        "notes": "Stable actor identifier for allowlisting"
+      },
+      {
+        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
+        "normalizedPath": "aws.identity.session_issuer.arn",
+        "notes": "Underlying role for assumed-role sessions"
+      },
+      {
+        "rawPath": "requestParameters.roleName",
+        "normalizedPath": "aws.iam.target_role.name",
+        "notes": "Target role"
+      },
+      {
+        "rawPath": "requestParameters.userName",
+        "normalizedPath": "aws.iam.target_user.name",
+        "notes": "Target user"
+      },
+      {
+        "rawPath": "requestParameters.policyArn",
+        "normalizedPath": "aws.iam.policy.arn",
+        "notes": "Removed managed policy"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"DetachUserPolicy\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/app-role/i-xxx\",\n    \"type\": \"AssumedRole\",\n    \"id\": \"AROAXXXXX:i-xxx\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_user\": {\n        \"name\": \"TargetUser\"\n      },\n      \"policy\": {\n        \"arn\": \"arn:aws:iam::aws:policy/ReadOnlyAccess\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized IAM Change Actors",
+      "description": "Exact inventory of identities allowed to remove IAM policies.",
+      "examples": [
+        "platform-security-admin",
+        "terraform-iam-runner"
+      ],
+      "falsePositiveReduction": "Replaces weak substring filters with stable approved actor classification."
+    },
+    {
+      "dimension": "Approved Change Provenance",
+      "description": "Correlate userAgent, invokedBy, session tags, pipeline metadata, change ticket, and maintenance window.",
+      "examples": [
+        "CloudFormation execution role",
+        "approved decommissioning workflow"
+      ],
+      "falsePositiveReduction": "Separates sanctioned automation from suspicious manual or untracked removals."
+    },
+    {
+      "dimension": "Target Ownership and Policy Sensitivity",
+      "description": "Determine whether the actor is allowed to modify the target and whether the removed policy is guardrail-like, privileged, or production-linked.",
+      "examples": [
+        "cross-team target",
+        "policy attached to admin role"
+      ],
+      "falsePositiveReduction": "Makes cross-scope or high-impact removals much higher signal."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This is the actor-centric companion to the semantic harmful-removal rule. The question is whether the caller should ever be removing IAM policies from that target in that context, not whether its ARN happens to contain admin.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals DetachUserPolicy, DetachRolePolicy, DeleteUserPolicy, or DeleteRolePolicy",
+      "actor is not in the approved IAM-change inventory or request lacks approved workflow provenance, or actor is modifying a target outside its ownership scope"
+    ],
+    "tuningGuidance": "1. Allowlist exact identities and session issuers only. 2. Maintain an actor-to-target ownership matrix. 3. Increase severity for self-serving removals, cross-team removals, and rare workload-role IAM changes.",
+    "whenToFire": "Fire when policy removal happens outside authorized IAM change paths. Raise severity when the removed policy is sensitive or the target is privileged."
+  },
+  "simulationCommand": "aws iam detach-user-policy --user-name TargetUser --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium without context, low with actor-target ownership and workflow data",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "SIEM correlation",
+      "Athena with lookup tables",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Best in real time or short scheduled windows because authorization context is lookup-driven.",
+    "considerations": [
+      "Keep Sigma broad and push authorization decisions into enrichment.",
+      "Use this as the actor-centric companion to `det-038` and `det-039`."
+    ]
+  }
+}

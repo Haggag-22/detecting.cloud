@@ -1,0 +1,25 @@
+{
+  "id": "az-107",
+  "title": "Invalid PIM License",
+  "description": "Identifies when an organization doesn't have the proper license for PIM and is out of compliance.",
+  "awsService": "Entra ID PIM",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID PIM",
+    "initial-access",
+    "stealth",
+    "t1078",
+    "persistence",
+    "privilege-escalation"
+  ],
+  "logSources": [
+    "Azure pim"
+  ],
+  "falsePositives": [
+    "Investigate if licenses have expired."
+  ],
+  "relatedAttackSlugs": []
+}

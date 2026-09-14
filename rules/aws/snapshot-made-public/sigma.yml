@@ -1,0 +1,10 @@
+title: Snapshot Made Public
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName: ModifySnapshotAttribute
+  condition: selection
+level: critical

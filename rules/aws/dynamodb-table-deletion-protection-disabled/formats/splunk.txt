@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventName=UpdateTable
+| where requestParameters.deletionProtectionEnabled="false"
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.tableName, sourceIPAddress

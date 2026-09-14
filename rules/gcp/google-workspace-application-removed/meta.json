@@ -1,0 +1,21 @@
+{
+  "id": "gcp-010",
+  "title": "Google Workspace Application Removed",
+  "description": "Detects when an an application is removed from Google Workspace.",
+  "awsService": "Google Workspace",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "Google Workspace",
+    "impact"
+  ],
+  "logSources": [
+    "Google Workspace Audit"
+  ],
+  "falsePositives": [
+    "Application being removed may be performed by a System Administrator."
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,25 @@
+{
+  "id": "az-092",
+  "title": "Login to Disabled Account",
+  "description": "Detect failed attempts to sign in to disabled accounts.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "initial-access",
+    "stealth",
+    "t1078 004"
+  ],
+  "logSources": [
+    "Azure Sign-in Logs"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

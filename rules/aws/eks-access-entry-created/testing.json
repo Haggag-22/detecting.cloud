@@ -1,0 +1,5 @@
+[
+  "Call `eks create-access-entry` for a test principal on a monitored cluster.",
+  "Verify CloudTrail captures the actor, principal ARN, and cluster name.",
+  "Run the baseline rule and confirm it records the authorization foothold without suppressing by naming heuristics."
+]

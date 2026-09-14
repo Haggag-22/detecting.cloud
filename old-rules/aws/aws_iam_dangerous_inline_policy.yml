@@ -1,0 +1,32 @@
+title: AWS IAM Dangerous Inline Policy Added
+id: 3dbd1045-fa20-434b-b693-4500a5b4c6bf
+status: experimental
+description: |
+    Detects PutRolePolicy or PutUserPolicy where the inline policy grants wildcard admin or high-risk actions.
+references:
+    - https://detecting.cloud/detection-engineering?rule=det-032
+author: Detecting.Cloud / SOF-ELK
+date: 2026-07-17
+tags:
+    - attack.privilege-escalation
+    - attack.t1098
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: iam.amazonaws.com
+        eventName:
+            - PutRolePolicy
+            - PutUserPolicy
+    selection_risky:
+        requestParameters|contains|all:
+            - 'policyDocument'
+            - 'Effect'
+            - 'Allow'
+            - 'Action'
+            - 'Resource'
+    condition: selection and selection_risky
+falsepositives:
+    - Legitimate administration, automation, or platform engineering activity.
+level: critical

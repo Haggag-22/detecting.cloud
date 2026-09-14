@@ -1,0 +1,28 @@
+title: IAM User Policy Attachment
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - AttachUserPolicy
+      - PutUserPolicy
+  filter_automation:
+    userIdentity.principalId|contains:
+      - 'terraform'
+      - 'cloudformation'
+  sensitive_managed:
+    requestParameters.policyArn|contains:
+      - 'AdministratorAccess'
+      - 'IAMFullAccess'
+      - 'PowerUserAccess'
+  risky_inline:
+    requestParameters.policyDocument|contains:
+      - '"Action":"*"'
+      - '"iam:PassRole"'
+      - '"sts:AssumeRole"'
+      - '"secretsmanager:GetSecretValue"'
+      - '"kms:Decrypt"'
+  condition: selection and (sensitive_managed or risky_inline) and not filter_automation
+level: high

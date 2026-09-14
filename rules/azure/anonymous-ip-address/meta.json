@@ -1,0 +1,22 @@
+{
+  "id": "az-062",
+  "title": "Anonymous IP Address",
+  "description": "Indicates sign-ins from an anonymous IP address, for example, using an anonymous browser or VPN.",
+  "awsService": "Entra ID Protection",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Protection",
+    "t1528",
+    "credential-access"
+  ],
+  "logSources": [
+    "Azure riskdetection"
+  ],
+  "falsePositives": [
+    "We recommend investigating the sessions flagged by this detection in the context of other sign-ins"
+  ],
+  "relatedAttackSlugs": []
+}

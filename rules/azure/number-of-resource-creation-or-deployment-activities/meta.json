@@ -1,0 +1,23 @@
+{
+  "id": "az-047",
+  "title": "Number Of Resource Creation Or Deployment Activities",
+  "description": "Number of VM creations or deployment activities occur in Azure via the azureactivity log.",
+  "awsService": "Azure Activity",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Azure Activity",
+    "privilege-escalation",
+    "persistence",
+    "t1098"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Valid change"
+  ],
+  "relatedAttackSlugs": []
+}

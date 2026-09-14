@@ -1,0 +1,171 @@
+{
+  "whyItMatters": "S3 object reads are the last-mile action in many AWS data theft scenarios, but raw GetObject activity is noisy. A production-ready detection should treat unusual S3 download activity as a behavioral anomaly on sensitive data, not as a single static count or byte threshold.",
+  "threatContext": {
+    "attackerBehavior": "An attacker who has obtained AWS credentials, assumed a role, or found a bucket policy path to data access will often enumerate and download objects from S3 using the AWS CLI, SDKs, console, access points, or pre-signed URLs. In practice this often appears as a burst of GetObject requests against a sensitive bucket or prefix, sometimes preceded by ListBucket activity or recent STS role assumption.",
+    "realWorldUsage": "S3 download abuse is a common cloud post-compromise pattern in red-team tradecraft, cloud pentests, and intrusion investigations involving stolen workload credentials, IMDS abuse, over-broad data-read roles, and cross-account bucket access.",
+    "whyItMatters": "Once an attacker can read sensitive S3 objects, the data theft objective is effectively complete. Detecting unusual object access volume or novelty can provide one of the few chances to catch exfiltration before the credential is revoked and the actor disappears.",
+    "riskAndImpact": "Undetected S3 exfiltration can lead to theft of regulated data, intellectual property, source code, backups, customer records, model artifacts, and internal documents."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail S3 Data Events (read events for AWS::S3::Object)",
+      "Optional: Amazon S3 server access logs for exact bytes-sent measurement",
+      "Optional: CloudTrail aggregated data events for count-based summaries at scale"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "awsRegion",
+      "readOnly",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.accountId",
+      "sourceIPAddress",
+      "userAgent",
+      "requestParameters.bucketName",
+      "requestParameters.key",
+      "resources.ARN",
+      "recipientAccountId",
+      "additionalEventData.AuthenticationMethod",
+      "additionalEventData.SignatureVersion",
+      "additionalEventData.bytesTransferredOut"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events are not sufficient; GetObject is an S3 object-level data event and requires S3 data events to be explicitly enabled.",
+      "Read data events must be enabled for the relevant S3 buckets, prefixes, or account scope.",
+      "Prefer advanced event selectors to limit cost by scoping to AWS::S3::Object, read events, relevant buckets/prefixes, and optionally eventName=GetObject."
+    ],
+    "limitations": [
+      "CloudTrail S3 data events are off by default, cost-bearing, and not retroactive.",
+      "Static request-count thresholds are weak exfiltration heuristics: many small objects can create high counts, while a few very large objects can exfiltrate significant data with low counts.",
+      "Range requests, retries, scanners, ETL jobs, and backup tools can distort both request count and inferred byte volume."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "eventTime",
+        "normalizedPath": "@timestamp",
+        "notes": "CloudTrail event time"
+      },
+      {
+        "rawPath": "eventSource",
+        "normalizedPath": "event.provider",
+        "notes": "S3 API provider"
+      },
+      {
+        "rawPath": "eventName",
+        "normalizedPath": "event.action",
+        "notes": "GetObject object-read action"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Principal performing the object read"
+      },
+      {
+        "rawPath": "requestParameters.bucketName",
+        "normalizedPath": "aws.s3.bucket.name",
+        "notes": "Target bucket"
+      },
+      {
+        "rawPath": "requestParameters.key",
+        "normalizedPath": "aws.s3.object.key",
+        "notes": "Target object key"
+      },
+      {
+        "rawPath": "additionalEventData.bytesTransferredOut",
+        "normalizedPath": "aws.s3.bytes_out",
+        "notes": "Optional; only use after validating field availability in your telemetry"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": \"data_access\",\n    \"type\": \"access\",\n    \"action\": \"GetObject\",\n    \"provider\": \"s3.amazonaws.com\",\n    \"read_only\": true,\n    \"outcome\": \"success\"\n  },\n  \"user\": {\n    \"type\": \"AssumedRole\",\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/DataReadRole/attacker-session\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.50\"\n  },\n  \"user_agent\": {\n    \"original\": \"aws-cli/2.15.0\"\n  },\n  \"aws\": {\n    \"s3\": {\n      \"bucket\": {\n        \"name\": \"company-sensitive-data\"\n      },\n      \"object\": {\n        \"key\": \"finance/2025/q1-report.xlsx\"\n      },\n      \"bytes_out\": 15728640\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Data Sensitivity and Bucket Criticality",
+      "description": "Classify the target bucket or prefix by business sensitivity, environment, and expected access pattern.",
+      "examples": [
+        "PII bucket",
+        "Production backup bucket",
+        "Finance reports prefix",
+        "Public website asset bucket"
+      ],
+      "falsePositiveReduction": "Suppresses benign bulk reads from low-risk content and escalates access to sensitive buckets, prefixes, and regulated datasets."
+    },
+    {
+      "dimension": "Identity and Access Path Context",
+      "description": "Enrich the actor with principal type, owning team, workload vs. human identity, usual role family, and whether the access path is direct or cross-account.",
+      "examples": [
+        "Human IAM user",
+        "Assumed CI role",
+        "Cross-account vendor role",
+        "Workload role on EC2"
+      ],
+      "falsePositiveReduction": "Separates expected platform automation from suspicious human or unexpected workload-driven download activity."
+    },
+    {
+      "dimension": "Network and Session Novelty",
+      "description": "Correlate source IP, ASN, geolocation, user agent, auth type, and session naming patterns.",
+      "examples": [
+        "First-seen public IP for actor",
+        "CLI instead of SDK",
+        "AuthenticationMethod=QueryString",
+        "New country or ASN"
+      ],
+      "falsePositiveReduction": "Raises fidelity when otherwise-normal object reads originate from a novel network path or access method."
+    },
+    {
+      "dimension": "Behavioral Baseline",
+      "description": "Track historical GetObject counts, distinct objects, normal buckets/prefixes, and normal time-of-day patterns by actor, bucket, and prefix over a lookback window.",
+      "examples": [
+        "First time actor accessed this bucket",
+        "10x above actor's 30-day hourly median",
+        "First time reading more than 50 distinct objects in 15 minutes"
+      ],
+      "falsePositiveReduction": "Converts noisy raw volume into an anomaly score anchored in how the actor and bucket normally behave."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should not fire on every GetObject event and should not depend on a single static threshold such as 100 downloads or 1 GB. The credible production pattern is a windowed anomaly over CloudTrail S3 data events: identify an actor, bucket, or prefix whose GetObject activity materially exceeds its own historical baseline, then require at least one risk amplifier such as sensitive data access, first-seen actor-to-bucket usage, unusual IP or user agent, cross-account access, or a recent credential or policy anomaly. Request count is the portable primary metric because it can always be derived from raw GetObject events, while byte volume should be treated as a secondary score only where bytesTransferredOut has been validated or S3 server access logs provide exact byte data.",
+    "conditions": [
+      "eventSource equals s3.amazonaws.com",
+      "eventName equals GetObject",
+      "log source is CloudTrail S3 data events and readOnly equals true",
+      "within a 15-minute or 1-hour window, the actor + bucket + prefix combination exceeds both a minimum activity floor and its historical baseline",
+      "recommended minimum floor: at least 25 GetObject events and at least 25 distinct object keys before anomaly scoring"
+    ],
+    "tuningGuidance": "1. Maintain separate baselines for human users, workload roles, backup roles, analytics jobs, and replication-style automation. 2. Exclude or down-rank approved backup, ETL, ML, and content-distribution identities instead of globally allowlisting entire buckets. 3. Use bucket and prefix sensitivity tags so that bursty reads on low-risk asset buckets do not compete with reads on finance, identity, or backup data.",
+    "whenToFire": "Fire when a principal performs an unusually large or novel burst of GetObject activity against a sensitive bucket or prefix within a bounded window and the activity deviates meaningfully from that principal's established behavior."
+  },
+  "simulationCommand": "aws s3 cp s3://target-bucket/sensitive-prefix ./loot --recursive",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Medium (drops to Medium-Low after sensitive-bucket scoping, actor baselines, and allowlisting of expected bulk-download roles)",
+    "expectedVolume": "Org-dependent; low in mature environments, but bursty in analytics-, backup-, or content-heavy accounts before tuning",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena over CloudTrail logs",
+      "CloudTrail Lake",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "EventBridge + Lambda + state store"
+    ],
+    "scheduling": "Batch: every 5-15 minutes in Athena, CloudTrail Lake, or SIEM. Near-real-time requires EventBridge or stream ingestion into a stateful detector with 15-minute and 1-hour windows.",
+    "considerations": [
+      "Do not ship this as a pure static threshold rule if the goal is production exfiltration detection; use baseline-plus-risk-context logic.",
+      "Keep a separate count-burst detector and optional exact-byte detector so unsupported byte fields do not weaken the core rule.",
+      "Scope S3 data event selectors to sensitive buckets or prefixes where possible to control cost while preserving meaningful coverage."
+    ]
+  }
+}

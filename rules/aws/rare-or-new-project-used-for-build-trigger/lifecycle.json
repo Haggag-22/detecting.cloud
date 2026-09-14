@@ -1,0 +1,123 @@
+{
+  "whyItMatters": "Rare actor-to-project launches can expose opportunistic use of less-monitored build projects that still have high-value access. This is especially important in large CI/CD estates where dormant projects retain privileged roles.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may select a rarely used or unfamiliar build project that has useful secrets, deployment rights, or runtime trust relationships.",
+    "realWorldUsage": "This is attractive because dormant or niche projects may be overlooked operationally while still offering privileged execution paths.",
+    "whyItMatters": "The anomaly is not that a build happened, but that a particular actor started a project they almost never or have never used before.",
+    "riskAndImpact": "If missed, defenders may not notice when a compromised identity reaches for an obscure but powerful build path."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for CodeBuild",
+      "Historical actor-to-project baseline data"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.projectName",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "StartBuild events must be retained long enough to build actor-to-project baselines.",
+      "The platform should track first-seen dates and rarity for actor-project pairs.",
+      "Project criticality should be available to prioritize rare launches."
+    ],
+    "limitations": [
+      "New engineers, new projects, and legitimate project rotation can create benign first-seen launches.",
+      "The signal depends heavily on baseline quality.",
+      "Rarity alone does not prove malicious intent."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor launching the build"
+      },
+      {
+        "rawPath": "requestParameters.projectName",
+        "normalizedPath": "aws.codebuild.project.name",
+        "notes": "Build project being launched"
+      },
+      {
+        "rawPath": "baseline.firstSeen",
+        "normalizedPath": "risk.baseline.first_seen",
+        "notes": "First-seen timestamp for the actor-to-project pair"
+      },
+      {
+        "rawPath": "baseline.rarityScore",
+        "normalizedPath": "risk.baseline.rarity_score",
+        "notes": "Historical rarity of the actor-to-project pair"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"process\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"StartBuild\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"codebuild\": {\n      \"project\": {\n        \"name\": \"dormant-project\"\n      }\n    }\n  },\n  \"risk\": {\n    \"baseline\": {\n      \"first_seen\": \"2025-02-10T12:45:00Z\",\n      \"rarity_score\": \"new_pair\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Actor-to-Project Baseline",
+      "description": "Track how often the actor launches the project and when that pairing was first seen.",
+      "examples": [
+        "never seen before",
+        "rare quarterly use"
+      ],
+      "falsePositiveReduction": "Makes the anomaly specific and explainable."
+    },
+    {
+      "dimension": "Project Privilege and Secret Exposure",
+      "description": "Classify the project's access to secrets, deploy roles, or production systems.",
+      "examples": [
+        "prod deployment project",
+        "low-risk unit test project"
+      ],
+      "falsePositiveReduction": "Raises urgency for rare launches on powerful projects."
+    },
+    {
+      "dimension": "Follow-On Build Risk",
+      "description": "Check whether the rare launch also included overrides or later sensitive activity.",
+      "examples": [
+        "new pair plus override",
+        "new pair plus GetSecretValue"
+      ],
+      "falsePositiveReduction": "Improves confidence when rarity aligns with additional suspicious behavior."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect first-seen or historically rare actor-to-project `StartBuild` pairs. It should compare the current launch against a baseline table and alert when the actor rarely or never launches the target project.",
+    "conditions": [
+      "eventSource equals codebuild.amazonaws.com",
+      "eventName equals StartBuild",
+      "actor-to-project pair is first-seen or falls below the configured historical frequency threshold"
+    ],
+    "tuningGuidance": "1. Build baselines over a meaningful historical window. 2. Exempt expected new-project rollout patterns where needed. 3. Escalate strongly when rare launches hit sensitive projects or align with overrides or follow-on sensitive activity.",
+    "whenToFire": "Fire when a CodeBuild launch uses a project that is new or rare for the initiating actor."
+  },
+  "simulationCommand": "aws codebuild start-build --project-name dormant-project --profile dev-user",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Medium without strong baselines, low-medium with historical actor-project modeling",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM anomaly engines",
+      "Athena with baseline tables",
+      "Datadog / Chronicle / Panther",
+      "EventBridge + Lambda with external state"
+    ],
+    "scheduling": "Scheduled baseline refresh plus near-real-time evaluation works best.",
+    "considerations": [
+      "This is the anomaly branch of the CodeBuild family.",
+      "Actor-project baseline quality is the main dependency."
+    ]
+  }
+}

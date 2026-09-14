@@ -1,0 +1,23 @@
+{
+  "id": "az-016",
+  "title": "Changes to Device Registration Policy",
+  "description": "Monitor and alert for changes to the device registration policy.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "defense-impairment",
+    "t1484"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

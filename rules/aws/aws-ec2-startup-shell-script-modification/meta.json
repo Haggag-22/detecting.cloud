@@ -1,0 +1,21 @@
+{
+  "id": "det-149",
+  "title": "AWS EC2 Startup Shell Script Modification",
+  "description": "Detects changes to the EC2 instance startup script (user data) via ModifyInstanceAttribute where requestParameters.attribute is userData. The startup script is executed as root/SYSTEM each time the instance boots, allowing adversaries to establish persistence and execute arbitrary commands. Companion to the EC2 compute configuration modification rule, which deliberately excludes userData changes.",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EC2",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate changes to instance user data by administrators or infrastructure automation."
+  ],
+  "relatedAttackSlugs": []
+}

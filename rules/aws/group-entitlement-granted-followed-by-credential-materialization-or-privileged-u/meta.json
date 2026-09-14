@@ -1,0 +1,25 @@
+{
+  "id": "det-059",
+  "title": "Group Entitlement Granted Followed by Credential Materialization or Privileged Use",
+  "description": "Correlates a user being added to a high-risk group with subsequent credential creation, console use, or privileged activity by that same user. This should track the target user and access path rather than simply matching unrelated sensitive events.",
+  "awsService": "IAM",
+  "relatedServices": [
+    "STS",
+    "Secrets Manager",
+    "S3"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "IAM",
+    "AddUserToGroup",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate onboarding followed by normal first-use activity"
+  ],
+  "relatedAttackSlugs": []
+}

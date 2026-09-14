@@ -1,0 +1,6 @@
+[
+  "Create an IAM user with AttachUserPolicy permission.",
+  "Attach a policy to another user.",
+  "Verify CloudTrail captures AttachUserPolicy or PutUserPolicy.",
+  "Run the detection query to confirm the alert triggers."
+]

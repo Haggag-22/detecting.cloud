@@ -1,0 +1,22 @@
+{
+  "id": "det-165",
+  "title": "AWS New Lambda Layer Attached",
+  "description": "Detects when a user attaches a Lambda layer to an existing AWS Lambda function. A malicious Lambda layer could execute arbitrary code in the context of the function's IAM role, potentially granting an adversary access to resources the function has access to. This activity could indicate privilege escalation or unauthorized modification of serverless functions.",
+  "awsService": "Lambda",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Low",
+  "tags": [
+    "Lambda",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Lambda Layer being attached may be performed by a system administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Lambda Layer being attached from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

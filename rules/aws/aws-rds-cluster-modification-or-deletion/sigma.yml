@@ -1,0 +1,31 @@
+title: AWS RDS Cluster Modification or Deletion
+id: d219e08b-11c4-4304-9f82-2665c5cd114b
+status: experimental
+description: |
+    Detects modification or deletion of an AWS RDS cluster via ModifyDBCluster or DeleteDBCluster. DeleteDBCluster can be used by an adversary to destroy data and disrupt availability, while ModifyDBCluster can alter the cluster configuration to weaken security or facilitate unauthorized access.
+references:
+    - https://attack.mitre.org/techniques/T1485/
+    - https://attack.mitre.org/detectionstrategies/DET0146/
+    - https://attack.mitre.org/techniques/T1578/
+    - https://attack.mitre.org/detectionstrategies/DET0308/
+    - https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_DeleteDBCluster.html
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.impact
+    - attack.t1485
+    - attack.defense-impairment
+    - attack.t1578
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: rds.amazonaws.com
+        eventName:
+            - ModifyDBCluster
+            - DeleteDBCluster
+    condition: selection
+falsepositives:
+    - Planned cluster maintenance, resizing, or decommissioning performed by an administrator.
+level: high

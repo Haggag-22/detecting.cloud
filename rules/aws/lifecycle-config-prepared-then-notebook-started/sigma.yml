@@ -1,0 +1,17 @@
+title: Lifecycle Config Association Followed by Notebook Start
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_config:
+    eventSource: sagemaker.amazonaws.com
+    eventName:
+      - CreateNotebookInstanceLifecycleConfig
+      - UpdateNotebookInstanceLifecycleConfig
+      - UpdateNotebookInstance
+  selection_start:
+    eventSource: sagemaker.amazonaws.com
+    eventName: StartNotebookInstance
+  condition: selection_config
+level: high
+# Full correlation requires notebook or lifecycle-config linkage plus ordered stage progression.

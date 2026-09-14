@@ -1,0 +1,5 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "AddUserToGroup"
+| filter requestParameters.userName like /backup|svc|admin2|support-temp|breakglass2|automation-backup/
+| sort @timestamp desc

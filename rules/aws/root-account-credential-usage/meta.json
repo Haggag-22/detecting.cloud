@@ -1,0 +1,21 @@
+{
+  "id": "det-193",
+  "title": "Root Account Credential Usage",
+  "description": "Detects AWS root account usage",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "IAM",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "AWS Tasks That Require AWS Account Root User Credentials https://docs.aws.amazon.com/general/latest/gr/aws_tasks-that-require-root.html"
+  ],
+  "relatedAttackSlugs": []
+}

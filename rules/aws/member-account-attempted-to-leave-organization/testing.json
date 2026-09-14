@@ -1,0 +1,5 @@
+[
+  "Call `LeaveOrganization` from a controlled member-account lab context.",
+  "Verify CloudTrail captures actor, account, and error details where applicable.",
+  "Run the baseline detector and confirm it records both successful and blocked leave attempts."
+]

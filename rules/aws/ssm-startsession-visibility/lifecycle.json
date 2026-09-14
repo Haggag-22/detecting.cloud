@@ -1,0 +1,126 @@
+{
+  "whyItMatters": "StartSession is one of the clearest interactive access signals in AWS. Even as a baseline event, it is critical because it often represents direct hands-on access to live systems without SSH exposure.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may use Session Manager to gain interactive shell access to managed instances after obtaining appropriate IAM permissions.",
+    "realWorldUsage": "Session Manager is widely used for legitimate administration, but it is equally valuable to attackers because it provides interactive access through native AWS control paths.",
+    "whyItMatters": "This baseline rule is the feeder for stronger detections about unexpected actors, sensitive targets, and post-session abuse.",
+    "riskAndImpact": "If missed, attackers can access live systems interactively without leaving traditional network access signals like inbound SSH."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for SSM",
+      "EC2 or managed-node inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.target",
+      "sourceIPAddress",
+      "userAgent",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must record StartSession events.",
+      "The environment should resolve requestParameters.target to instance metadata, owner, and sensitivity.",
+      "Follow-on API activity by the same actor should be available for later correlation."
+    ],
+    "limitations": [
+      "The baseline event does not reveal command content or what happened inside the session.",
+      "The target is often only an instance ID unless enriched from EC2 inventory.",
+      "Many legitimate admin workflows use StartSession, so raw event volume may be moderate in mature environments."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.target",
+        "normalizedPath": "cloud.instance.id",
+        "notes": "Managed instance or target of the interactive session"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor opening the session"
+      },
+      {
+        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
+        "normalizedPath": "aws.identity.session_issuer.arn",
+        "notes": "Underlying role for assumed-role sessions"
+      },
+      {
+        "rawPath": "sourceIPAddress",
+        "normalizedPath": "source.ip",
+        "notes": "Network source for the API call"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"session\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"StartSession\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/admin\",\n    \"type\": \"IAMUser\"\n  },\n  \"cloud\": {\n    \"instance\": {\n      \"id\": \"i-0abc123def456\"\n    }\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Target Sensitivity",
+      "description": "Resolve the target instance to environment, owner, and criticality.",
+      "examples": [
+        "prod app server",
+        "bastion",
+        "directory services host"
+      ],
+      "falsePositiveReduction": "Improves prioritization when sessions land on sensitive systems."
+    },
+    {
+      "dimension": "Actor Authorization Context",
+      "description": "Determine whether the actor is approved to open interactive sessions to this class of target.",
+      "examples": [
+        "platform admin",
+        "developer session to prod"
+      ],
+      "falsePositiveReduction": "Turns broad visibility into meaningful access control insights."
+    },
+    {
+      "dimension": "Follow-On Activity",
+      "description": "Correlate later control-plane actions or additional sessions by the same actor.",
+      "examples": [
+        "StartSession followed by CreateSnapshot",
+        "multiple host pivots"
+      ],
+      "falsePositiveReduction": "Raises priority when the session is part of a broader intrusion pattern."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain a baseline interactive-access rule. It alerts on every successful StartSession, then uses target sensitivity, actor authorization, and follow-on behavior to decide whether the session is routine or suspicious.",
+    "conditions": [
+      "eventSource equals ssm.amazonaws.com",
+      "eventName equals StartSession",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep the event match broad. 2. Resolve the target host and actor scope quickly. 3. Escalate when the actor is unexpected, the target is sensitive, or follow-on behavior is suspicious.",
+    "whenToFire": "Fire on every successful StartSession for visibility, with higher priority when it targets sensitive systems or comes from unusual actors."
+  },
+  "simulationCommand": "aws ssm start-session --target i-0abc123def456",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Medium as raw visibility, low-medium with actor and target enrichment",
+    "expectedVolume": "Environment-dependent",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because interactive access often precedes quick follow-on activity.",
+    "considerations": [
+      "Use this as the feeder rule for the stronger SSM access detections that follow.",
+      "Target inventory is the most important enrichment."
+    ]
+  }
+}

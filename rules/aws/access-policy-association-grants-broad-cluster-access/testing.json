@@ -1,0 +1,5 @@
+[
+  "Associate a broad or cluster-wide access policy to a test access entry.",
+  "Verify CloudTrail captures the cluster, principal, policy ARN, and access scope.",
+  "Run the detector and confirm it keys on broad policy semantics and effective scope rather than only static policy-name matching."
+]

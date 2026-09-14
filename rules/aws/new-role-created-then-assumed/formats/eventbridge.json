@@ -1,0 +1,15 @@
+{
+  "source": [
+    "aws.iam",
+    "aws.sts"
+  ],
+  "detail-type": [
+    "AWS API Call via CloudTrail"
+  ],
+  "detail": {
+    "eventName": [
+      "CreateRole",
+      "AssumeRole"
+    ]
+  }
+}

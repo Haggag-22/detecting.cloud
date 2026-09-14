@@ -1,0 +1,22 @@
+{
+  "id": "det-090",
+  "title": "EC2 Instance Connect to Sensitive Target",
+  "description": "Detects EC2 Instance Connect access to targets classified as sensitive, such as production, identity, secrets, or privileged infrastructure. This should depend on resolved asset classification, not instance ID substring matching.",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EC2",
+    "Instance Connect",
+    "Sensitive Target"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Authorized access to production instances",
+    "Break-glass procedures"
+  ],
+  "relatedAttackSlugs": []
+}

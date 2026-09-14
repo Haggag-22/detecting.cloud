@@ -1,0 +1,5 @@
+[
+  "Add an inline policy with Action * and Resource * to a test role.",
+  "Verify CloudTrail captures the event with policyDocument.",
+  "Run the detection to confirm the alert triggers."
+]

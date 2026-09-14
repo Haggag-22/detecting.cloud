@@ -1,0 +1,5 @@
+fields @timestamp, userIdentity.arn, requestParameters.secretId
+| filter eventSource = "secretsmanager.amazonaws.com"
+| filter eventName = "GetSecretValue"
+| stats count_distinct(requestParameters.secretId) as distinct_secrets, count(*) as retrievals by userIdentity.arn, bin(15m)
+| filter distinct_secrets > 5

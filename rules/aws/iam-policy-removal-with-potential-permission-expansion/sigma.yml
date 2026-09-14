@@ -1,0 +1,14 @@
+title: IAM Policy Detached or Deleted
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - DetachUserPolicy
+      - DetachRolePolicy
+      - DeleteUserPolicy
+      - DeleteRolePolicy
+  condition: selection
+level: medium

@@ -1,0 +1,30 @@
+title: AWS Temporary Elevated Cloud Access Via Federation Token
+id: e0adb9e0-8d44-4f73-974d-dc2161cd7ae1
+status: experimental
+description: |
+    Detects issuance of federation/web-identity tokens (GetFederationToken, AssumeRoleWithWebIdentity) and role pass-through (PassRole) used to obtain temporary elevated cloud access. Adds Temporary Elevated Cloud Access (T1548.005) coverage beyond the existing SigmaHQ AssumeRole and GetSessionToken misuse rules. Aligned to MITRE ATT&CK T1548.005 analytic AN1105 (PassRole).
+references:
+    - https://attack.mitre.org/techniques/T1548/005/
+    - https://attack.mitre.org/detectionstrategies/DET0345/
+    - https://attack.mitre.org/detectionstrategies/DET0393/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.privilege-escalation
+    - attack.t1548
+    - attack.t1548.005
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection_sts:
+        eventSource: sts.amazonaws.com
+        eventName:
+            - GetFederationToken
+            - AssumeRoleWithWebIdentity
+    selection_passrole:
+        eventName: PassRole
+    condition: 1 of selection_*
+falsepositives:
+    - Legitimate identity federation and temporary credential brokering.
+level: medium

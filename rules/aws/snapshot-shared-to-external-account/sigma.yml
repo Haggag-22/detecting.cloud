@@ -1,0 +1,11 @@
+title: Snapshot Shared to External Account
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName: ModifySnapshotAttribute
+  condition: selection
+level: critical
+# External-account recipient evaluation requires parsing createVolumePermission.add.userIds and approved account allowlists.

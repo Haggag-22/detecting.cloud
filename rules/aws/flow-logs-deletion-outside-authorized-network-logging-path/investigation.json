@@ -1,0 +1,5 @@
+[
+  "Identify the actor, session issuer, and any automation provenance behind the deletion request.",
+  "Verify whether this identity is explicitly approved to manage VPC flow logs for the affected environment or account.",
+  "Determine whether the request came from a trusted infrastructure workflow or from an unexpected principal."
+]

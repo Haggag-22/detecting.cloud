@@ -1,0 +1,21 @@
+{
+  "id": "det-025",
+  "title": "EKS Cluster Public Endpoint Enabled",
+  "description": "Detects when an EKS cluster API server endpoint is made publicly accessible.",
+  "awsService": "EKS",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EKS",
+    "Kubernetes",
+    "Public Access"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Development clusters with intentional public access"
+  ],
+  "relatedAttackSlugs": []
+}

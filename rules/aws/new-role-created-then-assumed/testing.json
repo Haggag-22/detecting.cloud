@@ -1,0 +1,5 @@
+[
+  "Create a role, optionally attach a strong policy, then call AssumeRole on that same role within 30 minutes.",
+  "Verify CreateRole and AssumeRole both appear in CloudTrail.",
+  "Run the correlation and confirm the detector links the exact role identity rather than only a loose role name."
+]

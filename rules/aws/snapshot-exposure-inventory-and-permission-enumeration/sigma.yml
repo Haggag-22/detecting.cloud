@@ -1,0 +1,13 @@
+title: Public Snapshot Inventory Hunt
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName: DescribeSnapshotAttribute
+  filter_attr:
+    requestParameters.attribute|contains: 'createVolumePermission'
+  condition: selection and filter_attr
+level: high
+# Use as scheduled inventory/hunt, not as a standalone proof of public exposure.

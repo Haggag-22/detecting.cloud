@@ -1,0 +1,23 @@
+{
+  "id": "az-060",
+  "title": "Anomalous User Activity",
+  "description": "Indicates that there are anomalous patterns of behavior like suspicious changes to the directory.",
+  "awsService": "Entra ID Protection",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Protection",
+    "privilege-escalation",
+    "t1098",
+    "persistence"
+  ],
+  "logSources": [
+    "Azure riskdetection"
+  ],
+  "falsePositives": [
+    "We recommend investigating the sessions flagged by this detection in the context of other sign-ins from the user."
+  ],
+  "relatedAttackSlugs": []
+}

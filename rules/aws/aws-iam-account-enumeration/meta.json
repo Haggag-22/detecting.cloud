@@ -1,0 +1,22 @@
+{
+  "id": "det-156",
+  "title": "AWS IAM Account Enumeration",
+  "description": "Detects broad IAM user/role/credential enumeration (ListUsers, ListRoles, GetAccountAuthorizationDetails, ListAccessKeys, GenerateCredentialReport). Adds general Cloud Account discovery (T1087.004) beyond the existing SigmaHQ rule which only flags GetCallerIdentity from the TruffleHog user agent.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Low",
+  "tags": [
+    "IAM",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "IAM administration and access reviews.",
+    "Cloud security posture and credential-report tooling."
+  ],
+  "relatedAttackSlugs": []
+}

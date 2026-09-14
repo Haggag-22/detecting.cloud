@@ -1,0 +1,151 @@
+{
+  "whyItMatters": "CreatePolicyVersion is one of the cleanest IAM privilege escalation paths in AWS because the attacker can modify a policy they already inherit and instantly turn their existing attachment into admin access.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with iam:CreatePolicyVersion on a managed policy can upload a new, more permissive version of that policy. If they set the new version as default, every principal attached to that policy immediately receives the broadened permissions without any further API calls.",
+    "realWorldUsage": "This path is widely documented in AWS privilege escalation research and is a staple of red-team tradecraft because it is reliable, low-noise, and often overlooked in environments that focus only on AttachUserPolicy or PutUserPolicy. Public IAM escalation references also note that set-as-default behavior can collapse a policy update and privilege change into one step.",
+    "whyItMatters": "Unlike some IAM changes, this technique modifies an existing trust surface rather than creating a new principal. That makes it easy to hide inside routine policy management unless the policy document is inspected.",
+    "riskAndImpact": "A successful admin policy version can grant full account takeover, access to sensitive data, key-management actions, persistence through new identities or roles, and the ability to disable or tamper with security controls."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.policyArn",
+      "requestParameters.policyDocument",
+      "requestParameters.setAsDefault",
+      "sourceIPAddress",
+      "eventTime"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must include IAM API activity",
+      "The ingestion pipeline must retain the full policyDocument string from requestParameters",
+      "For exact content matching, downstream tools may need JSON parsing or string matching on escaped JSON"
+    ],
+    "limitations": [
+      "Not every dangerous policy version contains literal Action:* and Resource:*; attackers may use narrower but still high-risk permissions",
+      "If the attacker creates a non-default version first and later calls SetDefaultPolicyVersion, a separate rule is needed",
+      "Whitespace or formatting changes in policyDocument can affect naive string matching in some tools"
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "eventSource",
+        "normalizedPath": "event.source",
+        "notes": "IAM API source"
+      },
+      {
+        "rawPath": "eventName",
+        "normalizedPath": "event.action",
+        "notes": "CreatePolicyVersion API"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor performing the policy change"
+      },
+      {
+        "rawPath": "requestParameters.policyArn",
+        "normalizedPath": "aws.iam.policy.arn",
+        "notes": "Target managed policy"
+      },
+      {
+        "rawPath": "requestParameters.setAsDefault",
+        "normalizedPath": "aws.iam.policy.set_as_default",
+        "notes": "Whether the new version becomes effective immediately"
+      },
+      {
+        "rawPath": "requestParameters.policyDocument",
+        "normalizedPath": "aws.iam.policy.document",
+        "notes": "New policy version content"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"CreatePolicyVersion\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    }\n  },\n  \"aws\": {\n    \"iam\": {\n      \"policy\": {\n        \"arn\": \"arn:aws:iam::123456789012:policy/ExistingPolicy\",\n        \"set_as_default\": true,\n        \"document\": {\n          \"Statement\": [\n            {\n              \"Effect\": \"Allow\",\n              \"Action\": \"*\",\n              \"Resource\": \"*\"\n            }\n          ]\n        }\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Policy Attachment Blast Radius",
+      "description": "Determine which users, groups, and roles are attached to the modified policy to understand how many principals inherited the new privileges.",
+      "examples": [
+        "ListEntitiesForPolicy output",
+        "Attached production role count",
+        "High-value role attachments"
+      ],
+      "falsePositiveReduction": "Distinguishes routine niche-policy edits from changes that instantly expand access across many principals."
+    },
+    {
+      "dimension": "Policy Document Diff",
+      "description": "Compare the prior default version to the new version to highlight exactly which actions, resources, or conditions changed.",
+      "examples": [
+        "Old version v2 vs new version v3",
+        "Added iam:*",
+        "Removed Condition blocks"
+      ],
+      "falsePositiveReduction": "Helps separate harmless maintenance edits from materially dangerous privilege expansion."
+    },
+    {
+      "dimension": "Actor Privilege and Ownership Context",
+      "description": "Enrich with whether the actor is an IAM admin, platform role, break-glass account, or unexpected identity modifying sensitive policies.",
+      "examples": [
+        "AWSReservedSSO_AdministratorAccess",
+        "Terraform runner",
+        "Developer workstation principal"
+      ],
+      "falsePositiveReduction": "Filters expected policy management by trusted administrators while escalating changes from non-admin identities."
+    },
+    {
+      "dimension": "Target Policy Criticality",
+      "description": "Classify the policy by attached resources, environment, and whether it is used in production, security tooling, CI/CD, or break-glass access.",
+      "examples": [
+        "Policy attached to OrganizationAccountAccessRole",
+        "Production deployment role",
+        "Security response role"
+      ],
+      "falsePositiveReduction": "Prioritizes high-impact modifications and reduces noise from low-risk development policies."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection identifies CreatePolicyVersion requests that both introduce an obviously over-permissive policy document and set the new version as the default version immediately. That combination is important: CreatePolicyVersion alone is not necessarily malicious, but a default version containing Action:* and Resource:* turns a routine policy-management API into immediate privilege escalation. The rule is designed to emphasize impact over volume by focusing on full-admin style payloads instead of alerting on every policy version creation. In production, pair this rule with policy-diff enrichment and a separate detector for SetDefaultPolicyVersion so you can catch both one-step and two-step policy-version abuse.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals CreatePolicyVersion",
+      "requestParameters.setAsDefault equals true",
+      "requestParameters.policyDocument contains both Action:* and Resource:*"
+    ],
+    "tuningGuidance": "1. Add allowlists for approved IAM administrators and automation roles that manage policies. 2. Extend the content match beyond Action:* and Resource:* to include narrower but still dangerous actions such as iam:PassRole, sts:AssumeRole, kms:Decrypt, secretsmanager:GetSecretValue, and s3:GetObject. 3. Use policy-diff enrichment so the detector can score how much privilege was added rather than relying only on static string checks.",
+    "whenToFire": "Fire on every CreatePolicyVersion event that creates an immediately effective admin-style document. In most organizations this should be extremely low volume and high priority, especially when the target policy is attached to active users or roles."
+  },
+  "simulationCommand": "aws iam create-policy-version --policy-arn arn:aws:iam::123456789012:policy/DevPolicy --policy-document file://malicious-policy.json --set-as-default",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low (legitimate full-admin policy versioning should be rare and tightly controlled)",
+    "expectedVolume": "Very low; typically single digits per month or lower",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query)",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Batch: every 5-15 minutes; Real-time: EventBridge on CreatePolicyVersion",
+    "considerations": [
+      "Use a separate rule for SetDefaultPolicyVersion rollback or delayed activation patterns",
+      "Policy document parsing quality varies by SIEM and may require JSON extraction or raw-string matching",
+      "Blast-radius enrichment is critical for incident prioritization"
+    ]
+  }
+}

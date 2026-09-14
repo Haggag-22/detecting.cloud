@@ -1,0 +1,24 @@
+{
+  "id": "det-011",
+  "title": "IAM Policy Version Created with Full Admin",
+  "description": "Detects creation of a new policy version granting full administrative access (Action: *, Resource: *).",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "IAM",
+    "Privilege Escalation",
+    "Policy"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate policy updates by trusted admins"
+  ],
+  "relatedAttackSlugs": [
+    "create-policy-version-abuse",
+    "iam-privilege-escalation"
+  ]
+}

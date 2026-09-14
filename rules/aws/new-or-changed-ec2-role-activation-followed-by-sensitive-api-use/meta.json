@@ -1,0 +1,28 @@
+{
+  "id": "det-069",
+  "title": "New or Changed EC2 Role Activation Followed by Sensitive API Use",
+  "description": "Correlates EC2 role activation through RunInstances or later profile association with subsequent sensitive API use from the resulting workload role. This should pivot on the resolved backing role rather than the human launcher.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "IAM",
+    "STS",
+    "Secrets Manager",
+    "S3",
+    "KMS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "EC2",
+    "RunInstances",
+    "PassRole",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate EC2 launch followed by normal workload activity"
+  ],
+  "relatedAttackSlugs": []
+}

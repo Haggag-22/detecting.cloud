@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventName=PutKeyPolicy
+| where like(requestParameters.policy, "%\"Principal\":\"*\"%") OR like(requestParameters.policy, "%\"Principal\":{\"AWS\":\"*\"}%") OR like(requestParameters.policy, "%:root\"%") OR like(requestParameters.policy, "%\"kms:*\"%") OR like(requestParameters.policy, "%\"kms:Decrypt\"%") OR like(requestParameters.policy, "%\"kms:GenerateDataKey%") OR like(requestParameters.policy, "%\"kms:CreateGrant\"%") OR like(requestParameters.policy, "%\"kms:PutKeyPolicy\"%") OR like(requestParameters.policy, "%\"kms:ScheduleKeyDeletion\"%") OR requestParameters.bypassPolicyLockoutSafetyCheck=true
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.keyId, requestParameters.policyName, sourceIPAddress

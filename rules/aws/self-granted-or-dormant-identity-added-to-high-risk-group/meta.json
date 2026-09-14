@@ -1,0 +1,21 @@
+{
+  "id": "det-058",
+  "title": "Self-Granted or Dormant Identity Added to High-Risk Group",
+  "description": "Detects self-granted group membership or assignment of high-risk group access to dormant, newly created, or otherwise suspicious identities. This should rely on identity ownership and target-user context rather than username fragments alone.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "AddUserToGroup",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Expected identity provisioning patterns"
+  ],
+  "relatedAttackSlugs": []
+}

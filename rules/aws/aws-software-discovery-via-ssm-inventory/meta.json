@@ -1,0 +1,21 @@
+{
+  "id": "det-178",
+  "title": "AWS Software Discovery Via SSM Inventory",
+  "description": "Detects use of AWS Systems Manager to enumerate installed software and inventory on cloud workloads, aligned to MITRE ATT&CK detection strategy DET0392 / AN1103 for Software Discovery. Use the UserAgent mutable element to distinguish automated/authorized console access from adversary scripting.",
+  "awsService": "SSM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Low",
+  "tags": [
+    "SSM",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Inventory, patch compliance, and configuration-management tooling querying SSM."
+  ],
+  "relatedAttackSlugs": []
+}

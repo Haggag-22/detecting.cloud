@@ -1,0 +1,23 @@
+{
+  "id": "az-050",
+  "title": "Azure DNS Zone Modified or Deleted",
+  "description": "Identifies when DNS zone is modified or deleted.",
+  "awsService": "Azure Activity",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Azure Activity",
+    "impact",
+    "t1565 001"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "DNS zone modified and deleted may be performed by a system administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "DNS zone modification from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

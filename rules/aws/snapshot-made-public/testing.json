@@ -1,0 +1,5 @@
+[
+  "Call `ModifySnapshotAttribute` with `groups=[\"all\"]` or equivalent public permission change in a test account.",
+  "Verify CloudTrail captures the public exposure delta.",
+  "Run the detection and confirm it fires only on public sharing semantics, not generic external-account sharing."
+]

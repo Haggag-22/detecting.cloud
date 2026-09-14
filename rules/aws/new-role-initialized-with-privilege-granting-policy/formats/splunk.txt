@@ -1,0 +1,8 @@
+index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com
+  (eventName=CreateRole OR eventName=AttachRolePolicy OR eventName=PutRolePolicy)
+| eval role_name=case(eventName="CreateRole", requestParameters.roleName, eventName="AttachRolePolicy", requestParameters.roleName, eventName="PutRolePolicy", requestParameters.roleName, 1=1, null)
+| eval is_create=if(eventName="CreateRole", 1, 0)
+| eval is_privileged=if((eventName="AttachRolePolicy" AND (like(requestParameters.policyArn, "%AdministratorAccess%") OR like(requestParameters.policyArn, "%PowerUserAccess%"))) OR (eventName="PutRolePolicy" AND (like(requestParameters.policyDocument, "%iam:PassRole%") OR like(requestParameters.policyDocument, "%sts:AssumeRole%") OR like(requestParameters.policyDocument, "%secretsmanager:GetSecretValue%") OR like(requestParameters.policyDocument, "%kms:Decrypt%") OR like(requestParameters.policyDocument, "%\"Action\":\"*\"%"))), 1, 0)
+| transaction role_name maxspan=15m
+| where mvcount(mvfilter(is_create=1))>0 AND mvcount(mvfilter(is_privileged=1))>0
+| table _time, role_name, eventName, requestParameters.policyArn, requestParameters.policyDocument

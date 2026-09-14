@@ -1,0 +1,26 @@
+{
+  "id": "az-027",
+  "title": "Application AppID Uri Configuration Changes",
+  "description": "Detects when a configuration change is made to an applications AppID URI.",
+  "awsService": "Entra ID Apps",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Apps",
+    "initial-access",
+    "persistence",
+    "credential-access",
+    "privilege-escalation",
+    "stealth",
+    "t1552"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "When and administrator is making legitimate AppID URI configuration changes to an application. This should be a planned event."
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.arn, eventName, eventSource, requestParameters.instanceId
+| filter (eventSource = "ec2-instance-connect.amazonaws.com" and eventName = "SendSerialConsoleSSHPublicKey")
+  or eventName in ["UpdateLoginProfile", "CreateLoginProfile", "StartSession", "PutUserPolicy", "AttachRolePolicy", "PutRolePolicy", "GetSecretValue", "CreateAccessKey"]
+| stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
+| filter cnt > 1
+| sort cnt desc

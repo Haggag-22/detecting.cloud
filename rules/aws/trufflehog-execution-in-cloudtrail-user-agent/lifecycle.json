@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects the execution of TruffleHog, a popular open-source tool used for scanning repositories for secrets and sensitive information, within an AWS environment. It has been reported to be used by threat actors for credential harvesting. All detections should be investigated to determine if the usage is authorized by security teams or potentially malicious.",
+  "threatContext": {
+    "attackerBehavior": "Detects the execution of TruffleHog, a popular open-source tool used for scanning repositories for secrets and sensitive information, within an AWS environment. It has been reported to be used by threat actors for credential harvesting. All detections should be investigated to determine if the usage is authorized by security teams or potentially malicious.",
+    "whyItMatters": "Detects the execution of TruffleHog, a popular open-source tool used for scanning repositories for secrets and sensitive information, within an AWS environment. It has been reported to be used by threat actors for credential harvesting. All detections should be investigated to determine if the usage is authorized by security teams or potentially malicious.",
+    "riskAndImpact": "Abuse related to CloudTrail can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects the execution of TruffleHog, a popular open-source tool used for scanning repositories for secrets and sensitive information, within an AWS environment. It has been reported to be used by threat actors for credential harvesting. All detections should be investigated to determine if the usage is authorized by security teams or potentially malicious.",
+    "whenToFire": "When CloudTrail shows activity matching this TruffleHog Execution in CloudTrail User Agent detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

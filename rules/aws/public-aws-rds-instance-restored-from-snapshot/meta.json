@@ -1,0 +1,21 @@
+{
+  "id": "det-191",
+  "title": "Public AWS RDS Instance Restored From Snapshot",
+  "description": "Detects when an AWS RDS database instance is restored from a snapshot and configured to be publicly accessible via RestoreDBInstanceFromDBSnapshot where responseElements.publiclyAccessible is true. Adversaries can abuse this to expose a copy of a database to the internet and exfiltrate its contents.",
+  "awsService": "RDS",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "RDS",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate restore of a database that is intentionally publicly accessible."
+  ],
+  "relatedAttackSlugs": []
+}

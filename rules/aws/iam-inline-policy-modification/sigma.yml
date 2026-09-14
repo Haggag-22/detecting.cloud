@@ -1,0 +1,12 @@
+title: IAM Inline Policy Modification
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - PutRolePolicy
+      - PutUserPolicy
+  condition: selection
+level: medium

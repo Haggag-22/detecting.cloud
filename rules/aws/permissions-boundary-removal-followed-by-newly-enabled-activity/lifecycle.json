@@ -1,0 +1,125 @@
+{
+  "whyItMatters": "Boundary deletion becomes much higher confidence when it is followed by actions that the actor or affected principal likely could not perform while the boundary was still in place.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may remove a boundary and then immediately use the newly freed principal or the same session to assume roles, create access keys, mutate IAM, or retrieve secrets.",
+    "realWorldUsage": "This is the post-removal abuse pattern defenders care about most because it ties a control change to observed exploitation rather than just configuration drift.",
+    "whyItMatters": "The story is only convincing if the follow-on action is plausibly linked to the removed boundary and the affected principal, not just the same actor doing unrelated work.",
+    "riskAndImpact": "If missed, a boundary deletion that was initially triaged as low-priority can quietly become active privilege escalation, persistence, or credential theft."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (IAM, STS, Secrets Manager, KMS, and related management events)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.roleName",
+      "requestParameters.userName",
+      "requestParameters.policyArn",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "Boundary deletion telemetry must be correlated with subsequent IAM, STS, Secrets Manager, and KMS activity.",
+      "Session lineage or target-principal mapping is required so follow-on actions can be tied to the actor or principal that became unconstrained.",
+      "Principal inventory should indicate whether the removed boundary materially limited the target before removal."
+    ],
+    "limitations": [
+      "Simple same-actor joins miss cases where the attacker removes a boundary from one principal and then uses that principal later.",
+      "Not every privileged follow-on action was necessarily enabled by the boundary change.",
+      "Sigma cannot express the real correlation logic by itself."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.roleName",
+        "normalizedPath": "aws.iam.target_role.name",
+        "notes": "Role whose boundary was removed"
+      },
+      {
+        "rawPath": "requestParameters.userName",
+        "normalizedPath": "aws.iam.target_user.name",
+        "notes": "User whose boundary was removed"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor removing boundary"
+      },
+      {
+        "rawPath": "follow_on.eventName",
+        "normalizedPath": "related.event.action",
+        "notes": "Subsequent privileged action"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"DeleteRolePermissionsBoundary\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_role\": {\n        \"name\": \"TargetRole\"\n      }\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"AssumeRole\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Boundary Effectiveness",
+      "description": "Determine what actions the removed boundary actually prevented before deletion.",
+      "examples": [
+        "previously blocked AssumeRole",
+        "previously blocked GetSecretValue"
+      ],
+      "falsePositiveReduction": "Ties follow-on activity to newly enabled behavior instead of generic admin work."
+    },
+    {
+      "dimension": "Session Lineage",
+      "description": "Track whether the same actor, the affected principal, or a new session from that principal performed the follow-on action.",
+      "examples": [
+        "same actor then AssumeRole",
+        "target user creates access key after boundary removal"
+      ],
+      "falsePositiveReduction": "Makes the correlation story technically credible."
+    },
+    {
+      "dimension": "Follow-on Action Risk",
+      "description": "Score secrets access, role assumption, key creation, IAM mutation, and pass-role activity differently.",
+      "examples": [
+        "CreateAccessKey on newly unbounded user",
+        "GetSecretValue from freed workload role"
+      ],
+      "falsePositiveReduction": "Prevents routine low-risk activity from receiving the same treatment as strong escalation chains."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should be a true post-removal abuse rule. The strongest version tracks a boundary deletion, identifies the actor and target principal, then looks for privileged actions by that actor, by the affected principal, or by a session derived from that principal within a short window.",
+    "conditions": [
+      "first eventName equals DeleteRolePermissionsBoundary or DeleteUserPermissionsBoundary",
+      "follow-on event occurs within 5-15 minutes",
+      "follow-on action is high-risk such as AssumeRole, CreateAccessKey, Put*Policy, Attach*Policy, GetSecretValue, or Decrypt",
+      "correlation ties the action to the actor or newly unconstrained principal"
+    ],
+    "tuningGuidance": "1. Do not alert on either side independently. 2. Prefer joins on target principal and session lineage, not just actor ARN. 3. Raise confidence only when the follow-on action was plausibly enabled by the removed boundary.",
+    "whenToFire": "Fire when boundary removal is followed by high-risk activity from the same actor or affected principal in a way that suggests newly enabled access was immediately used."
+  },
+  "simulationCommand": "aws iam delete-role-permissions-boundary --role-name TargetRole && aws sts assume-role --role-arn arn:aws:iam::123456789012:role/SensitiveRole --role-session-name lab-test",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with target-principal and session-lineage correlation; high if implemented as loose same-actor sequencing",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with state tables",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with short-lived state"
+    ],
+    "scheduling": "Best in near-real-time because the value comes from short-window correlation.",
+    "considerations": [
+      "Keep Sigma as the boundary-deletion selector only.",
+      "Implement the real join logic in the SIEM or enrichment pipeline."
+    ]
+  }
+}

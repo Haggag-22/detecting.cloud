@@ -1,0 +1,5 @@
+SELECT eventTime, userIdentity.arn, requestParameters.instanceId, sourceIPAddress
+FROM cloudtrail_logs
+WHERE eventSource = 'ec2-instance-connect.amazonaws.com'
+  AND eventName = 'SendSerialConsoleSSHPublicKey'
+ORDER BY eventTime DESC

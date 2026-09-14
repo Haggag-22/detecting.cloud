@@ -1,0 +1,24 @@
+{
+  "id": "az-052",
+  "title": "Azure Firewall Modified or Deleted",
+  "description": "Identifies when a firewall is created, modified, or deleted.",
+  "awsService": "Azure Networking",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Azure Networking",
+    "impact",
+    "defense-impairment",
+    "t1686 001"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Firewall being modified or deleted may be performed by a system administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Firewall modified or deleted from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

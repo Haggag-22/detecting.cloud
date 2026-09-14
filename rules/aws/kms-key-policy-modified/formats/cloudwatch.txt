@@ -1,0 +1,5 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.keyId, requestParameters.policyName, requestParameters.policy, requestParameters.bypassPolicyLockoutSafetyCheck, sourceIPAddress
+| filter eventSource = "kms.amazonaws.com"
+| filter eventName = "PutKeyPolicy"
+| filter requestParameters.policy like /"Principal":"*"|"Principal":{"AWS":"*"}|:root"|kms:*|kms:Decrypt|kms:GenerateDataKey|kms:CreateGrant|kms:PutKeyPolicy|kms:ScheduleKeyDeletion/ or requestParameters.bypassPolicyLockoutSafetyCheck = true
+| sort @timestamp desc

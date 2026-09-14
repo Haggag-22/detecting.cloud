@@ -1,0 +1,39 @@
+title: AWS S3 Object Retrieval For Exfiltration Or Staging
+id: 8e7542cc-227b-4327-a30a-42680b3bc431
+status: experimental
+description: |
+    Detects retrieval and copy of S3 objects (GetObject, CopyObject), the data-plane activity behind
+    Exfiltration Over Alternative Protocol (T1048) and Data Staged (T1074/T1074.002). Aligned to MITRE
+    ATT&CK analytics AN0370, AN0043 and AN0198 (GetObject, CopyObject).
+    REQUIRES S3 DATA-EVENT LOGGING: GetObject/CopyObject are S3 data-plane events and are NOT recorded
+    by default CloudTrail management-event logging (the standard SOF-ELK ingest). Enable CloudTrail S3
+    data events for the relevant buckets. HIGH VOLUME: intended for volumetric/behavioral correlation
+    (unusual identity, object volume, or destination) rather than standalone alerting.
+references:
+    - https://attack.mitre.org/techniques/T1048/
+    - https://attack.mitre.org/techniques/T1074/002/
+    - https://attack.mitre.org/detectionstrategies/DET0014/
+    - https://attack.mitre.org/detectionstrategies/DET0071/
+    - https://attack.mitre.org/detectionstrategies/DET0131/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.exfiltration
+    - attack.t1048
+    - attack.collection
+    - attack.t1074
+    - attack.t1074.002
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: s3.amazonaws.com
+        eventName:
+            - GetObject
+            - CopyObject
+    condition: selection
+falsepositives:
+    - Routine application and analytics workloads that read S3 objects at scale.
+    - Backup, replication, and lifecycle tooling.
+level: low

@@ -1,0 +1,122 @@
+{
+  "whyItMatters": "Broad environment enumeration is one of the clearest signs of active Beanstalk reconnaissance. Attackers often need to discover which environments carry the most useful secrets or trust paths before choosing a pivot target.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may query many Beanstalk applications and environments in a short period to inventory the available configuration surface.",
+    "realWorldUsage": "This is attractive because it quickly maps where useful application credentials or environment variables may exist.",
+    "whyItMatters": "Short-window breadth is often a stronger signal than any one configuration read.",
+    "riskAndImpact": "If missed, defenders may not recognize an active discovery phase that precedes credential theft or privilege pivoting."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for Elastic Beanstalk"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.applicationName",
+      "requestParameters.environmentName",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "DescribeConfigurationSettings events must be ingested with accurate timestamps and target context.",
+      "The detection engine must support thresholding or windowed aggregation.",
+      "Actor identity should be normalized across IAM users and assumed roles."
+    ],
+    "limitations": [
+      "Thresholds may require tuning for environments with large-scale platform administration.",
+      "Some legitimate migration or audit workflows may read many environments in a short window.",
+      "Low-and-slow reconnaissance may avoid threshold-based detection."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor performing repeated configuration reads"
+      },
+      {
+        "rawPath": "requestParameters.applicationName",
+        "normalizedPath": "aws.elasticbeanstalk.application.name",
+        "notes": "Application included in the enumeration"
+      },
+      {
+        "rawPath": "requestParameters.environmentName",
+        "normalizedPath": "aws.elasticbeanstalk.environment.name",
+        "notes": "Environment included in the enumeration"
+      },
+      {
+        "rawPath": "eventTime",
+        "normalizedPath": "@timestamp",
+        "notes": "Time of each Beanstalk recon event"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"discovery\"\n    ],\n    \"type\": [\n      \"info\"\n    ],\n    \"action\": \"DescribeConfigurationSettings\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/attacker\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"elasticbeanstalk\": {\n      \"application\": {\n        \"name\": \"app1\"\n      },\n      \"environment\": {\n        \"name\": \"prod\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Actor History",
+      "description": "Determine whether the actor has previously read Beanstalk configurations at this breadth.",
+      "examples": [
+        "first-time broad enumeration",
+        "scheduled platform audit"
+      ],
+      "falsePositiveReduction": "Makes burst breadth more meaningful in context."
+    },
+    {
+      "dimension": "Environment Diversity",
+      "description": "Classify whether the enumeration spans production, shared services, and admin environments.",
+      "examples": [
+        "dev only",
+        "prod plus internal tooling"
+      ],
+      "falsePositiveReduction": "Raises urgency when broad recon touches sensitive environments."
+    },
+    {
+      "dimension": "Post-Burst Activity",
+      "description": "Track whether the same actor pivots into IAM, STS, secrets, or KMS actions after the enumeration.",
+      "examples": [
+        "AssumeRole after burst",
+        "GetSecretValue after burst"
+      ],
+      "falsePositiveReduction": "Improves confidence when the burst leads to action."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect short-window breadth in Beanstalk environment reconnaissance. It should count distinct application-and-environment targets per normalized actor and fire when the actor exceeds the local threshold inside a 15-minute window.",
+    "conditions": [
+      "eventSource equals elasticbeanstalk.amazonaws.com",
+      "eventName equals DescribeConfigurationSettings",
+      "same normalized actor exceeds the distinct app-and-environment threshold in a 15-minute window"
+    ],
+    "tuningGuidance": "1. Tune thresholds to local Beanstalk administration patterns. 2. Normalize actors across sessions. 3. Escalate when the burst includes sensitive environments or is followed by privileged actions.",
+    "whenToFire": "Fire when Beanstalk environment enumeration exceeds the configured breadth threshold in a short time window."
+  },
+  "simulationCommand": "for env in prod stage dev qa test ops; do aws elasticbeanstalk describe-configuration-settings --application-name my-app --environment-name $env; done",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Low-Medium with tuned thresholds and actor baselines",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM threshold engines",
+      "Athena scheduled aggregation",
+      "CloudWatch Logs Insights",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Near-real-time or short scheduled windows work well because the breadth itself is the signal.",
+    "considerations": [
+      "This is the burst-and-breadth Beanstalk recon detector.",
+      "Threshold tuning is the main implementation dependency."
+    ]
+  }
+}

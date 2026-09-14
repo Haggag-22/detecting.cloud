@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventSource=codebuild.amazonaws.com eventName=StartBuild
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.projectName, sourceIPAddress

@@ -1,0 +1,126 @@
+{
+  "whyItMatters": "In the consumer account, copying an external or public snapshot is a strong signal that storage data is being pulled in from outside the normal local backup chain. This can represent theft, unauthorized reuse, or suspicious restore behavior.",
+  "threatContext": {
+    "attackerBehavior": "An attacker or unauthorized operator may copy a publicly exposed or externally shared snapshot into their own account for later restoration and analysis.",
+    "realWorldUsage": "Snapshot copying is attractive because it turns exposed or shared storage into a local asset that can be restored and mounted without further access to the source account.",
+    "whyItMatters": "The important signal is where the source snapshot came from and whether that lineage is approved, not simply that a snapshot copy occurred.",
+    "riskAndImpact": "If missed, externally sourced disk data can be brought into the environment and prepared for offline access under the cover of a normal EC2 storage operation."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "Source snapshot ownership and sharing inventory",
+      "Approved DR and migration account or region allowlists"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.sourceSnapshotId",
+      "requestParameters.sourceRegion",
+      "requestParameters.destinationRegion",
+      "recipientAccountId",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CopySnapshot events must be ingested with source and destination context.",
+      "The platform should know whether the source snapshot is self-owned, org-owned, shared, or public.",
+      "Approved region-pair and source-account baselines should be maintained."
+    ],
+    "limitations": [
+      "SourceSnapshotId alone does not prove public or external origin.",
+      "Many legitimate DR and migration workflows copy snapshots across regions or accounts.",
+      "Without source ownership enrichment this rule can be noisy."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.sourceSnapshotId",
+        "normalizedPath": "aws.ebs.snapshot.source_id",
+        "notes": "Original snapshot being copied"
+      },
+      {
+        "rawPath": "requestParameters.sourceRegion",
+        "normalizedPath": "aws.region.source",
+        "notes": "Source region of the copied snapshot"
+      },
+      {
+        "rawPath": "requestParameters.destinationRegion",
+        "normalizedPath": "aws.region.destination",
+        "notes": "Destination region for the copied snapshot"
+      },
+      {
+        "rawPath": "recipientAccountId",
+        "normalizedPath": "cloud.account.id",
+        "notes": "Consumer account receiving the copied snapshot"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"storage\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CopySnapshot\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::999999999999:user/attacker\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ebs\": {\n      \"snapshot\": {\n        \"source_id\": \"snap-xxx\"\n      }\n    },\n    \"region\": {\n      \"source\": \"us-east-1\",\n      \"destination\": \"us-east-1\"\n    }\n  },\n  \"cloud\": {\n    \"account\": {\n      \"id\": \"999999999999\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Source Snapshot Ownership",
+      "description": "Determine whether the source snapshot is self-owned, organization-owned, third-party shared, or public.",
+      "examples": [
+        "public source snapshot",
+        "approved DR account snapshot"
+      ],
+      "falsePositiveReduction": "Separates expected internal copy workflows from suspicious external ingestion."
+    },
+    {
+      "dimension": "Approved Region and Account Baseline",
+      "description": "Model approved region pairs and source accounts for copy operations.",
+      "examples": [
+        "us-east-1 to us-west-2 DR copy",
+        "unexpected public snapshot import"
+      ],
+      "falsePositiveReduction": "Reduces noise from legitimate migration or DR activity."
+    },
+    {
+      "dimension": "Follow-On Restore Behavior",
+      "description": "Track whether the copied snapshot is later restored into a volume or attached to compute.",
+      "examples": [
+        "CreateVolume after copy",
+        "AttachVolume to analysis host"
+      ],
+      "falsePositiveReduction": "Raises confidence when the external copy moves toward access."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should alert when CopySnapshot pulls data from a source snapshot that is public, externally owned, or otherwise outside the approved storage-copy baseline. The strongest implementation enriches the source snapshot with ownership and sharing state before deciding risk.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals CopySnapshot",
+      "source snapshot is public, externally owned, or outside approved region or account baselines"
+    ],
+    "tuningGuidance": "1. Do not rely on sourceRegion presence alone. 2. Build ownership and public-share context for the source snapshot. 3. Escalate when the copied snapshot is later restored or attached in the consumer account.",
+    "whenToFire": "Fire when CopySnapshot ingests an unapproved external or public snapshot into the environment."
+  },
+  "simulationCommand": "aws ec2 copy-snapshot --source-region us-east-1 --source-snapshot-id snap-xxx --description 'external copy'",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with source ownership and region/account baselines; high with simple sourceSnapshotId presence checks",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with ownership lookups",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because copied snapshots are often restored shortly afterward.",
+    "considerations": [
+      "This is the consumer-account companion to owner-side snapshot exposure detections.",
+      "Source ownership enrichment is the critical dependency."
+    ]
+  }
+}

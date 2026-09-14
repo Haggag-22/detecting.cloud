@@ -1,0 +1,14 @@
+title: Access Entry Creation Followed by Policy Association
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_create:
+    eventSource: eks.amazonaws.com
+    eventName: CreateAccessEntry
+  selection_associate:
+    eventSource: eks.amazonaws.com
+    eventName: AssociateAccessPolicy
+  condition: selection_create
+level: critical
+# Full correlation requires ordered sequence on exact principal and cluster linkage.

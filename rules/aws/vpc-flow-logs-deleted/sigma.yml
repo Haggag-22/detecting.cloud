@@ -1,0 +1,10 @@
+title: VPC Flow Logs Deleted
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName: DeleteFlowLogs
+  condition: selection
+level: high

@@ -1,0 +1,5 @@
+[
+  "Copy a public or externally shared snapshot into a test account, create a volume from the copied snapshot, and attach it to an instance.",
+  "Verify CloudTrail records the source snapshot ID, copied snapshot, and derived volume context.",
+  "Run the detector and confirm it requires ordered lineage rather than just multiple storage actions by one actor."
+]

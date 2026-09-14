@@ -1,0 +1,28 @@
+{
+  "id": "det-074",
+  "title": "ECS Task Role Activation Followed by Sensitive API Use",
+  "description": "Correlates ECS task launch with later sensitive API use by the resolved task role. This should pivot on the runtime task role identity rather than the original human launcher and confirm that the task role became operationally active.",
+  "awsService": "ECS",
+  "relatedServices": [
+    "IAM",
+    "STS",
+    "Secrets Manager",
+    "S3",
+    "KMS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "ECS",
+    "RunTask",
+    "PassRole",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate task execution followed by normal workload API calls"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventName=CreateEventSourceMapping
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.functionName, requestParameters.eventSourceArn, requestParameters.enabled, requestParameters.batchSize, sourceIPAddress

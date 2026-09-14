@@ -1,0 +1,21 @@
+{
+  "id": "det-192",
+  "title": "RDS Database Security Group Modified",
+  "description": "Detects changes to the security group entries for RDS databases. This can indicate that a misconfiguration has occurred which potentially exposes the database to the public internet, a wider audience within the VPC or that removal of valid rules has occurred which could impact the availability of the database to legitimate services and users.",
+  "awsService": "RDS",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "RDS",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Creation of a new Database that needs new security group rules"
+  ],
+  "relatedAttackSlugs": []
+}

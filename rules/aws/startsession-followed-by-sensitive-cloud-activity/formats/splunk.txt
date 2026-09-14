@@ -1,0 +1,8 @@
+index=aws sourcetype=aws:cloudtrail
+  ((eventSource=ssm.amazonaws.com AND eventName=StartSession) OR (eventName=GetSecretValue OR eventName=Decrypt OR eventName=AssumeRole OR eventName=CreateAccessKey OR eventName=PutUserPolicy OR eventName=AttachRolePolicy OR eventName=PutRolePolicy OR eventName=CreateSnapshot OR eventName=CreateSnapshots))
+| eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
+| eval is_start=if(eventSource="ssm.amazonaws.com" AND eventName="StartSession", 1, 0)
+| eval is_sensitive=if(eventName IN ("GetSecretValue","Decrypt","AssumeRole","CreateAccessKey","PutUserPolicy","AttachRolePolicy","PutRolePolicy","CreateSnapshot","CreateSnapshots"), 1, 0)
+| transaction actor maxspan=15m
+| where mvcount(mvfilter(is_start=1))>0 AND mvcount(mvfilter(is_sensitive=1))>0
+| table _time, actor, eventName, requestParameters.target

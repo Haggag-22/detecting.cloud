@@ -1,0 +1,6 @@
+[
+  "Identify the actor type (IAMUser, AssumedRole) and ARN.",
+  "Verify if this identity is authorized to modify IAM policies.",
+  "Check userIdentity.sessionContext.sessionIssuer.arn for assumed roles.",
+  "Review whether the actor is an EC2 instance role or application role."
+]

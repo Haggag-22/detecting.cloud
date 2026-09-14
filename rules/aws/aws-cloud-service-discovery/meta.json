@@ -1,0 +1,22 @@
+{
+  "id": "det-142",
+  "title": "AWS Cloud Service Discovery",
+  "description": "Detects enumeration of available AWS services, regions, and organization structure (Cloud Service Discovery) that adversaries perform to understand the target environment.",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Low",
+  "tags": [
+    "EC2",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Cloud inventory, billing, and posture-management tooling.",
+    "Administrators exploring the environment."
+  ],
+  "relatedAttackSlugs": []
+}

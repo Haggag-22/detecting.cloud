@@ -1,0 +1,127 @@
+{
+  "whyItMatters": "Password resets by the wrong identity are strong account-takeover and governance signals because only a small set of support or IAM operators should perform them.",
+  "threatContext": {
+    "attackerBehavior": "An attacker using a workload role, developer role, or unapproved human session may reset a user's password to gain or restore console access.",
+    "realWorldUsage": "Unexpected-actor password reset is a common cloud abuse pattern when attackers inherit enough IAM write access to manipulate credentials directly.",
+    "whyItMatters": "Authorization context matters far more than actor naming. A malicious actor can easily operate under a neutral-looking name.",
+    "riskAndImpact": "If missed, attackers can convert a compromised IAM permission set into active user account takeover."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.principalId",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "userIdentity.invokedBy",
+      "sourceIPAddress",
+      "userAgent",
+      "requestParameters.userName",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "The environment should maintain an authorized password-reset manager inventory.",
+      "Actor-to-target scope or delegated-admin relationships should be available as enrichment."
+    ],
+    "limitations": [
+      "Without actor inventory this becomes noisy.",
+      "Helpdesk or automation resets can look suspicious without workflow provenance.",
+      "CloudTrail alone does not distinguish every support path."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor ARN"
+      },
+      {
+        "rawPath": "userIdentity.principalId",
+        "normalizedPath": "user.id",
+        "notes": "Stable actor identifier"
+      },
+      {
+        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
+        "normalizedPath": "aws.identity.session_issuer.arn",
+        "notes": "Underlying role for assumed-role sessions"
+      },
+      {
+        "rawPath": "requestParameters.userName",
+        "normalizedPath": "aws.iam.target_user.name",
+        "notes": "User whose password was changed"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"UpdateLoginProfile\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/app-role/i-xxx\",\n    \"type\": \"AssumedRole\",\n    \"id\": \"AROAXXXXX:i-xxx\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_user\": {\n        \"name\": \"TargetUser\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized Reset Actors",
+      "description": "Exact inventory of principals allowed to update login profiles.",
+      "examples": [
+        "IAM admin role",
+        "approved helpdesk role"
+      ],
+      "falsePositiveReduction": "Replaces fragile name filters with durable authorization context."
+    },
+    {
+      "dimension": "Workflow Provenance",
+      "description": "Correlate tickets, session tags, invokedBy, userAgent, and onboarding or recovery workflows.",
+      "examples": [
+        "helpdesk reset workflow",
+        "manual untracked CLI"
+      ],
+      "falsePositiveReduction": "Separates support operations from suspicious manual resets."
+    },
+    {
+      "dimension": "Actor-to-Target Scope",
+      "description": "Determine whether the actor is allowed to administer the specific target user.",
+      "examples": [
+        "same BU helpdesk",
+        "cross-team workload role"
+      ],
+      "falsePositiveReduction": "Makes scope violations higher signal."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule is actor-centric. It should alert when UpdateLoginProfile occurs outside approved password-reset workflows, not when the actor simply lacks admin-like text in its name.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals UpdateLoginProfile",
+      "actor is not in the approved reset-manager inventory or request lacks approved workflow provenance, or actor is outside target-admin scope"
+    ],
+    "tuningGuidance": "1. Use exact ARNs and principalIds. 2. Distinguish self-service, helpdesk, and break-glass reset paths. 3. Escalate when the target is sensitive or later logs in from unusual context.",
+    "whenToFire": "Fire when a password reset occurs outside authorized IAM change paths, especially when the target user or actor context is unusual."
+  },
+  "simulationCommand": "aws iam update-login-profile --user-name TargetUser --password 'ExampleTempPassword123!' --password-reset-required --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium without actor inventory, low-medium with workflow and scope enrichment",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with lookup tables",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because suspicious resets may be followed quickly by sign-in.",
+    "considerations": [
+      "Use this as the actor-centric companion to baseline login-profile updates.",
+      "Do not depend on text-based role naming."
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+index=aws sourcetype=aws:cloudtrail eventSource=codebuild.amazonaws.com eventName=StartBuild
+| eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
+| eval project=requestParameters.projectName
+| lookup project_actor_baseline actor,project OUTPUT first_seen
+| where isnull(first_seen) OR first_seen > relative_time(now(), "-7d")
+| table _time, actor, project, first_seen

@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.assumeRolePolicyDocument, sourceIPAddress
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "CreateRole"
+| sort @timestamp desc

@@ -1,0 +1,11 @@
+title: Bucket Recreated Matching Former CloudFront Origin
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: s3.amazonaws.com
+    eventName: CreateBucket
+  condition: selection
+level: critical
+# Enrich: Match requestParameters.bucketName to known deleted buckets that were CloudFront origins. Requires baseline.

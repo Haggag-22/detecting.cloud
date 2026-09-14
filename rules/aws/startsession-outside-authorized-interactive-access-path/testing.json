@@ -1,0 +1,5 @@
+[
+  "As a principal outside the approved SSM administrator set, call `aws ssm start-session --target i-xxx`.",
+  "Verify CloudTrail captures actor and target context.",
+  "Run the detection and confirm it relies on exact authorization and scope, not actor-name text."
+]

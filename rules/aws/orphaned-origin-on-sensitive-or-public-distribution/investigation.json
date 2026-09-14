@@ -1,0 +1,5 @@
+[
+  "Identify which orphaned distributions have customer-facing aliases, production traffic, or sensitive business use.",
+  "Prioritize immediate remediation for those distributions ahead of lower-value orphaned origins.",
+  "Reserve the bucket name safely or update the distribution origin before public exploitation is possible."
+]

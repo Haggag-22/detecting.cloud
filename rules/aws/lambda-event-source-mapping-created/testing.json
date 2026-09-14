@@ -1,0 +1,5 @@
+[
+  "Create an event source mapping (e.g., DynamoDB stream to Lambda).",
+  "Verify CloudTrail captures CreateEventSourceMapping.",
+  "Run the detection to confirm the alert triggers."
+]

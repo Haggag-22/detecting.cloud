@@ -1,0 +1,24 @@
+{
+  "id": "det-099",
+  "title": "EKS Access Entry Followed by Access Policy Association",
+  "description": "High-confidence EKS authorization chain detection. This should correlate `CreateAccessEntry` and `AssociateAccessPolicy` for the same principal and cluster, using ordered sequence and exact entity linkage rather than loose event aggregation.",
+  "awsService": "EKS",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "EKS",
+    "Access Entry",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate access entry setup with policy",
+    "Platform bootstrap"
+  ],
+  "relatedAttackSlugs": []
+}

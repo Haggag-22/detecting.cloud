@@ -1,0 +1,13 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "ec2.amazonaws.com",
+  "importantFields": [
+    "eventName",
+    "userIdentity.arn",
+    "requestParameters.iamInstanceProfile.arn",
+    "requestParameters.instanceType",
+    "sourceIPAddress",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"ec2.amazonaws.com\",\n  \"eventName\": \"RunInstances\",\n  \"userIdentity\": {\n    \"type\": \"IAMUser\",\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\"\n  },\n  \"requestParameters\": {\n    \"instanceType\": \"t3.micro\",\n    \"iamInstanceProfile\": {\n      \"arn\": \"arn:aws:iam::123456789012:instance-profile/AdminRole\"\n    }\n  },\n  \"sourceIPAddress\": \"203.0.113.10\",\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

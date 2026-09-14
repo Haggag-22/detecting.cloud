@@ -1,0 +1,7 @@
+fields @timestamp, userIdentity.arn, eventName, eventSource
+| filter (eventSource = "ses.amazonaws.com" and eventName in ["ListIdentities", "GetIdentityVerificationAttributes"])
+  or (eventSource = "ses.amazonaws.com" and eventName in ["PutIdentityPolicy", "SetIdentityNotificationTopic", "VerifyEmailIdentity"])
+  or eventName = "CreateAccessKey"
+| stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
+| filter cnt > 1
+| sort cnt desc

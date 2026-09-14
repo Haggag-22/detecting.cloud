@@ -1,0 +1,23 @@
+{
+  "id": "det-120",
+  "title": "Beanstalk Recon Followed by CreateAccessKey for High-Risk Target",
+  "description": "Detects likely persistence after Beanstalk-derived credential access when environment reconnaissance is followed by `CreateAccessKey` for a high-risk target identity. This should depend on target-user classification, not suspicious username substrings.",
+  "awsService": "IAM",
+  "relatedServices": [
+    "Elastic Beanstalk"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "Elastic Beanstalk",
+    "IAM",
+    "Credential Pivot"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Expected IAM admin automation"
+  ],
+  "relatedAttackSlugs": []
+}

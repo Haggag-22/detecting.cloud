@@ -1,0 +1,23 @@
+{
+  "id": "az-042",
+  "title": "Windows LAPS Credential Dump From Entra ID",
+  "description": "Detects when an account dumps the LAPS password from Entra ID.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "t1098 005"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Approved activity performed by an Administrator."
+  ],
+  "relatedAttackSlugs": []
+}

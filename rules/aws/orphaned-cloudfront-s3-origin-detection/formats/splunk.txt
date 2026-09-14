@@ -1,0 +1,4 @@
+# Posture hunt: Run cloudfront list-distributions, extract origin DomainName (bucket.s3.amazonaws.com)
+# For each, extract bucket name and run s3 HeadBucket or list-buckets. Flag distributions where bucket does not exist.
+index=aws sourcetype=aws:cloudtrail eventSource=cloudfront.amazonaws.com eventName=GetDistribution
+| table _time, requestParameters.id, responseElements.distributionConfig.origins

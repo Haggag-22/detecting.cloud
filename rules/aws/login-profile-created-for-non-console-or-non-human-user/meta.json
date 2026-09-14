@@ -1,0 +1,21 @@
+{
+  "id": "det-050",
+  "title": "Login Profile Created for Non-Console or Non-Human User",
+  "description": "Detects console-password creation for users classified as non-human, API-only, or otherwise ineligible for console access. This should be driven by identity metadata and historical console posture rather than username pattern matching.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "Login Profile",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate service account given console access for troubleshooting"
+  ],
+  "relatedAttackSlugs": []
+}

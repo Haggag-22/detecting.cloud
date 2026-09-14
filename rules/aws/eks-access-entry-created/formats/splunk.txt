@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventSource=eks.amazonaws.com eventName=CreateAccessEntry
+| table _time, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.clusterName, requestParameters.principalArn, sourceIPAddress

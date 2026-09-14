@@ -1,0 +1,11 @@
+title: RunTask with Runtime Role Override or Privilege Delta
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ecs.amazonaws.com
+    eventName: RunTask
+  condition: selection
+level: high
+# High-confidence use requires override parsing and comparison with the default task role.

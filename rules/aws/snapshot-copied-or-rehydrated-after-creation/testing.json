@@ -1,0 +1,5 @@
+[
+  "Create a snapshot, then copy it or create a volume from it within 2 hours, and optionally attach the restored volume.",
+  "Verify each event carries snapshot or volume references in CloudTrail.",
+  "Run the detection and confirm it reasons over snapshot-to-volume lineage rather than loose actor-only aggregation."
+]

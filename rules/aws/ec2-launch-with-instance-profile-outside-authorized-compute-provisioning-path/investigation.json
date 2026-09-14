@@ -1,0 +1,5 @@
+[
+  "Identify the actor type, ARN, principalId, and session issuer.",
+  "Verify whether this identity is approved to launch EC2 with attached profiles in this account and environment.",
+  "Check whether the requested profile is one the actor is allowed to use under approved provisioning paths."
+]

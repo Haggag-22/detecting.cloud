@@ -1,0 +1,5 @@
+[
+  "Call `ModifySnapshotAttribute` with `createVolumePermission.add.userIds` for an external account.",
+  "Verify CloudTrail records the permission delta and recipient IDs.",
+  "Run the detection and confirm it separates external-account sharing from public exposure."
+]

@@ -1,0 +1,5 @@
+[
+  "Copy a snapshot that originates from another account or from a publicly exposed source into a test consumer account.",
+  "Verify CloudTrail captures `sourceSnapshotId`, source region, and destination context.",
+  "Run the detection and confirm it keys on source ownership and sharing state rather than merely on the existence of sourceRegion."
+]

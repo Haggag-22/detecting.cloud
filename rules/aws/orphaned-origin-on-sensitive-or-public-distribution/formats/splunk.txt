@@ -1,0 +1,1 @@
+# Posture: Filter orphaned-origin results for distributions with Aliases containing prod, www, customer domains

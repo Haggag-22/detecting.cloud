@@ -1,0 +1,5 @@
+[
+  "Create an access entry for a principal that is outside the approved access model for a test cluster.",
+  "Verify CloudTrail captures the principal ARN and cluster details.",
+  "Run the detector and confirm it uses principal classification and access models rather than substring filters like `:user/` or `breakglass`."
+]

@@ -1,0 +1,5 @@
+[
+  "Identify who updated the login profile.",
+  "Verify if the password change was authorized.",
+  "Check if the target user was recently compromised."
+]

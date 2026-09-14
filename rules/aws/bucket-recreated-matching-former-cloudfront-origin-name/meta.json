@@ -1,0 +1,24 @@
+{
+  "id": "det-139",
+  "title": "Bucket Recreated Matching Former CloudFront Origin Name",
+  "description": "Detects bucket-name reuse that matches a previously orphaned CloudFront S3 origin. This is the strongest local control-plane signal that the takeover path may now be actively materializing.",
+  "awsService": "S3",
+  "relatedServices": [
+    "CloudFront"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "CloudFront",
+    "S3",
+    "Origin Takeover"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate bucket recreation",
+    "Same-account restore"
+  ],
+  "relatedAttackSlugs": []
+}

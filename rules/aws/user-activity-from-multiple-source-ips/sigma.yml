@@ -1,0 +1,59 @@
+title: AWS User Activity From Multiple Source IPs
+id: 46eb82ab-c077-4ff3-a6ad-44ee14e8a279
+status: experimental
+description: |
+    Detects when the same AWS IAM user ARN performs actions from more than one distinct source IP within a 1-hour window.
+    Indicative of session hijacking, credential sharing, or AiTM compromise where the attacker egress IP differs from the victim's IP.
+    AssumedRole is excluded by default due to high noise from automation — add back with tuned ARN exclusions if needed.
+references:
+    - https://attack.mitre.org/techniques/T1078/004
+    - https://attack.mitre.org/techniques/T1539
+    - https://attack.mitre.org/detectionstrategies/DET0546/
+    - https://attack.mitre.org/detectionstrategies/DET0509/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.initial-access
+    - attack.credential-access
+    - attack.t1078.004
+    - attack.t1539
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        userIdentity.type: IAMUser
+    filter_service_invocations:
+        userIdentity.invokedBy|contains:
+            - cloudtrail.amazonaws.com
+            - signin.amazonaws.com
+    filter_service_agents:
+        userAgent|contains:
+            - lambda.amazonaws.com
+            - ec2.amazonaws.com
+            - ecs-tasks.amazonaws.com
+            - elasticmapreduce.amazonaws.com
+    condition: selection and not (filter_service_invocations or filter_service_agents)
+falsepositives:
+    - Users switching networks within the window (VPN connect/disconnect, WiFi to hotspot).
+    - Legitimate use of rotating VPN egress nodes.
+    - Federated users where the IdP and the user originate from different IPs.
+    - Consider excluding specific user ARNs or known trusted CIDR ranges via additional filter blocks.
+level: medium
+name: aws_user_activity_multiple_source_ips_base
+---
+title: AWS User Activity From Multiple Source IPs
+id: e6e66035-539c-4f13-a757-85ebfb7c9f84
+status: experimental
+description: Fires when a single IAM user ARN is observed from more than one distinct source IP address within a 1-hour window.
+correlation:
+    type: value_count
+    rules:
+        - aws_user_activity_multiple_source_ips_base
+    group-by:
+        - userIdentity.arn
+    timespan: 1h
+    condition:
+        gte: 2
+        field: sourceIPAddress
+level: medium

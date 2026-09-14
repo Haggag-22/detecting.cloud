@@ -1,0 +1,23 @@
+{
+  "id": "det-111",
+  "title": "Flow Logs Deletion Outside Authorized Network Logging Path",
+  "description": "Detects `DeleteFlowLogs` by identities outside approved network, platform, or infrastructure logging workflows. This should rely on explicit actor authorization and automation provenance rather than role-name substring allowlists.",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "EC2",
+    "VPC",
+    "Flow Logs",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Known infra/network automation",
+    "Terraform/CloudFormation"
+  ],
+  "relatedAttackSlugs": []
+}

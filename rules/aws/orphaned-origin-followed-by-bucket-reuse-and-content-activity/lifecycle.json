@@ -1,0 +1,123 @@
+{
+  "whyItMatters": "This is the strongest takeover sequence in the family: an orphaned origin name is reclaimed and then content is uploaded, suggesting the bucket is being prepared for live distribution through CloudFront.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may create a bucket using an orphaned origin name and then upload malicious or deceptive content intended to be served through the trusted distribution.",
+    "realWorldUsage": "The takeover path becomes much more credible once the reclaimed bucket is no longer empty and starts receiving objects.",
+    "whyItMatters": "The ordered chain from risky name reuse to content activity is far stronger than posture state or bucket creation alone.",
+    "riskAndImpact": "If missed, defenders may not intervene before hostile content becomes available behind a trusted CloudFront edge path."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail for S3 CreateBucket and PutObject",
+      "Baseline of orphaned-origin bucket names",
+      "Optional CloudFront access or health telemetry"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.bucketName",
+      "requestParameters.key"
+    ],
+    "loggingRequirements": [
+      "CreateBucket and PutObject events must be ingested into the same analytics environment.",
+      "The platform must retain bucket-name lineage to known orphaned CloudFront origins.",
+      "The engine must support ordered time-window correlation."
+    ],
+    "limitations": [
+      "Object uploads alone do not prove CloudFront served the content yet.",
+      "Same-owner remediation workflows can look similar unless ownership and remediation context are known.",
+      "If only CloudFront-facing effects are visible, additional telemetry may be required for full confirmation."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.bucketName",
+        "normalizedPath": "s3.bucket.name",
+        "notes": "Reclaimed bucket name tied to orphaned origin"
+      },
+      {
+        "rawPath": "requestParameters.key",
+        "normalizedPath": "file.path",
+        "notes": "Object uploaded after bucket reuse"
+      },
+      {
+        "rawPath": "enrichment.orphanedOriginMatch",
+        "normalizedPath": "aws.cloudfront.origin.orphaned_name_match",
+        "notes": "Links bucket to known orphaned origin"
+      },
+      {
+        "rawPath": "eventName",
+        "normalizedPath": "event.action",
+        "notes": "CreateBucket then PutObject sequence"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"storage\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateBucket\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::999999999999:user/attacker\",\n    \"type\": \"IAMUser\"\n  },\n  \"s3\": {\n    \"bucket\": {\n      \"name\": \"deleted-victim-bucket\"\n    }\n  },\n  \"aws\": {\n    \"cloudfront\": {\n      \"origin\": {\n        \"orphaned_name_match\": true\n      }\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"PutObject\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Orphaned-Origin Bucket Lineage",
+      "description": "Verify the bucket name belongs to a known orphaned CloudFront origin path.",
+      "examples": [
+        "tracked from det-137",
+        "tracked from det-136 + inventory"
+      ],
+      "falsePositiveReduction": "Prevents unrelated bucket creation and object writes from matching."
+    },
+    {
+      "dimension": "Ownership and Remediation Context",
+      "description": "Determine whether the bucket creation is expected remediation or an unexpected claimant.",
+      "examples": [
+        "same owner remediation",
+        "unexpected external account"
+      ],
+      "falsePositiveReduction": "Separates defensive recovery from potential takeover."
+    },
+    {
+      "dimension": "Content Activation Risk",
+      "description": "Assess whether uploaded objects are likely to become web-served content through the affected distribution.",
+      "examples": [
+        "index.html uploaded",
+        "benign placeholder object"
+      ],
+      "falsePositiveReduction": "Improves confidence that the chain reflects actual takeover preparation."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a takeover-preparation chain: a bucket name tied to a known orphaned CloudFront origin is created or reused, and then content is uploaded to that bucket soon afterward. It should require ordered bucket lineage and later content activity.",
+    "conditions": [
+      "bucket creation or reuse matches a known orphaned CloudFront origin name",
+      "later PutObject activity occurs on the same bucket within 1 hour",
+      "ownership or remediation context does not explain the sequence benignly"
+    ],
+    "tuningGuidance": "1. Require lineage to a known orphaned origin name. 2. Require order from bucket activation into object upload. 3. Escalate strongest when the affected distribution is public or the content appears web-served.",
+    "whenToFire": "Fire when a reclaimed orphaned-origin bucket is followed quickly by content activity that suggests activation."
+  },
+  "simulationCommand": "aws s3api create-bucket --bucket deleted-victim-bucket --region us-east-1 && aws s3api put-object --bucket deleted-victim-bucket --key index.html --body index.html",
+  "quality": {
+    "signalQuality": 10,
+    "falsePositiveRate": "Low-Medium with ownership context and orphaned-origin lineage",
+    "expectedVolume": "Extremely low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with orphaned-name baselines",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is preferred because reclaimed buckets may be activated quickly.",
+    "considerations": [
+      "This is the highest-fidelity takeover chain in the orphaned-origin family.",
+      "Bucket-name lineage and ownership context are the main dependencies."
+    ]
+  }
+}

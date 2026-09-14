@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail (eventName=PutBucketPolicy OR eventName=DeleteBucketPolicy)
+| table _time, userIdentity.type, userIdentity.arn, eventName, requestParameters.bucketName, sourceIPAddress

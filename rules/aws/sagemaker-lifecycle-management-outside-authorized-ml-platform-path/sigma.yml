@@ -1,0 +1,14 @@
+title: Lifecycle Config Activity by Unexpected Actor
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: sagemaker.amazonaws.com
+    eventName:
+      - CreateNotebookInstanceLifecycleConfig
+      - UpdateNotebookInstanceLifecycleConfig
+      - CreateNotebookInstance
+      - UpdateNotebookInstance
+  condition: selection
+level: high

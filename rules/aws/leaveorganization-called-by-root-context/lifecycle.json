@@ -1,0 +1,117 @@
+{
+  "whyItMatters": "Root use in organization escape is one of the strongest possible signals because it combines a high-impact action with the highest-privilege execution context.",
+  "threatContext": {
+    "attackerBehavior": "An attacker who gains or abuses root access may use it to leave the organization and strip away centralized governance.",
+    "realWorldUsage": "This is attractive because root context can bypass many operational limitations and indicates the attacker likely has deep control over the member account.",
+    "whyItMatters": "Root-initiated leave attempts deserve special treatment beyond the general baseline because the execution context materially raises severity.",
+    "riskAndImpact": "If missed, defenders may fail to recognize one of the strongest indicators that a member account is under active hostile control."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for Organizations"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.accountId",
+      "recipientAccountId",
+      "errorCode",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "LeaveOrganization events must be ingested with userIdentity.type preserved.",
+      "Root context should be captured accurately in CloudTrail.",
+      "Follow-on guardrail-sensitive actions should be available for downstream correlation."
+    ],
+    "limitations": [
+      "Some organizations may rarely use root for legitimate account governance operations, though this should be exceptional.",
+      "Root attribution is high-signal but not always richly descriptive beyond account context."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.type",
+        "normalizedPath": "user.type",
+        "notes": "Execution context, expected to be Root"
+      },
+      {
+        "rawPath": "userIdentity.accountId",
+        "normalizedPath": "cloud.account.id",
+        "notes": "Account using root context"
+      },
+      {
+        "rawPath": "recipientAccountId",
+        "normalizedPath": "cloud.account.target_id",
+        "notes": "Member account attempting to leave"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"LeaveOrganization\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"type\": \"Root\"\n  },\n  \"cloud\": {\n    \"account\": {\n      \"id\": \"123456789012\",\n      \"target_id\": \"123456789012\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Root Governance Posture",
+      "description": "Understand whether root use is tightly controlled and how unusual this event is for the account.",
+      "examples": [
+        "root never used operationally",
+        "documented migration root usage"
+      ],
+      "falsePositiveReduction": "Raises confidence when root usage is anomalous."
+    },
+    {
+      "dimension": "Account Criticality",
+      "description": "Classify the member account by environment and business importance.",
+      "examples": [
+        "prod member account",
+        "shared services"
+      ],
+      "falsePositiveReduction": "Improves prioritization of root-initiated org escape attempts."
+    },
+    {
+      "dimension": "Attempt Outcome",
+      "description": "Track whether the root attempt succeeded or failed.",
+      "examples": [
+        "success",
+        "policy-blocked"
+      ],
+      "falsePositiveReduction": "Guides immediate containment urgency."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect `LeaveOrganization` only when the request is made through root context. It is a focused high-severity variant of the baseline organization escape detector.",
+    "conditions": [
+      "eventSource equals organizations.amazonaws.com",
+      "eventName equals LeaveOrganization",
+      "userIdentity.type equals Root"
+    ],
+    "tuningGuidance": "1. Keep the root filter exact. 2. Escalate immediately regardless of success or failure. 3. Correlate with post-leave guardrail-sensitive activity for incident scoping.",
+    "whenToFire": "Fire whenever LeaveOrganization is invoked through root context."
+  },
+  "simulationCommand": "aws organizations leave-organization",
+  "quality": {
+    "signalQuality": 10,
+    "falsePositiveRate": "Very low in mature environments",
+    "expectedVolume": "Extremely low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is essential because root-initiated organization escape is immediately actionable.",
+    "considerations": [
+      "This is the execution-context variant of the LeaveOrganization family.",
+      "Root governance posture is the main enrichment dependency."
+    ]
+  }
+}

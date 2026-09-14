@@ -1,0 +1,22 @@
+{
+  "id": "det-141",
+  "title": "AWS Account Password Policy Discovery",
+  "description": "Detects retrieval of the account password policy (GetAccountPasswordPolicy). Adversaries query the password policy to inform password guessing or spraying attacks.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Low",
+  "tags": [
+    "IAM",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Compliance/security tooling reading the password policy.",
+    "IAM administrators."
+  ],
+  "relatedAttackSlugs": []
+}

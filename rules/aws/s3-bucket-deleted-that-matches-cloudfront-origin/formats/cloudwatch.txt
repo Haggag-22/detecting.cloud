@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.bucketName, sourceIPAddress
+| filter eventSource = "s3.amazonaws.com"
+| filter eventName = "DeleteBucket"
+| sort @timestamp desc

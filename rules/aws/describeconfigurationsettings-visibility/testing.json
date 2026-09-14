@@ -1,0 +1,5 @@
+[
+  "Call `DescribeConfigurationSettings` against a test Elastic Beanstalk environment.",
+  "Verify CloudTrail captures the application and environment context.",
+  "Run the baseline rule and confirm it records all environment-configuration reads."
+]

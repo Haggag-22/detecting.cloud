@@ -1,0 +1,25 @@
+{
+  "id": "az-049",
+  "title": "Azure Device or Configuration Modified or Deleted",
+  "description": "Identifies when a device or device configuration in azure is modified or deleted.",
+  "awsService": "Azure Activity",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Azure Activity",
+    "impact",
+    "t1485",
+    "t1565 001"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Device or device configuration being modified or deleted may be performed by a system administrator.",
+    "Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Device or device configuration modified or deleted from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

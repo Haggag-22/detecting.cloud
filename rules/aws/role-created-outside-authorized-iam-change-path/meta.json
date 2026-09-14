@@ -1,0 +1,22 @@
+{
+  "id": "det-063",
+  "title": "Role Created Outside Authorized IAM Change Path",
+  "description": "Detects CreateRole activity by actors outside approved IAM administration or infrastructure-as-code workflows. This should be driven by exact authorized principal inventories, session provenance, and scoped admin boundaries rather than ARN substring filters.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "CreateRole",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate DevOps or automation roles",
+    "Approved platform engineering sessions"
+  ],
+  "relatedAttackSlugs": []
+}

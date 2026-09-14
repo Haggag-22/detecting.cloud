@@ -1,0 +1,22 @@
+{
+  "id": "det-088",
+  "title": "EC2 Instance Connect Key Push",
+  "description": "Baseline visibility for EC2 Instance Connect use. `SendSSHPublicKey` is often legitimate for troubleshooting, but it represents an explicit short-lived SSH access grant and should be treated as interactive host-access telemetry rather than generic administration noise.",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EC2",
+    "Instance Connect",
+    "Lateral Movement"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate admin troubleshooting",
+    "Platform automation"
+  ],
+  "relatedAttackSlugs": []
+}

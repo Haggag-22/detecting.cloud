@@ -1,0 +1,19 @@
+title: ACL Change Followed by Access from Granted Principal
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_acl:
+    eventSource: s3.amazonaws.com
+    eventName:
+      - PutBucketAcl
+      - PutObjectAcl
+  selection_access:
+    eventSource: s3.amazonaws.com
+    eventName:
+      - GetObject
+      - ListBucket
+      - PutObject
+  condition: selection_acl
+level: critical
+# Full correlation requires ordered sequence plus resolved grantee-to-actor linkage.

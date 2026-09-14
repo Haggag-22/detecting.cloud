@@ -1,0 +1,26 @@
+{
+  "id": "gcp-011",
+  "title": "Google Workspace Government Attack Warning",
+  "description": "Detects a login attempt in Google Workspace flagged as a potential attack by a government-backed threat actor",
+  "awsService": "Google Workspace",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "Google Workspace",
+    "privilege-escalation",
+    "persistence",
+    "initial-access",
+    "impact",
+    "stealth",
+    "t1078"
+  ],
+  "logSources": [
+    "Google Workspace Audit"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

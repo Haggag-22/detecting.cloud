@@ -1,0 +1,10 @@
+title: Lambda Event Source Mapping Created
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: lambda.amazonaws.com
+    eventName: CreateEventSourceMapping
+  condition: selection
+level: medium

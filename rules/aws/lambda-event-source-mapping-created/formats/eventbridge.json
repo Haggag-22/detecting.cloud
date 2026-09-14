@@ -1,0 +1,16 @@
+{
+  "source": [
+    "aws.lambda"
+  ],
+  "detail-type": [
+    "AWS API Call via CloudTrail"
+  ],
+  "detail": {
+    "eventSource": [
+      "lambda.amazonaws.com"
+    ],
+    "eventName": [
+      "CreateEventSourceMapping"
+    ]
+  }
+}

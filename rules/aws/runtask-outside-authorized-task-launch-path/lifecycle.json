@@ -1,0 +1,134 @@
+{
+  "whyItMatters": "Task launches by the wrong identity are strong indicators of abuse because only a narrow set of operators and automation should be allowed to start workloads with attached roles in sensitive clusters.",
+  "threatContext": {
+    "attackerBehavior": "An attacker using a developer session, workload role, or ad hoc human identity may start an ECS task to gain execution inside the environment under a task role.",
+    "realWorldUsage": "Unexpected-actor workload launches are common in post-compromise scenarios because they look like ordinary operational actions while activating new code and credentials.",
+    "whyItMatters": "Authorization scope matters more than whether the actor's ARN contains admin-like or automation-like words.",
+    "riskAndImpact": "If missed, attackers can run tasks in clusters and task families they were never meant to control, often with sensitive roles and runtime overrides."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for ECS",
+      "Authorized task-launcher inventory",
+      "Cluster and task-family authorization mappings"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.principalId",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.cluster",
+      "requestParameters.taskDefinition",
+      "sourceIPAddress",
+      "userAgent",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "RunTask events must be ingested with full actor context.",
+      "The environment should maintain exact approved principals and actor-to-cluster or actor-to-task-family scope.",
+      "Workflow provenance such as CI/CD or scheduler identity should be available where possible."
+    ],
+    "limitations": [
+      "Without actor inventory this rule becomes noisy.",
+      "Federated and chained role sessions need stable identity modeling.",
+      "Legitimate emergency or operational runs can still look suspicious without workflow context."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Task launch actor"
+      },
+      {
+        "rawPath": "userIdentity.principalId",
+        "normalizedPath": "user.id",
+        "notes": "Stable actor identifier"
+      },
+      {
+        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
+        "normalizedPath": "aws.identity.session_issuer.arn",
+        "notes": "Underlying role for assumed sessions"
+      },
+      {
+        "rawPath": "requestParameters.cluster",
+        "normalizedPath": "aws.ecs.cluster.name",
+        "notes": "Target cluster"
+      },
+      {
+        "rawPath": "requestParameters.taskDefinition",
+        "normalizedPath": "aws.ecs.task_definition.arn",
+        "notes": "Target task family or revision"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"compute\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"RunTask\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/app-role/i-xxx\",\n    \"type\": \"AssumedRole\",\n    \"id\": \"AROAXXXXX:i-xxx\"\n  },\n  \"aws\": {\n    \"ecs\": {\n      \"cluster\": {\n        \"name\": \"prod\"\n      },\n      \"task_definition\": {\n        \"arn\": \"backdoor-task:1\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized Task Launchers",
+      "description": "Exact inventory of principals or workflows allowed to launch ECS tasks.",
+      "examples": [
+        "scheduler role",
+        "approved platform deployer"
+      ],
+      "falsePositiveReduction": "Replaces brittle keyword-based actor suppression."
+    },
+    {
+      "dimension": "Actor-to-Cluster and Task Scope",
+      "description": "Determine whether the actor is allowed to run this task family in this cluster or environment.",
+      "examples": [
+        "dev role may run only build tasks",
+        "prod ops may run maintenance task family"
+      ],
+      "falsePositiveReduction": "Makes scope violations much higher signal."
+    },
+    {
+      "dimension": "Launch Workflow Provenance",
+      "description": "Correlate service scheduler, CI/CD, maintenance windows, and approved break-glass context.",
+      "examples": [
+        "scheduled operational run",
+        "manual CLI launch in prod"
+      ],
+      "falsePositiveReduction": "Separates sanctioned launches from suspicious ad hoc usage."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should be an actor-authorization rule for ECS task launches. It should alert when RunTask occurs outside approved cluster and task-family launch paths, using exact principal inventories and workflow provenance rather than text filters.",
+    "conditions": [
+      "eventSource equals ecs.amazonaws.com",
+      "eventName equals RunTask",
+      "actor is not in the approved task-launch inventory or actor is outside allowed task-family or cluster scope, or request lacks approved workflow provenance"
+    ],
+    "tuningGuidance": "1. Use exact ARNs and principalIds. 2. Model scope by cluster and task family. 3. Escalate when the task activates a high-risk role or uses runtime overrides.",
+    "whenToFire": "Fire when RunTask is executed outside authorized task-launch paths, especially in production clusters or with sensitive task roles."
+  },
+  "simulationCommand": "aws ecs run-task --cluster prod --task-definition backdoor-task:1 --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium without actor inventory, low-medium with scope and workflow enrichment",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with lookup tables",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because suspicious ECS launches can lead to immediate role use.",
+    "considerations": [
+      "Use this as the actor-centric companion to `det-071` and `det-072`.",
+      "Actor scope and workflow provenance are the primary dependencies."
+    ]
+  }
+}

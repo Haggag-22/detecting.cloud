@@ -1,0 +1,6 @@
+[
+  "Identify who detached or deleted the policy.",
+  "Verify whether the removal was authorized.",
+  "Check if the policy was restrictive (deny, permission boundary).",
+  "Review the target principal's remaining permissions."
+]

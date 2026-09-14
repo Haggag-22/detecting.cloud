@@ -1,0 +1,5 @@
+[
+  "Identify the actor and the application or environment whose configuration was read.",
+  "Verify whether the read was expected for that environment and actor role.",
+  "Check for broad enumeration or follow-on IAM, STS, Secrets Manager, or KMS activity."
+]

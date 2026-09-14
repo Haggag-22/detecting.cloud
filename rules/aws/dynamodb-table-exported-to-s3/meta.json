@@ -1,0 +1,24 @@
+{
+  "id": "det-023",
+  "title": "DynamoDB Table Exported to S3",
+  "description": "Detects when a DynamoDB table is exported to S3, which could be used for data exfiltration.",
+  "awsService": "DynamoDB",
+  "relatedServices": [
+    "S3"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "DynamoDB",
+    "Data Exfiltration",
+    "S3"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Scheduled data lake exports",
+    "Backup procedures"
+  ],
+  "relatedAttackSlugs": []
+}

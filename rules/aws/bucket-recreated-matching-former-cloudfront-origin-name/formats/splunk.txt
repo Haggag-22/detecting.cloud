@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventSource=s3.amazonaws.com eventName=CreateBucket
+| table _time, userIdentity.arn, eventName, requestParameters.bucketName, recipientAccountId, sourceIPAddress
+# Enrich: lookup bucket name in baseline of deleted-bucket-names-that-were-cloudfront-origins

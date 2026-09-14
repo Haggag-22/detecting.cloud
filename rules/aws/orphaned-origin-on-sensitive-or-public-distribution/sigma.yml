@@ -1,0 +1,11 @@
+title: Orphaned Origin on Sensitive Distribution
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: cloudfront.amazonaws.com
+    eventName: GetDistribution
+  condition: selection
+level: critical
+# Posture: Combine det-137 with distribution aliases/domain filters (prod, www, customer-facing).

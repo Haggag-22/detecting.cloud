@@ -1,0 +1,22 @@
+{
+  "id": "az-068",
+  "title": "Malicious IP Address Sign-In Failure Rate",
+  "description": "Indicates sign-in from a malicious IP address based on high failure rates.",
+  "awsService": "Entra ID Protection",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Protection",
+    "t1090",
+    "command-and-control"
+  ],
+  "logSources": [
+    "Azure riskdetection"
+  ],
+  "falsePositives": [
+    "We recommend investigating the sessions flagged by this detection in the context of other sign-ins from the user."
+  ],
+  "relatedAttackSlugs": []
+}

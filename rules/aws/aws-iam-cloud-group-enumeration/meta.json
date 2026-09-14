@@ -1,0 +1,22 @@
+{
+  "id": "det-158",
+  "title": "AWS IAM Cloud Group Enumeration",
+  "description": "Detects enumeration of IAM groups and their memberships/policies, used by adversaries to map permission groups and find privilege escalation paths.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Low",
+  "tags": [
+    "IAM",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "IAM administration tooling and console browsing.",
+    "Cloud security posture scanners."
+  ],
+  "relatedAttackSlugs": []
+}

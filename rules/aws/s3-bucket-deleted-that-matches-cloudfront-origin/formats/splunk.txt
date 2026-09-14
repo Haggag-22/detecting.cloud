@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventSource=s3.amazonaws.com eventName=DeleteBucket
+| table _time, userIdentity.arn, eventName, requestParameters.bucketName, sourceIPAddress
+# Enrich: lookup bucket name in CloudFront distribution origins (DescribeDistribution)

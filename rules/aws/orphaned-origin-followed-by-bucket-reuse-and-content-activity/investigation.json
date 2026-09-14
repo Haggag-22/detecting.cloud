@@ -1,0 +1,5 @@
+[
+  "Confirm the bucket name is tied to a known orphaned CloudFront origin and that it was newly created or reactivated.",
+  "Identify the ordered sequence of `CreateBucket` followed by `PutObject` or similar activation activity on that bucket.",
+  "Assess whether the written content would be served through CloudFront and whether hostile or branded-content takeover is now possible."
+]

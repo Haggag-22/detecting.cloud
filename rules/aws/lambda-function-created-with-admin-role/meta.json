@@ -1,0 +1,26 @@
+{
+  "id": "det-012",
+  "title": "Lambda Function Created with Admin Role",
+  "description": "Detects creation of Lambda functions with overly permissive execution roles.",
+  "awsService": "Lambda",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "Lambda",
+    "Privilege Escalation",
+    "PassRole"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate deployment pipelines"
+  ],
+  "relatedAttackSlugs": [
+    "aws-passrole-abuse",
+    "lambda-privilege-escalation"
+  ]
+}

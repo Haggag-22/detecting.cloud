@@ -1,0 +1,23 @@
+title: AWS ECS RunTask Executed
+id: 084a45bc-8dfe-4791-b743-60685d5b55de
+status: experimental
+description: |
+    Detects ad hoc ECS RunTask execution which can activate task roles and runtime overrides.
+references:
+    - https://detecting.cloud/detection-engineering?rule=det-070
+author: Detecting.Cloud / SOF-ELK
+date: 2026-07-17
+tags:
+    - attack.privilege-escalation
+    - attack.t1548
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: ecs.amazonaws.com
+        eventName: RunTask
+    condition: selection
+falsepositives:
+    - Legitimate administration, automation, or platform engineering activity.
+level: medium

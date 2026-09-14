@@ -1,0 +1,10 @@
+title: IAM Login Profile Updated
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: UpdateLoginProfile
+  condition: selection
+level: medium

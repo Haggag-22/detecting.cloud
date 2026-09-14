@@ -1,0 +1,5 @@
+[
+  "Identify the actor type, ARN, and stable principalId.",
+  "Verify whether this identity is authorized to create IAM roles in this account or environment.",
+  "Check session issuer, invokedBy, session tags, and workflow provenance for assumed roles or automation."
+]

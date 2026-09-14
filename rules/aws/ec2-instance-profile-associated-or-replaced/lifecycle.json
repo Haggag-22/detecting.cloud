@@ -1,0 +1,120 @@
+{
+  "whyItMatters": "Changing the profile on an existing instance can activate new credentials without creating new infrastructure, which makes it a strong tactic for quiet privilege changes on live workloads.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may attach or swap an instance profile on a running instance to gain access to role credentials through IMDS.",
+    "realWorldUsage": "This is a practical workload-side privilege escalation pattern because it avoids the noise of launching a new instance.",
+    "whyItMatters": "Profile association on existing compute can be more suspicious than a fresh launch, especially when the instance previously had no profile or receives a materially stronger one.",
+    "riskAndImpact": "If missed, an attacker can turn an existing workload into a privileged execution context without provisioning anything new."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "Instance inventory",
+      "Instance-profile and role inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.instanceId",
+      "requestParameters.iamInstanceProfile",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "Profile association and replacement events must be ingested.",
+      "The environment should know the prior profile or absence of a profile on the instance.",
+      "The detector should resolve the new profile to the backing role and compare privilege delta."
+    ],
+    "limitations": [
+      "ReplaceIamInstanceProfileAssociation can use association-centric fields that are less straightforward than launch telemetry.",
+      "Without previous profile state you cannot measure privilege delta cleanly.",
+      "Some lifecycle automation legitimately swaps profiles during maintenance."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.instanceId",
+        "normalizedPath": "cloud.instance.id",
+        "notes": "Target EC2 instance"
+      },
+      {
+        "rawPath": "requestParameters.iamInstanceProfile.name",
+        "normalizedPath": "aws.ec2.instance_profile.name",
+        "notes": "Newly attached or replacement profile"
+      },
+      {
+        "rawPath": "enrichment.previousInstanceProfile",
+        "normalizedPath": "aws.ec2.previous_instance_profile.name",
+        "notes": "Prior profile for privilege-delta analysis"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"compute\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"AssociateIamInstanceProfile\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"cloud\": {\n    \"instance\": {\n      \"id\": \"i-xxx\"\n    }\n  },\n  \"aws\": {\n    \"ec2\": {\n      \"instance_profile\": {\n        \"name\": \"AdminProfile\"\n      },\n      \"previous_instance_profile\": {\n        \"name\": null\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Privilege Delta",
+      "description": "Compare the new backing role's effective permissions to the previous profile or no-profile state.",
+      "examples": [
+        "no profile -> admin-equivalent role",
+        "read-only -> pass-role capable"
+      ],
+      "falsePositiveReduction": "Elevates meaningful privilege changes over routine profile maintenance."
+    },
+    {
+      "dimension": "Instance Context",
+      "description": "Determine instance age, owner, environment criticality, and whether the instance is internet reachable or user-managed.",
+      "examples": [
+        "long-lived production instance",
+        "temporary build worker"
+      ],
+      "falsePositiveReduction": "Improves prioritization for profile changes on sensitive workloads."
+    },
+    {
+      "dimension": "Authorized Change Context",
+      "description": "Correlate maintenance windows, automation, and operator scope.",
+      "examples": [
+        "SSM maintenance automation",
+        "manual operator action"
+      ],
+      "falsePositiveReduction": "Separates sanctioned maintenance from suspicious live-host privilege changes."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should stay as a baseline profile-change detector on existing EC2 instances. The higher-confidence branch comes from comparing the new role to the previous state and asking whether the change materially increased privilege or activated a role where there was none before.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals AssociateIamInstanceProfile or ReplaceIamInstanceProfileAssociation",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep the event match broad. 2. Resolve new and previous profiles to backing roles. 3. Escalate when privilege increases or the instance had no profile before.",
+    "whenToFire": "Fire on every successful profile association or replacement for visibility, with higher priority when the profile materially increases the instance's available permissions."
+  },
+  "simulationCommand": "aws ec2 associate-iam-instance-profile --instance-id i-0123456789abcdef0 --iam-instance-profile Name=AdminProfile",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Medium as raw visibility, low-medium with privilege-delta enrichment",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because live-host profile changes may be followed quickly by credential use.",
+    "considerations": [
+      "Use this as the feeder rule for stronger compute role-activation analytics.",
+      "Previous profile state is the most important enrichment."
+    ]
+  }
+}

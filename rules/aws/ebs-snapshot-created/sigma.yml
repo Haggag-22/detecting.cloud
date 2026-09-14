@@ -1,0 +1,12 @@
+title: EBS Snapshot Created
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName:
+      - CreateSnapshot
+      - CreateSnapshots
+  condition: selection
+level: medium

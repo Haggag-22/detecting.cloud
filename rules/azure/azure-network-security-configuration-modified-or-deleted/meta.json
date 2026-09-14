@@ -1,0 +1,22 @@
+{
+  "id": "az-099",
+  "title": "Azure Network Security Configuration Modified or Deleted",
+  "description": "Identifies when a network security configuration is modified or deleted.",
+  "awsService": "Azure Networking",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Azure Networking",
+    "impact"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Network Security Configuration being modified or deleted may be performed by a system administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Network Security Configuration modified or deleted from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

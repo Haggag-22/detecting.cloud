@@ -1,0 +1,6 @@
+[
+  "Identify who created the access key and for which user.",
+  "Verify if the target user differs from the caller (backdoor indicator).",
+  "Review recent activity of both identities.",
+  "Check if the key creation was part of onboarding."
+]

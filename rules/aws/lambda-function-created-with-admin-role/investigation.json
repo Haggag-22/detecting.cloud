@@ -1,0 +1,6 @@
+[
+  "Identify who created the Lambda and which role was passed.",
+  "Inspect the role for AdministratorAccess or similar.",
+  "Verify if the creation was from a deployment pipeline.",
+  "Review Lambda execution history for suspicious invocations."
+]

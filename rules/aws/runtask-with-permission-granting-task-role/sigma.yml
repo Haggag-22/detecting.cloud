@@ -1,0 +1,11 @@
+title: RunTask with Permission-Granting Task Role
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ecs.amazonaws.com
+    eventName: RunTask
+  condition: selection
+level: high
+# High-confidence use requires task-role resolution and permission classification.

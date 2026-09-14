@@ -1,0 +1,5 @@
+[
+  "Stop logging on a test trail (or use UpdateTrail).",
+  "Verify CloudTrail captures StopLogging/DeleteTrail/UpdateTrail.",
+  "Run the detection to confirm the alert triggers."
+]

@@ -1,0 +1,5 @@
+[
+  "Resolve the target instance to its environment, owner, and sensitivity classification.",
+  "Verify whether the actor was approved to access that class of target via EC2 Instance Connect.",
+  "Review whether later cloud or host activity followed the interactive access on the sensitive system."
+]

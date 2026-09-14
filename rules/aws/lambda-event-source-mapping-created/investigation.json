@@ -1,0 +1,6 @@
+[
+  "Identify the Lambda and event source (DynamoDB, S3, etc.).",
+  "Verify if the mapping was part of a legitimate deployment.",
+  "Review the Lambda's execution role and triggers.",
+  "Check for persistence via scheduled or event-driven execution."
+]

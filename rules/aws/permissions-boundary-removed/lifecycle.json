@@ -1,0 +1,126 @@
+{
+  "whyItMatters": "Permissions boundaries are one of the clearest IAM guardrails in AWS. Removing one can expose latent permissions that were already attached to a principal but previously capped.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with IAM write access can remove a boundary from a user or role to stop limiting its maximum permissions.",
+    "realWorldUsage": "Boundary deletion is a common privilege-escalation step in AWS tradecraft because it can make existing allows effective without attaching anything new.",
+    "whyItMatters": "This event is valuable baseline telemetry even when legitimate, because boundary lifecycle operations are usually infrequent and security-sensitive.",
+    "riskAndImpact": "If missed, a compromised identity can free a workload or human user from delegated-administration controls and enable follow-on privilege abuse."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.roleName",
+      "requestParameters.userName",
+      "sourceIPAddress",
+      "userAgent",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must include IAM API activity.",
+      "The environment should maintain inventory of principals expected to carry a permissions boundary.",
+      "Boundary ARN prior state should be preserved in an enrichment table or IAM inventory cache."
+    ],
+    "limitations": [
+      "The delete event does not include the removed boundary ARN.",
+      "CloudTrail alone does not tell you whether the target was expected to keep a boundary.",
+      "By itself this is visibility, not proof of malicious intent."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "eventName",
+        "normalizedPath": "event.action",
+        "notes": "Boundary deletion API action"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor ARN"
+      },
+      {
+        "rawPath": "requestParameters.roleName",
+        "normalizedPath": "aws.iam.target_role.name",
+        "notes": "Target role if role boundary deleted"
+      },
+      {
+        "rawPath": "requestParameters.userName",
+        "normalizedPath": "aws.iam.target_user.name",
+        "notes": "Target user if user boundary deleted"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"DeleteRolePermissionsBoundary\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_role\": {\n        \"name\": \"TargetRole\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Prior Boundary State",
+      "description": "Resolve which boundary ARN was previously applied and how restrictive it was.",
+      "examples": [
+        "prod boundary ARN",
+        "delegated-admin boundary"
+      ],
+      "falsePositiveReduction": "Separates low-impact cleanup from meaningful control removal."
+    },
+    {
+      "dimension": "Target Principal Criticality",
+      "description": "Classify whether the affected principal is production, privileged, dormant, break-glass, or high-blast-radius.",
+      "examples": [
+        "prod deploy role",
+        "shared admin user"
+      ],
+      "falsePositiveReduction": "Prioritizes boundary deletion on the principals most likely to matter."
+    },
+    {
+      "dimension": "Authorized Change Context",
+      "description": "Correlate the actor with approved automation, maintenance windows, and IAM governance roles.",
+      "examples": [
+        "terraform-iam-runner",
+        "approved emergency rollback"
+      ],
+      "falsePositiveReduction": "Downgrades expected governance work without losing visibility."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should remain a broad baseline for successful boundary deletion. The event itself is important, but severity should be driven by enrichment such as what boundary was removed, whether the target was expected to have one, and whether privileged actions followed.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals DeleteRolePermissionsBoundary or DeleteUserPermissionsBoundary",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep this rule broad. 2. Pair it with prior-state lookup for the removed boundary ARN. 3. Promote only when the target is sensitive, the boundary was materially restrictive, or follow-on activity confirms abuse.",
+    "whenToFire": "Fire on every successful boundary deletion for visibility, with higher-priority triage when enrichment shows meaningful control removal."
+  },
+  "simulationCommand": "aws iam delete-role-permissions-boundary --role-name TargetRole",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Medium as raw visibility, low-medium with target and prior-state enrichment",
+    "expectedVolume": "Low in most mature environments",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "CloudWatch Logs Insights",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time or short scheduled intervals both work because this is a direct IAM control-plane event.",
+    "considerations": [
+      "This is the baseline companion to higher-fidelity restrictive-control removal detections.",
+      "Maintain principal-to-boundary inventory so investigations can recover what was removed."
+    ]
+  }
+}

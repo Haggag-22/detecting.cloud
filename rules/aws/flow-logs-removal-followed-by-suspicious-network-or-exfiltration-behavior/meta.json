@@ -1,0 +1,26 @@
+{
+  "id": "det-113",
+  "title": "Flow Logs Removal Followed by Suspicious Network or Exfiltration Behavior",
+  "description": "High-confidence defense-evasion chain that correlates flow-log deletion with later network-control, data-access, or exfiltration-adjacent activity. This should require ordered sequence and stable actor or account linkage, not loose co-occurrence.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "Secrets Manager",
+    "S3",
+    "KMS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "EC2",
+    "VPC",
+    "Flow Logs",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate infra changes after flow log cleanup"
+  ],
+  "relatedAttackSlugs": []
+}

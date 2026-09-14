@@ -1,0 +1,26 @@
+{
+  "id": "det-086",
+  "title": "CopySnapshot of External or Public Snapshot",
+  "description": "Detects snapshot copy activity where the source snapshot is externally owned, publicly exposed, or otherwise outside the approved local backup and DR baseline. This should be driven by source ownership and sharing context, not just the presence of sourceSnapshotId.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "EBS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EC2",
+    "EBS",
+    "Snapshot",
+    "Consumer Account"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Expected DR",
+    "Approved migration",
+    "Cross-region backup"
+  ],
+  "relatedAttackSlugs": []
+}

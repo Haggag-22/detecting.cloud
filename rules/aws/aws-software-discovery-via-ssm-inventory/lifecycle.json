@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects use of AWS Systems Manager to enumerate installed software and inventory on cloud workloads, aligned to MITRE ATT&CK detection strategy DET0392 / AN1103 for Software Discovery. Use the UserAgent mutable element to distinguish automated/authorized console access from adversary scripting.",
+  "threatContext": {
+    "attackerBehavior": "Detects use of AWS Systems Manager to enumerate installed software and inventory on cloud workloads, aligned to MITRE ATT&CK detection strategy DET0392 / AN1103 for Software Discovery. Use the UserAgent mutable element to distinguish automated/authorized console access from adversary scripting.",
+    "whyItMatters": "Detects use of AWS Systems Manager to enumerate installed software and inventory on cloud workloads, aligned to MITRE ATT&CK detection strategy DET0392 / AN1103 for Software Discovery. Use the UserAgent mutable element to distinguish automated/authorized console access from adversary scripting.",
+    "riskAndImpact": "Abuse related to SSM can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects use of AWS Systems Manager to enumerate installed software and inventory on cloud workloads, aligned to MITRE ATT&CK detection strategy DET0392 / AN1103 for Software Discovery. Use the UserAgent mutable element to distinguish automated/authorized console access from adversary scripting.",
+    "whenToFire": "When CloudTrail shows activity matching this AWS Software Discovery Via SSM Inventory detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

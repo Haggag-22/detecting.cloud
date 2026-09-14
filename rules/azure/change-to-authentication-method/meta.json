@@ -1,0 +1,26 @@
+{
+  "id": "az-044",
+  "title": "Change to Authentication Method",
+  "description": "Change to authentication method could be an indicator of an attacker adding an auth method to the account so they can have continued access.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "credential-access",
+    "defense-impairment",
+    "t1556",
+    "persistence",
+    "t1098"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

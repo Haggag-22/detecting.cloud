@@ -1,0 +1,6 @@
+[
+  "Identify the actor that removed the boundary.",
+  "Review the sequence: boundary removal → sensitive API use within 15 minutes.",
+  "Verify if the follow-on activity was expected.",
+  "Assess whether the principal was newly unconstrained."
+]

@@ -1,0 +1,5 @@
+[
+  "As an identity outside the approved network-logging manager set, call `DeleteFlowLogs` against a test flow log.",
+  "Verify CloudTrail captures the actor and flow log context.",
+  "Run the detector and confirm it relies on explicit actor authorization rather than role-name or Terraform substring heuristics."
+]

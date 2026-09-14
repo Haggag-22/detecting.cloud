@@ -1,0 +1,5 @@
+[
+  "Deploy a Lambda that calls an external API.",
+  "Ensure VPC Flow Logs capture the traffic.",
+  "Run the detection to confirm it triggers on non-RFC1918 destinations."
+]

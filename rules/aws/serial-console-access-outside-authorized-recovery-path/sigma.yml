@@ -1,0 +1,10 @@
+title: Serial Console Access by Unexpected Actor
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2-instance-connect.amazonaws.com
+    eventName: SendSerialConsoleSSHPublicKey
+  condition: selection
+level: high

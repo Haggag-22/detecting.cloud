@@ -1,0 +1,23 @@
+{
+  "id": "gcp-025",
+  "title": "Google Cloud SQL Database Modified or Deleted",
+  "description": "Detect when a Cloud SQL DB has been modified or deleted.",
+  "awsService": "Cloud SQL",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "Cloud SQL",
+    "impact"
+  ],
+  "logSources": [
+    "GCP Audit Logs"
+  ],
+  "falsePositives": [
+    "SQL Database being modified or deleted may be performed by a system administrator.",
+    "Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "SQL Database modified or deleted from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

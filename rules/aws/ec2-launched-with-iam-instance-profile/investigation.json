@@ -1,0 +1,5 @@
+[
+  "Identify who launched the instance and which instance profile was attached.",
+  "Resolve the instance profile to its backing IAM role and effective permissions.",
+  "Verify whether the launch came from approved provisioning workflow."
+]

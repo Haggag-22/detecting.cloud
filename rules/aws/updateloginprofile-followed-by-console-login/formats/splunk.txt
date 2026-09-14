@@ -1,0 +1,8 @@
+index=aws sourcetype=aws:cloudtrail
+  ((eventSource=iam.amazonaws.com AND eventName=UpdateLoginProfile) OR (eventSource=signin.amazonaws.com AND eventName=ConsoleLogin))
+| eval target_user=case(eventName="UpdateLoginProfile", requestParameters.userName, eventName="ConsoleLogin", replace(userIdentity.arn, ".*user/", ""), 1=1, null)
+| eval is_update=if(eventName="UpdateLoginProfile", 1, 0)
+| eval is_login=if(eventName="ConsoleLogin" AND responseElements.ConsoleLogin="Success", 1, 0)
+| transaction target_user maxspan=1h
+| where mvcount(mvfilter(is_update=1))>0 AND mvcount(mvfilter(is_login=1))>0
+| table _time, target_user, eventName, userIdentity.arn, sourceIPAddress

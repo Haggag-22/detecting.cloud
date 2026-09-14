@@ -1,0 +1,123 @@
+{
+  "whyItMatters": "A blocked organization escape attempt is still an incident-level signal. It shows active intent to remove an account from centralized controls even if the guardrail held.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may attempt to leave the organization and be denied by SCPs, account settings, or Organizations constraints.",
+    "realWorldUsage": "This is common in real cloud intrusions where the actor tests escape paths before finding a working route.",
+    "whyItMatters": "Failure does not reduce severity much; it often means the attacker has reached a critical stage but encountered a control.",
+    "riskAndImpact": "If ignored, defenders may miss the clearest early warning that an account was actively probing its way out of organizational governance."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for Organizations"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "errorCode",
+      "errorMessage",
+      "recipientAccountId",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must preserve errorCode and errorMessage for failed LeaveOrganization calls.",
+      "The environment should map which control blocked the action where possible.",
+      "Related guardrail-sensitive activities should be available for scoping."
+    ],
+    "limitations": [
+      "Error messages may be generic in some cases.",
+      "Authorized testing or governance validation could intentionally trigger blocked attempts in rare scenarios.",
+      "The blocking control may require out-of-band investigation to identify precisely."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "errorCode",
+        "normalizedPath": "error.code",
+        "notes": "Reason the leave attempt failed"
+      },
+      {
+        "rawPath": "errorMessage",
+        "normalizedPath": "error.message",
+        "notes": "Detailed failure context where available"
+      },
+      {
+        "rawPath": "recipientAccountId",
+        "normalizedPath": "cloud.account.target_id",
+        "notes": "Member account that attempted to leave"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor attempting organization escape"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"LeaveOrganization\",\n    \"outcome\": \"failure\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"type\": \"Root\"\n  },\n  \"cloud\": {\n    \"account\": {\n      \"target_id\": \"123456789012\"\n    }\n  },\n  \"error\": {\n    \"code\": \"AccessDenied\",\n    \"message\": \"SCP denied\"\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Blocking Control",
+      "description": "Determine what guardrail prevented the account from leaving.",
+      "examples": [
+        "SCP denial",
+        "Organizations configuration constraint"
+      ],
+      "falsePositiveReduction": "Improves triage and containment validation."
+    },
+    {
+      "dimension": "Actor Intent Context",
+      "description": "Assess whether the actor has recent suspicious activity that makes the blocked leave more alarming.",
+      "examples": [
+        "recent IAM mutation",
+        "recent logging disable attempts"
+      ],
+      "falsePositiveReduction": "Raises confidence that the failed attempt was malicious rather than administrative testing."
+    },
+    {
+      "dimension": "Account Criticality",
+      "description": "Classify how important the target account is to the organization.",
+      "examples": [
+        "prod member account",
+        "sandbox account"
+      ],
+      "falsePositiveReduction": "Prioritizes the highest-impact blocked escape attempts."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect `LeaveOrganization` only when the attempt failed. It should key off `errorCode` presence and treat blocked organization escape as a high-severity intent signal.",
+    "conditions": [
+      "eventSource equals organizations.amazonaws.com",
+      "eventName equals LeaveOrganization",
+      "errorCode exists and is non-empty"
+    ],
+    "tuningGuidance": "1. Keep the failure check exact. 2. Review what blocked the attempt. 3. Correlate with recent suspicious actions to determine whether the failure was part of a larger intrusion sequence.",
+    "whenToFire": "Fire whenever LeaveOrganization is attempted and fails."
+  },
+  "simulationCommand": "aws organizations leave-organization",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Very low outside deliberate governance testing",
+    "expectedVolume": "Extremely low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because blocked escape attempts warrant immediate review.",
+    "considerations": [
+      "This is the denied-attempt variant of the LeaveOrganization family.",
+      "Error context and blocking-control attribution are the main enrichments."
+    ]
+  }
+}

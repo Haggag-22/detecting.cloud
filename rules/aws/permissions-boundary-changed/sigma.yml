@@ -1,0 +1,12 @@
+title: Permissions Boundary Changed
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - PutRolePermissionsBoundary
+      - PutUserPermissionsBoundary
+  condition: selection
+level: medium

@@ -1,0 +1,25 @@
+{
+  "id": "az-104",
+  "title": "PIM Approvals And Deny Elevation",
+  "description": "Detects when a PIM elevation is approved or denied. Outside of normal operations should be investigated.",
+  "awsService": "Entra ID PIM",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID PIM",
+    "persistence",
+    "initial-access",
+    "privilege-escalation",
+    "stealth",
+    "t1078 004"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Actual admin using PIM."
+  ],
+  "relatedAttackSlugs": []
+}

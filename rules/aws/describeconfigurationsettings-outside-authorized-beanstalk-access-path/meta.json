@@ -1,0 +1,24 @@
+{
+  "id": "det-123",
+  "title": "DescribeConfigurationSettings Outside Authorized Beanstalk Access Path",
+  "description": "Detects Beanstalk configuration reads by identities outside approved application-platform or deployment workflows. This should rely on explicit actor authorization, not role-name substring allowlists.",
+  "awsService": "Elastic Beanstalk",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "Elastic Beanstalk",
+    "Credential Theft",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Known Beanstalk/platform admin",
+    "Deployment automation"
+  ],
+  "relatedAttackSlugs": []
+}

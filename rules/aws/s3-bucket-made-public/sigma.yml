@@ -1,0 +1,21 @@
+title: S3 Public Access Block Removed
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_delete:
+    eventSource: s3.amazonaws.com
+    eventName: DeletePublicAccessBlock
+  selection_put:
+    eventSource: s3.amazonaws.com
+    eventName: PutPublicAccessBlock
+  weaken_policy:
+    requestParameters.PublicAccessBlockConfiguration.BlockPublicPolicy: false
+  weaken_restrict:
+    requestParameters.PublicAccessBlockConfiguration.RestrictPublicBuckets: false
+  weaken_acl_block:
+    requestParameters.PublicAccessBlockConfiguration.BlockPublicAcls: false
+  weaken_acl_ignore:
+    requestParameters.PublicAccessBlockConfiguration.IgnorePublicAcls: false
+  condition: selection_delete or (selection_put and 1 of weaken_*)
+level: critical

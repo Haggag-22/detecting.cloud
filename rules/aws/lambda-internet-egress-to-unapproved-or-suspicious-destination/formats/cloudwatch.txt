@@ -1,0 +1,6 @@
+fields @timestamp, interfaceId, srcAddr, dstAddr, dstPort, bytes, action, flowDirection
+| filter action = "ACCEPT"
+| filter flowDirection = "egress"
+| filter dstAddr not like /^10\./ and dstAddr not like /^172\.(1[6-9]|2[0-9]|3[0-1])\./ and dstAddr not like /^192\.168\./
+| stats sum(bytes) as total_bytes, count(*) as connections by interfaceId, dstAddr, dstPort
+| filter dstPort in [4444, 8080, 8443] or total_bytes > 10485760

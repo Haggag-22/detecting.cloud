@@ -1,0 +1,11 @@
+title: Risky Trust Policy Introduced on New Role
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: CreateRole
+  condition: selection
+level: high
+# Trust-policy risk scoring requires semantic parsing of principals and conditions.

@@ -1,0 +1,10 @@
+title: Policy Version Change by Unexpected Actor
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: SetDefaultPolicyVersion
+  condition: selection
+level: high

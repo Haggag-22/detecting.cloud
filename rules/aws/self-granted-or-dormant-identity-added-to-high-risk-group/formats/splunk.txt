@@ -1,0 +1,4 @@
+index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=AddUserToGroup
+| eval actor_user=replace(userIdentity.arn, ".*user/", "")
+| where like(requestParameters.userName, "%backup%") OR like(requestParameters.userName, "%svc%") OR like(requestParameters.userName, "%admin2%") OR like(requestParameters.userName, "%support-temp%") OR like(requestParameters.userName, "%breakglass2%") OR like(requestParameters.userName, "%automation-backup%") OR (actor_user=requestParameters.userName)
+| table _time, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName

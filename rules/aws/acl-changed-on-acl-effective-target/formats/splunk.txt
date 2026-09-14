@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventSource=s3.amazonaws.com (eventName=PutBucketAcl OR eventName=PutObjectAcl)
+| where isnull(errorCode) OR errorCode=""
+| table _time, userIdentity.arn, eventName, requestParameters.bucketName, requestParameters.key, requestParameters.acl, sourceIPAddress

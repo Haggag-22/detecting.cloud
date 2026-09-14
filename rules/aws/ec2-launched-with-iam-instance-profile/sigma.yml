@@ -1,0 +1,12 @@
+title: EC2 Launched with IAM Instance Profile
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName: RunInstances
+  filter_profile:
+    requestParameters.iamInstanceProfile|exists: true
+  condition: selection and filter_profile
+level: medium

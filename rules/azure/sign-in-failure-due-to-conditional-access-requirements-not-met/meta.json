@@ -1,0 +1,28 @@
+{
+  "id": "az-045",
+  "title": "Sign-in Failure Due to Conditional Access Requirements Not Met",
+  "description": "Define a baseline threshold for failed sign-ins due to Conditional Access failures",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "initial-access",
+    "credential-access",
+    "stealth",
+    "t1110"
+  ],
+  "logSources": [
+    "Azure Sign-in Logs"
+  ],
+  "falsePositives": [
+    "Service Account misconfigured",
+    "Misconfigured Systems",
+    "Vulnerability Scanners"
+  ],
+  "relatedAttackSlugs": []
+}

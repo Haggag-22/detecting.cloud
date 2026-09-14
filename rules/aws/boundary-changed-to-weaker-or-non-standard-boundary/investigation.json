@@ -1,0 +1,5 @@
+[
+  "Identify who set the boundary.",
+  "Verify if the boundary ARN is in the approved allowlist.",
+  "Assess whether the new boundary weakens restrictions."
+]

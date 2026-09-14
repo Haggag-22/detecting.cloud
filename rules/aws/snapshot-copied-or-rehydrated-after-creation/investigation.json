@@ -1,0 +1,5 @@
+[
+  "Identify the snapshot lineage from initial creation to copy, restore, or attachment stages.",
+  "Verify whether the copied snapshot or restored volume belongs to an approved backup, DR, or migration workflow.",
+  "Determine whether the lineage points to storage exposure or offline data access rather than routine operations."
+]

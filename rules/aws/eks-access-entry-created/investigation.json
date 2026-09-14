@@ -1,0 +1,5 @@
+[
+  "Identify the actor, target principal, and cluster associated with the new access entry.",
+  "Verify whether the access entry was expected for this principal and cluster.",
+  "Check for rapid follow-on `AssociateAccessPolicy` activity or unusually broad access scope."
+]

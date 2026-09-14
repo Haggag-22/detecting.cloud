@@ -1,0 +1,33 @@
+title: AWS Modify Cloud Resource Hierarchy Via Organizations
+id: ded0ca82-9f2c-4961-89f5-b267d73f8720
+status: experimental
+description: |
+    Detects changes to the AWS Organizations account hierarchy (LeaveOrganization, RemoveAccountFromOrganization, CreateAccount, MoveAccount, OU changes, policy attach/detach). Adversaries modify the resource hierarchy to evade org-wide controls or isolate accounts.
+references:
+    - https://attack.mitre.org/techniques/T1666/
+    - https://attack.mitre.org/detectionstrategies/DET0155/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.defense-impairment
+    - attack.t1666
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: organizations.amazonaws.com
+        eventName:
+            - LeaveOrganization
+            - RemoveAccountFromOrganization
+            - CreateAccount
+            - CloseAccount
+            - MoveAccount
+            - CreateOrganizationalUnit
+            - DeleteOrganizationalUnit
+            - AttachPolicy
+            - DetachPolicy
+    condition: selection
+falsepositives:
+    - Legitimate account lifecycle and organization management by administrators.
+level: medium

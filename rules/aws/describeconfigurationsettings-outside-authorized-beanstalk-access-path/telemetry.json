@@ -1,0 +1,14 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "elasticbeanstalk.amazonaws.com",
+  "importantFields": [
+    "eventSource",
+    "eventName",
+    "userIdentity.type",
+    "userIdentity.arn",
+    "requestParameters.applicationName",
+    "requestParameters.environmentName",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"elasticbeanstalk.amazonaws.com\",\n  \"eventName\": \"DescribeConfigurationSettings\",\n  \"userIdentity\": {\n    \"type\": \"AssumedRole\",\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\"\n  },\n  \"requestParameters\": {\n    \"applicationName\": \"my-app\",\n    \"environmentName\": \"prod\"\n  },\n  \"sourceIPAddress\": \"203.0.113.10\",\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

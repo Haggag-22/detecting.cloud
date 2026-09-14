@@ -1,0 +1,125 @@
+{
+  "whyItMatters": "Only a limited set of identities should inspect Beanstalk configuration in many environments. When an unapproved actor performs that read, it is a strong signal of reconnaissance for credential or trust-path discovery.",
+  "threatContext": {
+    "attackerBehavior": "An attacker operating through a compromised app role, developer identity, or unusual assumed role may read Beanstalk configuration to harvest secrets or pivot material.",
+    "realWorldUsage": "This is attractive because the API is read-oriented and may be overlooked compared to overt write actions.",
+    "whyItMatters": "Authorization context matters more than whether a role name looks platform-like or app-like.",
+    "riskAndImpact": "If missed, unauthorized actors may quietly map Beanstalk environments before moving into credential theft or IAM abuse."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for Elastic Beanstalk",
+      "Authorized Beanstalk-reader inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.applicationName",
+      "requestParameters.environmentName",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "DescribeConfigurationSettings events must be ingested with full actor context.",
+      "The environment should maintain exact principals allowed to inspect Beanstalk configuration.",
+      "Workflow provenance for deployments or automation should be modeled explicitly."
+    ],
+    "limitations": [
+      "Without actor inventories the rule becomes weak anomaly detection.",
+      "Some legitimate automation may perform reads under generic-looking roles.",
+      "The read alone does not prove malicious use of any discovered material."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor performing the configuration read"
+      },
+      {
+        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
+        "normalizedPath": "aws.identity.session_issuer.arn",
+        "notes": "Underlying role where relevant"
+      },
+      {
+        "rawPath": "requestParameters.applicationName",
+        "normalizedPath": "aws.elasticbeanstalk.application.name",
+        "notes": "Application being inspected"
+      },
+      {
+        "rawPath": "requestParameters.environmentName",
+        "normalizedPath": "aws.elasticbeanstalk.environment.name",
+        "notes": "Environment being inspected"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"discovery\"\n    ],\n    \"type\": [\n      \"info\"\n    ],\n    \"action\": \"DescribeConfigurationSettings\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\"\n  },\n  \"aws\": {\n    \"elasticbeanstalk\": {\n      \"application\": {\n        \"name\": \"my-app\"\n      },\n      \"environment\": {\n        \"name\": \"prod\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized Config Readers",
+      "description": "Exact inventory of identities allowed to inspect Beanstalk configuration.",
+      "examples": [
+        "platform admin role",
+        "approved deployment automation"
+      ],
+      "falsePositiveReduction": "Replaces brittle role-name allowlists."
+    },
+    {
+      "dimension": "Workflow Provenance",
+      "description": "Determine whether the read came from a trusted deployment or support workflow.",
+      "examples": [
+        "deployment pipeline",
+        "manual unknown session"
+      ],
+      "falsePositiveReduction": "Separates expected automation from suspicious recon."
+    },
+    {
+      "dimension": "Environment Sensitivity",
+      "description": "Classify the target Beanstalk environment by criticality and secret exposure.",
+      "examples": [
+        "prod app env",
+        "internal admin env"
+      ],
+      "falsePositiveReduction": "Improves prioritization of suspicious reads."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect Beanstalk configuration reads outside approved access paths. It should match `DescribeConfigurationSettings`, resolve the actor and workflow provenance, and then check whether that identity is explicitly allowed to inspect the target environment's configuration.",
+    "conditions": [
+      "eventSource equals elasticbeanstalk.amazonaws.com",
+      "eventName equals DescribeConfigurationSettings",
+      "actor is not in the approved Beanstalk-reader inventory or request lacks approved workflow provenance or actor is outside approved environment scope"
+    ],
+    "tuningGuidance": "1. Use exact actor inventories. 2. Model environment scope for readers. 3. Escalate further when the environment is sensitive or the actor later performs privileged actions.",
+    "whenToFire": "Fire when Beanstalk configuration is read by an identity outside approved access paths."
+  },
+  "simulationCommand": "aws elasticbeanstalk describe-configuration-settings --application-name my-app --environment-name prod --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with actor inventories and workflow provenance; high with role-name heuristics",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with actor inventories",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because unauthorized Beanstalk recon may quickly lead to credential theft.",
+    "considerations": [
+      "This is the actor-centric Beanstalk recon detector.",
+      "Actor authorization and workflow provenance are the main dependencies."
+    ]
+  }
+}

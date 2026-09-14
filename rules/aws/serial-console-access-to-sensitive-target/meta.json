@@ -1,0 +1,22 @@
+{
+  "id": "det-094",
+  "title": "Serial Console Access to Sensitive Target",
+  "description": "Detects serial-console access to hosts classified as sensitive, such as production, identity, secrets, or break-glass infrastructure. This should depend on resolved asset classification, not instance identifier text matching.",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "EC2",
+    "Serial Console",
+    "Sensitive Target"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Authorized recovery to production instances",
+    "Break-glass procedures"
+  ],
+  "relatedAttackSlugs": []
+}

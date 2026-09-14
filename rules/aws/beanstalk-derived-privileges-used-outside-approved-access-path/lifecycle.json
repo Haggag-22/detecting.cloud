@@ -1,0 +1,126 @@
+{
+  "whyItMatters": "Beanstalk-derived privileges should only be used in narrow, well-understood workflows. When an unapproved Beanstalk-linked principal pivots into IAM or STS, it is a strong sign of credential abuse or post-compromise expansion.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may use credentials or trust paths exposed through an Elastic Beanstalk environment to assume roles or create durable IAM credentials.",
+    "realWorldUsage": "This is attractive because it turns application-environment access into broader and longer-lived cloud control.",
+    "whyItMatters": "Authorization context is more important than whether a role name contains Beanstalk-like text.",
+    "riskAndImpact": "If missed, defenders may not recognize that a compromised application environment is being used to extend access into IAM or STS."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for IAM and STS",
+      "Elastic Beanstalk environment-to-role linkage inventory",
+      "Authorized privilege-use inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.userName",
+      "requestParameters.roleArn",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CreateAccessKey and AssumeRole events must be ingested with full actor context.",
+      "The environment should know which principals are linked to Beanstalk environments.",
+      "Approved privilege-use workflows should be modeled explicitly."
+    ],
+    "limitations": [
+      "Without Beanstalk linkage and actor inventories, the rule becomes a weak anomaly detector.",
+      "Some legitimate deployment paths may require role assumption from Beanstalk-linked principals.",
+      "The pivot event alone does not prove how the actor obtained the initial access."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Principal performing the pivot"
+      },
+      {
+        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
+        "normalizedPath": "aws.identity.session_issuer.arn",
+        "notes": "Underlying role where relevant"
+      },
+      {
+        "rawPath": "requestParameters.userName",
+        "normalizedPath": "iam.target.user.name",
+        "notes": "Target IAM user for CreateAccessKey where applicable"
+      },
+      {
+        "rawPath": "requestParameters.roleArn",
+        "normalizedPath": "aws.sts.assume_role.target_arn",
+        "notes": "Target role for AssumeRole pivots"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"AssumeRole\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/aws-elasticbeanstalk-ec2-role/session\",\n    \"type\": \"AssumedRole\"\n  },\n  \"aws\": {\n    \"sts\": {\n      \"assume_role\": {\n        \"target_arn\": \"arn:aws:iam::123456789012:role/TargetRole\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Beanstalk Linkage",
+      "description": "Resolve whether the principal is tied to a Beanstalk environment, instance profile, or deployment path.",
+      "examples": [
+        "environment instance profile",
+        "Beanstalk service role"
+      ],
+      "falsePositiveReduction": "Prevents unrelated IAM or STS usage from being misclassified."
+    },
+    {
+      "dimension": "Authorized Pivot Scope",
+      "description": "Determine which roles or identities the principal is expected to assume or modify.",
+      "examples": [
+        "deployment role only",
+        "no IAM key creation allowed"
+      ],
+      "falsePositiveReduction": "Separates approved automation from suspicious privilege use."
+    },
+    {
+      "dimension": "Environment Criticality",
+      "description": "Classify the originating Beanstalk environment by business importance and privilege exposure.",
+      "examples": [
+        "prod app env",
+        "test env"
+      ],
+      "falsePositiveReduction": "Improves prioritization of suspicious pivots."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect IAM or STS pivots from Beanstalk-linked principals when those pivots fall outside approved privilege-use paths. It should match CreateAccessKey or AssumeRole and then use Beanstalk linkage plus actor authorization context to decide risk.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com and eventName equals CreateAccessKey, or eventSource equals sts.amazonaws.com and eventName equals AssumeRole",
+      "acting principal is linked to a Beanstalk environment",
+      "actor is not approved for the observed pivot or the pivot target is outside approved scope"
+    ],
+    "tuningGuidance": "1. Resolve Beanstalk linkage explicitly. 2. Model approved pivot targets and IAM actions. 3. Escalate further when the originating environment is sensitive or the pivot creates durable access.",
+    "whenToFire": "Fire when a Beanstalk-linked principal uses IAM or STS pivots outside approved access paths."
+  },
+  "simulationCommand": "aws sts assume-role --role-arn arn:aws:iam::123456789012:role/TargetRole --role-session-name test",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with actor inventories and Beanstalk linkage; high with raw name heuristics",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with Beanstalk and actor inventories",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because credential pivots can expand attacker access immediately.",
+    "considerations": [
+      "This is the actor-centric Beanstalk privilege-pivot detector.",
+      "Beanstalk linkage and actor authorization are the main dependencies."
+    ]
+  }
+}

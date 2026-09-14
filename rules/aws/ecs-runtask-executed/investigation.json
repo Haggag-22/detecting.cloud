@@ -1,0 +1,5 @@
+[
+  "Identify who ran the task and in which cluster.",
+  "Inspect the task definition, task role, execution role, and any runtime overrides.",
+  "Verify if the task execution was authorized or came from approved automation."
+]

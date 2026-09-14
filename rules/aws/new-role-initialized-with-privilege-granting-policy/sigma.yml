@@ -1,0 +1,11 @@
+title: New Role Initialized with Privilege-Granting Policy
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_create:
+    eventSource: iam.amazonaws.com
+    eventName: CreateRole
+  condition: selection_create
+level: critical
+# Full correlation requires exact role linkage and semantic classification of attached permissions.

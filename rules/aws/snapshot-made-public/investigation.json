@@ -1,0 +1,5 @@
+[
+  "Identify the snapshot, actor, and exact permission delta that introduced `all` public access.",
+  "Verify whether public exposure was ever intended for this snapshot.",
+  "Contain immediately by removing the public permission and investigating any downstream copies or restores."
+]

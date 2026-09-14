@@ -1,0 +1,5 @@
+[
+  "Inventory all CloudFront distributions and extract S3 origin domain names.",
+  "Verify whether the referenced bucket exists and is controlled by the expected account.",
+  "For any orphaned origin, update the distribution or safely reserve the bucket name to prevent reuse."
+]

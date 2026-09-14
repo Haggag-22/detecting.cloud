@@ -1,0 +1,11 @@
+title: Rare or New Project Used for Build Trigger
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: codebuild.amazonaws.com
+    eventName: StartBuild
+  condition: selection
+level: high
+# Requires baseline: projectName not seen in last N days for this actor. Implement in SIEM.

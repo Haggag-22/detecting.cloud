@@ -1,0 +1,26 @@
+title: AWS Serverless Function Creation Or Update
+id: 4e730973-7dab-4fa4-ba83-15e3100dc376
+status: experimental
+description: |
+    Detects creation or code updates of Lambda functions (CreateFunction, UpdateFunctionCode). Adversaries deploy serverless functions to execute code within the cloud environment (Serverless Execution).
+references:
+    - https://attack.mitre.org/techniques/T1648/
+    - https://attack.mitre.org/detectionstrategies/DET0374/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.execution
+    - attack.t1648
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: lambda.amazonaws.com
+        eventName|startswith:
+            - CreateFunction
+            - UpdateFunctionCode
+    condition: selection
+falsepositives:
+    - Normal serverless application deployment and CI/CD pipelines.
+level: medium

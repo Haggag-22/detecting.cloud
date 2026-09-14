@@ -1,0 +1,124 @@
+{
+  "whyItMatters": "The clearest evidence that a new role was built for operational abuse is that it gets assumed quickly after creation. This moves the signal from suspicious setup to confirmed activation.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may create a role, optionally grant it permissions, and then assume it shortly afterward to exercise the new trust path.",
+    "realWorldUsage": "This is one of the strongest role-based persistence patterns because it directly links provisioning to immediate use.",
+    "whyItMatters": "CreateRole alone is only setup. AssumeRole is the proof the new role became active infrastructure.",
+    "riskAndImpact": "If missed, defenders may see role creation as just another provisioning event while the attacker is already operating through the new role."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail IAM management events",
+      "AWS CloudTrail STS management events"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "requestParameters.roleName",
+      "requestParameters.roleArn",
+      "userIdentity.arn",
+      "recipientAccountId",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "Both CreateRole and AssumeRole telemetry must be ingested.",
+      "Correlations should prefer exact role ARN or account-qualified role identity over role name only.",
+      "The environment should preserve trust and permission context from the newly created role."
+    ],
+    "limitations": [
+      "Role-name-only matching can fail when paths are used or names repeat across accounts.",
+      "Some legitimate testing and CI/CD workflows create and assume roles quickly.",
+      "AssumeRole success is the key event, so failed assumptions should be analyzed separately."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.roleName",
+        "normalizedPath": "aws.iam.role.name",
+        "notes": "Role created by CreateRole"
+      },
+      {
+        "rawPath": "requestParameters.roleArn",
+        "normalizedPath": "aws.iam.role.arn",
+        "notes": "Role assumed by later STS call"
+      },
+      {
+        "rawPath": "recipientAccountId",
+        "normalizedPath": "cloud.account.id",
+        "notes": "Account boundary for exact role correlation"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor creating or assuming the role"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateRole\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"role\": {\n        \"name\": \"BackdoorRole\",\n        \"arn\": \"arn:aws:iam::123456789012:role/BackdoorRole\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Exact Role Identity",
+      "description": "Correlate the created role to later AssumeRole using ARN, account ID, and path-aware role identity.",
+      "examples": [
+        "arn:aws:iam::123456789012:role/BackdoorRole"
+      ],
+      "falsePositiveReduction": "Prevents false joins across reused names or path variations."
+    },
+    {
+      "dimension": "Role Risk Context",
+      "description": "Carry forward trust-policy and permission-risk classification from creation time.",
+      "examples": [
+        "external root trust",
+        "AdministratorAccess attached"
+      ],
+      "falsePositiveReduction": "Explains why the activation matters."
+    },
+    {
+      "dimension": "Assumer Context",
+      "description": "Determine who assumed the role and whether that assumer was expected.",
+      "examples": [
+        "same creator session",
+        "external account principal"
+      ],
+      "falsePositiveReduction": "Distinguishes ordinary testing from suspicious activation patterns."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should be the anchor high-confidence rule in the role-creation family. First observe a successful CreateRole, then correlate a later successful AssumeRole into that exact role within a short window, and enrich with trust, permissions, and assumer context.",
+    "conditions": [
+      "first eventName equals CreateRole",
+      "second eventSource equals sts.amazonaws.com and eventName equals AssumeRole",
+      "requestParameters.roleArn resolves to the same role created earlier",
+      "assumption occurs within 30 minutes"
+    ],
+    "tuningGuidance": "1. Correlate on exact role identity, not just role name. 2. Carry forward trust and permission risk from `det-061` and `det-062`. 3. Escalate for external-account assumption or same-session creator-to-assumer continuity.",
+    "whenToFire": "Fire when a newly created role is assumed shortly afterward, especially when the role had risky trust or high-risk permissions."
+  },
+  "simulationCommand": "aws iam create-role --role-name BackdoorRole --assume-role-policy-document file://trust-policy.json && aws sts assume-role --role-arn arn:aws:iam::123456789012:role/BackdoorRole --role-session-name backdoor-test",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium depending on legitimate create-and-test workflows",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with exact role identity joins",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Best in near-real-time because role activation soon after creation is highly actionable.",
+    "considerations": [
+      "This is one of the highest-fidelity role-abuse detections in the dataset.",
+      "Exact ARN correlation matters."
+    ]
+  }
+}

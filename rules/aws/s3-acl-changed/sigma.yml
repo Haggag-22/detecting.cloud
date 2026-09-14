@@ -1,0 +1,12 @@
+title: S3 ACL Changed
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: s3.amazonaws.com
+    eventName:
+      - PutBucketAcl
+      - PutObjectAcl
+  condition: selection
+level: medium

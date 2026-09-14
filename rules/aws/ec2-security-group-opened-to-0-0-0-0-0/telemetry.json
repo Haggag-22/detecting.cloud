@@ -1,0 +1,13 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "ec2.amazonaws.com",
+  "importantFields": [
+    "eventName",
+    "userIdentity.arn",
+    "requestParameters.groupId",
+    "requestParameters.ipPermissions",
+    "sourceIPAddress",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"ec2.amazonaws.com\",\n  \"eventName\": \"AuthorizeSecurityGroupIngress\",\n  \"userIdentity\": {\n    \"type\": \"IAMUser\",\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\"\n  },\n  \"requestParameters\": {\n    \"groupId\": \"sg-xxx\",\n    \"ipPermissions\": {\n      \"items\": [\n        {\n          \"ipRanges\": {\n            \"items\": [\n              {\n                \"cidrIp\": \"0.0.0.0/0\"\n              }\n            ]\n          }\n        }\n      ]\n    }\n  },\n  \"sourceIPAddress\": \"203.0.113.10\",\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

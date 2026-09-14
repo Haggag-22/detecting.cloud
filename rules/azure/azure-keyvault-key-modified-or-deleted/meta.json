@@ -1,0 +1,26 @@
+{
+  "id": "az-078",
+  "title": "Azure Keyvault Key Modified or Deleted",
+  "description": "Identifies when a Keyvault Key is modified or deleted in Azure.",
+  "awsService": "Key Vault",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Key Vault",
+    "impact",
+    "credential-access",
+    "t1552",
+    "t1552 001"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Key being modified or deleted may be performed by a system administrator.",
+    "Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Key modified or deleted from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

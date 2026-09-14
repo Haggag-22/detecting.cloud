@@ -1,0 +1,5 @@
+[
+  "Call DeleteRolePermissionsBoundary, then within 15 min call AssumeRole or GetSecretValue.",
+  "Verify both events in CloudTrail.",
+  "Run the Splunk or Athena correlation query."
+]

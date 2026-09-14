@@ -1,0 +1,6 @@
+[
+  "Identify who registered the task definition.",
+  "Inspect the image source and whether the registry is approved.",
+  "Review the task role for blast radius.",
+  "Check whether the revision was later deployed with UpdateService or RunTask."
+]

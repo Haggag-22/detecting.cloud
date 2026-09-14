@@ -1,0 +1,5 @@
+[
+  "Identify the target user and whether it is a service or automation account.",
+  "Verify if the user should have console access.",
+  "Check if the user was recently created."
+]

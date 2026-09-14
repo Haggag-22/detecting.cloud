@@ -1,0 +1,5 @@
+[
+  "Set the default version on a policy back to a previously broader version.",
+  "Verify CloudTrail captures the event.",
+  "Confirm the enriched detector only fires when the selected version is risky or broader than the prior default."
+]

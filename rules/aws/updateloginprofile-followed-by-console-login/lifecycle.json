@@ -1,0 +1,127 @@
+{
+  "whyItMatters": "A password reset becomes far more meaningful when the target user quickly authenticates successfully. This is one of the clearest signals that the reset was operationally used, not just configured.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may reset a user's password and then immediately log in as that user to exercise the new access path.",
+    "realWorldUsage": "This is a classic account-takeover sequence in IAM-user environments because it ties credential manipulation directly to subsequent access.",
+    "whyItMatters": "The key split is whether this was expected self-service recovery or an external reset followed by active use.",
+    "riskAndImpact": "If missed, a reset event that initially looks routine can quickly become interactive console takeover with no timely response."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for IAM",
+      "CloudTrail sign-in events from signin.amazonaws.com"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "requestParameters.userName",
+      "userIdentity.arn",
+      "responseElements.ConsoleLogin",
+      "additionalEventData.MFAUsed",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "IAM reset telemetry and sign-in telemetry must both be ingested.",
+      "Sign-in events must preserve successful ConsoleLogin results.",
+      "The environment should be able to map sign-in events back to the target IAM user reliably."
+    ],
+    "limitations": [
+      "Simple username extraction from sign-in events can be brittle.",
+      "Legitimate self-service resets followed by login are expected in some environments.",
+      "CloudWatch count-based approximations are not sufficient for real correlation."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.userName",
+        "normalizedPath": "aws.iam.target_user.name",
+        "notes": "User whose password was updated"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor performing the reset"
+      },
+      {
+        "rawPath": "responseElements.ConsoleLogin",
+        "normalizedPath": "aws.signin.console_login",
+        "notes": "Successful login outcome"
+      },
+      {
+        "rawPath": "additionalEventData.MFAUsed",
+        "normalizedPath": "aws.signin.mfa_used",
+        "notes": "MFA posture of follow-on login"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"UpdateLoginProfile\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_user\": {\n        \"name\": \"TargetUser\"\n      }\n    },\n    \"signin\": {\n      \"console_login\": \"Success\",\n      \"mfa_used\": \"No\"\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Reset Relationship",
+      "description": "Determine whether the reset was self-service, delegated helpdesk, or suspicious third-party activity.",
+      "examples": [
+        "self-reset then self-login",
+        "helpdesk reset then employee login",
+        "workload role reset then target login"
+      ],
+      "falsePositiveReduction": "Makes the correlation story much more actionable."
+    },
+    {
+      "dimension": "Login Risk Context",
+      "description": "Evaluate MFA use, first-seen source IP, geography, device fingerprint, and time-to-login.",
+      "examples": [
+        "no MFA",
+        "login from new country within minutes"
+      ],
+      "falsePositiveReduction": "Separates routine password recovery from suspicious access activation."
+    },
+    {
+      "dimension": "Target User Sensitivity",
+      "description": "Classify whether the user is privileged, dormant, non-human, or otherwise unusual for console activity.",
+      "examples": [
+        "break-glass user",
+        "dormant legacy user"
+      ],
+      "falsePositiveReduction": "Raises priority when the reset affected a user that matters more."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should be the high-confidence branch for password-reset abuse. The strongest implementation links UpdateLoginProfile to a successful ConsoleLogin by the same target user in a short window, then enriches the login with MFA and source context.",
+    "conditions": [
+      "first eventName equals UpdateLoginProfile",
+      "second eventSource equals signin.amazonaws.com and eventName equals ConsoleLogin",
+      "responseElements.ConsoleLogin equals Success",
+      "login user matches the target user from the reset event",
+      "login occurs within 1 hour"
+    ],
+    "tuningGuidance": "1. Do not alert on either event alone. 2. Distinguish self-reset-and-login from third-party reset-and-login. 3. Escalate for no MFA, unusual source IP, and sensitive target users.",
+    "whenToFire": "Fire when a password reset is followed by successful console use by that same target user, especially when the reset relationship or login context is suspicious."
+  },
+  "simulationCommand": "aws iam update-login-profile --user-name TargetUser --password 'ExampleTempPassword123!' --password-reset-required",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium depending on self-service recovery volume and target-user context",
+    "expectedVolume": "Very low in mature environments",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with sign-in telemetry",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Best in near-real-time because the access pattern is short-window and actionable.",
+    "considerations": [
+      "Use this as the high-confidence branch above baseline password resets.",
+      "Reliable sign-in telemetry is mandatory."
+    ]
+  }
+}

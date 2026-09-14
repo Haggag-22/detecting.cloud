@@ -1,0 +1,11 @@
+title: S3 Bucket Deleted That Matches CloudFront Origin
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: s3.amazonaws.com
+    eventName: DeleteBucket
+  condition: selection
+level: high
+# Enrich: correlate requestParameters.bucketName with CloudFront distribution origin domains.

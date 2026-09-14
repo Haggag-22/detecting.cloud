@@ -1,0 +1,25 @@
+{
+  "id": "az-111",
+  "title": "Roles Are Not Being Used",
+  "description": "Identifies when a user has been assigned a privilege role and are not using that role.",
+  "awsService": "Entra ID PIM",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID PIM",
+    "initial-access",
+    "stealth",
+    "t1078",
+    "persistence",
+    "privilege-escalation"
+  ],
+  "logSources": [
+    "Azure pim"
+  ],
+  "falsePositives": [
+    "Investigate if potential generic account that cannot be removed."
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventSource=s3.amazonaws.com (eventName=DeletePublicAccessBlock OR eventName=PutPublicAccessBlock)
+| where eventName="DeletePublicAccessBlock" OR requestParameters.PublicAccessBlockConfiguration.BlockPublicPolicy=false OR requestParameters.PublicAccessBlockConfiguration.RestrictPublicBuckets=false OR requestParameters.PublicAccessBlockConfiguration.BlockPublicAcls=false OR requestParameters.PublicAccessBlockConfiguration.IgnorePublicAcls=false
+| table _time, userIdentity.type, userIdentity.arn, eventName, requestParameters.bucketName, sourceIPAddress

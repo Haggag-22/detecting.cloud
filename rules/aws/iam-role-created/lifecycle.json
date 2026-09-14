@@ -1,0 +1,121 @@
+{
+  "whyItMatters": "A new IAM role can become persistence, lateral movement, or privilege-escalation infrastructure depending on its trust policy and what permissions are granted immediately afterward.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may create a role as a durable access mechanism, either with suspicious trust or with privileged policies attached shortly after creation.",
+    "realWorldUsage": "Role creation is common in legitimate automation, but it is also a favored persistence path because roles integrate cleanly with AWS-native workflows.",
+    "whyItMatters": "This baseline rule is the feeder for stronger detections about suspicious trust policies, privileged role initialization, and unexpected actor context.",
+    "riskAndImpact": "If missed, a newly created role can become a backdoor or privilege-pivot point before anyone reviews the trust and permission model."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.roleName",
+      "requestParameters.assumeRolePolicyDocument",
+      "sourceIPAddress",
+      "userAgent",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "The pipeline must preserve the trust policy document.",
+      "Follow-on AttachRolePolicy, PutRolePolicy, and AssumeRole telemetry should be available for correlation."
+    ],
+    "limitations": [
+      "CreateRole alone is often operationally noisy.",
+      "The raw event does not indicate whether the trust policy is suspicious unless you inspect it.",
+      "Service-linked or IaC-created roles can dominate volume in some environments."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.roleName",
+        "normalizedPath": "aws.iam.role.name",
+        "notes": "Created role name"
+      },
+      {
+        "rawPath": "requestParameters.assumeRolePolicyDocument",
+        "normalizedPath": "aws.iam.role.trust_policy",
+        "notes": "Initial trust policy"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor creating the role"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateRole\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"role\": {\n        \"name\": \"BackdoorRole\",\n        \"trust_policy\": \"{}\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Trust Policy Risk",
+      "description": "Classify the initial trust policy as service-linked, internal, cross-account, root-trusting, or otherwise unusual.",
+      "examples": [
+        "external root trust",
+        "broad AWS principal",
+        "expected ec2.amazonaws.com"
+      ],
+      "falsePositiveReduction": "Separates ordinary service roles from suspicious persistence paths."
+    },
+    {
+      "dimension": "Immediate Permission Grants",
+      "description": "Correlate whether privileged policies are attached or inline permissions are added shortly after role creation.",
+      "examples": [
+        "AdministratorAccess attached within 5 minutes",
+        "wildcard inline policy added"
+      ],
+      "falsePositiveReduction": "Raises confidence when the role quickly becomes operationally dangerous."
+    },
+    {
+      "dimension": "Authorized Creator Context",
+      "description": "Determine whether the actor is approved IaC, platform engineering, or an unexpected identity.",
+      "examples": [
+        "terraform-runner",
+        "manual console user"
+      ],
+      "falsePositiveReduction": "Reduces noise from expected automation and highlights unusual role creation paths."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain a broad baseline role-creation detector. It fires on every successful CreateRole, then uses trust-policy analysis, immediate permission grants, and creator context to determine whether the role looks like normal infrastructure or potential persistence.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals CreateRole",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep the event match broad. 2. Pair this rule with suspicious trust, privileged policy attachment, and unexpected actor detections. 3. Preserve the trust policy document for later analysis.",
+    "whenToFire": "Fire on every successful role creation for visibility, with escalation when trust or follow-on permissions make the role suspicious."
+  },
+  "simulationCommand": "aws iam create-role --role-name BackdoorRole --assume-role-policy-document file://trust-policy.json",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium raw, low-medium when combined with trust and permission enrichment",
+    "expectedVolume": "Environment-dependent",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because suspicious trust or policy attachment often follows quickly.",
+    "considerations": [
+      "This is the feeder rule for the stronger role-abuse detections that follow.",
+      "Preserve trust policy content in the pipeline."
+    ]
+  }
+}

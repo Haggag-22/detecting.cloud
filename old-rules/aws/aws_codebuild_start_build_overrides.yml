@@ -1,0 +1,26 @@
+title: AWS CodeBuild StartBuild With Dangerous Overrides
+id: 1ccf65b3-2212-4178-88d9-df38ca8e1ce9
+status: experimental
+description: |
+    Detects CodeBuild StartBuild with buildspecOverride or environmentVariablesOverride that can change runtime behavior or expose secrets.
+references:
+    - https://detecting.cloud/detection-engineering?rule=det-127
+author: Detecting.Cloud / SOF-ELK
+date: 2026-07-17
+tags:
+    - attack.credential-access
+    - attack.t1528
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: codebuild.amazonaws.com
+        eventName: StartBuild
+        requestParameters|contains:
+            - buildspecOverride
+            - environmentVariablesOverride
+    condition: selection
+falsepositives:
+    - Legitimate administration, automation, or platform engineering activity.
+level: high

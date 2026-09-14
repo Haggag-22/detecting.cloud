@@ -1,0 +1,5 @@
+[
+  "Reproduce the API activity in a non-production account where safe.",
+  "Confirm the CloudTrail event is present.",
+  "Validate the Sigma rule matches the event."
+]

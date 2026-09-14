@@ -1,0 +1,5 @@
+[
+  "Identify the target principal and whether it is sensitive.",
+  "Verify if the boundary change was authorized.",
+  "Assess impact on the principal's effective permissions."
+]

@@ -1,0 +1,25 @@
+title: AWS Cloud Service Dashboard GUI Access
+id: a1b2c3d4-e5f6-4789-a012-3456789abc05
+status: experimental
+description: |
+    Detects successful AWS Management Console (GUI) logins, the entry point for Cloud Service Dashboard discovery, aligned to MITRE ATT&CK detection strategy DET0291 / AN0808. Full-fidelity detection is a correlation MITRE expresses via mutable elements that a single atomic rule cannot capture: ConsoleLogin must be followed by read-only/metadata enumeration from the same GUI session (UserAgentFilter to separate browser vs CLI/API, TimeWindow between login and activity, and PrivilegedSessionThreshold for elevated roles). This rule surfaces the ConsoleLogin anchor for that correlation.
+references:
+    - https://attack.mitre.org/techniques/T1538/
+    - https://attack.mitre.org/detectionstrategies/DET0291/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.discovery
+    - attack.t1538
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: signin.amazonaws.com
+        eventName: ConsoleLogin
+        responseElements|contains: 'ConsoleLogin":"Success'
+    condition: selection
+falsepositives:
+    - Routine console usage by administrators, operators, and finance/billing staff.
+level: low

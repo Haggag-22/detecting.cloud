@@ -1,0 +1,120 @@
+{
+  "whyItMatters": "Not all orphaned origins carry the same risk. An orphaned origin behind a public or customer-facing CloudFront distribution is materially more dangerous than one on an internal or low-value path.",
+  "threatContext": {
+    "attackerBehavior": "An attacker who can claim an orphaned bucket name will prefer distributions that already serve customer traffic or trusted public domains.",
+    "realWorldUsage": "Customer-facing aliases, primary websites, and high-traffic distribution paths are the most valuable takeover targets.",
+    "whyItMatters": "Distribution criticality determines remediation urgency and business impact.",
+    "riskAndImpact": "If missed, defenders may treat a takeover path on a production public domain as operationally equivalent to a low-risk internal CDN edge case."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "CloudFront distribution inventory",
+      "Orphaned-origin posture results",
+      "Distribution criticality or exposure metadata"
+    ],
+    "requiredFields": [
+      "distribution id",
+      "distribution aliases",
+      "origin domainName",
+      "bucket existence status",
+      "business criticality tags"
+    ],
+    "loggingRequirements": [
+      "The posture workflow must first identify orphaned origins.",
+      "The platform should classify distributions by public exposure and business importance.",
+      "Alias inventories and criticality tags must be refreshed accurately."
+    ],
+    "limitations": [
+      "Alias names alone are not a perfect proxy for criticality.",
+      "Some internal distributions may still be high impact even without obvious public aliases.",
+      "This rule is downstream of the core orphaned-origin posture control."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "distribution.id",
+        "normalizedPath": "aws.cloudfront.distribution.id",
+        "notes": "Affected sensitive distribution"
+      },
+      {
+        "rawPath": "distribution.aliases",
+        "normalizedPath": "url.domain",
+        "notes": "Public or customer-facing aliases"
+      },
+      {
+        "rawPath": "enrichment.distributionCriticality",
+        "normalizedPath": "asset.criticality",
+        "notes": "Resolved distribution priority"
+      },
+      {
+        "rawPath": "enrichment.bucketExists",
+        "normalizedPath": "s3.bucket.exists",
+        "notes": "Confirms orphaned-origin state"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"info\"\n    ],\n    \"action\": \"orphaned_cloudfront_origin_prioritized\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"aws\": {\n    \"cloudfront\": {\n      \"distribution\": {\n        \"id\": \"E1234\"\n      }\n    }\n  },\n  \"url\": {\n    \"domain\": [\n      \"www.example.com\"\n    ]\n  },\n  \"asset\": {\n    \"criticality\": \"production_customer_facing\"\n  },\n  \"s3\": {\n    \"bucket\": {\n      \"exists\": false\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Distribution Criticality",
+      "description": "Classify whether the distribution is production, public, customer-facing, or high-traffic.",
+      "examples": [
+        "public website",
+        "internal staging CDN"
+      ],
+      "falsePositiveReduction": "Prioritizes the most dangerous orphaned origins."
+    },
+    {
+      "dimension": "Alias Sensitivity",
+      "description": "Evaluate whether alternate domain names map to trusted customer-visible brands or sensitive services.",
+      "examples": [
+        "www.example.com",
+        "downloads.example.com"
+      ],
+      "falsePositiveReduction": "Improves severity assignment for takeover candidates."
+    },
+    {
+      "dimension": "Business Impact Context",
+      "description": "Determine the operational and reputational consequences if the distribution served hostile content.",
+      "examples": [
+        "customer login flow",
+        "marketing assets"
+      ],
+      "falsePositiveReduction": "Supports remediation ordering and executive risk communication."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should take the orphaned-origin posture results and elevate the subset affecting public or otherwise sensitive distributions. It is a prioritization layer on top of the core orphaned-origin detection.",
+    "conditions": [
+      "distribution is already identified as having an orphaned S3 origin",
+      "distribution criticality or public exposure metadata places it in a sensitive or customer-facing class"
+    ],
+    "tuningGuidance": "1. Build on top of the core orphaned-origin posture check. 2. Use explicit distribution criticality metadata where possible. 3. Escalate highest for public, branded, or business-critical aliases.",
+    "whenToFire": "Fire when an orphaned CloudFront origin affects a sensitive or public distribution."
+  },
+  "simulationCommand": "aws cloudfront get-distribution --id E1234",
+  "quality": {
+    "signalQuality": 10,
+    "falsePositiveRate": "Low with accurate criticality classification",
+    "expectedVolume": "Extremely low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Scheduled posture prioritization workflows",
+      "Athena or data-lake post-processing",
+      "Lambda enrichment on posture findings"
+    ],
+    "scheduling": "Run alongside or immediately after the core orphaned-origin posture check.",
+    "considerations": [
+      "This is the severity-prioritization branch of the orphaned-origin family.",
+      "Distribution criticality metadata is the main dependency."
+    ]
+  }
+}

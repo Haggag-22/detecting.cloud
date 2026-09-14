@@ -1,0 +1,5 @@
+[
+  "Identify the lifecycle-path event, target notebook, and any linked execution role.",
+  "Review ordered follow-on activity such as secrets access, decrypt, role assumption, access-key creation, or IAM mutation within 30 minutes.",
+  "Determine whether the later activity came from the same operator identity or the notebook execution role after startup."
+]

@@ -1,0 +1,116 @@
+{
+  "whyItMatters": "Reconnaissance is often more visible in volume than in any one read API. Burst SES identity enumeration can indicate active mapping of email infrastructure before abuse.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may repeatedly query SES identities and verification status to inventory usable domains and email addresses quickly.",
+    "realWorldUsage": "This is attractive because the reconnaissance is cheap, fast, and can provide a complete picture of the SES footprint before policy changes or sending abuse.",
+    "whyItMatters": "Short-window repetition is often the strongest sign that the activity is exploratory rather than a normal administrative spot check.",
+    "riskAndImpact": "If missed, defenders may not recognize an active reconnaissance phase that precedes SES misconfiguration or phishing activity."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for SES"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "SES enumeration events must be ingested with accurate timestamps.",
+      "The detection engine must support thresholding or windowed aggregation.",
+      "Actor identity should be normalized across IAM users and assumed roles."
+    ],
+    "limitations": [
+      "Fixed thresholds may need tuning by environment.",
+      "Legitimate automation may burst during synchronization or audits.",
+      "Some recon may remain low-and-slow and avoid threshold-based detection."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor performing repeated SES reads"
+      },
+      {
+        "rawPath": "eventName",
+        "normalizedPath": "event.action",
+        "notes": "Enumeration API counted in the burst"
+      },
+      {
+        "rawPath": "eventTime",
+        "normalizedPath": "@timestamp",
+        "notes": "Time of each SES read event"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"discovery\"\n    ],\n    \"type\": [\n      \"info\"\n    ],\n    \"action\": \"GetIdentityVerificationAttributes\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/attacker\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Actor History",
+      "description": "Determine whether the actor has previously performed SES enumeration and at what volume.",
+      "examples": [
+        "first-time SES enumeration",
+        "daily SES sync role"
+      ],
+      "falsePositiveReduction": "Makes burst behavior more meaningful in context."
+    },
+    {
+      "dimension": "SES Operational Windows",
+      "description": "Understand whether the burst aligns with expected maintenance or sync jobs.",
+      "examples": [
+        "nightly inventory job",
+        "ad hoc burst at unusual hour"
+      ],
+      "falsePositiveReduction": "Separates legitimate automation from exploratory recon."
+    },
+    {
+      "dimension": "Post-Burst Activity",
+      "description": "Track whether the same actor moves into SES write actions or other abuse shortly afterward.",
+      "examples": [
+        "PutIdentityPolicy after burst",
+        "CreateAccessKey after burst"
+      ],
+      "falsePositiveReduction": "Improves confidence when the burst leads to action."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect short-window spikes in SES identity-enumeration activity. It should count `ListIdentities` and `GetIdentityVerificationAttributes` calls per normalized actor and fire when the number of calls exceeds the local threshold inside a five-minute window.",
+    "conditions": [
+      "eventSource equals ses.amazonaws.com",
+      "eventName equals ListIdentities or GetIdentityVerificationAttributes",
+      "same normalized actor exceeds threshold in a 5-minute window"
+    ],
+    "tuningGuidance": "1. Tune the threshold to local SES usage. 2. Normalize IAM users and assumed roles into a stable actor identity. 3. Escalate further when the burst is performed by an unauthorized actor or followed by SES write activity.",
+    "whenToFire": "Fire when SES identity-enumeration volume exceeds the configured threshold in a short time window."
+  },
+  "simulationCommand": "for i in {1..6}; do aws ses get-identity-verification-attributes --identities user@example.com; done",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Low-Medium with tuned thresholds and actor baselines",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM threshold engines",
+      "Athena scheduled aggregation",
+      "CloudWatch Logs Insights",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Near-real-time or short scheduled windows work well because the burst itself is the signal.",
+    "considerations": [
+      "This is the volume-based SES reconnaissance detector.",
+      "Threshold tuning is the main implementation dependency."
+    ]
+  }
+}

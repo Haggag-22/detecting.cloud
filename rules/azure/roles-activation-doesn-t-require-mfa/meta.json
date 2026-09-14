@@ -1,0 +1,25 @@
+{
+  "id": "az-110",
+  "title": "Roles Activation Doesn't Require MFA",
+  "description": "Identifies when a privilege role can be activated without performing mfa.",
+  "awsService": "Entra ID PIM",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID PIM",
+    "initial-access",
+    "stealth",
+    "t1078",
+    "persistence",
+    "privilege-escalation"
+  ],
+  "logSources": [
+    "Azure pim"
+  ],
+  "falsePositives": [
+    "Investigate if user is performing MFA at sign-in."
+  ],
+  "relatedAttackSlugs": []
+}

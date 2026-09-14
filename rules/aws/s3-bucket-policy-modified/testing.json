@@ -1,0 +1,5 @@
+[
+  "Modify an S3 bucket policy (PutBucketPolicy or DeleteBucketPolicy).",
+  "Verify CloudTrail captures the event.",
+  "Run the detection to confirm the alert triggers."
+]

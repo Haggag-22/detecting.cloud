@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.roleArn, requestParameters.roleSessionName, sourceIPAddress
+| filter eventSource = "sts.amazonaws.com"
+| filter eventName = "AssumeRole"
+| filter requestParameters.roleArn like /Admin|Administrator|PowerUser|OrganizationAccountAccessRole|Security/
+| filter userIdentity.arn not like /\/role\/(Admin|Security|Platform|Infra)/ and userIdentity.arn not like /AWSReservedSSO_AdministratorAccess/
+| sort @timestamp desc

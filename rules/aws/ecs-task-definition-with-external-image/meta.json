@@ -1,0 +1,23 @@
+{
+  "id": "det-027",
+  "title": "ECS Task Definition with External Image",
+  "description": "Detects registration of ECS task definitions using container images from non-approved registries.",
+  "awsService": "ECS",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "ECS",
+    "Container",
+    "Supply Chain"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Development environments pulling from public registries"
+  ],
+  "relatedAttackSlugs": []
+}

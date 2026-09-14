@@ -1,0 +1,125 @@
+{
+  "whyItMatters": "Interactive access to sensitive hosts carries much higher risk than access to ordinary development systems. Even legitimate operators should be tightly scoped when using EC2 Instance Connect on critical infrastructure.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may target bastions, identity infrastructure, secrets hosts, or production systems using EC2 Instance Connect to obtain privileged shell access.",
+    "realWorldUsage": "Sensitive infrastructure is the natural target for cloud interactive-access abuse because these hosts often provide credentials, trust paths, or direct access to crown-jewel data.",
+    "whyItMatters": "The real signal comes from what the instance is, not whether its instance ID or name happens to contain a keyword.",
+    "riskAndImpact": "If missed, unauthorized interactive access to high-value infrastructure can lead directly to credential theft, lateral movement, or service disruption."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2 Instance Connect",
+      "EC2 asset inventory and sensitivity classification"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.instanceId",
+      "sourceIPAddress",
+      "userAgent"
+    ],
+    "loggingRequirements": [
+      "SendSSHPublicKey events must be ingested with target instance context.",
+      "The environment should maintain sensitivity or workload classification for EC2 instances.",
+      "Instance-to-environment and owner metadata should be accessible during enrichment."
+    ],
+    "limitations": [
+      "Without asset inventory the rule cannot reliably determine target sensitivity.",
+      "CloudTrail does not prove whether SSH login succeeded after the key push.",
+      "Some sensitive hosts may legitimately receive frequent interactive access from tightly controlled teams."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.instanceId",
+        "normalizedPath": "cloud.instance.id",
+        "notes": "Target instance receiving the key push"
+      },
+      {
+        "rawPath": "enrichment.instanceSensitivity",
+        "normalizedPath": "cloud.instance.sensitivity",
+        "notes": "Resolved criticality or workload classification"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor opening interactive access"
+      },
+      {
+        "rawPath": "sourceIPAddress",
+        "normalizedPath": "source.ip",
+        "notes": "Source IP of the access request"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"authentication\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"SendSSHPublicKey\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"cloud\": {\n    \"instance\": {\n      \"id\": \"i-0abc123\",\n      \"sensitivity\": \"production_bastion\"\n    }\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Target Sensitivity Classification",
+      "description": "Resolve whether the target instance is production, identity infrastructure, secrets-facing, break-glass, or otherwise privileged.",
+      "examples": [
+        "production bastion",
+        "directory services host",
+        "secrets broker"
+      ],
+      "falsePositiveReduction": "Replaces meaningless instance-ID keyword filters with real asset context."
+    },
+    {
+      "dimension": "Actor-to-Target Authorization",
+      "description": "Determine whether the actor is allowed to access that class of sensitive host.",
+      "examples": [
+        "prod SRE only",
+        "developer outside prod scope"
+      ],
+      "falsePositiveReduction": "Explains whether sensitive-host access is expected or suspicious."
+    },
+    {
+      "dimension": "Operational Context",
+      "description": "Correlate maintenance windows, incident-response workflows, and break-glass procedures.",
+      "examples": [
+        "planned maintenance",
+        "untracked out-of-band access"
+      ],
+      "falsePositiveReduction": "Prevents authorized emergency operations from generating unnecessary escalations."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect EC2 Instance Connect access to hosts classified as sensitive. The detector should resolve the target instance from inventory, determine its criticality, and then alert when interactive access is opened on that class of system.",
+    "conditions": [
+      "eventSource equals ec2-instance-connect.amazonaws.com",
+      "eventName equals SendSSHPublicKey",
+      "target instance is classified as sensitive or privileged",
+      "optionally escalate further when actor is outside approved scope for that target class"
+    ],
+    "tuningGuidance": "1. Classify targets through asset inventory, not name substrings. 2. Pair target sensitivity with actor scope to prioritize correctly. 3. Escalate strongly for production, identity, secrets, and break-glass infrastructure.",
+    "whenToFire": "Fire when EC2 Instance Connect is used against a sensitive target, especially when the actor is not approved for that host class."
+  },
+  "simulationCommand": "aws ec2-instance-connect send-ssh-public-key --instance-id i-0abc123 --instance-os-user ec2-user --ssh-public-key file://id_rsa.pub --availability-zone us-east-1a",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with accurate asset classification and access scope modeling; high with instance-name heuristics",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with asset inventory joins",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because sensitive-host access is immediately actionable.",
+    "considerations": [
+      "This is the target-centric EC2 Instance Connect detector.",
+      "Asset classification is the main dependency."
+    ]
+  }
+}

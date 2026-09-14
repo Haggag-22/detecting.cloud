@@ -1,0 +1,26 @@
+title: AWS EC2 Startup Shell Script Modification
+id: 847e614c-d770-42ff-91b9-559e014ee44d
+status: experimental
+description: |
+    Detects changes to the EC2 instance startup script (user data) via ModifyInstanceAttribute where requestParameters.attribute is userData. The startup script is executed as root/SYSTEM each time the instance boots, allowing adversaries to establish persistence and execute arbitrary commands. Companion to the EC2 compute configuration modification rule, which deliberately excludes userData changes.
+references:
+    - https://attack.mitre.org/techniques/T1059/009/
+    - https://attack.mitre.org/detectionstrategies/DET0078/
+    - https://github.com/RhinoSecurityLabs/pacu
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.execution
+    - attack.t1059.009
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: ec2.amazonaws.com
+        eventName: ModifyInstanceAttribute
+        requestParameters|contains: '"attribute":"userData"'
+    condition: selection
+falsepositives:
+    - Legitimate changes to instance user data by administrators or infrastructure automation.
+level: medium

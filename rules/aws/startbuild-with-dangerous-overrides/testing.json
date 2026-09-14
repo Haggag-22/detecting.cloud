@@ -1,0 +1,5 @@
+[
+  "Launch a test build using `buildspecOverride` or `environmentVariablesOverride`.",
+  "Verify CloudTrail records the override fields.",
+  "Run the detector and confirm it only fires when those override parameters are present."
+]

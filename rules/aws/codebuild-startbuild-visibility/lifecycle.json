@@ -1,0 +1,123 @@
+{
+  "whyItMatters": "CodeBuild can execute code with high-value credentials, environment variables, and artifact access. Baseline visibility into build launches is essential for detecting build-path abuse.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may trigger builds to execute under a privileged build role, access secrets, or stage malicious changes in CI/CD workflows.",
+    "realWorldUsage": "This is attractive because build systems often have broad permissions and trusted network access.",
+    "whyItMatters": "StartBuild is the feeder event for higher-confidence detections involving overrides, unexpected actors, and post-build sensitive activity.",
+    "riskAndImpact": "If missed, defenders may not notice the beginning of CodeBuild-based credential theft or CI/CD abuse."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for CodeBuild"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.projectName",
+      "requestParameters.buildspecOverride",
+      "requestParameters.environmentVariablesOverride",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must ingest CodeBuild management events.",
+      "The platform should preserve project name and any request overrides.",
+      "Follow-on IAM, STS, Secrets Manager, and KMS activity should be available for downstream correlation."
+    ],
+    "limitations": [
+      "A single StartBuild event is usually low-context by itself.",
+      "High-volume CI/CD environments may produce a steady stream of expected build launches.",
+      "The baseline does not prove whether the launched build was malicious."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor launching the build"
+      },
+      {
+        "rawPath": "requestParameters.projectName",
+        "normalizedPath": "aws.codebuild.project.name",
+        "notes": "CodeBuild project started"
+      },
+      {
+        "rawPath": "requestParameters.buildspecOverride",
+        "normalizedPath": "aws.codebuild.request.buildspec_override",
+        "notes": "Optional buildspec override"
+      },
+      {
+        "rawPath": "requestParameters.environmentVariablesOverride",
+        "normalizedPath": "aws.codebuild.request.environment_variables_override",
+        "notes": "Optional environment variable override"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"process\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"StartBuild\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/admin\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"codebuild\": {\n      \"project\": {\n        \"name\": \"my-project\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Project Criticality",
+      "description": "Classify the build project by privilege, secret exposure, and production impact.",
+      "examples": [
+        "deployment project",
+        "test project"
+      ],
+      "falsePositiveReduction": "Improves prioritization of build launches."
+    },
+    {
+      "dimension": "Actor Authorization",
+      "description": "Determine whether the actor is expected to start that build project.",
+      "examples": [
+        "CI pipeline role",
+        "unexpected app role"
+      ],
+      "falsePositiveReduction": "Feeds actor-based build detections."
+    },
+    {
+      "dimension": "Override Presence",
+      "description": "Track whether buildspec or environment overrides were included in the request.",
+      "examples": [
+        "no overrides",
+        "buildspec override present"
+      ],
+      "falsePositiveReduction": "Helps separate ordinary builds from higher-risk launches."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain a broad visibility rule for successful `StartBuild` events. It provides the baseline execution telemetry required for more targeted CodeBuild abuse detections.",
+    "conditions": [
+      "eventSource equals codebuild.amazonaws.com",
+      "eventName equals StartBuild",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep the baseline broad. 2. Add project criticality and actor context for triage. 3. Correlate with overrides or later sensitive activity for higher-confidence detections.",
+    "whenToFire": "Fire on every successful StartBuild event for visibility."
+  },
+  "simulationCommand": "aws codebuild start-build --project-name my-project",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium as a baseline visibility rule, low-medium with actor and project context",
+    "expectedVolume": "Low-Medium depending on CI/CD usage",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful for chaining into override and post-build abuse detections.",
+    "considerations": [
+      "This is the feeder rule for the CodeBuild credential-theft family.",
+      "Project criticality and actor context are the main enrichments."
+    ]
+  }
+}

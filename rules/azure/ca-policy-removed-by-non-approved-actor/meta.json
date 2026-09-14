@@ -1,0 +1,27 @@
+{
+  "id": "az-001",
+  "title": "CA Policy Removed by Non Approved Actor",
+  "description": "Monitor and alert on conditional access changes where non approved actor removed CA Policy.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "credential-access",
+    "persistence",
+    "defense-impairment",
+    "t1548",
+    "t1556"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Misconfigured role permissions",
+    "Verify whether the user identity, user agent, and/or hostname should be making changes in your environment."
+  ],
+  "relatedAttackSlugs": []
+}

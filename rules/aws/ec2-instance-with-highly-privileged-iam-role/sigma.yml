@@ -1,0 +1,17 @@
+title: EC2 Instance with Admin IAM Role
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName: RunInstances
+  high_risk_profile:
+    requestParameters.iamInstanceProfile.arn|contains:
+      - 'Admin'
+      - 'Administrator'
+      - 'PowerUser'
+      - 'Security'
+      - 'OrganizationAccountAccessRole'
+  condition: selection and high_risk_profile
+level: high

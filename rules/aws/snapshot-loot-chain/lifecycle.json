@@ -1,0 +1,126 @@
+{
+  "whyItMatters": "This is the flagship storage-loot detector because it models how a snapshot moves from collection to exposure and then toward access. Multi-stage lineage provides much stronger confidence than any one API event on its own.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may create a snapshot, expose or copy it, and then restore or attach the resulting volume to gain offline or live access to the stolen data.",
+    "realWorldUsage": "Snapshot exfiltration and rehydration is attractive because it uses native cloud storage workflows to separate data collection from later access.",
+    "whyItMatters": "The strongest confidence comes from ordered multi-stage behavior over the same storage lineage, not simply multiple suspicious APIs by the same actor.",
+    "riskAndImpact": "If missed, defenders may detect only fragments of a storage theft chain and fail to recognize that sensitive disk data has already crossed into accessible form."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "Snapshot and volume inventory",
+      "Account and region allowlists for approved sharing or copy operations"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.snapshotId",
+      "requestParameters.sourceSnapshotId",
+      "requestParameters.createVolumePermission",
+      "requestParameters.volumeId",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "All snapshot create, permission-change, copy, volume creation, and attachment events must be ingested.",
+      "The detector should track ordered lineage across snapshot and volume entities.",
+      "Permission-delta modeling should distinguish external-account sharing, public sharing, copy, and restore branches."
+    ],
+    "limitations": [
+      "Actor-only joins are too weak for reliable chain detection.",
+      "AttachVolume must be tied back to CreateVolume lineage to be trustworthy.",
+      "Legitimate DR and migration workflows can perform similar sequences and require strong allowlisting."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.snapshotId",
+        "normalizedPath": "aws.ebs.snapshot.id",
+        "notes": "Primary snapshot entity in the chain"
+      },
+      {
+        "rawPath": "requestParameters.sourceSnapshotId",
+        "normalizedPath": "aws.ebs.snapshot.source_id",
+        "notes": "Snapshot lineage reference used in copy or restore stages"
+      },
+      {
+        "rawPath": "requestParameters.volumeId",
+        "normalizedPath": "aws.ebs.volume.id",
+        "notes": "Derived volume in the restore branch"
+      },
+      {
+        "rawPath": "requestParameters.createVolumePermission",
+        "normalizedPath": "aws.ebs.snapshot.permission_delta",
+        "notes": "Exposure branch through sharing or public access"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"storage\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateSnapshot\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ebs\": {\n      \"snapshot\": {\n        \"id\": \"snap-xxx\",\n        \"source_id\": \"snap-xxx\",\n        \"permission_delta\": {\n          \"add\": {\n            \"userIds\": [\n              \"999999999999\"\n            ]\n          }\n        }\n      },\n      \"volume\": {\n        \"id\": \"vol-restored-123\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Branch Type",
+      "description": "Distinguish exposure branches from public or external sharing versus copy or rehydration branches.",
+      "examples": [
+        "external share branch",
+        "copy and restore branch"
+      ],
+      "falsePositiveReduction": "Lets the detector explain exactly how the loot chain progressed."
+    },
+    {
+      "dimension": "Entity Lineage",
+      "description": "Track the same snapshot through permission changes, copy operations, derived volumes, and live attachments.",
+      "examples": [
+        "snap-xxx -> copied snapshot -> vol-restored-123"
+      ],
+      "falsePositiveReduction": "Prevents unrelated storage operations by the same actor from forming a false chain."
+    },
+    {
+      "dimension": "Approved Recovery Context",
+      "description": "Correlate DR accounts, migration projects, maintenance windows, and backup service ownership.",
+      "examples": [
+        "planned recovery drill",
+        "manual untracked restore"
+      ],
+      "falsePositiveReduction": "Separates authorized resilience workflows from suspicious storage access chains."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a multi-stage storage theft path. First a snapshot is created, then it is either exposed or copied, and finally it is restored into a volume or attached to a live instance. The detector should require ordered lineage across those stages, not just multiple event names by one actor.",
+    "conditions": [
+      "first eventName equals CreateSnapshot or CreateSnapshots",
+      "second stage is external share, public share, or CopySnapshot over the same snapshot lineage",
+      "third stage is CreateVolume or AttachVolume over the derived lineage",
+      "all stages occur in an expected short window and are not part of approved workflows"
+    ],
+    "tuningGuidance": "1. Correlate by snapshot and volume lineage. 2. Separate exposure and rehydration branches for explainability. 3. Escalate further when the source workload is sensitive or the recipient account is unapproved.",
+    "whenToFire": "Fire when a snapshot progresses through an ordered exposure or copy path into restored or attached storage access."
+  },
+  "simulationCommand": "aws ec2 create-snapshot --volume-id vol-0abc123 --description 'loot-chain-test'",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with ordered lineage and approved-workflow allowlists; high with actor-only aggregation",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with lineage tracking tables",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with stateful storage lineage"
+    ],
+    "scheduling": "Near-real-time is preferred because the full loot path can progress quickly once the snapshot is created.",
+    "considerations": [
+      "This should be one of the highest-fidelity storage abuse detections in the dataset.",
+      "Lineage tracking is the core dependency."
+    ]
+  }
+}

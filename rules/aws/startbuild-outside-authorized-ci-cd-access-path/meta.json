@@ -1,0 +1,25 @@
+{
+  "id": "det-128",
+  "title": "StartBuild Outside Authorized CI/CD Access Path",
+  "description": "Detects CodeBuild launches by identities outside approved CI/CD workflows. This should depend on explicit actor authorization and workflow provenance, not string matching on role names.",
+  "awsService": "CodeBuild",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "CodeBuild",
+    "Credential Theft",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Known CI/CD roles",
+    "Codepipeline",
+    "CodeBuild service"
+  ],
+  "relatedAttackSlugs": []
+}

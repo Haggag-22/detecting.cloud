@@ -1,0 +1,5 @@
+[
+  "Identify the actor, target instance, and exact time of the EC2 Instance Connect event.",
+  "Review ordered follow-on activity such as secrets access, role chaining, IAM mutation, or additional host-access events within 15 minutes.",
+  "Determine whether the same normalized operator identity performed the post-access activity and whether the target host context makes the sequence expected."
+]

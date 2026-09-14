@@ -1,0 +1,129 @@
+{
+  "whyItMatters": "Launching compute with an attached IAM role is sensitive enough that only a narrow set of automation and operators should perform it. Unexpected actor context often makes the launch more suspicious than the profile itself.",
+  "threatContext": {
+    "attackerBehavior": "An attacker using a developer, workload, or ad hoc human session may launch EC2 with a role to gain workload credentials and a controllable execution environment.",
+    "realWorldUsage": "Unexpected-actor compute launches are a common cloud abuse pattern because attackers often choose mechanisms that look like routine infrastructure operations.",
+    "whyItMatters": "The right question is whether the actor is allowed to launch compute with that class of role, not whether the actor's ARN looks like terraform or admin.",
+    "riskAndImpact": "If missed, attackers can create new compute footholds with attached credentials from identities that should never provision such infrastructure."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "Authorized provisioning actor inventory",
+      "Approved actor-to-profile or actor-to-role mappings"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.principalId",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.iamInstanceProfile",
+      "sourceIPAddress",
+      "userAgent",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "RunInstances events must be ingested with actor session context.",
+      "The environment should maintain exact approved launch principals and scope.",
+      "Profile or role usage policy should indicate which actors may launch which profiles."
+    ],
+    "limitations": [
+      "Without actor inventory this rule becomes noisy.",
+      "Federated or chained role sessions need stable identity context and scope mapping.",
+      "Legitimate emergency or break-glass provisioning can still look suspicious without workflow provenance."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Launch actor"
+      },
+      {
+        "rawPath": "userIdentity.principalId",
+        "normalizedPath": "user.id",
+        "notes": "Stable actor identifier"
+      },
+      {
+        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
+        "normalizedPath": "aws.identity.session_issuer.arn",
+        "notes": "Underlying role for assumed-role sessions"
+      },
+      {
+        "rawPath": "requestParameters.iamInstanceProfile.name",
+        "normalizedPath": "aws.ec2.instance_profile.name",
+        "notes": "Requested instance profile"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"compute\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"RunInstances\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/app-role/i-xxx\",\n    \"type\": \"AssumedRole\",\n    \"id\": \"AROAXXXXX:i-xxx\"\n  },\n  \"aws\": {\n    \"ec2\": {\n      \"instance_profile\": {\n        \"name\": \"AdminInstanceProfile\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized Provisioning Actors",
+      "description": "Exact inventory of principals allowed to launch EC2 with attached roles.",
+      "examples": [
+        "Auto Scaling service role",
+        "approved platform deployer"
+      ],
+      "falsePositiveReduction": "Replaces brittle actor naming filters with stable authorization context."
+    },
+    {
+      "dimension": "Actor-to-Profile Scope",
+      "description": "Determine whether the actor is allowed to use the specific profile or class of backing role.",
+      "examples": [
+        "web deployer may use WebAppProfile only",
+        "developer role cannot use AdminProfile"
+      ],
+      "falsePositiveReduction": "Prevents over-broad permission to launch arbitrary privileged compute."
+    },
+    {
+      "dimension": "Workflow Provenance",
+      "description": "Correlate launch templates, CI/CD context, change windows, and service-driven operations.",
+      "examples": [
+        "launch template rollout",
+        "manual CLI launch"
+      ],
+      "falsePositiveReduction": "Separates routine deployments from suspicious out-of-band launches."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should be an actor-authorization detector for compute role activation. It alerts when RunInstances with an instance profile occurs outside approved provisioning workflows or when the actor uses a profile outside its allowed scope.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals RunInstances",
+      "requestParameters.iamInstanceProfile exists",
+      "actor is not in approved provisioning inventory or actor is outside allowed profile scope, or request lacks approved workflow provenance"
+    ],
+    "tuningGuidance": "1. Use exact principal inventories and scope mapping. 2. Treat CI/CD and service roles as workflow context, not string patterns. 3. Escalate when the backing role is high-risk or is used soon after launch.",
+    "whenToFire": "Fire when compute is launched with an attached profile outside authorized provisioning paths, especially when the backing role is privileged."
+  },
+  "simulationCommand": "aws ec2 run-instances --image-id ami-1234567890abcdef0 --instance-type t3.micro --iam-instance-profile Name=AdminInstanceProfile --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium without actor inventory, low-medium with scope and workflow enrichment",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with lookup tables",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because suspicious compute launches can lead to immediate credential use.",
+    "considerations": [
+      "Use this as the actor-centric companion to `det-065` and `det-066`.",
+      "Actor scope quality is the main dependency."
+    ]
+  }
+}

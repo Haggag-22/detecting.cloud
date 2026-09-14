@@ -1,0 +1,5 @@
+[
+  "Resolve the activated instance profile to its backing role and determine whether sensitive follow-on activity came from that role rather than the human launcher.",
+  "Review the sequence from EC2 launch or profile change to role use within 15 minutes.",
+  "Check whether the follow-on activity reflects secrets access, role chaining, IAM mutation, or other sensitive operations unexpected for that workload."
+]

@@ -1,0 +1,12 @@
+title: SageMaker Lifecycle Config Created or Updated
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: sagemaker.amazonaws.com
+    eventName:
+      - CreateNotebookInstanceLifecycleConfig
+      - UpdateNotebookInstanceLifecycleConfig
+  condition: selection
+level: medium

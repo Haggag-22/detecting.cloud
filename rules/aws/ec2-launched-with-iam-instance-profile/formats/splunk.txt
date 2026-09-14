@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com eventName=RunInstances
+| where isnotnull(requestParameters.iamInstanceProfile)
+| table _time, userIdentity.arn, eventName, requestParameters.iamInstanceProfile, requestParameters.instancesSet, sourceIPAddress

@@ -1,0 +1,5 @@
+[
+  "Parse the exact ACL outcome, including canned ACL values and any grantee accounts or groups.",
+  "Determine whether the grant created public, authenticated-user, or external-account access and whether the target still honors ACLs.",
+  "Check whether the grant recipient is expected for the target bucket or object."
+]

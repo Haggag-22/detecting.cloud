@@ -1,0 +1,5 @@
+[
+  "Identify the actor, session issuer, and source IP behind the ACL mutation.",
+  "Verify whether this identity is explicitly approved to manage ACLs for the target bucket or object.",
+  "Determine whether the request came from trusted infrastructure automation or an unexpected workload or user session."
+]

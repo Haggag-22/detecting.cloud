@@ -1,0 +1,5 @@
+[
+  "Identify the actor, target bucket or object, and the exact ACL form used in the request.",
+  "Determine whether the target bucket still honors ACLs or uses `BucketOwnerEnforced` object ownership.",
+  "Check for follow-on access, public exposure, or cross-account grants after the ACL change."
+]

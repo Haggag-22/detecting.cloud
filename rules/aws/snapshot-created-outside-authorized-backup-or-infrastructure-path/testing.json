@@ -1,0 +1,5 @@
+[
+  "As an identity outside the approved backup or infrastructure set, call CreateSnapshot on a monitored test volume.",
+  "Verify CloudTrail captures actor and volume context.",
+  "Run the detection and confirm it relies on exact actor authorization rather than role-name text."
+]

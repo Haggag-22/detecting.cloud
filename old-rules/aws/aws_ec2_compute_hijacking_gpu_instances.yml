@@ -1,0 +1,40 @@
+title: AWS EC2 Compute Hijacking Via GPU/HPC Instance Launch
+id: 117dd58e-6850-454f-b40f-3e88fe990c24
+status: experimental
+description: |
+    Detects launching of large GPU/accelerated/HPC EC2 instance types frequently abused for cryptomining or unauthorized compute (Resource Hijacking). Also covers the parent Resource Hijacking (T1496) scope.
+references:
+    - https://attack.mitre.org/techniques/T1496/001/
+    - https://attack.mitre.org/detectionstrategies/DET0267/
+    - https://attack.mitre.org/detectionstrategies/DET0540/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.impact
+    - attack.t1496
+    - attack.t1496.001
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: ec2.amazonaws.com
+        eventName: RunInstances
+        requestParameters|contains:
+            - '"instanceType":"p2.'
+            - '"instanceType":"p3.'
+            - '"instanceType":"p4'
+            - '"instanceType":"p5'
+            - '"instanceType":"g3'
+            - '"instanceType":"g4'
+            - '"instanceType":"g5'
+            - '"instanceType":"g6'
+            - '"instanceType":"inf'
+            - '"instanceType":"trn'
+            - '"instanceType":"x1'
+            - '"instanceType":"x2'
+    condition: selection
+falsepositives:
+    - Legitimate machine-learning, rendering, or HPC workloads.
+    - Data-science teams provisioning accelerated compute.
+level: medium

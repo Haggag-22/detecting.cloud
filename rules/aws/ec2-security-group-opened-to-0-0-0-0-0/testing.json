@@ -1,0 +1,5 @@
+[
+  "Add an ingress rule with 0.0.0.0/0 to a security group.",
+  "Verify CloudTrail captures AuthorizeSecurityGroupIngress.",
+  "Run the detection to confirm the alert triggers."
+]

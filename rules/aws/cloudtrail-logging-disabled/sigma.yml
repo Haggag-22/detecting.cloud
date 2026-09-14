@@ -1,0 +1,25 @@
+title: CloudTrail Logging Disabled
+status: stable
+logsource:
+  service: cloudtrail
+detection:
+  selection_base:
+    eventSource: cloudtrail.amazonaws.com
+  selection_stop:
+    eventName: StopLogging
+  selection_delete:
+    eventName: DeleteTrail
+  selection_update:
+    eventName: UpdateTrail
+  weaken_logging:
+    requestParameters.isMultiRegionTrail: false
+  weaken_global:
+    requestParameters.includeGlobalServiceEvents: false
+  weaken_validation:
+    requestParameters.enableLogFileValidation: false
+  weaken_org:
+    requestParameters.isOrganizationTrail: false
+  filter_errors:
+    errorCode|exists: true
+  condition: selection_base and ((selection_stop or selection_delete) or (selection_update and 1 of weaken_*)) and not filter_errors
+level: critical

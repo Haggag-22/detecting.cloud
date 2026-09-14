@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects when the master password for an AWS RDS database instance is changed via ModifyDBInstance where responseElements.pendingModifiedValues.masterUserPassword is present (returned masked). Adversaries may reset the master credential to gain or maintain access to the database, which can be a precursor to data access or exfiltration.",
+  "threatContext": {
+    "attackerBehavior": "Detects when the master password for an AWS RDS database instance is changed via ModifyDBInstance where responseElements.pendingModifiedValues.masterUserPassword is present (returned masked). Adversaries may reset the master credential to gain or maintain access to the database, which can be a precursor to data access or exfiltration.",
+    "whyItMatters": "Detects when the master password for an AWS RDS database instance is changed via ModifyDBInstance where responseElements.pendingModifiedValues.masterUserPassword is present (returned masked). Adversaries may reset the master credential to gain or maintain access to the database, which can be a precursor to data access or exfiltration.",
+    "riskAndImpact": "Abuse related to RDS can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects when the master password for an AWS RDS database instance is changed via ModifyDBInstance where responseElements.pendingModifiedValues.masterUserPassword is present (returned masked). Adversaries may reset the master credential to gain or maintain access to the database, which can be a precursor to data access or exfiltration.",
+    "whenToFire": "When CloudTrail shows activity matching this AWS RDS Master Password Change detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

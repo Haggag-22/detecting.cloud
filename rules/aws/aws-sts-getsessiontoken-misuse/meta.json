@@ -1,0 +1,23 @@
+{
+  "id": "det-179",
+  "title": "AWS STS GetSessionToken Misuse",
+  "description": "Identifies the suspicious use of GetSessionToken. Tokens could be created and used by attackers to move laterally and escalate privileges.",
+  "awsService": "IAM",
+  "relatedServices": [
+    "STS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Low",
+  "tags": [
+    "STS",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "GetSessionToken may be done by a system or network administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment. GetSessionToken from unfamiliar users or hosts should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

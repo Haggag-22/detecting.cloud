@@ -1,0 +1,22 @@
+{
+  "id": "det-147",
+  "title": "AWS EC2 Disable EBS Encryption",
+  "description": "Identifies disabling of default Amazon Elastic Block Store (EBS) encryption in the current region. Disabling default encryption does not change the encryption status of your existing volumes.",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EC2",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "System Administrator Activities",
+    "DEV, UAT, SAT environment. You should apply this rule with PROD account only."
+  ],
+  "relatedAttackSlugs": []
+}

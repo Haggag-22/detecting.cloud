@@ -1,0 +1,26 @@
+{
+  "id": "det-071",
+  "title": "RunTask with Permission-Granting Task Role",
+  "description": "Detects ECS task launches where the resolved task role or runtime-overridden role grants admin-equivalent, role-chaining, secrets-access, or otherwise high-risk permissions. This should be based on resolved IAM role capability rather than task-definition or role-name text.",
+  "awsService": "ECS",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "ECS",
+    "RunTask",
+    "PassRole",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Known service task roles",
+    "Approved operational automation",
+    "Expected break-glass workflows"
+  ],
+  "relatedAttackSlugs": []
+}

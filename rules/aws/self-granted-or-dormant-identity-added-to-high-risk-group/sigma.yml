@@ -1,0 +1,10 @@
+title: Self-Addition or Backdoor Addition to Group
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: AddUserToGroup
+  condition: selection
+level: high

@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.flowLogIds, sourceIPAddress
+| filter eventSource = "ec2.amazonaws.com"
+| filter eventName = "DeleteFlowLogs"
+| sort @timestamp desc

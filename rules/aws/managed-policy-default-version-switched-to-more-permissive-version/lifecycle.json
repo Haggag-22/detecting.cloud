@@ -1,0 +1,127 @@
+{
+  "whyItMatters": "SetDefaultPolicyVersion is the moment a stored policy version becomes operative. Attackers can exploit that to restore a previously permissive version or activate a version they prepared earlier, immediately expanding privileges for every attached principal.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with iam:SetDefaultPolicyVersion can switch a managed policy back to an older or alternate version that grants broader permissions.",
+    "realWorldUsage": "Managed-policy version abuse is a standard AWS privilege-escalation path because older versions often survive as dormant rollback points.",
+    "whyItMatters": "The API is security-relevant only when the new default is more permissive than the old one. That makes diffing and prior-state awareness mandatory.",
+    "riskAndImpact": "If missed, a single SetDefaultPolicyVersion call can restore admin or broad access across many attached principals."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.policyArn",
+      "requestParameters.versionId",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must capture SetDefaultPolicyVersion events.",
+      "A policy-state enrichment source is required to know the previous default version before the switch.",
+      "You need access to managed policy metadata and documents via cached policy inventory."
+    ],
+    "limitations": [
+      "The CloudTrail event itself does not tell you the previous default version.",
+      "Real-time analytics need cached pre-event state.",
+      "Naive string matching misses privilege expansion caused by removed conditions or broader resources."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.policyArn",
+        "normalizedPath": "aws.iam.policy.arn",
+        "notes": "Managed policy being switched"
+      },
+      {
+        "rawPath": "requestParameters.versionId",
+        "normalizedPath": "aws.iam.policy.new_default_version",
+        "notes": "Version selected by SetDefaultPolicyVersion"
+      },
+      {
+        "rawPath": "enrichment.previousDefaultVersionId",
+        "normalizedPath": "aws.iam.policy.previous_default_version",
+        "notes": "Required lookup or cache value"
+      },
+      {
+        "rawPath": "enrichment.diffSummary",
+        "normalizedPath": "aws.iam.policy.diff_summary",
+        "notes": "Computed privilege delta between prior and new default"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"SetDefaultPolicyVersion\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"policy\": {\n        \"arn\": \"arn:aws:iam::123456789012:policy/TargetPolicy\",\n        \"new_default_version\": \"v3\",\n        \"previous_default_version\": \"v2\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Prior vs New Default Version Diff",
+      "description": "Compare the previous default policy document with the version selected in the event and classify whether permissions expanded.",
+      "examples": [
+        "added iam:PassRole",
+        "broadened Resource from single ARN to *",
+        "removed restrictive Condition"
+      ],
+      "falsePositiveReduction": "Prevents alerting on harmless rollbacks or formatting-only changes."
+    },
+    {
+      "dimension": "Policy Attachment Blast Radius",
+      "description": "Determine how many users, groups, and roles inherit the switched default and whether they are sensitive.",
+      "examples": [
+        "attached to production deploy role",
+        "attached to shared admin group"
+      ],
+      "falsePositiveReduction": "Focuses urgency on changes that affect active or high-value principals."
+    },
+    {
+      "dimension": "Actor Trust and Approval Context",
+      "description": "Identify whether the actor is an approved IAM operator, automation role, break-glass principal, or unexpected workload identity.",
+      "examples": [
+        "terraform-iam-runner",
+        "security-admin",
+        "application role"
+      ],
+      "falsePositiveReduction": "Expected policy maintenance can be downgraded while preserving suspicious version activation."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should only alert when SetDefaultPolicyVersion makes a policy more permissive than it was before. The API match is easy, but the real detection requires comparing the selected version to the prior default and deciding whether privileges expanded.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals SetDefaultPolicyVersion",
+      "selected version differs from the prior default version",
+      "diff between prior and selected versions shows privilege expansion"
+    ],
+    "tuningGuidance": "1. Do not keep this as a pure API-call baseline if the intent is privilege-escalation coverage. 2. Cache policy default-version state before events arrive. 3. Diff semantics, not raw strings.",
+    "whenToFire": "Fire when the selected default version materially expands permissions over the previous default. Treat events with no reliable old-vs-new diff as baseline visibility."
+  },
+  "simulationCommand": "aws iam set-default-policy-version --policy-arn arn:aws:iam::123456789012:policy/TargetPolicy --version-id v3",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low after policy diffing and actor allowlisting",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with enrichment tables",
+      "Splunk",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with policy inventory cache"
+    ],
+    "scheduling": "Prefer near-real-time with enrichment cache, or short scheduled analytics if policy-version state is materialized into lookup tables.",
+    "considerations": [
+      "You need prior-default state; event-only detection is insufficient.",
+      "Without diffing, this should be downgraded to a simple audit rule rather than a privilege-expansion detector."
+    ]
+  }
+}

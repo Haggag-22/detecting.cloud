@@ -1,0 +1,36 @@
+title: AWS Trusted Relationship Role Assumption
+id: a1b2c3d4-e5f6-4789-a012-3456789abc02
+status: experimental
+description: |
+    Detects cross-account or third-party principals assuming roles into the environment and the follow-on IAM manipulation used to establish access, aligned to MITRE ATT&CK detection strategy DET0488 / AN1348 for Trusted Relationship. High fidelity requires correlating the assume-role event with an external/untrusted source account and subsequent privileged API use (see ExternalAccountAllowList / SensitiveAPIs tuning).
+references:
+    - https://attack.mitre.org/techniques/T1199/
+    - https://attack.mitre.org/detectionstrategies/DET0488/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.initial-access
+    - attack.t1199
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection_assumerole:
+        eventSource: sts.amazonaws.com
+        eventName:
+            - AssumeRole
+            - AssumeRoleWithSAML
+            - AssumeRoleWithWebIdentity
+    selection_iam_manip:
+        eventSource: iam.amazonaws.com
+        eventName:
+            - CreateUser
+            - AttachRolePolicy
+            - CreateAccessKey
+            - UpdateAssumeRolePolicy
+            - CreateLoginProfile
+    condition: 1 of selection_*
+falsepositives:
+    - Normal cross-account automation, CI/CD assuming roles, and administrator IAM changes.
+    - Trusted partner/MSP access from allow-listed external accounts.
+level: low

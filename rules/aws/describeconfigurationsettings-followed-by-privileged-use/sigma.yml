@@ -1,0 +1,17 @@
+title: DescribeConfigurationSettings Followed by Privileged Use
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_beanstalk:
+    eventSource: elasticbeanstalk.amazonaws.com
+    eventName: DescribeConfigurationSettings
+  selection_privileged:
+    eventName:
+      - CreateAccessKey
+      - AssumeRole
+      - GetSecretValue
+      - Decrypt
+  condition: selection_beanstalk
+level: critical
+# Full correlation requires ordered sequence and stable actor or derived identity linkage.

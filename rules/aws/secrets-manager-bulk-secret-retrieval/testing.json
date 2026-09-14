@@ -1,0 +1,5 @@
+[
+  "Retrieve multiple distinct secrets in quick succession.",
+  "Verify CloudTrail captures GetSecretValue.",
+  "Run the detection to confirm distinct-secret-based alerting triggers."
+]

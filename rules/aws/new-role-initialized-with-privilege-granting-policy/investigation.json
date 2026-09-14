@@ -1,0 +1,5 @@
+[
+  "Identify the role and policies attached.",
+  "Review the sequence: CreateRole followed by AttachRolePolicy or PutRolePolicy within 15 minutes.",
+  "Classify whether the resulting role became admin-equivalent, pass-role capable, or otherwise high-risk."
+]

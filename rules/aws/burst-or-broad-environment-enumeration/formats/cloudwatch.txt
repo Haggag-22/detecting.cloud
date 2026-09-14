@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.arn, requestParameters.applicationName, requestParameters.environmentName
+| filter eventSource = "elasticbeanstalk.amazonaws.com"
+| filter eventName = "DescribeConfigurationSettings"
+| stats count(*) as cnt, count_distinct(strcat(requestParameters.applicationName, requestParameters.environmentName)) as distinct_envs by userIdentity.arn
+| filter distinct_envs > 5
+| sort distinct_envs desc

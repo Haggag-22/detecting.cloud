@@ -1,0 +1,123 @@
+{
+  "whyItMatters": "A snapshot becomes more suspicious when it is quickly copied or restored. This sequence moves the event from passive storage collection toward operational use of the collected data.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may create a snapshot and then copy it, restore it into a volume, or attach that volume to another instance for offline inspection or theft.",
+    "realWorldUsage": "This is a practical storage-loot path because it uses standard AWS primitives to materialize disk data away from the original workload.",
+    "whyItMatters": "The real signal comes from lineage across snapshot and derived volume entities, not simply from one actor performing multiple storage actions.",
+    "riskAndImpact": "If missed, defenders may see independent snapshot and restore operations without recognizing that the same data object is being moved toward offline access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "Snapshot and volume inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.snapshotId",
+      "requestParameters.sourceSnapshotId",
+      "requestParameters.volumeId",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "Snapshot creation, copy, volume creation, and attachment events must all be ingested.",
+      "The detector must track snapshot-to-volume lineage across related APIs.",
+      "Volume metadata or state may be needed to connect CreateVolume and AttachVolume reliably."
+    ],
+    "limitations": [
+      "Actor-only joins are weak and can be noisy in shared admin contexts.",
+      "AttachVolume does not inherently preserve snapshot lineage unless you carry it forward from CreateVolume.",
+      "Routine DR and migration workflows may legitimately perform the same sequence."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "requestParameters.snapshotId",
+        "normalizedPath": "aws.ebs.snapshot.id",
+        "notes": "Created or modified snapshot identifier"
+      },
+      {
+        "rawPath": "requestParameters.sourceSnapshotId",
+        "normalizedPath": "aws.ebs.snapshot.source_id",
+        "notes": "Snapshot lineage reference used in copy or create-volume operations"
+      },
+      {
+        "rawPath": "requestParameters.volumeId",
+        "normalizedPath": "aws.ebs.volume.id",
+        "notes": "Derived or attached volume identifier"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor performing the storage action"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"storage\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateSnapshot\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ebs\": {\n      \"snapshot\": {\n        \"id\": \"snap-xxx\",\n        \"source_id\": \"snap-xxx\"\n      },\n      \"volume\": {\n        \"id\": \"vol-restored-123\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Snapshot-to-Volume Lineage",
+      "description": "Track whether a created snapshot becomes the source for CopySnapshot or CreateVolume and then later AttachVolume.",
+      "examples": [
+        "snap-xxx -> vol-restored-123"
+      ],
+      "falsePositiveReduction": "Distinguishes true storage progression from unrelated admin activity."
+    },
+    {
+      "dimension": "Workflow Intent",
+      "description": "Determine whether the sequence matches approved backup restore, DR, or migration workflows.",
+      "examples": [
+        "scheduled DR exercise",
+        "manual out-of-band restore"
+      ],
+      "falsePositiveReduction": "Separates routine restores from suspicious rehydration."
+    },
+    {
+      "dimension": "Source Workload Sensitivity",
+      "description": "Resolve the original volume and derived volume to workload criticality and ownership.",
+      "examples": [
+        "prod database volume",
+        "temporary test volume"
+      ],
+      "falsePositiveReduction": "Raises priority when restored data comes from sensitive systems."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should follow storage lineage. First observe snapshot creation, then correlate a short-window CopySnapshot or CreateVolume that references the created snapshot, and optionally an AttachVolume that brings the restored data into a live system.",
+    "conditions": [
+      "first eventName equals CreateSnapshot or CreateSnapshots",
+      "second event is CopySnapshot, CreateVolume, or AttachVolume with snapshot or derived volume lineage back to the created snapshot",
+      "follow-on activity occurs within 2 hours"
+    ],
+    "tuningGuidance": "1. Correlate on snapshot and derived volume lineage, not only actor identity. 2. Treat CreateVolume as stronger than CopySnapshot alone because it moves toward access. 3. Escalate further when the derived volume is attached to a live host.",
+    "whenToFire": "Fire when a newly created snapshot is quickly copied or restored into a volume, especially if the lineage leads to later attachment."
+  },
+  "simulationCommand": "aws ec2 create-snapshot --volume-id vol-0abc123 --description 'manual copy' && aws ec2 create-volume --availability-zone us-east-1a --snapshot-id snap-xxx",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with lineage correlation; high with actor-only correlation",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with lineage joins",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is useful because rehydration can quickly progress to access.",
+    "considerations": [
+      "This is the storage-lineage companion to the snapshot baseline.",
+      "Snapshot and volume entity tracking is the main dependency."
+    ]
+  }
+}

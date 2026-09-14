@@ -1,0 +1,5 @@
+[
+  "Run a task with a task role that can call GetSecretValue, AssumeRole, or RegisterTaskDefinition, then trigger one of those actions from inside the container within 15 minutes.",
+  "Verify both the RunTask event and later role activity appear in CloudTrail.",
+  "Run the correlation and confirm it pivots on the resolved task role identity rather than only the human launcher."
+]

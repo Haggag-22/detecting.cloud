@@ -1,0 +1,8 @@
+index=aws sourcetype=aws:cloudtrail
+  ((eventSource=elasticbeanstalk.amazonaws.com AND eventName=DescribeConfigurationSettings) OR (eventSource=iam.amazonaws.com AND eventName=CreateAccessKey))
+| eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
+| eval is_beanstalk=if(eventSource="elasticbeanstalk.amazonaws.com" AND eventName="DescribeConfigurationSettings", 1, 0)
+| eval is_createkey=if(eventSource="iam.amazonaws.com" AND eventName="CreateAccessKey" AND (like(requestParameters.userName, "%backdoor%") OR like(requestParameters.userName, "%admin%") OR like(requestParameters.userName, "%breakglass%")), 1, 0)
+| transaction actor maxspan=30m
+| where mvcount(mvfilter(is_beanstalk=1))>0 AND mvcount(mvfilter(is_createkey=1))>0
+| table _time, actor, eventName, requestParameters.userName

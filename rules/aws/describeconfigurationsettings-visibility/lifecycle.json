@@ -1,0 +1,117 @@
+{
+  "whyItMatters": "Beanstalk configuration reads are often the first step in credential or trust-path discovery. Even when legitimate, they are valuable reconnaissance telemetry.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may inspect Beanstalk configuration settings to identify secrets, environment variables, role references, or other useful pivot material.",
+    "realWorldUsage": "This is attractive because it uses a read-only administrative API that may appear benign in environments with limited Beanstalk monitoring.",
+    "whyItMatters": "This baseline event feeds stronger detections about unauthorized readers, burst enumeration, and recon-to-action sequences.",
+    "riskAndImpact": "If missed, defenders may overlook the earliest stage of Beanstalk-derived credential theft."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for Elastic Beanstalk"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.applicationName",
+      "requestParameters.environmentName",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must ingest Elastic Beanstalk management events.",
+      "The platform should retain application and environment context.",
+      "Follow-on IAM, STS, and secrets events should be available for downstream correlation."
+    ],
+    "limitations": [
+      "The API does not by itself prove that secrets were exposed or abused.",
+      "Legitimate application and platform administrators may use it regularly.",
+      "A single read is lower confidence without actor or follow-on context."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor reading Beanstalk configuration"
+      },
+      {
+        "rawPath": "requestParameters.applicationName",
+        "normalizedPath": "aws.elasticbeanstalk.application.name",
+        "notes": "Application being inspected"
+      },
+      {
+        "rawPath": "requestParameters.environmentName",
+        "normalizedPath": "aws.elasticbeanstalk.environment.name",
+        "notes": "Environment being inspected"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"discovery\"\n    ],\n    \"type\": [\n      \"info\"\n    ],\n    \"action\": \"DescribeConfigurationSettings\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/admin\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"elasticbeanstalk\": {\n      \"application\": {\n        \"name\": \"my-app\"\n      },\n      \"environment\": {\n        \"name\": \"prod\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Environment Sensitivity",
+      "description": "Classify the Beanstalk environment by privilege exposure and business criticality.",
+      "examples": [
+        "prod app env",
+        "internal tooling env"
+      ],
+      "falsePositiveReduction": "Improves prioritization of configuration reads."
+    },
+    {
+      "dimension": "Actor Authorization",
+      "description": "Determine whether the actor normally administers or inspects Beanstalk configuration.",
+      "examples": [
+        "platform admin",
+        "unexpected app role"
+      ],
+      "falsePositiveReduction": "Turns baseline visibility into stronger actor-based detections."
+    },
+    {
+      "dimension": "Potential Secret Exposure",
+      "description": "Assess whether the environment is known to carry secrets or secret references in config.",
+      "examples": [
+        "DB credentials in env vars",
+        "secret manager references"
+      ],
+      "falsePositiveReduction": "Raises urgency when the read likely exposes useful material."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain a broad visibility rule for successful `DescribeConfigurationSettings` events. It establishes the Beanstalk recon baseline that stronger actor, burst, and recon-to-action detections depend on.",
+    "conditions": [
+      "eventSource equals elasticbeanstalk.amazonaws.com",
+      "eventName equals DescribeConfigurationSettings",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep this baseline broad. 2. Resolve environment sensitivity and actor context for triage. 3. Correlate with later IAM, STS, or secrets access for higher-confidence detections.",
+    "whenToFire": "Fire on every successful DescribeConfigurationSettings event for visibility."
+  },
+  "simulationCommand": "aws elasticbeanstalk describe-configuration-settings --application-name my-app --environment-name prod",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium as a baseline visibility rule, low-medium with environment and actor context",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful for chaining into follow-on credential-theft detections.",
+    "considerations": [
+      "This is the feeder rule for the Beanstalk credential-theft family.",
+      "Environment sensitivity and actor context are the main enrichments."
+    ]
+  }
+}

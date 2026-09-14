@@ -1,0 +1,25 @@
+{
+  "id": "az-106",
+  "title": "Changes To PIM Settings",
+  "description": "Detects when changes are made to PIM roles",
+  "awsService": "Entra ID PIM",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID PIM",
+    "initial-access",
+    "privilege-escalation",
+    "persistence",
+    "stealth",
+    "t1078 004"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Legit administrative PIM setting configuration changes"
+  ],
+  "relatedAttackSlugs": []
+}

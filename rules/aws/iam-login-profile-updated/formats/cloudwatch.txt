@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.userName, sourceIPAddress
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "UpdateLoginProfile"
+| sort @timestamp desc

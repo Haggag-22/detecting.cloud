@@ -1,0 +1,23 @@
+{
+  "id": "gcp-007",
+  "title": "Google Cloud Firewall Modified or Deleted",
+  "description": "Detects  when a firewall rule is modified or deleted in Google Cloud Platform (GCP).",
+  "awsService": "VPC Firewall",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "VPC Firewall",
+    "defense-impairment",
+    "t1685"
+  ],
+  "logSources": [
+    "GCP Audit Logs"
+  ],
+  "falsePositives": [
+    "Firewall rules being modified or deleted may be performed by a system administrator. Verify that the firewall configuration change was expected.",
+    "Exceptions can be added to this rule to filter expected behavior."
+  ],
+  "relatedAttackSlugs": []
+}

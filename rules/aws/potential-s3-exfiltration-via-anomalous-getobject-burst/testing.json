@@ -1,0 +1,5 @@
+[
+  "Enable S3 data events for a test bucket.",
+  "Perform many GetObject operations.",
+  "Run the detection to confirm volume-based alert triggers."
+]

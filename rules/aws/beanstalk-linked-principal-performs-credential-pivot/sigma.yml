@@ -1,0 +1,13 @@
+title: CreateAccessKey or AssumeRole by Beanstalk-Linked Principal
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_iam:
+    eventSource: iam.amazonaws.com
+    eventName: CreateAccessKey
+  selection_sts:
+    eventSource: sts.amazonaws.com
+    eventName: AssumeRole
+  condition: selection_iam or selection_sts
+level: high

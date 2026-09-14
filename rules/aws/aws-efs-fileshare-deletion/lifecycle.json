@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects when an AWS EFS Fileshare is deleted via the DeleteFileSystem API call. This action can indicate an attempt to disrupt availability or destroy data. Adversaries might delete file systems to impact operations or cover their tracks. Note that an EFS file system cannot be deleted if it has active mount targets, implying that mount targets would need to be deleted first.",
+  "threatContext": {
+    "attackerBehavior": "Detects when an AWS EFS Fileshare is deleted via the DeleteFileSystem API call. This action can indicate an attempt to disrupt availability or destroy data. Adversaries might delete file systems to impact operations or cover their tracks. Note that an EFS file system cannot be deleted if it has active mount targets, implying that mount targets would need to be deleted first.",
+    "whyItMatters": "Detects when an AWS EFS Fileshare is deleted via the DeleteFileSystem API call. This action can indicate an attempt to disrupt availability or destroy data. Adversaries might delete file systems to impact operations or cover their tracks. Note that an EFS file system cannot be deleted if it has active mount targets, implying that mount targets would need to be deleted first.",
+    "riskAndImpact": "Abuse related to EFS can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects when an AWS EFS Fileshare is deleted via the DeleteFileSystem API call. This action can indicate an attempt to disrupt availability or destroy data. Adversaries might delete file systems to impact operations or cover their tracks. Note that an EFS file system cannot be deleted if it has active mount targets, implying that mount targets would need to be deleted first.",
+    "whenToFire": "When CloudTrail shows activity matching this AWS EFS Fileshare Deletion detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

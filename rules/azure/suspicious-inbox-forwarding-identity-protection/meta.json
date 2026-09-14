@@ -1,0 +1,22 @@
+{
+  "id": "az-065",
+  "title": "Suspicious Inbox Forwarding Identity Protection",
+  "description": "Indicates suspicious rules such as an inbox rule that forwards a copy of all emails to an external address",
+  "awsService": "Entra ID Protection",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Protection",
+    "t1114 003",
+    "collection"
+  ],
+  "logSources": [
+    "Azure riskdetection"
+  ],
+  "falsePositives": [
+    "A legitimate forwarding rule."
+  ],
+  "relatedAttackSlugs": []
+}

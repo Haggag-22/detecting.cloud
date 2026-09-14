@@ -1,0 +1,124 @@
+{
+  "whyItMatters": "Self-granted access and grants to dormant or unusual identities are both strong entitlement-abuse patterns because they indicate deliberate privilege placement rather than ordinary onboarding.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may add themselves to a high-risk group or grant high-risk group membership to a dormant, backup, or newly created identity that they control.",
+    "realWorldUsage": "This is a common persistence pattern in IAM-user-based environments because it creates durable access on identities that may attract little attention.",
+    "whyItMatters": "The useful signal is identity ownership and target-user history, not whether the target username matches a small list of suspicious strings.",
+    "riskAndImpact": "If missed, attackers can silently grant themselves or their backdoor identity durable group-based privilege that survives token expiration and later pivoting."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.groupName",
+      "requestParameters.userName",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "The environment should map actor identities to owned IAM usernames where possible.",
+      "User inventory should classify dormant, newly created, and service-style identities."
+    ],
+    "limitations": [
+      "Regex extraction from actor ARN only reliably covers direct IAM user identities.",
+      "Assumed-role and federated sessions require ownership mapping or upstream identity correlation.",
+      "Target-user history is necessary to distinguish dormant or backdoor-like accounts from ordinary users."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor ARN"
+      },
+      {
+        "rawPath": "requestParameters.userName",
+        "normalizedPath": "aws.iam.target_user.name",
+        "notes": "User receiving new group access"
+      },
+      {
+        "rawPath": "requestParameters.groupName",
+        "normalizedPath": "aws.iam.group.name",
+        "notes": "Granted group"
+      },
+      {
+        "rawPath": "enrichment.targetUserState",
+        "normalizedPath": "aws.iam.target_user.state",
+        "notes": "Dormant, new, active, break-glass, etc."
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"AddUserToGroup\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/attacker\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"group\": {\n        \"name\": \"AdminGroup\"\n      },\n      \"target_user\": {\n        \"name\": \"attacker\",\n        \"state\": \"active\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Self-Grant Resolution",
+      "description": "Determine whether the actor added themselves or an identity they directly control.",
+      "examples": [
+        "IAM user adds self",
+        "actor adds just-created user they own"
+      ],
+      "falsePositiveReduction": "Makes deliberate self-escalation substantially higher signal."
+    },
+    {
+      "dimension": "Target Identity State",
+      "description": "Classify whether the target user is dormant, newly created, service-like, or break-glass.",
+      "examples": [
+        "dormant user revived",
+        "newly created backdoor user"
+      ],
+      "falsePositiveReduction": "Separates suspicious persistence patterns from ordinary user administration."
+    },
+    {
+      "dimension": "Group Privilege Level",
+      "description": "Determine whether the granted group actually provides meaningful privilege.",
+      "examples": [
+        "admin-equivalent group",
+        "limited support group"
+      ],
+      "falsePositiveReduction": "Prevents low-impact self-grants from looking like major escalation."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should focus on two stronger branches: the actor grants themselves group membership, or the actor grants a high-risk group to a dormant or newly created identity. Both branches become especially important when the destination group is privileged.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals AddUserToGroup",
+      "actor resolves to the same user as requestParameters.userName or target user is classified as dormant, newly created, or otherwise suspicious",
+      "destination group is high-risk or materially expands permissions"
+    ],
+    "tuningGuidance": "1. Resolve self-grants using identity ownership, not only direct ARN parsing. 2. Require high-risk group context where possible. 3. Use target-user history instead of suspicious username patterns.",
+    "whenToFire": "Fire when an actor grants themselves high-risk group access or grants such access to a dormant, newly created, or otherwise suspicious identity."
+  },
+  "simulationCommand": "aws iam add-user-to-group --group-name AdminGroup --user-name attacker",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with self-grant resolution and target-user history; high with username heuristics alone",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with identity inventory",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because self-granted group access can be used immediately.",
+    "considerations": [
+      "This rule should be permission-aware and identity-aware.",
+      "Avoid treating suspicious username text as the main decision factor."
+    ]
+  }
+}

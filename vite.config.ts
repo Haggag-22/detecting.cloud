@@ -11,11 +11,17 @@ export default defineConfig(({ mode }) => ({
     hmr: {
       overlay: false,
     },
+    fs: {
+      // Allow importing detection rule files from /rules
+      allow: ["."],
+    },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
+      "@rules": path.resolve(__dirname, "./rules"),
     },
   },
+  assetsInclude: ["**/*.yml"],
 }));

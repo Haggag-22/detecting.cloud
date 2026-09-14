@@ -1,0 +1,5 @@
+[
+  "Call SetDefaultPolicyVersion on a test policy.",
+  "Verify CloudTrail captures the event.",
+  "Compare the selected version with the prior default and confirm the alert logic triggers only on privilege expansion."
+]

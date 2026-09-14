@@ -1,0 +1,25 @@
+title: KMS Key Policy Modified
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: kms.amazonaws.com
+    eventName: PutKeyPolicy
+  risky_principal:
+    requestParameters.policy|contains:
+      - '"Principal":"*"'
+      - '"Principal":{"AWS":"*"}'
+      - ':root"'
+  risky_access:
+    requestParameters.policy|contains:
+      - '"kms:*"'
+      - '"kms:Decrypt"'
+      - '"kms:GenerateDataKey'
+      - '"kms:CreateGrant"'
+      - '"kms:PutKeyPolicy"'
+      - '"kms:ScheduleKeyDeletion"'
+  lockout_bypass:
+    requestParameters.bypassPolicyLockoutSafetyCheck: true
+  condition: selection and (1 of risky_* or lockout_bypass)
+level: high

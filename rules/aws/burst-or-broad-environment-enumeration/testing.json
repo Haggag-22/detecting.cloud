@@ -1,0 +1,5 @@
+[
+  "Call `DescribeConfigurationSettings` for more than five distinct application-and-environment pairs within 15 minutes.",
+  "Verify CloudTrail records the broad read pattern.",
+  "Run the threshold detector and confirm it keys on short-window breadth rather than single-event reads."
+]

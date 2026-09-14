@@ -1,0 +1,5 @@
+[
+  "Run `DescribeSnapshotAttribute --attribute createVolumePermission` against test snapshots, including one intentionally shared or public snapshot.",
+  "Verify CloudTrail captures the enumeration event.",
+  "Verify the scheduled inventory logic identifies current exposure even when there is no fresh `ModifySnapshotAttribute` event."
+]

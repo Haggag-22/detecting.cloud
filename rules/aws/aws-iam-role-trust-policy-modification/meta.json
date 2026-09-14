@@ -1,0 +1,21 @@
+{
+  "id": "det-160",
+  "title": "AWS IAM Role Trust Policy Modification",
+  "description": "Detects modification of IAM role trust policies (UpdateAssumeRolePolicy, UpdateRole) which can weaken principal restrictions/conditions to allow unauthorized assumption. Adds Conditional Access Policies modification (T1556.009) coverage beyond the existing SigmaHQ SSO external-IdP change rule.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "IAM",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate role trust-policy management by administrators or IaC."
+  ],
+  "relatedAttackSlugs": []
+}

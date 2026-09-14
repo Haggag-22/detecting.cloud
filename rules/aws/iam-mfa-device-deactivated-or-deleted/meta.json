@@ -1,0 +1,21 @@
+{
+  "id": "det-188",
+  "title": "IAM MFA Device Deactivated Or Deleted",
+  "description": "Detects deactivation or deletion of IAM MFA devices (DeactivateMFADevice, DeleteVirtualMFADevice). Adds Multi-Factor Authentication modification (T1556.006) coverage beyond the existing SigmaHQ SSO external-IdP change rule.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate MFA device rotation or lost-device recovery by administrators."
+  ],
+  "relatedAttackSlugs": []
+}

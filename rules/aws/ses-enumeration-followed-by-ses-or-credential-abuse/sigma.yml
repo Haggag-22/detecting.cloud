@@ -1,0 +1,21 @@
+title: SES Enumeration Followed by Abuse
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_enum:
+    eventSource: ses.amazonaws.com
+    eventName:
+      - ListIdentities
+      - GetIdentityVerificationAttributes
+  selection_abuse:
+    eventSource: ses.amazonaws.com
+    eventName:
+      - PutIdentityPolicy
+      - SetIdentityNotificationTopic
+      - VerifyEmailIdentity
+  selection_iam:
+    eventName: CreateAccessKey
+  condition: selection_enum
+level: critical
+# Full correlation requires ordered sequence and stable actor identity across SES reconnaissance and follow-on abuse.

@@ -1,0 +1,5 @@
+[
+  "Create a managed policy in a lab account and attach it to the same actor's own principal or role.",
+  "Verify both events appear in CloudTrail.",
+  "Run the correlation query to confirm the alert triggers."
+]

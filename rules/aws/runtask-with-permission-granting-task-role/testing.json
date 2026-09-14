@@ -1,0 +1,5 @@
+[
+  "Run a task whose resolved task role grants AdministratorAccess, role chaining, or secrets access, optionally via override.",
+  "Verify CloudTrail captures RunTask and the override context.",
+  "Run the detection and confirm it scores the resolved role permissions rather than task-definition naming."
+]

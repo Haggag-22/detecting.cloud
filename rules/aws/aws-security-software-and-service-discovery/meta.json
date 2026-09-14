@@ -1,0 +1,22 @@
+{
+  "id": "det-174",
+  "title": "AWS Security Software And Service Discovery",
+  "description": "Detects enumeration of AWS security services (GuardDuty, Config, Security Hub, WAF) used by adversaries to identify defensive controls before disabling or evading them.",
+  "awsService": "GuardDuty",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "GuardDuty",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Security tooling and posture management solutions.",
+    "SOC engineers reviewing configuration."
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,24 @@
+{
+  "id": "det-122",
+  "title": "DescribeConfigurationSettings Visibility",
+  "description": "Baseline visibility for Elastic Beanstalk environment configuration retrieval. This is a sensitive reconnaissance API because configuration settings may expose secrets, references, or trust paths used in later credential abuse.",
+  "awsService": "Elastic Beanstalk",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "Elastic Beanstalk",
+    "Credential Theft",
+    "Reconnaissance"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate app/platform admin",
+    "Deployment automation"
+  ],
+  "relatedAttackSlugs": []
+}

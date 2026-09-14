@@ -1,0 +1,16 @@
+title: EKS Broad Access Policy Associated
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: eks.amazonaws.com
+    eventName: AssociateAccessPolicy
+  broad_policy:
+    requestParameters.policyArn|contains:
+      - 'AmazonEKSClusterAdminPolicy'
+      - 'AmazonEKSAdminPolicy'
+  cluster_scope:
+    requestParameters.accessScope.type: cluster
+  condition: selection and broad_policy and cluster_scope
+level: critical

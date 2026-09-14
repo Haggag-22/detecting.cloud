@@ -1,0 +1,22 @@
+{
+  "id": "az-034",
+  "title": "App Granted Microsoft Permissions",
+  "description": "Detects when an application is granted delegated or app role permissions for Microsoft Graph, Exchange, Sharepoint, or Azure AD",
+  "awsService": "Entra ID Apps",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Apps",
+    "credential-access",
+    "t1528"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "When the permission is legitimately needed for the app"
+  ],
+  "relatedAttackSlugs": []
+}

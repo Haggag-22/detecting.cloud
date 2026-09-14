@@ -1,0 +1,22 @@
+{
+  "id": "det-176",
+  "title": "AWS Service Or Instance Stop",
+  "description": "Detects stopping of compute and database services (EC2 StopInstances, RDS StopDBInstance/StopDBCluster, ECS DeleteService/StopTask) which adversaries use to disrupt availability.",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EC2",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Planned maintenance, autoscaling, or cost-saving shutdowns.",
+    "Blue/green deployments stopping old services."
+  ],
+  "relatedAttackSlugs": []
+}

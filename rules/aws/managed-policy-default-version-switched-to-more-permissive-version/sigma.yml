@@ -1,0 +1,10 @@
+title: IAM Policy Default Version Change
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: SetDefaultPolicyVersion
+  condition: selection
+level: high

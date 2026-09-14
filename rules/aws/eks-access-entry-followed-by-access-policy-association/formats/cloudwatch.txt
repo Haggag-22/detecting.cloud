@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.principalArn, requestParameters.clusterName, requestParameters.policyArn
+| filter eventSource = "eks.amazonaws.com"
+| filter eventName in ["CreateAccessEntry", "AssociateAccessPolicy"]
+| stats count(*) as cnt, collect_list(eventName) as events by requestParameters.principalArn, requestParameters.clusterName
+| filter cnt >= 2
+| sort cnt desc

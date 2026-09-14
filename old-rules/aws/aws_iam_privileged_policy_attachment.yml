@@ -1,0 +1,33 @@
+title: AWS IAM Privileged Policy Or Role Attachment
+id: 9a0712d0-90fe-4e43-9a2f-67df5cf3aef9
+status: experimental
+description: |
+    Detects attaching IAM policies to principals or adding principals to privileged groups/instance profiles (AttachUserPolicy, AttachRolePolicy, AttachGroupPolicy, PutRolePolicy, AddUserToGroup, AddRoleToInstanceProfile). Adds Additional Cloud Roles (T1098.003) coverage beyond the existing SigmaHQ S3Browser PutUserPolicy template rule and CreateAccessKey backdoor rule.
+references:
+    - https://attack.mitre.org/techniques/T1098/003/
+    - https://attack.mitre.org/detectionstrategies/DET0096/
+    - https://attack.mitre.org/detectionstrategies/DET0277/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.persistence
+    - attack.privilege-escalation
+    - attack.t1098
+    - attack.t1098.003
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: iam.amazonaws.com
+        eventName:
+            - AttachUserPolicy
+            - AttachRolePolicy
+            - AttachGroupPolicy
+            - PutRolePolicy
+            - AddUserToGroup
+            - AddRoleToInstanceProfile
+    condition: selection
+falsepositives:
+    - Legitimate IAM permission management and role provisioning.
+level: medium

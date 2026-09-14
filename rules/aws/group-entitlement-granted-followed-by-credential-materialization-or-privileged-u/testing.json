@@ -1,0 +1,5 @@
+[
+  "Add user to group, then as that user call CreateAccessKey within 15 min.",
+  "Verify both events in CloudTrail.",
+  "Run the Splunk or Athena correlation query."
+]

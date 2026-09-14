@@ -1,0 +1,21 @@
+{
+  "id": "gcp-016",
+  "title": "Google Workspace Role Privilege Deleted",
+  "description": "Detects when an a role privilege is deleted in Google Workspace.",
+  "awsService": "Google Workspace",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "Google Workspace",
+    "impact"
+  ],
+  "logSources": [
+    "Google Workspace Audit"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

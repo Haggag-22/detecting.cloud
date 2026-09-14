@@ -1,0 +1,29 @@
+title: AWS S3 Bucket Deletion
+id: 5a80c760-20cb-437f-a194-8a626b996a5e
+status: experimental
+description: |
+    Detects the deletion of S3 buckets in AWS CloudTrail logs. Deleting buckets can destroy stored data and is used by threat actors for data destruction / impact, so successful DeleteBucket calls should be monitored.
+references:
+    - https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteBucket.html
+    - https://attack.mitre.org/techniques/T1485
+    - https://attack.mitre.org/detectionstrategies/DET0146/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.impact
+    - attack.t1485
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection_source:
+        eventSource: s3.amazonaws.com
+        eventName: DeleteBucket
+    selection_status_success:
+        errorCode: 'Success'
+    selection_status_no_error:
+        errorCode: null
+    condition: selection_source and 1 of selection_status_*
+falsepositives:
+    - During maintenance operations or testing, authorized administrators may delete S3 buckets as part of routine data management or cleanup activities.
+level: medium

@@ -1,0 +1,13 @@
+title: Burst SES Identity Enumeration
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ses.amazonaws.com
+    eventName:
+      - ListIdentities
+      - GetIdentityVerificationAttributes
+  condition: selection
+level: high
+# Threshold: >5 calls in 5 min by same actor. Implement in SIEM.

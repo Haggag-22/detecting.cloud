@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.arn, userIdentity.accountId, eventName, eventSource, recipientAccountId
+| filter (eventSource = "organizations.amazonaws.com" and eventName = "LeaveOrganization")
+  or eventName in ["PutUserPolicy", "AttachRolePolicy", "PutRolePolicy", "CreateAccessKey", "PutKeyPolicy", "UpdateTrail", "StopLogging"]
+| stats count(*) as cnt, collect_list(eventName) as events by userIdentity.accountId, userIdentity.arn
+| filter cnt > 1
+| sort cnt desc

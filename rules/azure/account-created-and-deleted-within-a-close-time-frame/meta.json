@@ -1,0 +1,25 @@
+{
+  "id": "az-007",
+  "title": "Account Created And Deleted Within A Close Time Frame",
+  "description": "Detects when an account was created and deleted in a short period of time.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "initial-access",
+    "stealth",
+    "t1078"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Legit administrative action"
+  ],
+  "relatedAttackSlugs": []
+}

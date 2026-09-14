@@ -1,0 +1,15 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "eks.amazonaws.com",
+  "importantFields": [
+    "eventName",
+    "userIdentity.arn",
+    "requestParameters.clusterName",
+    "requestParameters.principalArn",
+    "requestParameters.policyArn",
+    "requestParameters.accessScope",
+    "sourceIPAddress",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"eks.amazonaws.com\",\n  \"eventName\": \"AssociateAccessPolicy\",\n  \"userIdentity\": {\n    \"type\": \"IAMUser\",\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\"\n  },\n  \"requestParameters\": {\n    \"clusterName\": \"my-cluster\",\n    \"principalArn\": \"arn:aws:iam::123456789012:role/app-role\",\n    \"policyArn\": \"arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy\",\n    \"accessScope\": {\n      \"type\": \"cluster\"\n    }\n  },\n  \"sourceIPAddress\": \"203.0.113.10\",\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

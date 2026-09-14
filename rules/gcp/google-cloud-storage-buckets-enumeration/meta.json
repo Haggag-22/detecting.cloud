@@ -1,0 +1,22 @@
+{
+  "id": "gcp-003",
+  "title": "Google Cloud Storage Buckets Enumeration",
+  "description": "Detects when storage bucket is enumerated in Google Cloud.",
+  "awsService": "Cloud Storage",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Low",
+  "tags": [
+    "GCP",
+    "Cloud Storage",
+    "discovery"
+  ],
+  "logSources": [
+    "GCP Audit Logs"
+  ],
+  "falsePositives": [
+    "Storage Buckets being enumerated may be performed by a system administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Storage Buckets enumerated from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

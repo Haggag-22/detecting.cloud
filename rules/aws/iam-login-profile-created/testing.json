@@ -1,0 +1,5 @@
+[
+  "Call CreateLoginProfile for a test user.",
+  "Verify CloudTrail captures the event.",
+  "Run the detection to confirm the alert triggers."
+]

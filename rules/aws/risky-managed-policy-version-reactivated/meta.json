@@ -1,0 +1,22 @@
+{
+  "id": "det-036",
+  "title": "Risky Managed Policy Version Reactivated",
+  "description": "Detects SetDefaultPolicyVersion events where the selected policy version is known to be risky or is materially broader than the previous default version. This detection should rely on policy-version content and diffs, not policy name keywords.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "Policy Version",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate rollback after failed policy update",
+    "Admin restoring previous policy version"
+  ],
+  "relatedAttackSlugs": []
+}

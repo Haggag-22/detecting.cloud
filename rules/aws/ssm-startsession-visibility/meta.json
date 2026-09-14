@@ -1,0 +1,25 @@
+{
+  "id": "det-075",
+  "title": "SSM StartSession Visibility",
+  "description": "Baseline visibility for any interactive Session Manager session. StartSession is legitimate in many environments, but it is still strong interactive-access telemetry and should be treated as a feeder for lateral-movement and post-compromise detections.",
+  "awsService": "SSM",
+  "relatedServices": [
+    "EC2"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "SSM",
+    "Session Manager",
+    "Lateral Movement"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate admin troubleshooting",
+    "Platform automation",
+    "Approved break-glass sessions"
+  ],
+  "relatedAttackSlugs": []
+}

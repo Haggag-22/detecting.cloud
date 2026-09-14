@@ -1,0 +1,22 @@
+{
+  "id": "det-131",
+  "title": "S3 ACL Changed",
+  "description": "Baseline visibility for S3 bucket or object ACL modification. ACL mutations remain security-sensitive in legacy or exception-based environments even though many modern buckets disable ACL effectiveness.",
+  "awsService": "S3",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "S3",
+    "ACL",
+    "Persistence"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate ACL management",
+    "Legacy bucket config"
+  ],
+  "relatedAttackSlugs": []
+}

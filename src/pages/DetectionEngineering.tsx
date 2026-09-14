@@ -1,18 +1,30 @@
 import { useState } from "react";
 import { Layout } from "@/components/Layout";
-import { detections, getDetectionsByService, getDetectionCountsByCloudProvider, getDefaultTelemetry, type Detection } from "@/data/detections";
+import { detections, getDetectionsByService, getDetectionCountsByCloudProvider, getDefaultTelemetry, getDetectionCloudProvider, getBrowseService, type Detection } from "@/data/detections";
 import { getTechniquesForDetection, getAttackPathsForDetection } from "@/lib/detectionCoverage";
 import { Badge } from "@/components/ui/badge";
-import { Search, ChevronRight, Copy, Download, Share2, Check } from "lucide-react";
+import { Search, ChevronRight, Copy, Download, Share2, Check, X } from "lucide-react";
 import { useSearchParams, Link } from "react-router-dom";
 import { getAwsServiceIcon } from "@/components/AwsIcons";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { DetectionLifecycleSections } from "@/components/DetectionLifecycleSections";
 import { SeverityGauge } from "@/components/DetectionVisuals";
 import { SigmaRulePanel } from "@/components/SigmaRulePanel";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
 import { CloudProviderTabs, type CloudProviderId } from "@/components/CloudProviderTabs";
+
+const SEVERITY_OPTIONS = ["Critical", "High", "Medium", "Low"] as const;
+type SeverityFilter = "all" | (typeof SEVERITY_OPTIONS)[number];
+type SortOption = "severity" | "title-asc" | "title-desc";
+
+const severityRank: Record<string, number> = {
+  Critical: 0,
+  High: 1,
+  Medium: 2,
+  Low: 3,
+};
 
 const severityColors: Record<string, string> = {
   Critical: "bg-severity-critical/15 text-severity-critical",
@@ -34,13 +46,16 @@ function downloadFile(content: string, filename: string) {
 const DetectionEngineeringPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const ruleParam = searchParams.get("rule");
-  const serviceParam = searchParams.get("service");
+  const serviceParamRaw = searchParams.get("service");
+  const serviceParam = serviceParamRaw ? getBrowseService(serviceParamRaw) : null;
   const providerParam = (searchParams.get("provider") as CloudProviderId | null) ?? "all";
   const activeProvider: CloudProviderId = ["all", "aws", "azure", "gcp", "kubernetes"].includes(providerParam)
     ? providerParam
     : "all";
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
+  const [sortBy, setSortBy] = useState<SortOption>("severity");
   const { toast } = useToast();
 
   const providerCounts = getDetectionCountsByCloudProvider();
@@ -57,28 +72,22 @@ const DetectionEngineeringPage = () => {
     next.delete("rule");
     setSearchParams(next);
     setSearch("");
+    setSeverityFilter("all");
   };
 
   // If a specific rule is selected, show detailed view
   const selectedDetection = ruleParam ? detections.find((d) => d.id === ruleParam) : null;
 
-  // Related rules (where service appears in relatedServices but not primary)
+  // Related rules (where service appears in relatedServices but not primary) — same provider only
   const relatedRules = serviceParam
-    ? detections.filter((d) => d.awsService !== serviceParam && d.relatedServices.includes(serviceParam))
+    ? detections.filter(
+        (d) =>
+          getBrowseService(d.awsService) !== serviceParam &&
+          (d.relatedServices.includes(serviceParam) ||
+            (serviceParam === "IAM" && d.relatedServices.includes("STS"))) &&
+          (activeProvider === "all" || getDetectionCloudProvider(d) === activeProvider)
+      )
     : [];
-
-  const filterBySearch = (list: typeof detections) =>
-    list.filter((d) => {
-      if (!search) return true;
-      const s = search.toLowerCase();
-      return (
-        d.title.toLowerCase().includes(s) ||
-        d.description.toLowerCase().includes(s) ||
-        d.tags.some((t) => t.toLowerCase().includes(s))
-      );
-    });
-
-  const filteredRelated = filterBySearch(relatedRules);
 
   const matchesSearch = (d: Detection) => {
     if (!search) return true;
@@ -87,15 +96,50 @@ const DetectionEngineeringPage = () => {
       d.title.toLowerCase().includes(s) ||
       d.description.toLowerCase().includes(s) ||
       d.tags.some((t) => t.toLowerCase().includes(s)) ||
-      d.awsService.toLowerCase().includes(s)
+      d.awsService.toLowerCase().includes(s) ||
+      d.severity.toLowerCase().includes(s) ||
+      d.id.toLowerCase().includes(s)
     );
   };
 
+  const matchesSeverity = (d: Detection) =>
+    severityFilter === "all" || d.severity === severityFilter;
+
+  const sortDetections = (list: Detection[]) => {
+    const sorted = [...list];
+    if (sortBy === "title-asc") {
+      sorted.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sortBy === "title-desc") {
+      sorted.sort((a, b) => b.title.localeCompare(a.title));
+    } else {
+      sorted.sort((a, b) => {
+        const ra = severityRank[a.severity] ?? 9;
+        const rb = severityRank[b.severity] ?? 9;
+        if (ra !== rb) return ra - rb;
+        return a.title.localeCompare(b.title);
+      });
+    }
+    return sorted;
+  };
+
+  const filterRules = (list: Detection[]) =>
+    sortDetections(list.filter((d) => matchesSearch(d) && matchesSeverity(d)));
+
+  const hasActiveFilters = !!search || severityFilter !== "all" || sortBy !== "severity";
+
+  const clearFilters = () => {
+    setSearch("");
+    setSeverityFilter("all");
+    setSortBy("severity");
+  };
+
+  const filteredRelated = filterRules(relatedRules);
+
   if (selectedDetection) {
-    const ServiceIcon = getAwsServiceIcon(selectedDetection.awsService);
+    const browseService = getBrowseService(selectedDetection.awsService);
+    const ServiceIcon = getAwsServiceIcon(browseService);
     const coveredTechniques = getTechniquesForDetection(selectedDetection.id);
     const relatedAttackPaths = getAttackPathsForDetection(selectedDetection.id);
-    const availableFormats = Object.entries(selectedDetection.rules).filter(([, v]) => !!v);
     const telemetry = selectedDetection.telemetry ?? getDefaultTelemetry(selectedDetection);
     const hasLifecycle = !!selectedDetection.lifecycle;
 
@@ -109,10 +153,10 @@ const DetectionEngineeringPage = () => {
             </Link>
             <ChevronRight className="h-3.5 w-3.5" />
             <Link
-              to={`/detection-engineering?service=${selectedDetection.awsService}`}
+              to={`/detection-engineering?service=${browseService}`}
               className="hover:text-foreground transition-colors"
             >
-              {selectedDetection.awsService}
+              {browseService}
             </Link>
             <ChevronRight className="h-3.5 w-3.5" />
             <span className="text-foreground">{selectedDetection.title}</span>
@@ -124,17 +168,12 @@ const DetectionEngineeringPage = () => {
             <div className="flex-1 min-w-0">
               <h1 className="font-display text-2xl font-bold mb-2">{selectedDetection.title}</h1>
               <p className="text-muted-foreground">{selectedDetection.description}</p>
-              {hasLifecycle && selectedDetection.lifecycle?.whyItMatters && (
-                <p className="mt-3 text-sm text-primary/90 font-medium">
-                  Why it matters: {selectedDetection.lifecycle.whyItMatters}
-                </p>
-              )}
             </div>
             <SeverityGauge severity={selectedDetection.severity} />
           </div>
 
           {/* Export & Share Bar */}
-          <div className="flex flex-wrap gap-2 mb-6">
+          <div className="flex flex-wrap gap-2 mb-8">
             {selectedDetection.rules.sigma && (
               <Button variant="outline" size="sm" className="border-primary/30 text-primary hover:bg-primary/10"
                 onClick={() => downloadFile(selectedDetection.rules.sigma!, `${selectedDetection.id}.yml`)}>
@@ -148,59 +187,6 @@ const DetectionEngineeringPage = () => {
               }}>
               <Share2 className="h-3.5 w-3.5 mr-1.5" /> Copy Link
             </Button>
-          </div>
-
-          {/* Metadata */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-            <div className="rounded-lg border border-border/50 bg-card p-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Primary Service</p>
-              <div className="flex items-center gap-2">
-                {ServiceIcon && <ServiceIcon size={16} />}
-                <span className="font-medium text-sm">{selectedDetection.awsService}</span>
-              </div>
-            </div>
-            <div className="rounded-lg border border-border/50 bg-card p-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Severity</p>
-              <Badge className={`text-xs border-0 ${severityColors[selectedDetection.severity]}`}>
-                {selectedDetection.severity}
-              </Badge>
-            </div>
-            <div className="rounded-lg border border-border/50 bg-card p-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Log Sources</p>
-              <p className="text-sm font-medium">{selectedDetection.logSources.join(", ")}</p>
-            </div>
-            <div className="rounded-lg border border-border/50 bg-card p-4">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Rule Format</p>
-              <p className="text-sm font-medium">Sigma{availableFormats.length > 1 ? ` + convert` : ""}</p>
-            </div>
-          </div>
-
-          {/* Related AWS Services */}
-          {selectedDetection.relatedServices.length > 0 && (
-            <div className="mb-6">
-              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">Related AWS Services</h2>
-              <div className="flex flex-wrap gap-2">
-                {selectedDetection.relatedServices.map((svc) => {
-                  const SvcIcon = getAwsServiceIcon(svc);
-                  return (
-                    <Link key={svc} to={`/detection-engineering?service=${svc}`}
-                      className="flex items-center gap-2 rounded-lg border border-border/50 bg-card px-3 py-2 hover:border-primary/30 transition-colors">
-                      {SvcIcon && <SvcIcon size={16} />}
-                      <span className="text-sm font-medium">{svc}</span>
-                    </Link>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Tags */}
-          <div className="flex flex-wrap gap-1.5 mb-8">
-            {selectedDetection.tags.map((tag) => (
-              <Badge key={tag} variant="outline" className="text-xs border-border/70 text-muted-foreground">
-                {tag}
-              </Badge>
-            ))}
           </div>
 
           {hasLifecycle && selectedDetection.lifecycle ? (
@@ -358,11 +344,16 @@ const DetectionEngineeringPage = () => {
     );
   }
 
-  // ─── Service drill-down: list rules for one service ───
-  const allServicesByName = getDetectionsByService("all");
-  if (serviceParam && allServicesByName[serviceParam]) {
+  // ─── Service drill-down: list rules for one service (scoped to active provider) ───
+  const servicesByName = getDetectionsByService(
+    activeProvider === "all" ? "all" : activeProvider
+  );
+  if (serviceParam && servicesByName[serviceParam]) {
     const ServiceIcon = getAwsServiceIcon(serviceParam);
-    const serviceRules = filterBySearch(allServicesByName[serviceParam] || []);
+    const baseRules = (servicesByName[serviceParam] || []).filter(
+      (d) => activeProvider === "all" || getDetectionCloudProvider(d) === activeProvider
+    );
+    const serviceRules = filterRules(baseRules);
     const providerLabel =
       activeProvider === "kubernetes"
         ? "Kubernetes"
@@ -392,32 +383,33 @@ const DetectionEngineeringPage = () => {
             <span className="text-foreground">{serviceParam}</span>
           </div>
 
-          <div className="flex items-start gap-4 mb-2">
+          <div className="flex items-center gap-4">
             {ServiceIcon && <ServiceIcon size={36} />}
-            <div>
-              <h1 className="font-display text-3xl font-bold mb-1">{serviceParam}</h1>
-              <p className="text-muted-foreground">
-                {(allServicesByName[serviceParam] || []).length} detection{" "}
-                {(allServicesByName[serviceParam] || []).length === 1 ? "rule" : "rules"} for this service.
-              </p>
-            </div>
+            <h1 className="font-display text-3xl font-bold">{serviceParam}</h1>
           </div>
 
-          <div className="relative max-w-md mt-6 mb-8">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search rules in this service..."
-              className="w-full rounded-lg border border-border bg-card pl-10 pr-4 py-2.5 text-sm outline-none focus:border-primary/50 transition-colors"
-            />
-          </div>
+          <RuleFilterBar
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder="Search rules by title, description, tag, id..."
+            severityFilter={severityFilter}
+            onSeverityChange={setSeverityFilter}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            hasActiveFilters={hasActiveFilters}
+            onClear={clearFilters}
+            resultLabel={`${serviceRules.length}${
+              serviceRules.length !== baseRules.length ? ` of ${baseRules.length}` : ""
+            } ${serviceRules.length === 1 ? "rule" : "rules"}`}
+          />
 
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {serviceRules.length > 0 ? (
               serviceRules.map((det) => <DetectionCard key={det.id} detection={det} />)
             ) : (
-              <p className="text-muted-foreground text-sm py-8 text-center">No detections found.</p>
+              <p className="text-muted-foreground text-sm py-8 text-center md:col-span-2">
+                No detections match your search or filters.
+              </p>
             )}
           </div>
 
@@ -429,7 +421,7 @@ const DetectionEngineeringPage = () => {
               <p className="text-xs text-muted-foreground mb-4">
                 These rules belong to other services but involve {serviceParam} in the attack chain.
               </p>
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {filteredRelated.map((det) => (
                   <DetectionCard key={det.id} detection={det} />
                 ))}
@@ -445,10 +437,10 @@ const DetectionEngineeringPage = () => {
   const serviceRows = services
     .map((service) => {
       const allRules = detectionsByService[service] || [];
-      const matchingRules = allRules.filter(matchesSearch);
+      const matchingRules = allRules.filter((d) => matchesSearch(d) && matchesSeverity(d));
       return { service, total: allRules.length, matching: matchingRules.length };
     })
-    .filter((row) => (search ? row.matching > 0 : true));
+    .filter((row) => (search || severityFilter !== "all" ? row.matching > 0 : true));
 
   return (
     <Layout>
@@ -465,21 +457,24 @@ const DetectionEngineeringPage = () => {
           onChange={setProvider}
         />
 
-        <div className="relative max-w-md mb-8">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search services or detections..."
-            className="w-full rounded-lg border border-border bg-card pl-10 pr-4 py-2.5 text-sm outline-none focus:border-primary/50 transition-colors"
-          />
-        </div>
+        <RuleFilterBar
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Search services or detections..."
+          severityFilter={severityFilter}
+          onSeverityChange={setSeverityFilter}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          hasActiveFilters={hasActiveFilters}
+          onClear={clearFilters}
+          hideSort
+        />
 
         {serviceRows.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {serviceRows.map(({ service, total, matching }) => {
               const ServiceIcon = getAwsServiceIcon(service);
-              const count = search ? matching : total;
+              const count = search || severityFilter !== "all" ? matching : total;
               return (
                 <button
                   key={service}
@@ -498,7 +493,7 @@ const DetectionEngineeringPage = () => {
                     </h2>
                     <p className="text-xs text-muted-foreground">
                       {count} {count === 1 ? "rule" : "rules"}
-                      {search && matching !== total ? ` matching` : ""}
+                      {(search || severityFilter !== "all") && matching !== total ? ` matching` : ""}
                     </p>
                   </div>
                   <Badge variant="outline" className="text-xs border-border text-muted-foreground shrink-0">
@@ -512,11 +507,13 @@ const DetectionEngineeringPage = () => {
         ) : (
           <div className="rounded-lg border border-dashed border-border/60 bg-card/40 px-6 py-14 text-center">
             <p className="text-sm text-muted-foreground">
-              {activeProvider === "all"
-                ? "No services match your search."
-                : `No ${
-                    activeProvider === "kubernetes" ? "Kubernetes" : activeProvider.toUpperCase()
-                  } detection rules yet. AWS rules are available under the AWS tab.`}
+              {hasActiveFilters
+                ? "No services match your search or filters."
+                : activeProvider === "all"
+                  ? "No services match your search."
+                  : `No ${
+                      activeProvider === "kubernetes" ? "Kubernetes" : activeProvider.toUpperCase()
+                    } detection rules yet. AWS rules are available under the AWS tab.`}
             </p>
           </div>
         )}
@@ -524,6 +521,89 @@ const DetectionEngineeringPage = () => {
     </Layout>
   );
 };
+
+function RuleFilterBar({
+  search,
+  onSearchChange,
+  searchPlaceholder,
+  severityFilter,
+  onSeverityChange,
+  sortBy,
+  onSortChange,
+  hasActiveFilters,
+  onClear,
+  hideSort = false,
+  resultLabel,
+}: {
+  search: string;
+  onSearchChange: (v: string) => void;
+  searchPlaceholder: string;
+  severityFilter: SeverityFilter;
+  onSeverityChange: (v: SeverityFilter) => void;
+  sortBy: SortOption;
+  onSortChange: (v: SortOption) => void;
+  hasActiveFilters: boolean;
+  onClear: () => void;
+  hideSort?: boolean;
+  resultLabel?: string;
+}) {
+  const selectTriggerClass =
+    "h-[42px] w-auto min-w-[10.5rem] rounded-lg border-border bg-card px-3.5 gap-2.5 text-sm shadow-none hover:bg-muted/40 focus:ring-1 focus:ring-primary/40 focus:ring-offset-0 [&>svg]:h-3.5 [&>svg]:w-3.5 [&>svg]:opacity-70 [&>svg]:shrink-0";
+
+  return (
+    <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 mt-6 mb-8">
+      <div className="relative flex-1 min-w-[200px] sm:max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <input
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          placeholder={searchPlaceholder}
+          className="w-full h-[42px] rounded-lg border border-border bg-card pl-10 pr-4 text-sm outline-none focus:border-primary/50 transition-colors"
+        />
+      </div>
+
+      <Select value={severityFilter} onValueChange={(v) => onSeverityChange(v as SeverityFilter)}>
+        <SelectTrigger className={selectTriggerClass} aria-label="Filter by severity">
+          <SelectValue placeholder="All severities" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">All severities</SelectItem>
+          {SEVERITY_OPTIONS.map((s) => (
+            <SelectItem key={s} value={s}>
+              {s}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      {!hideSort && (
+        <Select value={sortBy} onValueChange={(v) => onSortChange(v as SortOption)}>
+          <SelectTrigger className={selectTriggerClass} aria-label="Sort rules">
+            <SelectValue placeholder="Sort: Severity" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="severity">Sort: Severity</SelectItem>
+            <SelectItem value="title-asc">Sort: Title A–Z</SelectItem>
+            <SelectItem value="title-desc">Sort: Title Z–A</SelectItem>
+          </SelectContent>
+        </Select>
+      )}
+
+      {hasActiveFilters && (
+        <Button type="button" variant="ghost" size="sm" className="h-[42px] px-3 text-muted-foreground" onClick={onClear}>
+          <X className="h-3.5 w-3.5 mr-1.5" />
+          Clear
+        </Button>
+      )}
+
+      {resultLabel && (
+        <span className="sm:ml-auto text-sm text-muted-foreground tabular-nums whitespace-nowrap">
+          {resultLabel}
+        </span>
+      )}
+    </div>
+  );
+}
 
 function DetectionSectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -574,29 +654,50 @@ function CodeBlockWithCopy({
   );
 }
 
+function SeverityPill({ severity }: { severity: string }) {
+  const styles: Record<string, string> = {
+    Critical: "border-severity-critical/35 bg-severity-critical/10 text-severity-critical",
+    High: "border-severity-high/35 bg-severity-high/10 text-severity-high",
+    Medium: "border-severity-medium/35 bg-severity-medium/10 text-severity-medium",
+    Low: "border-border bg-muted/40 text-muted-foreground",
+  };
+  const dots: Record<string, string> = {
+    Critical: "bg-severity-critical",
+    High: "bg-severity-high",
+    Medium: "bg-severity-medium",
+    Low: "bg-muted-foreground/60",
+  };
+
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium leading-none ${styles[severity] ?? styles.Low}`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${dots[severity] ?? dots.Low}`} />
+      {severity}
+    </span>
+  );
+}
+
 function DetectionCard({ detection: det }: { detection: Detection }) {
   const ServiceIcon = getAwsServiceIcon(det.awsService);
 
   return (
     <Link
       to={`/detection-engineering?rule=${det.id}`}
-      className="block rounded-lg border border-border/50 bg-muted/20 p-5 hover:border-primary/30 transition-colors"
+      className="flex flex-col h-full rounded-lg border border-border/50 bg-muted/20 p-4 hover:border-primary/30 transition-colors"
     >
-      <div className="flex items-center gap-3 mb-2">
-        {ServiceIcon && <ServiceIcon size={20} />}
-        <h3 className="font-semibold text-sm">{det.title}</h3>
-        <Badge className={`text-xs border-0 ml-auto ${severityColors[det.severity]}`}>
-          {det.severity}
-        </Badge>
+      <div className="flex items-start gap-2.5 mb-2">
+        {ServiceIcon && (
+          <span className="mt-0.5 shrink-0">
+            <ServiceIcon size={18} />
+          </span>
+        )}
+        <h3 className="font-semibold text-sm leading-snug flex-1 min-w-0">{det.title}</h3>
+        <SeverityPill severity={det.severity} />
       </div>
-      <p className="text-xs text-muted-foreground mb-3">{det.description}</p>
-      <div className="flex items-center gap-2 flex-wrap">
-        {det.tags.slice(0, 4).map((tag) => (
-          <Badge key={tag} variant="outline" className="text-[10px] border-border/70 text-muted-foreground">
-            {tag}
-          </Badge>
-        ))}
-      </div>
+      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 flex-1">
+        {det.description}
+      </p>
     </Link>
   );
 }

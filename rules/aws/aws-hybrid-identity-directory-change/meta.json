@@ -1,0 +1,21 @@
+{
+  "id": "det-155",
+  "title": "AWS Hybrid Identity Directory Change",
+  "description": "Detects changes to AWS Directory Service and hybrid identity integrations (AD connectors, trusts, directory sharing) mapping to Hybrid Identity (T1556.007).",
+  "awsService": "Directory Service",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "Directory Service",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Active Directory migration, hybrid cloud onboarding, and directory administration."
+  ],
+  "relatedAttackSlugs": []
+}

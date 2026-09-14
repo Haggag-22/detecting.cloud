@@ -1,0 +1,26 @@
+{
+  "id": "det-015",
+  "title": "EC2 IMDSv1 Usage Detected",
+  "description": "Detects EC2 instances using IMDSv1 which is vulnerable to SSRF-based credential theft.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EC2",
+    "IMDS",
+    "Credential Theft"
+  ],
+  "logSources": [
+    "AWS CloudTrail",
+    "EC2 Instance Metadata"
+  ],
+  "falsePositives": [
+    "Legacy applications not yet migrated to IMDSv2"
+  ],
+  "relatedAttackSlugs": [
+    "ec2-metadata-abuse"
+  ]
+}

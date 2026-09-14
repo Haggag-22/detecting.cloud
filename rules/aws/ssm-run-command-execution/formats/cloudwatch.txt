@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, eventName, requestParameters.documentName, requestParameters.instanceIds, requestParameters.target, requestParameters.parameters, sourceIPAddress
+| filter eventSource = "ssm.amazonaws.com"
+| filter eventName in ["SendCommand", "StartSession"]
+| sort @timestamp desc

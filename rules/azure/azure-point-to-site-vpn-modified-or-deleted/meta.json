@@ -1,0 +1,22 @@
+{
+  "id": "az-098",
+  "title": "Azure Point-to-site VPN Modified or Deleted",
+  "description": "Identifies when a Point-to-site VPN is Modified or Deleted.",
+  "awsService": "Azure Networking",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Azure Networking",
+    "impact"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Point-to-site VPN being modified or deleted may be performed by a system administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Point-to-site VPN modified or deleted from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

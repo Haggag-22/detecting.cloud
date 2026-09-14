@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com (eventName=CreateSnapshot OR eventName=CreateSnapshots)
+| table _time, userIdentity.arn, eventName, requestParameters.volumeId, requestParameters.description, sourceIPAddress

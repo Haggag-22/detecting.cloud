@@ -1,0 +1,25 @@
+{
+  "id": "az-046",
+  "title": "Azure Container Registry Created or Deleted",
+  "description": "Detects when a Container Registry is created or deleted.",
+  "awsService": "Azure Activity",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Low",
+  "tags": [
+    "AZURE",
+    "Azure Activity",
+    "impact",
+    "t1485",
+    "t1496",
+    "t1489"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Container Registry being created or deleted may be performed by a system administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Container Registry created or deleted from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

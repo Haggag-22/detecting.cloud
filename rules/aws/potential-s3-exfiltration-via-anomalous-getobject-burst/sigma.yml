@@ -1,0 +1,10 @@
+title: Potential S3 Exfiltration via Anomalous GetObject Burst
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: s3.amazonaws.com
+    eventName: GetObject
+  condition: selection
+level: medium

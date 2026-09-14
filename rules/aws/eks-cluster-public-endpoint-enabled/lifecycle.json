@@ -1,0 +1,149 @@
+{
+  "whyItMatters": "Making the EKS Kubernetes API endpoint publicly reachable expands the cluster's external attack surface.",
+  "threatContext": {
+    "attackerBehavior": "An attacker or administrator can create or reconfigure an EKS cluster so the API server is internet reachable by setting resourcesVpcConfig.endpointPublicAccess=true or by broadening publicAccessCidrs.",
+    "realWorldUsage": "Publicly reachable Kubernetes control planes are a recurring misconfiguration class in cloud security assessments and post-compromise attack paths.",
+    "whyItMatters": "This is a meaningful exposure-change event, especially when the cluster was previously private-only or restricted to narrow CIDRs.",
+    "riskAndImpact": "If this goes unnoticed, internet-originated access attempts against the cluster API become possible, and any later identity compromise has a much easier path to exploitation."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.arn",
+      "userIdentity.type",
+      "requestParameters.name",
+      "requestParameters.resourcesVpcConfig.endpointPublicAccess",
+      "requestParameters.resourcesVpcConfig.publicAccessCidrs",
+      "sourceIPAddress",
+      "eventTime"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must capture EKS management events.",
+      "Detection should evaluate both CreateCluster and UpdateClusterConfig.",
+      "For widening logic, retain prior cluster endpoint configuration or enrich from DescribeCluster."
+    ],
+    "limitations": [
+      "A CreateCluster request may omit endpointPublicAccess while the service default remains public.",
+      "Detecting CIDR widening accurately requires comparison against prior state.",
+      "Public endpoint exposure is not the same as anonymous access."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "eventSource",
+        "normalizedPath": "event.source",
+        "notes": "Should equal eks.amazonaws.com"
+      },
+      {
+        "rawPath": "eventName",
+        "normalizedPath": "event.action",
+        "notes": "Should equal CreateCluster or UpdateClusterConfig"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor who changed endpoint access"
+      },
+      {
+        "rawPath": "requestParameters.name",
+        "normalizedPath": "aws.eks.cluster.name",
+        "notes": "Cluster identifier in the request"
+      },
+      {
+        "rawPath": "requestParameters.resourcesVpcConfig.endpointPublicAccess",
+        "normalizedPath": "aws.eks.endpoint_public_access",
+        "notes": "Boolean public API exposure flag"
+      },
+      {
+        "rawPath": "requestParameters.resourcesVpcConfig.publicAccessCidrs",
+        "normalizedPath": "aws.eks.public_access_cidrs",
+        "notes": "Allowed source CIDRs for the public endpoint"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"UpdateClusterConfig\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"aws\": {\n    \"eks\": {\n      \"cluster\": {\n        \"name\": \"my-cluster\",\n        \"endpoint_public_access\": true,\n        \"public_access_cidrs\": [\n          \"0.0.0.0/0\"\n        ]\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Cluster Criticality",
+      "description": "Add the sensitivity and operational importance of the cluster.",
+      "examples": [
+        "tags: prod, shared-services",
+        "CMDB owner",
+        "business criticality score"
+      ],
+      "falsePositiveReduction": "Keeps dev/test exposure changes from looking as urgent as production platform changes."
+    },
+    {
+      "dimension": "Network Exposure Context",
+      "description": "Compare the new endpoint settings with prior state and with the cluster's private access posture.",
+      "examples": [
+        "previous CIDR set",
+        "private endpoint enabled/disabled"
+      ],
+      "falsePositiveReduction": "Distinguishes harmless narrowing changes from true internet exposure or widening."
+    },
+    {
+      "dimension": "Change Provenance",
+      "description": "Identify whether the update came from infrastructure automation or an ad hoc operator session.",
+      "examples": [
+        "Terraform principal patterns",
+        "userAgent",
+        "deployment window metadata"
+      ],
+      "falsePositiveReduction": "Known IaC-driven endpoint updates are less suspicious than manual console or CLI changes."
+    },
+    {
+      "dimension": "Identity Context",
+      "description": "Profile the actor authorized to change EKS networking and cluster access settings.",
+      "examples": [
+        "platform admin role",
+        "SSO group membership",
+        "session issuer ARN"
+      ],
+      "falsePositiveReduction": "Endpoint exposure by a non-platform actor is much higher signal than the same change by a trusted cluster admin."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should focus on explicit EKS API exposure changes rather than a broad CreateCluster or UpdateClusterConfig baseline. The strongest stateless matches are endpointPublicAccess=true and publicAccessCidrs including 0.0.0.0/0 or another obviously broad CIDR.",
+    "conditions": [
+      "eventSource equals eks.amazonaws.com",
+      "eventName equals CreateCluster or UpdateClusterConfig",
+      "requestParameters.resourcesVpcConfig.endpointPublicAccess equals true or requestParameters.resourcesVpcConfig.publicAccessCidrs contains 0.0.0.0/0"
+    ],
+    "tuningGuidance": "1. Treat 0.0.0.0/0 as higher severity than a narrow corporate CIDR range. 2. Enrich with prior endpoint state so you can suppress narrowing changes. 3. Downgrade approved dev clusters while keeping prod and shared platform clusters high severity.",
+    "whenToFire": "Fire on any explicit public endpoint enablement and on clearly broad public CIDR exposure."
+  },
+  "simulationCommand": "aws eks update-cluster-config --name my-cluster --resources-vpc-config endpointPublicAccess=true,endpointPrivateAccess=true,publicAccessCidrs=0.0.0.0/0",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Medium (legitimate dev and migration use cases exist, especially without state comparison)",
+    "expectedVolume": "Low in mature environments, but can spike during cluster migration or networking changes",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena",
+      "CloudWatch Logs Insights",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Real-time on CloudTrail management events is practical; a scheduled batch rule every 5 to 15 minutes is also sufficient.",
+    "considerations": [
+      "Use CloudTrail for change detection and DescribeCluster or config snapshots for prior-state comparison.",
+      "This is best treated as an exposure-change rule, not as proof of successful unauthorized Kubernetes access."
+    ]
+  }
+}

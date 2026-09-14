@@ -1,0 +1,8 @@
+index=aws sourcetype=aws:cloudtrail
+  ((eventSource=sagemaker.amazonaws.com AND eventName IN ("UpdateNotebookInstance","StartNotebookInstance")) OR (eventName=GetSecretValue OR eventName=Decrypt OR eventName=AssumeRole OR eventName=CreateAccessKey OR eventName=PutUserPolicy OR eventName=AttachRolePolicy))
+| eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
+| eval is_sagemaker=if(eventSource="sagemaker.amazonaws.com" AND eventName IN ("UpdateNotebookInstance","StartNotebookInstance"), 1, 0)
+| eval is_sensitive=if(eventName IN ("GetSecretValue","Decrypt","AssumeRole","CreateAccessKey","PutUserPolicy","AttachRolePolicy"), 1, 0)
+| transaction actor maxspan=30m
+| where mvcount(mvfilter(is_sagemaker=1))>0 AND mvcount(mvfilter(is_sensitive=1))>0
+| table _time, actor, eventName, requestParameters.notebookInstanceName

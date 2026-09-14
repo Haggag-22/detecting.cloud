@@ -1,0 +1,5 @@
+[
+  "Create a role, then attach AdministratorAccess or an inline pass-role or secrets-access policy within 15 minutes.",
+  "Verify both events in CloudTrail.",
+  "Run the correlation query and confirm the role is surfaced as newly initialized high-risk infrastructure."
+]

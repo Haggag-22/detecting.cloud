@@ -1,0 +1,16 @@
+{
+  "source": [
+    "aws.ssm"
+  ],
+  "detail-type": [
+    "AWS API Call via CloudTrail"
+  ],
+  "detail": {
+    "eventSource": [
+      "ssm.amazonaws.com"
+    ],
+    "eventName": [
+      "StartSession"
+    ]
+  }
+}

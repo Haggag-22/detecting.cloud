@@ -1,0 +1,21 @@
+{
+  "id": "det-189",
+  "title": "IMDS Credentials Used Outside AWS Infrastructure",
+  "description": "Detects when an instance identity has taken an action that isn't inside SSM. This can indicate that a compromised EC2 instance is being used as a pivot point.",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EC2",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "A team has configured an EC2 instance to use instance profiles that grant the option for the EC2 instance to talk to other AWS Services"
+  ],
+  "relatedAttackSlugs": []
+}

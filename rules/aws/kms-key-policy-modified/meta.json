@@ -1,0 +1,23 @@
+{
+  "id": "det-020",
+  "title": "KMS Key Policy Modified",
+  "description": "Detects modifications to KMS key policies which could grant unauthorized access to encryption keys.",
+  "awsService": "KMS",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "KMS",
+    "Policy",
+    "Encryption"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Key policy updates during routine key management"
+  ],
+  "relatedAttackSlugs": []
+}

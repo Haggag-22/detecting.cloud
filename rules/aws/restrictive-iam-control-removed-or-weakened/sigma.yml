@@ -1,0 +1,14 @@
+title: Suspicious Removal of Restrictive Policy
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - DetachUserPolicy
+      - DetachRolePolicy
+      - DeleteUserPolicy
+      - DeleteRolePolicy
+  condition: selection
+level: high

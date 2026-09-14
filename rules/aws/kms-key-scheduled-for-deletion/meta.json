@@ -1,0 +1,24 @@
+{
+  "id": "det-019",
+  "title": "KMS Key Scheduled for Deletion",
+  "description": "Detects when a KMS key is scheduled for deletion, which could lead to data loss or indicate destructive activity.",
+  "awsService": "KMS",
+  "relatedServices": [
+    "S3",
+    "EBS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "KMS",
+    "Encryption",
+    "Destructive"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Planned key rotation procedures"
+  ],
+  "relatedAttackSlugs": []
+}

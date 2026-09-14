@@ -1,0 +1,25 @@
+{
+  "id": "az-103",
+  "title": "Stale Accounts In A Privileged Role",
+  "description": "Identifies when an account hasn't signed in during the past n number of days.",
+  "awsService": "Entra ID PIM",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID PIM",
+    "initial-access",
+    "stealth",
+    "t1078",
+    "persistence",
+    "privilege-escalation"
+  ],
+  "logSources": [
+    "Azure pim"
+  ],
+  "falsePositives": [
+    "Investigate if potential generic account that cannot be removed."
+  ],
+  "relatedAttackSlugs": []
+}

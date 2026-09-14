@@ -1,0 +1,35 @@
+title: AWS Resource Activity In Unused Region
+id: 4d3629f8-4c54-411b-8fbc-3b1a3235d089
+status: experimental
+description: |
+    Detects resource-creating activity in AWS regions outside the organization's normally-used set. Adversaries operate in unused/unsupported regions to evade monitoring. Tune the region filter to the regions your organization actively uses.
+references:
+    - https://attack.mitre.org/techniques/T1535/
+    - https://attack.mitre.org/detectionstrategies/DET0247/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.stealth
+    - attack.t1535
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventName:
+            - RunInstances
+            - CreateFunction
+            - CreateBucket
+            - ImportKeyPair
+            - CreateKeyPair
+    filter_main_active_regions:
+        awsRegion:
+            - us-east-1
+            - us-east-2
+            - us-west-1
+            - us-west-2
+    condition: selection and not 1 of filter_main_*
+falsepositives:
+    - Legitimate expansion into a new region (update the filter list).
+    - Global services and disaster-recovery testing.
+level: medium

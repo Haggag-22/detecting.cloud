@@ -1,0 +1,22 @@
+{
+  "id": "det-039",
+  "title": "Restrictive IAM Control Removed or Weakened",
+  "description": "Detects changes that reduce IAM restrictions by removing a permissions boundary, detaching or deleting a policy that provides explicit deny or other restrictive controls, or switching to a weaker control state. This rule should evaluate policy semantics rather than relying on restrictive-sounding names.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "Policy Detach",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate removal of obsolete deny policies",
+    "Policy lifecycle cleanup"
+  ],
+  "relatedAttackSlugs": []
+}

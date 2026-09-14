@@ -1,0 +1,126 @@
+{
+  "whyItMatters": "Only a narrow set of identities should remove network telemetry. When an unapproved actor deletes flow logs, the event is a strong defense-evasion signal.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may use a compromised app role, developer identity, or unexpected assumed role to delete flow logs and reduce network visibility.",
+    "realWorldUsage": "This is practical because the delete operation is native AWS control-plane activity and may look like infrastructure administration without strong authorization context.",
+    "whyItMatters": "Authorization context matters more than whether the actor's ARN contains Network or Platform-like text.",
+    "riskAndImpact": "If missed, unauthorized principals can blind defenders to later exfiltration, command-and-control, or lateral movement activity."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "Authorized network-logging manager inventory",
+      "Infrastructure automation provenance"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.principalId",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.flowLogIds",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "DeleteFlowLogs events must be ingested with full actor context.",
+      "The environment should maintain exact principals allowed to manage flow logs.",
+      "Automation provenance such as Terraform or CloudFormation should be modeled explicitly rather than inferred from substrings."
+    ],
+    "limitations": [
+      "Without actor inventories the rule becomes weak anomaly detection.",
+      "Legitimate break-glass or manual infra changes may still need workflow context.",
+      "Flow log IDs require enrichment to fully understand impact."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor deleting the flow logs"
+      },
+      {
+        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
+        "normalizedPath": "aws.identity.session_issuer.arn",
+        "notes": "Underlying role where relevant"
+      },
+      {
+        "rawPath": "requestParameters.flowLogIds",
+        "normalizedPath": "aws.ec2.flow_log.ids",
+        "notes": "Deleted flow log identifiers"
+      },
+      {
+        "rawPath": "userIdentity.principalId",
+        "normalizedPath": "user.id",
+        "notes": "Stable actor identifier where available"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"DeleteFlowLogs\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\",\n    \"id\": \"AROAXXXXX:session\"\n  },\n  \"aws\": {\n    \"ec2\": {\n      \"flow_log\": {\n        \"ids\": [\n          \"fl-0abc123\"\n        ]\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized Flow Log Managers",
+      "description": "Exact inventory of identities allowed to create or delete VPC flow logs.",
+      "examples": [
+        "network admin role",
+        "approved infra pipeline"
+      ],
+      "falsePositiveReduction": "Replaces brittle role-name and principalId allowlists."
+    },
+    {
+      "dimension": "Workflow Provenance",
+      "description": "Determine whether the deletion came from trusted IaC, approved maintenance, or manual ad hoc access.",
+      "examples": [
+        "planned Terraform apply",
+        "manual unknown session"
+      ],
+      "falsePositiveReduction": "Separates expected automation from suspicious manual telemetry removal."
+    },
+    {
+      "dimension": "Environment Scope",
+      "description": "Model which VPCs or accounts each authorized actor may manage.",
+      "examples": [
+        "dev network only",
+        "prod network team"
+      ],
+      "falsePositiveReduction": "Prevents broad admin allowlists from masking out-of-scope deletions."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect flow-log deletion outside approved network-logging workflows. It should match `DeleteFlowLogs`, resolve the actor and workflow provenance, and then check whether that identity is explicitly allowed to manage flow logs for the affected environment.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals DeleteFlowLogs",
+      "actor is not in the approved flow-log-manager inventory or actor is outside approved environment scope or request lacks approved workflow provenance"
+    ],
+    "tuningGuidance": "1. Use exact actor inventories. 2. Model actor-to-environment scope. 3. Treat IaC and emergency infrastructure workflows as explicit approved paths with auditability.",
+    "whenToFire": "Fire when flow logs are deleted by an identity outside approved network logging workflows."
+  },
+  "simulationCommand": "aws ec2 delete-flow-logs --flow-log-ids fl-0abc123 --profile dev-user",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with actor inventories and workflow provenance; high with role-name heuristics",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with actor inventories",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because telemetry deletion is immediately actionable.",
+    "considerations": [
+      "This is the actor-centric companion to the baseline flow-log deletion rule.",
+      "Actor inventory and workflow provenance are the main dependencies."
+    ]
+  }
+}

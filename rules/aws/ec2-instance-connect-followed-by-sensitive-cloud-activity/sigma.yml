@@ -1,0 +1,21 @@
+title: EC2 Instance Connect Key Push Followed by Suspicious Activity
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_push:
+    eventSource: ec2-instance-connect.amazonaws.com
+    eventName: SendSSHPublicKey
+  selection_sensitive:
+    eventName:
+      - StartSession
+      - GetSecretValue
+      - Decrypt
+      - AssumeRole
+      - CreateAccessKey
+      - PutUserPolicy
+      - AttachRolePolicy
+      - PutRolePolicy
+  condition: selection_push
+level: critical
+# Full correlation requires ordered sequence and stable actor identity across the access and follow-on activity.

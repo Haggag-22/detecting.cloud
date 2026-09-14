@@ -1,0 +1,25 @@
+title: AWS S3 ACL Modification
+id: ca94a81d-40bb-41b1-8774-35b13c1c7ac4
+status: experimental
+description: |
+    Detects S3 bucket or object ACL changes via PutBucketAcl or PutObjectAcl.
+references:
+    - https://detecting.cloud/detection-engineering?rule=det-131
+author: Detecting.Cloud / SOF-ELK
+date: 2026-07-17
+tags:
+    - attack.persistence
+    - attack.t1098
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: s3.amazonaws.com
+        eventName:
+            - PutBucketAcl
+            - PutObjectAcl
+    condition: selection
+falsepositives:
+    - Legitimate administration, automation, or platform engineering activity.
+level: high

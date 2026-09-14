@@ -1,0 +1,123 @@
+{
+  "whyItMatters": "Only a limited set of identities should routinely inspect SES identity state. When an unapproved actor performs this reconnaissance, the event is a strong signal of cloud email-surface exploration.",
+  "threatContext": {
+    "attackerBehavior": "An attacker operating through a compromised app role, IAM user, or compute role may query SES identities to understand email infrastructure and potential abuse paths.",
+    "realWorldUsage": "This is attractive because SES enumeration is lightweight and often overlooked in environments where email services are managed by a small set of teams.",
+    "whyItMatters": "Authorization context matters more than whether an actor's ARN happens to contain Email or SES-like text.",
+    "riskAndImpact": "If missed, unauthorized actors can map the SES surface before moving to policy changes, phishing, or credential-oriented abuse."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for SES",
+      "Authorized messaging and SES principal inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "SES enumeration events must be ingested with full actor context.",
+      "The environment should maintain exact principals allowed to manage or inspect SES identities.",
+      "Actor-to-environment or account scope should be modeled where relevant."
+    ],
+    "limitations": [
+      "Without actor inventories this rule becomes a weaker anomaly detector.",
+      "Some legitimate automation may perform SES reads under generic-looking roles.",
+      "A single unauthorized read still needs context for prioritization."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor performing SES identity reconnaissance"
+      },
+      {
+        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
+        "normalizedPath": "aws.identity.session_issuer.arn",
+        "notes": "Underlying role where relevant"
+      },
+      {
+        "rawPath": "eventName",
+        "normalizedPath": "event.action",
+        "notes": "SES enumeration action performed"
+      },
+      {
+        "rawPath": "sourceIPAddress",
+        "normalizedPath": "source.ip",
+        "notes": "Originating source IP of the request"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"discovery\"\n    ],\n    \"type\": [\n      \"info\"\n    ],\n    \"action\": \"ListIdentities\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized SES Readers",
+      "description": "Exact inventory of identities allowed to inspect SES identities and verification status.",
+      "examples": [
+        "email admin role",
+        "approved SES automation"
+      ],
+      "falsePositiveReduction": "Replaces brittle SES role-name allowlists."
+    },
+    {
+      "dimension": "Workflow Provenance",
+      "description": "Determine whether the read came from trusted messaging automation, monitoring, or manual ad hoc access.",
+      "examples": [
+        "monitoring lambda",
+        "manual unknown session"
+      ],
+      "falsePositiveReduction": "Separates expected operational reads from suspicious reconnaissance."
+    },
+    {
+      "dimension": "SES Scope Relevance",
+      "description": "Understand whether the actor normally works with SES in this account or environment.",
+      "examples": [
+        "marketing email account",
+        "account where SES is unused"
+      ],
+      "falsePositiveReduction": "Raises suspicion when the actor has no business touching SES."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect SES identity-enumeration activity outside approved messaging workflows. It should match `ListIdentities` and `GetIdentityVerificationAttributes`, resolve the actor and workflow provenance, and then check whether that identity is explicitly allowed to inspect SES identity state.",
+    "conditions": [
+      "eventSource equals ses.amazonaws.com",
+      "eventName equals ListIdentities or GetIdentityVerificationAttributes",
+      "actor is not in the approved SES-reader inventory or request lacks approved workflow provenance"
+    ],
+    "tuningGuidance": "1. Use exact actor inventories. 2. Model messaging automation as explicit approved paths. 3. Escalate when SES is rare in the account or the same actor later performs SES write actions.",
+    "whenToFire": "Fire when SES identity enumeration is performed by an identity outside approved messaging or platform workflows."
+  },
+  "simulationCommand": "aws ses list-identities --identity-type EmailAddress --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with actor inventories and messaging workflow context; high with role-name heuristics",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with actor inventories",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because unauthorized SES reconnaissance may quickly lead to write activity.",
+    "considerations": [
+      "This is the actor-centric SES reconnaissance detector.",
+      "Actor inventory and messaging workflow provenance are the main dependencies."
+    ]
+  }
+}

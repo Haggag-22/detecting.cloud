@@ -1,0 +1,22 @@
+{
+  "id": "det-046",
+  "title": "Permissions Boundary Changed on Classified Privileged Principal",
+  "description": "Detects permissions-boundary changes applied to highly privileged or otherwise classified sensitive principals. This rule should rely on principal criticality metadata and target class rather than role-name heuristics.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "Permissions Boundary",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Planned boundary change on critical role",
+    "Break-glass procedure"
+  ],
+  "relatedAttackSlugs": []
+}

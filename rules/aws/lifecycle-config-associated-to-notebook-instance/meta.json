@@ -1,0 +1,22 @@
+{
+  "id": "det-102",
+  "title": "Lifecycle Config Associated to Notebook Instance",
+  "description": "Detects when a notebook instance is created or updated with a lifecycle config attached. This is the operational handoff point where lifecycle-config logic becomes eligible to run at notebook startup.",
+  "awsService": "SageMaker",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "SageMaker",
+    "Lifecycle Config",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate notebook provisioning",
+    "Approved lifecycle association"
+  ],
+  "relatedAttackSlugs": []
+}

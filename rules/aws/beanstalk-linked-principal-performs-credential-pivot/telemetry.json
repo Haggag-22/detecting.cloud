@@ -1,0 +1,14 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "iam.amazonaws.com",
+  "importantFields": [
+    "eventSource",
+    "eventName",
+    "userIdentity.arn",
+    "userIdentity.sessionContext.sessionIssuer.arn",
+    "requestParameters.userName",
+    "requestParameters.roleArn",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"iam.amazonaws.com\",\n  \"eventName\": \"CreateAccessKey\",\n  \"userIdentity\": {\n    \"type\": \"AssumedRole\",\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/aws-elasticbeanstalk-ec2-role/session\"\n  },\n  \"requestParameters\": {\n    \"userName\": \"backdoor\"\n  },\n  \"sourceIPAddress\": \"203.0.113.10\",\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

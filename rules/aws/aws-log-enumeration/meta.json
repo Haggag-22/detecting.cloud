@@ -1,0 +1,22 @@
+{
+  "id": "det-164",
+  "title": "AWS Log Enumeration",
+  "description": "Detects enumeration of CloudTrail and CloudWatch Logs (LookupEvents, GetTrailStatus, GetLogEvents, DescribeLogGroups) which adversaries perform to understand logging coverage before evasion.",
+  "awsService": "CloudTrail",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Low",
+  "tags": [
+    "CloudTrail",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "SIEM/log-forwarding integrations reading CloudTrail and CloudWatch Logs.",
+    "Administrators reviewing logs."
+  ],
+  "relatedAttackSlugs": []
+}

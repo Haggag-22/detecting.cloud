@@ -1,0 +1,25 @@
+{
+  "id": "det-076",
+  "title": "StartSession Outside Authorized Interactive Access Path",
+  "description": "Detects Session Manager access by identities outside approved administration, helpdesk, or break-glass workflows. This should rely on exact actor inventories, session provenance, and target scope rather than ARN substring allowlists.",
+  "awsService": "SSM",
+  "relatedServices": [
+    "EC2"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "SSM",
+    "Session Manager",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Known SSM administrators",
+    "Helpdesk or platform automation",
+    "Approved break-glass access"
+  ],
+  "relatedAttackSlugs": []
+}

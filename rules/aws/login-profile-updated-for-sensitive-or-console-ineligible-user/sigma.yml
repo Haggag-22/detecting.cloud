@@ -1,0 +1,10 @@
+title: Login Profile Updated for Sensitive or Suspicious User
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: UpdateLoginProfile
+  condition: selection
+level: high

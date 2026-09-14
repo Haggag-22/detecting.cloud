@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ssm.amazonaws.com (eventName=SendCommand OR eventName=StartSession)
+| table _time, userIdentity.type, userIdentity.arn, eventName, requestParameters.documentName, requestParameters.instanceIds{}, requestParameters.target, requestParameters.parameters.commands{}, sourceIPAddress

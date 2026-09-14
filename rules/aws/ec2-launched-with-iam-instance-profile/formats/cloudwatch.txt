@@ -1,0 +1,5 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.iamInstanceProfile, sourceIPAddress
+| filter eventSource = "ec2.amazonaws.com"
+| filter eventName = "RunInstances"
+| filter ispresent(requestParameters.iamInstanceProfile)
+| sort @timestamp desc

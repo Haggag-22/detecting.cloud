@@ -1,0 +1,32 @@
+title: AWS S3 Object Overwrite Indicative Of Defacement
+id: 7da7f57b-f940-422b-a0f1-4ed676110311
+status: experimental
+description: |
+    Detects writes to S3 objects (PutObject) which, when targeting public or website-enabled buckets,
+    can indicate External Defacement (T1491.002) of static content. Aligned to MITRE ATT&CK analytics
+    AN0666 and AN1625 (PutObject). REQUIRES S3 DATA-EVENT LOGGING: PutObject is an S3 data-plane event
+    and is NOT recorded by default CloudTrail management-event logging (the standard SOF-ELK ingest).
+    Website-configuration defacement (PutBucketWebsite) is a management event covered by
+    aws_s3_data_management_tampering.yml. HIGH VOLUME: correlate with public-bucket / website context.
+references:
+    - https://attack.mitre.org/techniques/T1491/002/
+    - https://attack.mitre.org/detectionstrategies/DET0238/
+    - https://attack.mitre.org/detectionstrategies/DET0590/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.impact
+    - attack.t1491
+    - attack.t1491.002
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: s3.amazonaws.com
+        eventName: PutObject
+    condition: selection
+falsepositives:
+    - Normal application and content-management writes to S3.
+    - Static site deployment pipelines.
+level: low

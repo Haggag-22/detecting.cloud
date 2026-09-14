@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects issuance of federation/web-identity tokens (GetFederationToken, AssumeRoleWithWebIdentity) and role pass-through (PassRole) used to obtain temporary elevated cloud access. Adds Temporary Elevated Cloud Access (T1548.005) coverage beyond the existing SigmaHQ AssumeRole and GetSessionToken misuse rules. Aligned to MITRE ATT&CK T1548.005 analytic AN1105 (PassRole).",
+  "threatContext": {
+    "attackerBehavior": "Detects issuance of federation/web-identity tokens (GetFederationToken, AssumeRoleWithWebIdentity) and role pass-through (PassRole) used to obtain temporary elevated cloud access. Adds Temporary Elevated Cloud Access (T1548.005) coverage beyond the existing SigmaHQ AssumeRole and GetSessionToken misuse rules. Aligned to MITRE ATT&CK T1548.005 analytic AN1105 (PassRole).",
+    "whyItMatters": "Detects issuance of federation/web-identity tokens (GetFederationToken, AssumeRoleWithWebIdentity) and role pass-through (PassRole) used to obtain temporary elevated cloud access. Adds Temporary Elevated Cloud Access (T1548.005) coverage beyond the existing SigmaHQ AssumeRole and GetSessionToken misuse rules. Aligned to MITRE ATT&CK T1548.005 analytic AN1105 (PassRole).",
+    "riskAndImpact": "Abuse related to STS can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects issuance of federation/web-identity tokens (GetFederationToken, AssumeRoleWithWebIdentity) and role pass-through (PassRole) used to obtain temporary elevated cloud access. Adds Temporary Elevated Cloud Access (T1548.005) coverage beyond the existing SigmaHQ AssumeRole and GetSessionToken misuse rules. Aligned to MITRE ATT&CK T1548.005 analytic AN1105 (PassRole).",
+    "whenToFire": "When CloudTrail shows activity matching this AWS Temporary Elevated Cloud Access Via Federation Token detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

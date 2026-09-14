@@ -1,0 +1,5 @@
+[
+  "As a role outside the approved provisioning set, launch EC2 with an attached instance profile.",
+  "Verify CloudTrail captures actor and instance-profile context.",
+  "Run the detection and confirm it relies on authorized actor and approved profile mapping instead of string-based exclusions."
+]

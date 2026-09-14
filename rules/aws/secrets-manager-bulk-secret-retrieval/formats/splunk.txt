@@ -1,0 +1,4 @@
+index=aws sourcetype=aws:cloudtrail eventSource=secretsmanager.amazonaws.com eventName=GetSecretValue
+| stats dc(requestParameters.secretId) as distinct_secrets count as retrievals values(requestParameters.secretId) as secrets by userIdentity.arn, bin(_time, 15m)
+| where distinct_secrets > 5
+| sort -distinct_secrets

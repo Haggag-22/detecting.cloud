@@ -1,0 +1,7 @@
+index=aws sourcetype=aws:cloudtrail
+  (eventSource=iam.amazonaws.com AND (eventName=CreatePolicy OR eventName=AttachUserPolicy OR eventName=AttachRolePolicy OR eventName=AttachGroupPolicy))
+| eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
+| transaction actor maxspan=15m
+| where mvcount(mvfilter(eventName="CreatePolicy"))>0
+  AND mvcount(mvfilter(eventName IN ("AttachUserPolicy","AttachRolePolicy","AttachGroupPolicy")))>0
+| table _time, actor, eventName, responseElements.policy.arn, requestParameters.policyArn, requestParameters.userName, requestParameters.roleName, requestParameters.groupName

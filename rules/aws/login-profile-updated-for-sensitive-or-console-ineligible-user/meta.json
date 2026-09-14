@@ -1,0 +1,22 @@
+{
+  "id": "det-054",
+  "title": "Login Profile Updated for Sensitive or Console-Ineligible User",
+  "description": "Detects password resets for privileged, dormant, break-glass, API-only, or otherwise console-ineligible IAM users. This should rely on user classification and console posture rather than username substrings.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "Login Profile",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate password rotation for privileged users",
+    "Break-glass procedure"
+  ],
+  "relatedAttackSlugs": []
+}

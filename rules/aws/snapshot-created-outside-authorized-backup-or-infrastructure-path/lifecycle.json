@@ -1,0 +1,126 @@
+{
+  "whyItMatters": "Snapshot creation by the wrong identity is a strong storage-collection signal because only a narrow set of backup, storage, or infrastructure roles should create volume copies in sensitive environments.",
+  "threatContext": {
+    "attackerBehavior": "An attacker using a workload role, developer session, or unapproved assumed role may create snapshots to stage disk data for later exfiltration or restoration.",
+    "realWorldUsage": "Unexpected-actor snapshot creation is a practical cloud data-access pattern because it uses native AWS storage workflows instead of direct data-plane exfiltration.",
+    "whyItMatters": "Authorization context matters more than whether a role name contains Backup or Admin.",
+    "riskAndImpact": "If missed, attackers can create durable copies of sensitive volumes from identities that were never intended to perform storage operations."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "Authorized backup and storage actor inventory",
+      "EBS and workload sensitivity inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.principalId",
+      "requestParameters.volumeId",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CreateSnapshot and CreateSnapshots events must be ingested with actor context.",
+      "The environment should maintain exact principals approved for snapshot creation.",
+      "Volume ownership and sensitivity should be resolvable from inventory."
+    ],
+    "limitations": [
+      "Without actor inventory this rule becomes noisy.",
+      "Some legitimate automation may use neutral role names.",
+      "CreateSnapshots may involve multi-volume workflows where the source volume context is broader than a single volumeId."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn",
+        "notes": "Actor creating the snapshot"
+      },
+      {
+        "rawPath": "userIdentity.principalId",
+        "normalizedPath": "user.id",
+        "notes": "Stable actor identifier"
+      },
+      {
+        "rawPath": "requestParameters.volumeId",
+        "normalizedPath": "aws.ebs.volume.id",
+        "notes": "Source volume where available"
+      },
+      {
+        "rawPath": "enrichment.volumeSensitivity",
+        "normalizedPath": "aws.ebs.volume.sensitivity",
+        "notes": "Resolved workload or data sensitivity of the source volume"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"storage\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateSnapshot\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\",\n    \"id\": \"AROAXXXXX:session\"\n  },\n  \"aws\": {\n    \"ebs\": {\n      \"volume\": {\n        \"id\": \"vol-0abc123\",\n        \"sensitivity\": \"production_database\"\n      }\n    }\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized Snapshot Actors",
+      "description": "Exact inventory of roles, services, and workflows allowed to create snapshots.",
+      "examples": [
+        "DLM service role",
+        "approved backup automation"
+      ],
+      "falsePositiveReduction": "Replaces brittle name-based backup allowlists."
+    },
+    {
+      "dimension": "Volume Sensitivity and Ownership",
+      "description": "Resolve whether the source volume backs a sensitive production workload, ECS host, or EKS node.",
+      "examples": [
+        "prod database volume",
+        "temporary build host"
+      ],
+      "falsePositiveReduction": "Raises priority when unauthorized snapshotting affects valuable data."
+    },
+    {
+      "dimension": "Workflow Provenance",
+      "description": "Correlate backup schedules, maintenance windows, and infrastructure automation context.",
+      "examples": [
+        "scheduled backup run",
+        "manual out-of-band snapshot"
+      ],
+      "falsePositiveReduction": "Separates expected storage operations from suspicious collection activity."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should be an actor-authorization detector for snapshot creation. It should alert when CreateSnapshot or CreateSnapshots occurs outside approved backup or infrastructure workflows, especially on sensitive volumes.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals CreateSnapshot or CreateSnapshots",
+      "actor is not in the approved snapshot-creator inventory or request lacks approved workflow provenance, or actor is outside allowed volume scope"
+    ],
+    "tuningGuidance": "1. Use exact ARNs and principalIds. 2. Model actor-to-volume or actor-to-environment scope. 3. Escalate further when the source volume is sensitive or the snapshot is later shared or copied.",
+    "whenToFire": "Fire when snapshots are created outside authorized backup or infrastructure paths, especially for sensitive volumes."
+  },
+  "simulationCommand": "aws ec2 create-snapshot --volume-id vol-0abc123 --description 'manual copy' --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium without actor inventory, low-medium with volume and workflow enrichment",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with storage and actor inventories",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because unauthorized snapshotting can quickly lead to sharing or copying.",
+    "considerations": [
+      "This is the actor-centric companion to the snapshot baseline.",
+      "Actor inventory and volume ownership are the main dependencies."
+    ]
+  }
+}

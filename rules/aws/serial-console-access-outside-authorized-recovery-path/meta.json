@@ -1,0 +1,22 @@
+{
+  "id": "det-093",
+  "title": "Serial Console Access Outside Authorized Recovery Path",
+  "description": "Detects serial-console use by identities outside approved recovery, infrastructure, or incident-response workflows. This should rely on explicit actor authorization and session provenance rather than role-name substring allowlists.",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EC2",
+    "Serial Console",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Known infra/platform roles",
+    "Approved recovery automation"
+  ],
+  "relatedAttackSlugs": []
+}

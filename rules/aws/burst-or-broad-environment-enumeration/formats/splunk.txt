@@ -1,0 +1,7 @@
+index=aws sourcetype=aws:cloudtrail eventSource=elasticbeanstalk.amazonaws.com eventName=DescribeConfigurationSettings
+| eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
+| eval key=requestParameters.applicationName."##".requestParameters.environmentName
+| transaction actor maxspan=15m
+| eval distinct_envs=mvcount(mvdedup(split(key, "##")))
+| where distinct_envs > 5
+| table _time, actor, distinct_envs, key

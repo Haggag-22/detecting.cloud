@@ -1,0 +1,25 @@
+{
+  "id": "az-071",
+  "title": "New Country",
+  "description": "Detects sign-ins from new countries. The detection considers past activity locations to determine new and infrequent locations.",
+  "awsService": "Entra ID Protection",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Protection",
+    "stealth",
+    "t1078",
+    "persistence",
+    "privilege-escalation",
+    "initial-access"
+  ],
+  "logSources": [
+    "Azure riskdetection"
+  ],
+  "falsePositives": [
+    "We recommend investigating the sessions flagged by this detection in the context of other sign-ins from the user."
+  ],
+  "relatedAttackSlugs": []
+}

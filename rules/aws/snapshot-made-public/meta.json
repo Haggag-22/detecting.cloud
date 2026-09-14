@@ -1,0 +1,25 @@
+{
+  "id": "det-084",
+  "title": "Snapshot Made Public",
+  "description": "Detects the specific owner-account action that makes a snapshot public. This should be public-only and distinct from external-account sharing, focusing on permission deltas that add `groups=[\"all\"]` or equivalent public exposure state.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "EBS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "EC2",
+    "EBS",
+    "Snapshot",
+    "Public Exposure"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate public AMI/snapshot sharing",
+    "Approved collaboration"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,5 @@
+[
+  "Resolve the final task role used by the launched task and determine whether the later sensitive actions came from that role rather than the original operator.",
+  "Review the sequence from task launch to role activity within the correlation window.",
+  "Check whether the follow-on actions reflect secrets access, role chaining, IAM mutation, or task-definition abuse unexpected for that workload."
+]

@@ -1,0 +1,10 @@
+title: KMS Key Deletion Scheduled
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: kms.amazonaws.com
+    eventName: ScheduleKeyDeletion
+  condition: selection
+level: critical

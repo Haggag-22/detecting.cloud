@@ -1,0 +1,8 @@
+index=aws sourcetype=aws:cloudtrail
+  ((eventSource=iam.amazonaws.com AND (eventName=PutRolePermissionsBoundary OR eventName=PutUserPermissionsBoundary))
+   OR (eventName=AssumeRole OR eventName=CreatePolicyVersion OR eventName=SetDefaultPolicyVersion OR eventName=PassRole OR eventName=GetSecretValue OR eventName=Decrypt))
+| eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
+| transaction actor maxspan=15m
+| where mvcount(mvfilter(eventSource="iam.amazonaws.com" AND eventName IN ("PutRolePermissionsBoundary","PutUserPermissionsBoundary")))>0
+  AND mvcount(mvfilter(eventName IN ("AssumeRole","CreatePolicyVersion","SetDefaultPolicyVersion","PassRole","GetSecretValue","Decrypt")))>0
+| table _time, actor, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary

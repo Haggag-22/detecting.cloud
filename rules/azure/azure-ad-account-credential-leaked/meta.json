@@ -1,0 +1,22 @@
+{
+  "id": "az-067",
+  "title": "Azure AD Account Credential Leaked",
+  "description": "Indicates that the user's valid credentials have been leaked.",
+  "awsService": "Entra ID Protection",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Protection",
+    "t1589",
+    "reconnaissance"
+  ],
+  "logSources": [
+    "Azure riskdetection"
+  ],
+  "falsePositives": [
+    "A rare hash collision."
+  ],
+  "relatedAttackSlugs": []
+}

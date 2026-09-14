@@ -1,0 +1,5 @@
+[
+  "As a non-admin role, call SetDefaultPolicyVersion.",
+  "Verify CloudTrail captures the event.",
+  "Run the detection to confirm it triggers on unexpected actors."
+]

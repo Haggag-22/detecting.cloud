@@ -1,0 +1,5 @@
+[
+  "Use `aws ec2-instance-connect send-ssh-public-key` against a test instance.",
+  "Verify CloudTrail captures the target instance and actor context.",
+  "Run the baseline rule and confirm it records the access grant without overfitting to admin role names."
+]

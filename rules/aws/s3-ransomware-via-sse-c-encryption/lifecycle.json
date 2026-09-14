@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects S3 object writes that use customer-provided encryption keys (SSE-C), a technique used to encrypt a victim's objects with attacker-held keys and hold them for ransom (Data Encrypted for Impact). Aligned to MITRE ATT&CK T1486 analytic AN0606 (PutObject/UploadPart with SSE-C). REQUIRES S3 DATA-EVENT LOGGING: PutObject/CopyObject/UploadPart are S3 data-plane events and are NOT recorded by default CloudTrail management-event logging (the standard SOF-ELK ingest). Enable CloudTrail S3 data events on the relevant buckets for this rule to fire.",
+  "threatContext": {
+    "attackerBehavior": "Detects S3 object writes that use customer-provided encryption keys (SSE-C), a technique used to encrypt a victim's objects with attacker-held keys and hold them for ransom (Data Encrypted for Impact). Aligned to MITRE ATT&CK T1486 analytic AN0606 (PutObject/UploadPart with SSE-C). REQUIRES S3 DATA-EVENT LOGGING: PutObject/CopyObject/UploadPart are S3 data-plane events and are NOT recorded by default CloudTrail management-event logging (the standard SOF-ELK ingest). Enable CloudTrail S3 data events on the relevant buckets for this rule to fire.",
+    "whyItMatters": "Detects S3 object writes that use customer-provided encryption keys (SSE-C), a technique used to encrypt a victim's objects with attacker-held keys and hold them for ransom (Data Encrypted for Impact). Aligned to MITRE ATT&CK T1486 analytic AN0606 (PutObject/UploadPart with SSE-C). REQUIRES S3 DATA-EVENT LOGGING: PutObject/CopyObject/UploadPart are S3 data-plane events and are NOT recorded by default CloudTrail management-event logging (the standard SOF-ELK ingest). Enable CloudTrail S3 data events on the relevant buckets for this rule to fire.",
+    "riskAndImpact": "Abuse related to S3 can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects S3 object writes that use customer-provided encryption keys (SSE-C), a technique used to encrypt a victim's objects with attacker-held keys and hold them for ransom (Data Encrypted for Impact). Aligned to MITRE ATT&CK T1486 analytic AN0606 (PutObject/UploadPart with SSE-C). REQUIRES S3 DATA-EVENT LOGGING: PutObject/CopyObject/UploadPart are S3 data-plane events and are NOT recorded by default CloudTrail management-event logging (the standard SOF-ELK ingest). Enable CloudTrail S3 data events on the relevant buckets for this rule to fire.",
+    "whenToFire": "When CloudTrail shows activity matching this S3 Ransomware via SSE-C Encryption detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

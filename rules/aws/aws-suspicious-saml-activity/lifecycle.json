@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Identifies when suspicious SAML activity has occurred in AWS. An adversary could gain backdoor access via SAML.",
+  "threatContext": {
+    "attackerBehavior": "Identifies when suspicious SAML activity has occurred in AWS. An adversary could gain backdoor access via SAML.",
+    "whyItMatters": "Identifies when suspicious SAML activity has occurred in AWS. An adversary could gain backdoor access via SAML.",
+    "riskAndImpact": "Abuse related to STS can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Identifies when suspicious SAML activity has occurred in AWS. An adversary could gain backdoor access via SAML.",
+    "whenToFire": "When CloudTrail shows activity matching this AWS Suspicious SAML Activity detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

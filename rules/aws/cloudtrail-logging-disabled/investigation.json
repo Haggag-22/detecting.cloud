@@ -1,0 +1,6 @@
+[
+  "Identify who stopped, deleted, or updated the trail.",
+  "Assess impact on audit visibility.",
+  "Verify if this was planned maintenance.",
+  "Restore CloudTrail immediately if unauthorized."
+]

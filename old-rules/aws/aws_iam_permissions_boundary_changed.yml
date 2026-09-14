@@ -1,0 +1,25 @@
+title: AWS IAM Permissions Boundary Changed
+id: fe66bc1d-c5e2-471e-a925-e25a96d40793
+status: experimental
+description: |
+    Detects PutRolePermissionsBoundary or PutUserPermissionsBoundary changes on IAM principals.
+references:
+    - https://detecting.cloud/detection-engineering?rule=det-044
+author: Detecting.Cloud / SOF-ELK
+date: 2026-07-17
+tags:
+    - attack.privilege-escalation
+    - attack.t1098
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: iam.amazonaws.com
+        eventName:
+            - PutRolePermissionsBoundary
+            - PutUserPermissionsBoundary
+    condition: selection
+falsepositives:
+    - Legitimate administration, automation, or platform engineering activity.
+level: medium

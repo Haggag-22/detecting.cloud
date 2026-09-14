@@ -1,0 +1,5 @@
+[
+  "Identify the principal performing `CreateAccessKey` or `AssumeRole` and verify its linkage to a Beanstalk environment or execution path.",
+  "Determine whether the pivot is expected for that environment or whether the principal should never create IAM credentials or assume additional roles.",
+  "Check for prior Beanstalk reconnaissance, environment reads, or configuration access that may explain the pivot."
+]

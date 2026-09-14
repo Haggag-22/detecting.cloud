@@ -1,0 +1,13 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "organizations.amazonaws.com",
+  "importantFields": [
+    "eventName",
+    "userIdentity.arn",
+    "requestParameters.policyId",
+    "eventSource",
+    "sourceIPAddress",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"organizations.amazonaws.com\",\n  \"eventName\": \"DetachPolicy\",\n  \"userIdentity\": {\n    \"type\": \"IAMUser\",\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\"\n  },\n  \"requestParameters\": {\n    \"policyId\": \"p-xxx\",\n    \"targetId\": \"ou-xxx\"\n  },\n  \"sourceIPAddress\": \"203.0.113.10\",\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

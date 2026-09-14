@@ -1,0 +1,27 @@
+title: Public AWS RDS Instance Restored From Snapshot
+id: 472055cb-4adf-4f72-9a30-3d93a76b72e6
+status: experimental
+description: |
+    Detects when an AWS RDS database instance is restored from a snapshot and configured to be publicly accessible via RestoreDBInstanceFromDBSnapshot where responseElements.publiclyAccessible is true. Adversaries can abuse this to expose a copy of a database to the internet and exfiltrate its contents.
+references:
+    - https://attack.mitre.org/techniques/T1020/
+    - https://attack.mitre.org/detectionstrategies/DET0397/
+    - https://github.com/RhinoSecurityLabs/pacu
+    - https://docs.aws.amazon.com/AmazonRDS/latest/APIReference/API_RestoreDBInstanceFromDBSnapshot.html
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.exfiltration
+    - attack.t1020
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: rds.amazonaws.com
+        eventName: RestoreDBInstanceFromDBSnapshot
+        responseElements|contains: '"publiclyAccessible":true'
+    condition: selection
+falsepositives:
+    - Legitimate restore of a database that is intentionally publicly accessible.
+level: high

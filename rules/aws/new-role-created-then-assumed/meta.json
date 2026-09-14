@@ -1,0 +1,25 @@
+{
+  "id": "det-064",
+  "title": "New Role Created Then Assumed",
+  "description": "High-confidence persistence and role-abuse correlation: a newly created role is assumed shortly afterward, indicating the role was not just provisioned but activated. This should correlate on exact role identity and ideally include trust or permission-risk context.",
+  "awsService": "IAM",
+  "relatedServices": [
+    "STS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "IAM",
+    "CreateRole",
+    "Persistence",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate role creation and immediate testing",
+    "Expected CI/CD smoke tests"
+  ],
+  "relatedAttackSlugs": []
+}

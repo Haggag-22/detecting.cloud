@@ -1,0 +1,23 @@
+title: AWS DynamoDB Table Exported to S3
+id: 5b5a47c9-d531-4607-8c27-296e2105f85d
+status: experimental
+description: |
+    Detects when a DynamoDB table is exported to S3, which may indicate data exfiltration.
+references:
+    - https://detecting.cloud/detection-engineering?rule=det-023
+author: Detecting.Cloud / SOF-ELK
+date: 2026-07-17
+tags:
+    - attack.exfiltration
+    - attack.t1537
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: dynamodb.amazonaws.com
+        eventName: ExportTableToPointInTime
+    condition: selection
+falsepositives:
+    - Legitimate administration, automation, or platform engineering activity.
+level: high
