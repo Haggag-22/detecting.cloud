@@ -17,6 +17,9 @@ export default defineConfig(({ mode }) => ({
     },
   },
   plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+  css: {
+    postcss: path.resolve(__dirname, "./config/postcss.config.js"),
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
