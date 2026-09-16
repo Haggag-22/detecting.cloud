@@ -1,0 +1,3 @@
+[console_scripts]
+cloudtrail-collector = collector.cli:legacy_main
+ventra = collector.cli:main

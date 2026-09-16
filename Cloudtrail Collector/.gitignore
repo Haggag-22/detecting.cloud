@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Terraform
+terraform/.terraform/
+terraform/.terraform.lock.hcl
+terraform/terraform.tfvars
+*.tfstate
+*.tfstate.*
+
+# Run artifacts. Manifests and logs are engagement evidence -- keep them out of
+# version control and store them with the case file.
+state/
+logs/
+manifests/

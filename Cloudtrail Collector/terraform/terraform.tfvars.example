@@ -1,0 +1,34 @@
+# Copy to terraform.tfvars and edit.
+
+engagement_id = "IR-2026-0142"
+
+# --- destination bucket ----------------------------------------------------
+# Either attach to a bucket you already have...
+evidence_bucket        = "our-dfir-evidence"
+create_evidence_bucket = false
+
+# ...or have Terraform create it. Object Lock can ONLY be set at creation.
+# create_evidence_bucket     = true
+# enable_object_lock         = true
+# object_lock_mode           = "GOVERNANCE"   # COMPLIANCE cannot be undone by anyone
+# object_lock_retention_days = 2555
+
+evidence_prefix = "aws" # must match the collector's --dest-prefix
+
+# --- ingest ----------------------------------------------------------------
+# Raise if you raise the collector's --chunk-size-mb: this must exceed the time
+# Logstash needs for one object.
+visibility_timeout_seconds = 900
+max_receive_count          = 5
+
+# --- principals ------------------------------------------------------------
+logstash_principal_arns  = ["arn:aws:iam::111122223333:role/logstash-worker"]
+collector_principal_arns = ["arn:aws:iam::111122223333:role/dfir-collector"]
+
+# Scopes the collector's read policy. Leave empty for lookup-mode-only runs.
+source_trail_bucket = "client-cloudtrail-logs"
+
+tags = {
+  Client     = "acme"
+  Engagement = "IR-2026-0142"
+}
