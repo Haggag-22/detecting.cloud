@@ -1,0 +1,20 @@
+{
+  "id": "tech-rds-cluster-destruction",
+  "name": "RDS Cluster Modification or Deletion",
+  "shortName": "RDS Destroy",
+  "description": "RDS holds relational data. Modifying a cluster can weaken encryption, networking, or backups. Deleting it removes the database. Attackers do this for ransom, sabotage, or to hide what they queried. Snapshots may still exist, but only if they were not deleted too. Cluster deletion and 'publicly accessible' flips should never happen outside a migration window.",
+  "services": [
+    "RDS"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-166"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "aws"
+}

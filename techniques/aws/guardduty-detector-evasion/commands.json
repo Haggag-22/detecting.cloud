@@ -1,0 +1,4 @@
+[
+  "aws guardduty update-detector --detector-id xxx --enable false",
+  "aws guardduty delete-detector --detector-id xxx"
+]

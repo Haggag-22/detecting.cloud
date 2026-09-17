@@ -1,0 +1,24 @@
+{
+  "id": "tech-attach-user-policy",
+  "name": "IAM Policy Attachment",
+  "shortName": "AttachPolicy",
+  "description": "An attacker with iam:AttachUserPolicy, iam:PutUserPolicy, or iam:AttachRolePolicy can grant additional permissions to themselves or to a role they control. Attaching a managed policy like AdministratorAccess or a custom inline policy with broad permissions immediately escalates privileges. The attacker can attach policies to their own user, to roles they can assume, or to other principals if they have the corresponding attach permission. Required permissions include iam:AttachUserPolicy (for managed policies on users), iam:PutUserPolicy (for inline policies on users), or iam:AttachRolePolicy (for roles).",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:AttachUserPolicy",
+    "iam:PutUserPolicy",
+    "iam:AttachRolePolicy"
+  ],
+  "detectionIds": [
+    "det-004"
+  ],
+  "mitigations": [
+    "Follow least-privilege principles for IAM policies",
+    "Use AWS Access Analyzer to identify overly permissive policies",
+    "Implement permission boundaries"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,28 @@
+{
+  "id": "tech-create-backdoor-role",
+  "name": "IAM Backdoor Role Creation",
+  "shortName": "Backdoor Role",
+  "description": "An attacker with iam:CreateRole and iam:AttachRolePolicy creates a new IAM role with a trust policy that allows their principal (e.g., attacker account root or a specific user) to assume it. They attach high-privilege policies to the role. The attacker can then assume this role at any time for persistent access. This survives key rotation because it relies on role assumption rather than stored credentials. Required permissions are iam:CreateRole and iam:AttachRolePolicy (or iam:PutRolePolicy for inline policies).",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:CreateRole",
+    "iam:AttachRolePolicy"
+  ],
+  "detectionIds": [
+    "det-060",
+    "det-061",
+    "det-062",
+    "det-063",
+    "det-064"
+  ],
+  "mitigations": [
+    "Restrict role creation",
+    "Audit new roles",
+    "Use SCPs to limit role creation"
+  ],
+  "category": "persistence",
+  "cloudProvider": "aws",
+  "detectionStrategy": "Backdoor role creation is rarely just CreateRole by itself. The high-confidence pattern is CreateRole plus suspicious trust policy (external account, root, broad principal), plus privileged permissions (AttachRolePolicy/PutRolePolicy with AdministratorAccess or broad actions), plus subsequent AssumeRole usage."
+}

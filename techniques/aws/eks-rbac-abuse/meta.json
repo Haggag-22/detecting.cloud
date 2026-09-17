@@ -1,0 +1,24 @@
+{
+  "id": "tech-eks-rbac-abuse",
+  "name": "EKS RBAC Privilege Escalation",
+  "shortName": "EKS RBAC",
+  "description": "An attacker with access to the EKS Kubernetes API (via eks:AccessKubernetesApi or kubectl with valid credentials) can abuse RBAC to escalate privileges. By creating a ClusterRoleBinding that grants cluster-admin to their service account or user, they gain full control of the cluster. This is performed via kubectl or the Kubernetes API, not AWS APIs directly. Required access includes valid EKS credentials (e.g., from aws-auth ConfigMap or IAM role for service account) and permissions to create or modify RoleBindings and ClusterRoleBindings.",
+  "services": [
+    "EKS",
+    "IAM"
+  ],
+  "permissions": [
+    "eks:AccessKubernetesApi"
+  ],
+  "detectionIds": [
+    "det-025",
+    "det-026"
+  ],
+  "mitigations": [
+    "Use aws-auth ConfigMap with least-privilege mappings",
+    "Enable EKS audit logging to CloudWatch",
+    "Restrict cluster-admin bindings via OPA/Gatekeeper"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

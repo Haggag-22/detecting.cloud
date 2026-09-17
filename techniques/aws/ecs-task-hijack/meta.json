@@ -1,0 +1,24 @@
+{
+  "id": "tech-ecs-task-hijack",
+  "name": "ECS Task Definition Modification",
+  "shortName": "ECS Hijack",
+  "description": "An attacker with ecs:RegisterTaskDefinition can create a new task definition revision that uses a malicious container image or modified entrypoint. When ecs:UpdateService is called to deploy the new revision, the attacker's code runs in the cluster with the task role's permissions. The attacker can exfiltrate credentials, access other AWS resources, or establish persistence. Required permissions are ecs:RegisterTaskDefinition and ecs:UpdateService. The task role may have broad permissions if not properly scoped.",
+  "services": [
+    "ECS",
+    "IAM"
+  ],
+  "permissions": [
+    "ecs:RegisterTaskDefinition",
+    "ecs:UpdateService"
+  ],
+  "detectionIds": [
+    "det-027"
+  ],
+  "mitigations": [
+    "Restrict RegisterTaskDefinition to CI/CD pipelines only",
+    "Use image signing and verification (e.g., Sigstore/Cosign)",
+    "Audit task definition revisions regularly"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

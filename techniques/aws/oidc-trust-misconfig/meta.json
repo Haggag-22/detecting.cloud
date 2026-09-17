@@ -1,0 +1,18 @@
+{
+  "id": "tech-oidc-trust-misconfig",
+  "name": "OIDC Trust Policy Misconfiguration",
+  "shortName": "OIDC Misconfig",
+  "description": "IAM roles can trust OIDC identity providers (e.g., GitHub, GitLab) for federated access. If the trust policy is misconfigured with broad conditions (e.g., only checking aud, or using a wildcard in sub), an attacker can satisfy the conditions from an attacker-controlled repository or identity. The attacker forks a target repo, adds a workflow that requests OIDC tokens, and uses those tokens to assume the role via sts:AssumeRoleWithWebIdentity. No prior AWS credentials needed. The trust policy must allow the attacker's OIDC claims.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [],
+  "detectionIds": [],
+  "mitigations": [
+    "Use strict OIDC conditions (aud, sub)",
+    "Verify IdP URLs",
+    "Audit OIDC trust policies"
+  ],
+  "category": "initial-access",
+  "cloudProvider": "aws"
+}

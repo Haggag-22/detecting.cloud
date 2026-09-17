@@ -1,0 +1,12 @@
+title: Lambda Function Code Updated
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: lambda.amazonaws.com
+    eventName:
+      - UpdateFunctionCode20150331v2
+      - UpdateFunctionCode
+  condition: selection
+level: high

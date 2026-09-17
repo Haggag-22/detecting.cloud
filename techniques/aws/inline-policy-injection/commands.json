@@ -1,0 +1,4 @@
+[
+  "aws iam put-role-policy --role-name TargetRole --policy-name EscalationPolicy --policy-document file://policy.json",
+  "aws iam put-user-policy --user-name TargetUser --policy-name EscalationPolicy --policy-document file://policy.json"
+]

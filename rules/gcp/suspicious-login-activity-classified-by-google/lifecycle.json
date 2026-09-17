@@ -1,0 +1,69 @@
+{
+  "whyItMatters": "Detects Google Workspace login activity that's classified as suspicious by Google.",
+  "threatContext": {
+    "attackerBehavior": "Detects Google Workspace login activity that's classified as suspicious by Google.",
+    "whyItMatters": "Suspicious Login Activity Classified By Google is a Google Workspace control-plane or identity signal that defenders should investigate when it is unexpected.",
+    "riskAndImpact": "Unauthorized suspicious login activity classified by google can enable persistence, privilege escalation, credential theft, or impact depending on the resource."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "Google Workspace Audit"
+    ],
+    "requiredFields": [
+      "eventTime",
+      "operationName",
+      "caller",
+      "status"
+    ],
+    "loggingRequirements": [
+      "Google Workspace Audit must be enabled for the tenant or project.",
+      "Retain raw request properties so the detection can be tuned to approved actors."
+    ],
+    "limitations": [
+      "Generated lifecycle — review threat research, enrichment, and testing before production.",
+      "Bare Sigma selections may fire on every matching event until customer inventory is supplied."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "operationName",
+        "normalizedPath": "event.action",
+        "notes": "Control-plane operation"
+      },
+      {
+        "rawPath": "caller",
+        "normalizedPath": "user.id",
+        "notes": "Actor identity when present"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2026-01-15T12:00:00Z\",\n  \"event\": {\n    \"action\": \"Suspicious Login Activity Classified By Google\",\n    \"provider\": \"gcp\",\n    \"outcome\": \"success\"\n  },\n  \"cloud\": {\n    \"provider\": \"gcp\",\n    \"service\": \"Google Workspace\"\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Approved actor",
+      "description": "Compare the caller to change-management and privileged-identity inventories.",
+      "examples": [
+        "break-glass admin",
+        "CI/CD service principal"
+      ],
+      "falsePositiveReduction": "Suppress known automation identities after review."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "Alert when telemetry matches the Sigma selection for Suspicious Login Activity Classified By Google.",
+    "conditions": [
+      "Detects Google Workspace login activity that's classified as suspicious by Google."
+    ],
+    "whenToFire": "On each matching successful (or explicitly failed) control-plane event.",
+    "tuningGuidance": "Add approved-actor allowlists and sensitive-target inventories before production."
+  },
+  "simulationCommand": "Review the Sigma rule for gcp-017 and replay a matching gcp audit event in a lab tenant.",
+  "quality": {
+    "signalQuality": 5,
+    "falsePositiveRate": "unknown until tuned",
+    "expectedVolume": "varies by tenant",
+    "productionReadiness": "experimental"
+  },
+  "generatedFromTemplate": true
+}

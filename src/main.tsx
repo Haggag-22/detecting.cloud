@@ -2,8 +2,17 @@ import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
 
-// Apply persisted theme on load (default: dark)
+const rootEl = document.getElementById("root")!;
 const theme = localStorage.getItem("theme") || "dark";
 document.documentElement.classList.add(theme);
 
-createRoot(document.getElementById("root")!).render(<App />);
+function showBootError(err: unknown) {
+  const message = err instanceof Error ? err.stack || err.message : String(err);
+  rootEl.innerHTML = `<pre style="color:#fca5a5;padding:24px;white-space:pre-wrap;font:13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace">${message.replace(/</g, "&lt;")}</pre>`;
+}
+
+try {
+  createRoot(rootEl).render(<App />);
+} catch (err) {
+  showBootError(err);
+}

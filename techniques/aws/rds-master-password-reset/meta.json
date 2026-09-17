@@ -1,0 +1,22 @@
+{
+  "id": "tech-rds-master-password-reset",
+  "name": "RDS Master Password Reset",
+  "shortName": "RDS Password",
+  "description": "The RDS master user is the database superuser. Anyone who can change that password owns the data inside, even if they never had an application DB account. The attacker resets the password, connects with the new one, and dumps or alters tables. Applications that used the old password start failing, which is often how teams notice. Master-password changes belong in a secrets-rotation playbook, not an ad-hoc console click.",
+  "services": [
+    "RDS"
+  ],
+  "permissions": [
+    "rds:ModifyDBInstance"
+  ],
+  "detectionIds": [
+    "det-167"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "aws"
+}

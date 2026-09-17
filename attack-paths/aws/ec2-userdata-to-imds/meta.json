@@ -1,0 +1,23 @@
+{
+  "slug": "ec2-userdata-to-imds",
+  "title": "EC2 User Data to IMDS",
+  "description": "An attacker with ec2:DescribeInstanceAttribute can retrieve the user data of an EC2 instance, which may contain embedded secrets, database connection strings, or bootstrap scripts. If the attacker also has access to the instance (e.g., the user data revealed SSH keys or the instance is in a shared environment), they can log in and query the Instance Metadata Service to steal the instance role credentials. This combines reconnaissance (user data disclosure) with credential theft (IMDS access).",
+  "severity": "High",
+  "objective": "credential-access",
+  "tags": [
+    "EC2",
+    "User Data",
+    "IMDS"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-ec2-userdata-disclosure",
+      "context": "Retrieve user data via DescribeInstanceAttribute"
+    },
+    {
+      "techniqueId": "tech-imds-credential-theft",
+      "context": "Access IMDS from instance to steal role credentials"
+    }
+  ],
+  "cloudProvider": "aws"
+}

@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Layout } from "@/components/Layout";
 import { CountBadge } from "@/components/CountBadge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,12 @@ import {
 import { LayoutGrid, Filter, Sparkles, Plus, Minus } from "lucide-react";
 import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { cn } from "@/lib/utils";
+import { TECHNIQUE_CATEGORY_ICON_COLOR } from "@/lib/techniqueCategoryStyles";
+import { CloudProviderTabs, type CloudProviderId } from "@/components/CloudProviderTabs";
+import {
+  getTechniqueCloudProvider,
+  getTechniqueCountsByCloudProvider,
+} from "@/data/techniques";
 import {
   MATRIX_TACTIC_ORDER,
   matrixTacticLabels,
@@ -29,10 +35,11 @@ import {
   type TechniqueMatrixEntry,
   type CoverageBand,
   buildTechniqueMatrixEntries,
-  getAllMatrixServices,
 } from "@/lib/coverageMatrixModel";
 
 type CoverageFilter = "all" | "covered" | "partial" | "gaps";
+
+const PROVIDER_IDS: CloudProviderId[] = ["all", "aws", "azure", "gcp", "kubernetes"];
 
 const MATRIX_ZOOM_KEY = "threat-matrix-zoom";
 const ZOOM_MIN = 0.45;
@@ -41,15 +48,7 @@ const ZOOM_STEP = 0.1;
 const ZOOM_DEFAULT = 1;
 
 /** Matches Techniques Library sidebar accent colors */
-const TACTIC_HEADER_COLOR: Record<MatrixTactic, string> = {
-  "initial-access": "text-cyan-400",
-  "credential-access": "text-purple-400",
-  "privilege-escalation": "text-red-400",
-  persistence: "text-orange-400",
-  "lateral-movement": "text-blue-400",
-  exfiltration: "text-emerald-400",
-  "defense-evasion": "text-amber-400",
-};
+const TACTIC_HEADER_COLOR = TECHNIQUE_CATEGORY_ICON_COLOR;
 
 function coverageStyles(band: CoverageBand): string {
   switch (band) {
@@ -97,7 +96,7 @@ function TechniqueCard({ entry }: { entry: TechniqueMatrixEntry }) {
               Rules: <strong className="text-foreground">{detectionCount}</strong>
             </span>
             <span>
-              Paths: <strong className="text-foreground">{attackPathCount}</strong>
+              Chains: <strong className="text-foreground">{attackPathCount}</strong>
             </span>
           </div>
         </Link>
@@ -105,15 +104,30 @@ function TechniqueCard({ entry }: { entry: TechniqueMatrixEntry }) {
       <TooltipContent side="right" className="max-w-xs text-xs">
         <p className="font-semibold text-foreground mb-1">{technique.name}</p>
         <p className="text-muted-foreground line-clamp-4">{technique.description}</p>
-        <p className="mt-2 text-primary">Click for attack paths, detections &amp; simulations →</p>
+        <p className="mt-2 text-primary">Click for attack chains, detections &amp; simulations →</p>
       </TooltipContent>
     </Tooltip>
   );
 }
 
 export default function DetectionMatrix() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const providerParam = (searchParams.get("provider") as CloudProviderId | null) ?? "all";
+  const activeProvider: CloudProviderId = PROVIDER_IDS.includes(providerParam)
+    ? providerParam
+    : "all";
+
   const baseEntries = useMemo(() => buildTechniqueMatrixEntries(), []);
-  const allServices = useMemo(() => getAllMatrixServices(), []);
+  const providerCounts = getTechniqueCountsByCloudProvider();
+  const scopedEntries = useMemo(() => {
+    if (activeProvider === "all") return baseEntries;
+    return baseEntries.filter((e) => getTechniqueCloudProvider(e.technique) === activeProvider);
+  }, [baseEntries, activeProvider]);
+  const allServices = useMemo(() => {
+    const set = new Set<string>();
+    scopedEntries.forEach((e) => e.technique.services.forEach((s) => set.add(s)));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [scopedEntries]);
 
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [coverageFilter, setCoverageFilter] = useState<CoverageFilter>("all");
@@ -149,7 +163,7 @@ export default function DetectionMatrix() {
   const resetZoom = useCallback(() => setMatrixZoom(ZOOM_DEFAULT), []);
 
   const filtered = useMemo(() => {
-    return baseEntries.filter((e) => {
+    return scopedEntries.filter((e) => {
       if (serviceFilter !== "all" && !e.technique.services.includes(serviceFilter)) return false;
       if (onlyWithDetections && e.detectionCount === 0) return false;
       if (coverageFilter === "covered" && e.coverage !== "covered") return false;
@@ -157,7 +171,7 @@ export default function DetectionMatrix() {
       if (coverageFilter === "gaps" && e.coverage !== "none") return false;
       return true;
     });
-  }, [baseEntries, serviceFilter, coverageFilter, onlyWithDetections]);
+  }, [scopedEntries, serviceFilter, coverageFilter, onlyWithDetections]);
 
   const byTactic = useMemo(() => {
     const map = new Map<MatrixTactic, TechniqueMatrixEntry[]>();
@@ -178,19 +192,40 @@ export default function DetectionMatrix() {
     setOnlyWithDetections(false);
   }, []);
 
+  const setProvider = (id: CloudProviderId) => {
+    const next = new URLSearchParams(searchParams);
+    if (id === "all") next.delete("provider");
+    else next.set("provider", id);
+    setSearchParams(next);
+    setServiceFilter("all");
+  };
+
   const visibleCount = filtered.length;
+  const scopedCount = scopedEntries.length;
+  const visibleTactics = MATRIX_TACTIC_ORDER.filter((tactic) =>
+    scopedEntries.some((e) => e.tactic === tactic)
+  );
   const zoomPercent = Math.round(matrixZoom * 100);
   const canZoomIn = matrixZoom < ZOOM_MAX - 1e-6;
   const canZoomOut = matrixZoom > ZOOM_MIN + 1e-6;
 
   return (
     <Layout>
-      <div className="container min-w-0 max-w-full overflow-x-hidden py-8 space-y-6">
+      <div className="container min-w-0 max-w-full overflow-x-hidden space-y-6">
         <div>
           <PageTitleWithIcon team="red" icon={LayoutGrid} className="mb-0">
             Threat Matrix
           </PageTitleWithIcon>
+          <p className="text-muted-foreground mt-2 mb-6">
+            Attack techniques by tactic, organized by cloud provider. Select a provider to view that matrix.
+          </p>
         </div>
+
+        <CloudProviderTabs
+          value={activeProvider}
+          counts={providerCounts}
+          onChange={setProvider}
+        />
 
         <Card className="min-w-0 max-w-full overflow-hidden border-border/60">
             <CardHeader className="pb-3 space-y-4">
@@ -198,7 +233,7 @@ export default function DetectionMatrix() {
                 <Filter className="h-4 w-4 text-muted-foreground" />
                 <CardTitle className="text-base">Filters</CardTitle>
                 <CountBadge className="text-xs">
-                  {visibleCount} / {baseEntries.length}
+                  {visibleCount} / {scopedCount}
                 </CountBadge>
                 <Button variant="ghost" size="sm" className="h-7 text-xs ml-auto" onClick={resetFilters}>
                   Reset
@@ -297,12 +332,24 @@ export default function DetectionMatrix() {
                 id="threat-matrix-scroll"
                 className="max-w-full min-w-0 rounded-md border border-border/50"
               >
+                {scopedCount === 0 ? (
+                  <div className="px-6 py-14 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      {activeProvider === "all"
+                        ? "No techniques yet."
+                        : `No ${
+                            activeProvider === "kubernetes" ? "Kubernetes" : activeProvider.toUpperCase()
+                          } techniques yet. AWS techniques are available under the AWS tab.`}
+                    </p>
+                  </div>
+                ) : (
+                <>
                 {/* CSS zoom reflows layout so scroll bounds match the scaled view (better than transform for “see more columns”). */}
                 <div
                   className="flex w-max min-w-0 gap-10 px-6 py-5"
                   style={{ zoom: matrixZoom } as React.CSSProperties}
                 >
-                  {MATRIX_TACTIC_ORDER.map((tactic) => {
+                  {visibleTactics.map((tactic) => {
                     const col = byTactic.get(tactic) ?? [];
                     return (
                       <div
@@ -337,6 +384,8 @@ export default function DetectionMatrix() {
                     );
                   })}
                 </div>
+                </>
+                )}
                 <ScrollBar
                   orientation="horizontal"
                   className="h-3.5 border-t border-border/40 bg-muted/20 [&>[data-radix-scroll-area-thumb]]:bg-muted-foreground/40"

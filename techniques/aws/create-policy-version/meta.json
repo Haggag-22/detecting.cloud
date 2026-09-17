@@ -1,0 +1,22 @@
+{
+  "id": "tech-create-policy-version",
+  "name": "Create Policy Version Escalation",
+  "shortName": "PolicyVersion",
+  "description": "IAM managed policies support multiple versions. An attacker with iam:CreatePolicyVersion can create a new version of a policy they are attached to, replacing the policy document with one that grants broader permissions (e.g., Action: *, Resource: *). By setting setAsDefault to true, the new version becomes active immediately. The attacker's existing attachment to the policy now grants the escalated permissions without any additional API calls. Required permission is iam:CreatePolicyVersion on the target policy.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:CreatePolicyVersion"
+  ],
+  "detectionIds": [
+    "det-011"
+  ],
+  "mitigations": [
+    "Restrict iam:CreatePolicyVersion to trusted administrators",
+    "Use SCPs to prevent policy modification",
+    "Enable AWS Config rules for policy compliance"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,20 @@
+{
+  "id": "tech-ec2-root-volume-revert",
+  "name": "EC2 Root Volume Replacement (Anti-Forensics)",
+  "shortName": "Volume Revert",
+  "description": "The root volume is the disk the operating system boots from. An attacker who can replace it with an older snapshot can undo security patches, wipe forensic artifacts, and put a backdoored image in place. To operators it can look like a failed disk or a rollback. This is anti-forensics: the running server is still there, but the evidence on disk is gone. Root-volume swaps outside a documented recovery process are high signal.",
+  "services": [
+    "EC2"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-148"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

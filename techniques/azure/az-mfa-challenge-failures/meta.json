@@ -1,0 +1,21 @@
+{
+  "id": "tech-az-mfa-challenge-failures",
+  "name": "MFA Challenge Failures",
+  "shortName": "MFA Fail",
+  "description": "When the password works but MFA is denied or timed out, the attacker has the first factor and is guessing or spamming the second. That is a near-compromise: one more successful prompt and they are in. Fatigue attacks look like a burst of denied MFA on one user. Privileged accounts with repeated MFA failures after a correct password should be locked until the user confirms they started the login.",
+  "services": [
+    "Entra ID"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-093",
+    "az-095"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "azure"
+}

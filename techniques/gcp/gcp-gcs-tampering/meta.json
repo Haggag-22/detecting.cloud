@@ -1,0 +1,20 @@
+{
+  "id": "tech-gcp-gcs-tampering",
+  "name": "GCS Bucket Tampering or Destruction",
+  "shortName": "GCS Tamper",
+  "description": "Cloud Storage buckets hold objects and have their own IAM and ACLs. Making a bucket public, granting an outside account, or deleting the bucket is theft setup or destruction. Applications that read from that bucket fail or start serving attacker content. This is impact and sometimes exfiltration, depending on whether they copied data first. Public ACL changes and bucket deletes outside Terraform or the storage team are hostile.",
+  "services": [
+    "Cloud Storage"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-004"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "gcp"
+}

@@ -1,0 +1,24 @@
+{
+  "id": "tech-cloudtrail-disable",
+  "name": "CloudTrail Logging Disruption",
+  "shortName": "Disable Logs",
+  "description": "An attacker with cloudtrail:StopLogging or cloudtrail:DeleteTrail can halt or remove CloudTrail trails, eliminating audit logging of API activity. StopLogging immediately stops delivery of events to the trail's S3 bucket. DeleteTrail removes the trail configuration entirely. This blinds security monitoring to subsequent attacker actions. Required permissions are cloudtrail:StopLogging to pause a trail or cloudtrail:DeleteTrail to remove it.",
+  "services": [
+    "CloudTrail",
+    "IAM"
+  ],
+  "permissions": [
+    "cloudtrail:StopLogging",
+    "cloudtrail:DeleteTrail"
+  ],
+  "detectionIds": [
+    "det-002"
+  ],
+  "mitigations": [
+    "Use SCPs to deny StopLogging/DeleteTrail actions",
+    "Enable organization-level CloudTrail",
+    "Set up real-time alerting on trail changes"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,10 @@
+title: EC2 GetPasswordData Retrieved
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName: GetPasswordData
+  condition: selection
+level: high

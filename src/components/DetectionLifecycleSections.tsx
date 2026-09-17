@@ -585,7 +585,7 @@ function DetectionCoverageSection({
       )}
       {attackPaths.length > 0 && (
         <div>
-          <p className={`${sectionLabelClass} mb-2`}>Related Attack Paths</p>
+          <p className={`${sectionLabelClass} mb-2`}>Related Attack Chains</p>
           <div className="rounded-lg border border-border/50 overflow-hidden">
             <table className="w-full text-sm">
               <thead>

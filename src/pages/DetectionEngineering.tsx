@@ -3,7 +3,8 @@ import { Layout } from "@/components/Layout";
 import { detections, getDetectionsByService, getDetectionCountsByCloudProvider, getDefaultTelemetry, getDetectionCloudProvider, getBrowseService, type Detection } from "@/data/detections";
 import { getTechniquesForDetection, getAttackPathsForDetection } from "@/lib/detectionCoverage";
 import { Badge } from "@/components/ui/badge";
-import { Search, ChevronRight, Copy, Download, Share2, Check, X } from "lucide-react";
+import { Search, ChevronRight, Copy, Download, Share2, Check, X, ShieldCheck } from "lucide-react";
+import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { useSearchParams, Link } from "react-router-dom";
 import { getAwsServiceIcon } from "@/components/AwsIcons";
 import { Button } from "@/components/ui/button";
@@ -131,7 +132,7 @@ const DetectionEngineeringPage = () => {
 
     return (
       <Layout>
-        <div className="container py-12 max-w-4xl">
+        <div className="container max-w-4xl">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
             <Link to="/detection-engineering" className="hover:text-foreground transition-colors">
@@ -260,7 +261,7 @@ const DetectionEngineeringPage = () => {
 
               <DetectionSectionCard title="Detection Coverage">
                 <p className="text-sm text-muted-foreground mb-4">
-                  Techniques and attack paths covered by this detection from the platform knowledge graph.
+                  Techniques and attack chains covered by this detection from the platform knowledge graph.
                 </p>
                 {coveredTechniques.length > 0 ? (
                   <>
@@ -281,7 +282,7 @@ const DetectionEngineeringPage = () => {
                     </div>
                     {relatedAttackPaths.length > 0 && (
                       <div>
-                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Related Attack Paths</p>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Related Attack Chains</p>
                         <div className="space-y-3">
                           {relatedAttackPaths.map((ap) => (
                             <Link
@@ -303,7 +304,7 @@ const DetectionEngineeringPage = () => {
                     )}
                   </>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No techniques or attack paths are linked to this detection yet.</p>
+                  <p className="text-sm text-muted-foreground">No techniques or attack chains are linked to this detection yet.</p>
                 )}
               </DetectionSectionCard>
 
@@ -349,7 +350,7 @@ const DetectionEngineeringPage = () => {
 
     return (
       <Layout>
-        <div className="container py-12">
+        <div className="container">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
             <Link to="/detection-engineering" className="hover:text-foreground transition-colors">
               Detection Rules
@@ -414,8 +415,10 @@ const DetectionEngineeringPage = () => {
 
   return (
     <Layout>
-      <div className="container py-12">
-        <h1 className="font-display text-3xl font-bold mb-2">Detection Rules</h1>
+      <div className="container">
+        <PageTitleWithIcon team="blue" icon={ShieldCheck}>
+          Detection Rules
+        </PageTitleWithIcon>
         <p className="text-muted-foreground mb-6">
           Sigma-first detection rules organized by cloud provider and service. Select a provider, then a service to
           browse rules.

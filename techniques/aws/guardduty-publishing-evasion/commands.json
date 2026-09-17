@@ -1,0 +1,3 @@
+[
+  "aws guardduty delete-publishing-destination --detector-id xxx --destination-id xxx"
+]

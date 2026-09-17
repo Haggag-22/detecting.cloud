@@ -1,0 +1,22 @@
+{
+  "id": "det-202",
+  "title": "Lambda Permission Added for External Principal",
+  "description": "Detects lambda:AddPermission, which grants invoke rights via resource policy. This is the control-plane action for a Lambda resource-policy backdoor.",
+  "awsService": "Lambda",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "Lambda",
+    "Control Plane"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Authorized platform automation"
+  ],
+  "relatedAttackSlugs": []
+}

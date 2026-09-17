@@ -269,7 +269,7 @@ export default function CloudTrailAnalyzer() {
 
   return (
     <Layout>
-      <div className="container max-w-[1800px] py-10">
+      <div className="container max-w-[1800px]">
         <div className="mb-8">
           <PageTitleWithIcon team="blue" icon={FileJson}>
             CloudTrail Analyzer
@@ -932,7 +932,7 @@ function EventExpandedDetail({ event: ev, results }: { event: NormalizedCloudTra
           )}
           {attackPaths.length > 0 && (
             <>
-              <p className="text-xs font-semibold text-muted-foreground mt-2">Attack paths</p>
+              <p className="text-xs font-semibold text-muted-foreground mt-2">Attack chains</p>
               <div className="flex flex-wrap gap-1">
                 {attackPaths.map((p) => (
                   <Link key={p.slug} to={`/attack-paths?technique=${p.slug}`}>

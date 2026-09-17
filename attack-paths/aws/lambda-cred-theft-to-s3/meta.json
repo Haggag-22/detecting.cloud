@@ -1,0 +1,24 @@
+{
+  "slug": "lambda-cred-theft-to-s3",
+  "title": "Lambda Credential Theft to S3",
+  "description": "A Lambda function vulnerable to SSRF can be exploited to reach the Instance Metadata Service. Lambda runs on EC2-like infrastructure and has access to IMDS. By triggering the Lambda with a malicious input that causes an outbound request to 169.254.169.254, the attacker retrieves the Lambda's execution role credentials. With those credentials, the attacker accesses S3 buckets and other resources that the Lambda role can access, enabling data exfiltration.",
+  "severity": "High",
+  "objective": "credential-access",
+  "tags": [
+    "Lambda",
+    "SSRF",
+    "IMDS",
+    "S3"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-lambda-credential-theft",
+      "context": "Use Lambda SSRF to reach IMDS and steal role credentials"
+    },
+    {
+      "techniqueId": "tech-s3-data-download",
+      "context": "Exfiltrate S3 data with stolen credentials"
+    }
+  ],
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,24 @@
+{
+  "id": "tech-az-vnet-vpn-deletion",
+  "name": "Azure VNet / VPN / Gateway Deletion",
+  "shortName": "VNet Delete",
+  "description": "Virtual networks, VPN gateways, and Application Gateway are how offices and apps talk to Azure. Deleting or rewriting them can cut the company off, or open a path the attacker prefers. Point-to-site VPN changes can also let their laptop into the network. This is impact and sometimes persistence, not a user-account trick. Gateway and VNet deletion should match a network change ticket.",
+  "services": [
+    "Azure Networking"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-040",
+    "az-098",
+    "az-100",
+    "az-129",
+    "az-130"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "azure"
+}

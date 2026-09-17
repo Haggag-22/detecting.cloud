@@ -1,0 +1,19 @@
+{
+  "id": "tech-guardduty-detector-evasion",
+  "name": "GuardDuty Detector Modification",
+  "shortName": "GuardDuty Evasion",
+  "description": "An attacker with guardduty:UpdateDetector can disable a GuardDuty detector or reduce its sensitivity, evading detection of subsequent malicious activity. guardduty:DeleteDetector removes the detector entirely. Detectors are regional; the attacker may need to modify detectors in multiple regions. Required permissions are guardduty:UpdateDetector to set enable to false, or guardduty:DeleteDetector to remove the detector.",
+  "services": [
+    "GuardDuty"
+  ],
+  "permissions": [
+    "guardduty:UpdateDetector",
+    "guardduty:DeleteDetector"
+  ],
+  "detectionIds": [
+    "det-186"
+  ],
+  "mitigations": [],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

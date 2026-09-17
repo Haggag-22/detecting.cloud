@@ -1,0 +1,25 @@
+{
+  "id": "tech-az-firewall-nsg-tampering",
+  "name": "Azure Firewall and NSG Policy Tampering",
+  "shortName": "Firewall Tamper",
+  "description": "Azure Firewalls, network security groups, and application security groups decide which traffic is allowed in and out. Opening a rule to the internet, or deleting a deny rule, is how an attacker reaches a database or lets malware call home. This is the same idea as an AWS security group change, just in Azure networking. Wide-open source prefixes on management or data ports are the high-signal edits.",
+  "services": [
+    "Azure Networking"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-041",
+    "az-052",
+    "az-053",
+    "az-096",
+    "az-097",
+    "az-099"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "azure"
+}

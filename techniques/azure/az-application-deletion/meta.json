@@ -1,0 +1,20 @@
+{
+  "id": "tech-az-application-deletion",
+  "name": "Azure Application Deletion",
+  "shortName": "App Delete",
+  "description": "Deleting an Entra application can knock out a line of business app, or it can hide a backdoor the attacker already used. Sometimes they delete an app they created so the weekly app review never sees it. Either way, someone with application-admin rights is changing the identity fabric. Unexpected application deletion belongs in the same bucket as unexpected user deletion.",
+  "services": [
+    "Entra ID Apps"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-039"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "azure"
+}

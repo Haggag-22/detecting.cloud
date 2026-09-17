@@ -1,0 +1,23 @@
+{
+  "id": "tech-az-mfa-disable",
+  "name": "MFA Disable and Legacy-Auth Bypass",
+  "shortName": "MFA Disable",
+  "description": "Turning MFA off, or using old protocols such as basic authentication that never asked for MFA, lets a stolen password work from anywhere. Attackers disable MFA after they have a privileged role, or they find an app that still allows legacy auth. From the user's point of view, login just got easier. From yours, the second lock is gone. MFA disable on admin roles and any successful legacy-protocol login are both high signal.",
+  "services": [
+    "Entra ID"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-024",
+    "az-091",
+    "az-094",
+    "az-125"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "azure"
+}

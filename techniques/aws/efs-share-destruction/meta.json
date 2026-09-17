@@ -1,0 +1,21 @@
+{
+  "id": "tech-efs-share-destruction",
+  "name": "EFS Share Destruction",
+  "shortName": "EFS Destroy",
+  "description": "EFS is shared file storage that many instances mount at once. Deleting the filesystem or its mount targets takes that shared data away from every workload that depends on it. Applications fail, and if there is no backup the files are gone. Unlike encrypting objects in place, this is blunt destruction. It is often combined with deleting backups so restore is harder.",
+  "services": [
+    "EFS"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-150",
+    "det-151"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "aws"
+}

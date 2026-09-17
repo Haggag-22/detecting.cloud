@@ -1,0 +1,26 @@
+{
+  "id": "tech-update-login-profile",
+  "name": "IAM Update Login Profile",
+  "shortName": "Update Login",
+  "description": "An attacker with iam:UpdateLoginProfile can change the password of an IAM user that has a login profile. This allows the attacker to set a known password on a compromised or backdoor user to maintain or regain console access. If the user's password was rotated during incident response, the attacker can set a new one. Required permission is iam:UpdateLoginProfile on the target user.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:UpdateLoginProfile"
+  ],
+  "detectionIds": [
+    "det-052",
+    "det-053",
+    "det-054",
+    "det-055"
+  ],
+  "mitigations": [
+    "Restrict UpdateLoginProfile",
+    "Enable MFA",
+    "Monitor login profile changes"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws",
+  "detectionStrategy": "Password changes on IAM users with console access enable persistence and account recovery. Detection should monitor UpdateLoginProfile, focus on unexpected actors and sensitive target users, and correlate with ConsoleLogin shortly after the change for high-confidence account takeover detection."
+}

@@ -1,0 +1,27 @@
+{
+  "id": "tech-delete-detach-policy",
+  "name": "IAM Policy Delete or Detach",
+  "shortName": "Policy Detach",
+  "description": "An attacker with iam:DetachUserPolicy, iam:DetachRolePolicy, or iam:DeleteUserPolicy can remove restrictive policies from principals they control or have compromised. Detaching a policy that limited the principal's permissions (e.g., a deny policy or permission boundary) immediately expands the effective permissions. Deleting an inline policy removes its restrictions. The attacker targets their own user or role, or principals they can modify. Required permissions include iam:DetachUserPolicy, iam:DetachRolePolicy, iam:DeleteUserPolicy, or iam:DeleteRolePolicy.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:DeleteUserPolicy",
+    "iam:DetachUserPolicy",
+    "iam:DetachRolePolicy"
+  ],
+  "detectionIds": [
+    "det-038",
+    "det-039",
+    "det-040"
+  ],
+  "mitigations": [
+    "Alert on policy detach/delete",
+    "Use SCPs to protect critical policies",
+    "Implement change management"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws",
+  "detectionStrategy": "Attackers can escalate privileges by removing restrictive policies or deleting inline policies that limited access. Detection should focus on policy detach events, policy deletion events, unexpected actors modifying IAM policies, and removal of restrictive policies (deny policies, permission boundaries)."
+}

@@ -1,0 +1,20 @@
+{
+  "id": "tech-az-burst-resource-deployment",
+  "name": "Burst Resource Deployment",
+  "shortName": "Burst Deploy",
+  "description": "A sudden burst of virtual machines or deployments in Azure Activity is either a scaling event you expected or someone standing up miners, staging hosts, or ransomware infrastructure. One VM is a developer. Dozens in minutes in a subscription that is usually quiet is not. This is about volume and timing, not a single API name. Compare against change windows and known automation identities.",
+  "services": [
+    "Azure Activity"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-047"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "azure"
+}

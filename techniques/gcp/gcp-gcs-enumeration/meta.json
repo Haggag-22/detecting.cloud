@@ -1,0 +1,20 @@
+{
+  "id": "tech-gcp-gcs-enumeration",
+  "name": "GCS Bucket Enumeration",
+  "shortName": "GCS Enum",
+  "description": "Listing Cloud Storage buckets is how an attacker learns which piles of data exist before they download anything. It is the GCP equivalent of S3 ListBuckets: map first, steal later. Inventory jobs do this on a schedule. People almost never do it by hand across a whole project. A new service account listing buckets, then objects, is recon.",
+  "services": [
+    "Cloud Storage"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-003"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "discovery",
+  "cloudProvider": "gcp"
+}

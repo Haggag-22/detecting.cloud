@@ -1,10 +1,11 @@
 import { useState, useMemo, useRef } from "react";
 import { Layout } from "@/components/Layout";
-import { techniques, techniqueCategories, type TechniqueCategory } from "@/data/techniques";
+import { techniques, techniqueCategories, getTechniqueCloudProvider, type TechniqueCategory } from "@/data/techniques";
 import {
   detections,
   getDetectionsByService,
   getDetectionCountsByCloudProvider,
+  isDetectionProvisional,
 } from "@/data/detections";
 import { attackPaths } from "@/data/attackPaths";
 import { Badge } from "@/components/ui/badge";
@@ -19,16 +20,7 @@ import { CloudProviderTabs, type CloudProviderId } from "@/components/CloudProvi
 import { getServiceCardClassName } from "@/lib/serviceCardColors";
 import { CountBadge } from "@/components/CountBadge";
 import { cn } from "@/lib/utils";
-
-const categoryColors: Record<TechniqueCategory, string> = {
-  "initial-access": "bg-cyan-500/15 text-cyan-400",
-  "credential-access": "bg-purple-500/15 text-purple-400",
-  "privilege-escalation": "bg-red-500/15 text-red-400",
-  "persistence": "bg-orange-500/15 text-orange-400",
-  "lateral-movement": "bg-blue-500/15 text-blue-400",
-  "exfiltration": "bg-emerald-500/15 text-emerald-400",
-  "defense-evasion": "bg-amber-500/15 text-amber-400",
-};
+import { TECHNIQUE_CATEGORY_BADGE } from "@/lib/techniqueCategoryStyles";
 
 type CoverageStatus = "covered" | "partial" | "none";
 
@@ -55,8 +47,8 @@ function techniqueMatchesService(techniqueServices: string[], detectionService: 
   return techniqueServices.some((s) => aliases.includes(s));
 }
 
-/** Coverage matrix uses AWS attack techniques only — hide other providers for now */
-const COVERAGE_PROVIDER_TABS: CloudProviderId[] = ["all", "aws"];
+/** Coverage matrix now includes AWS, Azure, and GCP techniques */
+const COVERAGE_PROVIDER_TABS: CloudProviderId[] = ["all", "aws", "azure", "gcp", "kubernetes"];
 
 const CoveragePage = () => {
   const [categoryFilter, setCategoryFilter] = useState<TechniqueCategory | "all">("all");
@@ -77,11 +69,16 @@ const CoveragePage = () => {
     [coverageProvider]
   );
 
+  const scopedTechniques = useMemo(() => {
+    if (coverageProvider === "all") return techniques;
+    return techniques.filter((t) => getTechniqueCloudProvider(t) === coverageProvider);
+  }, [coverageProvider]);
+
   const analysis = useMemo(() => {
     // Same service categories as Detection Rules (primary awsService grouping)
     const services = Object.entries(detectionsByService).map(([service, rules]) => {
       const ruleIds = new Set(rules.map((r) => r.id));
-      const svcTechs = techniques.filter(
+      const svcTechs = scopedTechniques.filter(
         (t) =>
           techniqueMatchesService(t.services, service) ||
           t.detectionIds.some((id) => ruleIds.has(id))
@@ -98,30 +95,34 @@ const CoveragePage = () => {
       };
     });
 
-    const partialTechs = techniques
+    const partialTechs = scopedTechniques
       .filter((t) => getCoverageStatus(t.detectionIds) === "partial")
       .map((t) => {
         const matched = t.detectionIds.filter((id) => detections.some((d) => d.id === id)).length;
         return { ...t, matchedCount: matched, totalDetections: t.detectionIds.length };
       });
 
-    const totalTechs = techniques.length;
-    const totalCovered = techniques.filter((t) => getCoverageStatus(t.detectionIds) === "covered").length;
-    const totalPartial = techniques.filter((t) => getCoverageStatus(t.detectionIds) === "partial").length;
+    const totalTechs = scopedTechniques.length;
+    const totalCovered = scopedTechniques.filter((t) => getCoverageStatus(t.detectionIds) === "covered").length;
+    const totalPartial = scopedTechniques.filter((t) => getCoverageStatus(t.detectionIds) === "partial").length;
     const totalNone = totalTechs - totalCovered - totalPartial;
-    const overallPct = Math.round(((totalCovered + totalPartial * 0.5) / totalTechs) * 100);
+    const overallPct = totalTechs > 0 ? Math.round(((totalCovered + totalPartial * 0.5) / totalTechs) * 100) : 0;
 
     return { services, partialTechs, totalTechs, totalCovered, totalPartial, totalNone, overallPct };
-  }, [detectionsByService]);
+  }, [detectionsByService, scopedTechniques]);
 
   const techniquesWithMeta = useMemo(() => {
-    return techniques.map((t) => {
+    return scopedTechniques.map((t) => {
       const status = getCoverageStatus(t.detectionIds);
       const appearsIn = attackPaths.filter((ap) => ap.steps.some((s) => s.techniqueId === t.id));
       const pathCount = appearsIn.length;
-      return { ...t, status, pathCount };
+      const linked = t.detectionIds
+        .map((id) => detections.find((d) => d.id === id))
+        .filter((d): d is NonNullable<typeof d> => Boolean(d));
+      const provisional = linked.length > 0 && linked.every(isDetectionProvisional);
+      return { ...t, status, pathCount, provisional };
     });
-  }, [attackPaths]);
+  }, [attackPaths, scopedTechniques]);
 
   const filtered = techniquesWithMeta.filter((t) => {
     if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
@@ -173,7 +174,7 @@ const CoveragePage = () => {
 
   return (
     <Layout>
-      <div className="container py-12">
+      <div className="container">
         <PageTitleWithIcon team="blue" icon={BarChart3}>
           Detection Coverage
         </PageTitleWithIcon>
@@ -376,7 +377,7 @@ const CoveragePage = () => {
                     className="grid grid-cols-[1fr_140px_120px_100px_110px_120px] gap-x-6 gap-y-0 px-4 py-3 hover:bg-muted/50 transition-colors items-center"
                   >
                     <span className="font-medium text-sm text-foreground">{tech.name}</span>
-                    <Badge className={`text-[10px] border-0 w-fit ${categoryColors[tech.category]}`}>
+                    <Badge className={`text-[10px] border-0 w-fit ${TECHNIQUE_CATEGORY_BADGE[tech.category]}`}>
                       {techniqueCategories[tech.category].label}
                     </Badge>
                     <span className="text-xs text-muted-foreground">{tech.services.join(", ")}</span>
@@ -386,7 +387,9 @@ const CoveragePage = () => {
                       {tech.status === "covered" && (
                         <>
                           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                          <span className="text-xs text-emerald-400">Covered</span>
+                          <span className="text-xs text-emerald-400">
+                            {tech.provisional ? "Provisional" : "Covered"}
+                          </span>
                         </>
                       )}
                       {tech.status === "partial" && (

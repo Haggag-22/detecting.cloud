@@ -1,0 +1,20 @@
+{
+  "id": "tech-share-ami",
+  "name": "AMI Sharing with External Account",
+  "shortName": "AMI Share",
+  "description": "An attacker with ec2:ModifyImageAttribute can share an AMI with an external account by adding launch permission for that account. The attacker's account then copies the AMI and gains access to the image content, which may include sensitive data, credentials, or malware. Used for exfiltration (stealing image data) or persistence (creating a backdoored AMI in the attacker's account). Required permission is ec2:ModifyImageAttribute with add launchPermission.",
+  "services": [
+    "EC2"
+  ],
+  "permissions": [
+    "ec2:ModifyImageAttribute"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict ModifyImageAttribute",
+    "Audit AMI sharing",
+    "Use private AMIs"
+  ],
+  "category": "exfiltration",
+  "cloudProvider": "aws"
+}

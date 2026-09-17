@@ -1,0 +1,22 @@
+{
+  "id": "tech-iam-account-masquerading",
+  "name": "IAM Account Masquerading",
+  "shortName": "Masquerade",
+  "description": "IAM user names are just labels. An attacker who can create users often picks names that look like AWS services or like your admin accounts \u2014 for example a user called 'cloudtrail' or 'breakglass-admin'. Busy operators scrolling a user list can miss them. The goal is to hide in plain sight, not to exploit a permission. New users whose names mimic AWS or privileged roles should be treated as hostile until an owner confirms them.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:CreateUser"
+  ],
+  "detectionIds": [
+    "det-159"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

@@ -121,6 +121,8 @@ export interface DetectionLifecycle {
   detectionFlow?: DetectionFlowStep[];
   quality?: DetectionQuality;
   communityConfidence?: CommunityConfidence;
+  /** True when phases were generated from a template and still need DE review */
+  generatedFromTemplate?: boolean;
 }
 
 /** Top-level cloud / platform family for Detection Rules browse UI */

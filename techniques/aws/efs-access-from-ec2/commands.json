@@ -1,0 +1,5 @@
+[
+  "aws efs describe-file-systems",
+  "aws efs describe-mount-targets --file-system-id fs-0abc123",
+  "sudo mount -t nfs -o nfsvers=4.1 fs-0abc123.efs.region.amazonaws.com:/ /mnt/efs"
+]

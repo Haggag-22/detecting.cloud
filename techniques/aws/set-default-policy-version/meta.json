@@ -1,0 +1,25 @@
+{
+  "id": "tech-set-default-policy-version",
+  "name": "IAM Set Default Policy Version",
+  "shortName": "Policy Version",
+  "description": "IAM managed policies can have multiple versions. Only the default version is in effect. An attacker with iam:SetDefaultPolicyVersion can roll back to an older version of a policy that has more permissive permissions. If a policy was previously tightened (e.g., a new version removed admin access), the attacker sets the older version as default to restore the broader permissions. This requires no new policy creation and can be done with a single API call. Required permission is iam:SetDefaultPolicyVersion on the target policy.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:SetDefaultPolicyVersion"
+  ],
+  "detectionIds": [
+    "det-035",
+    "det-036",
+    "det-037"
+  ],
+  "mitigations": [
+    "Restrict SetDefaultPolicyVersion",
+    "Audit policy version changes",
+    "Use AWS Config for policy compliance"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws",
+  "detectionStrategy": "Attackers can escalate privileges by reverting a managed policy to an earlier version containing broader permissions. Detection should monitor SetDefaultPolicyVersion API calls, unexpected actors modifying policies, changes affecting administrative policies, and policy version rollbacks."
+}

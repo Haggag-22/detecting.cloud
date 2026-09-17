@@ -1,0 +1,24 @@
+{
+  "id": "tech-secrets-manager-theft",
+  "name": "Secrets Manager Secret Extraction",
+  "shortName": "Secrets Theft",
+  "description": "An attacker with secretsmanager:GetSecretValue can retrieve the plaintext value of secrets stored in AWS Secrets Manager. secretsmanager:ListSecrets enumerates available secrets. Attackers target database credentials, API keys, and other sensitive values. Required permissions are secretsmanager:GetSecretValue to retrieve a secret and secretsmanager:ListSecrets to discover secrets. Resource-based policies on secrets may further restrict access.",
+  "services": [
+    "Secrets Manager",
+    "IAM"
+  ],
+  "permissions": [
+    "secretsmanager:GetSecretValue",
+    "secretsmanager:ListSecrets"
+  ],
+  "detectionIds": [
+    "det-028"
+  ],
+  "mitigations": [
+    "Use resource-based policies to restrict secret access",
+    "Enable Secrets Manager audit logging",
+    "Rotate secrets automatically on a schedule"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "aws"
+}

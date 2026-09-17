@@ -1,0 +1,3 @@
+[
+  "aws ecs run-task --cluster prod --task-definition backdoor-task:1 --launch-type FARGATE --network-configuration 'awsvpcConfiguration={subnets=[subnet-xxx]}'"
+]

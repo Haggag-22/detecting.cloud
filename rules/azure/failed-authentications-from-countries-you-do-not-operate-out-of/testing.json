@@ -1,0 +1,5 @@
+[
+  "Reproduce Failed Authentications From Countries You Do Not Operate Out Of in a lab azure tenant.",
+  "Confirm the matching audit/sign-in event is logged.",
+  "Run the Sigma rule against the event and confirm an alert."
+]

@@ -1,0 +1,16 @@
+{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "AssumedRole",
+    "arn": "arn:aws:sts::123456789012:assumed-role/CompromisedRole/session"
+  },
+  "eventTime": "2024-04-10T11:05:33Z",
+  "eventSource": "secretsmanager.amazonaws.com",
+  "eventName": "GetSecretValue",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "secretId": "prod/database/admin-credentials"
+  },
+  "responseElements": null
+}

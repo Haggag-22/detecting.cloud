@@ -1,0 +1,22 @@
+{
+  "id": "det-205",
+  "title": "Lambda Function Code Updated",
+  "description": "Detects lambda:UpdateFunctionCode, which replaces function code that then runs with the function's IAM role.",
+  "awsService": "Lambda",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "Lambda",
+    "Control Plane"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Authorized platform automation"
+  ],
+  "relatedAttackSlugs": []
+}

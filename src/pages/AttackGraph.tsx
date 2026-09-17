@@ -24,6 +24,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Shield, Crosshair, Eye, Cloud, FileText, Search, Route, Network } from "lucide-react";
 import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { severityBadgeClass } from "@/lib/severityStyles";
+import { SeverityPill } from "@/components/SeverityPill";
 import { Input } from "@/components/ui/input";
 
 type GraphNodeType = "attack" | "technique" | "detection" | "service" | "logSource";
@@ -412,7 +413,7 @@ const AttackGraphPage = () => {
 
   return (
     <Layout>
-      <div className="container py-8">
+      <div className="container">
         <div className="mb-6">
           <PageTitleWithIcon team="red" icon={Network}>
             Attack &amp; Detection Graph
@@ -426,7 +427,7 @@ const AttackGraphPage = () => {
         <div className="relative mb-6 max-w-lg">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search a technique, attack path, or detection rule..."
+            placeholder="Search a technique, attack chain, or detection rule..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="pl-10 bg-card border-border/50"
@@ -464,35 +465,39 @@ const AttackGraphPage = () => {
                   <button
                     key={ap.slug}
                     onClick={() => setSearchParams({ technique: ap.slug })}
-                    className="text-left p-4 rounded-lg border border-border/50 bg-card hover:border-primary/30 hover:bg-primary/5 transition-colors group"
+                    className="flex flex-col h-full text-left rounded-lg border border-border/50 bg-muted/20 p-4 hover:border-primary/30 transition-colors group"
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <Crosshair className="h-3.5 w-3.5 text-destructive" />
-                      <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">{ap.title}</span>
+                    <div className="flex items-start gap-2.5 mb-2">
+                      <span className="font-semibold text-sm leading-snug flex-1 min-w-0 text-foreground group-hover:text-primary transition-colors">
+                        {ap.title}
+                      </span>
+                      <SeverityPill severity={ap.severity} />
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{ap.description}</p>
-                    <Badge className={`text-[10px] mt-2 border-0 ${severityBadgeClass(ap.severity)}`}>
-                      {ap.severity}
-                    </Badge>
+                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 flex-1">
+                      {ap.description}
+                    </p>
                   </button>
                 ))}
               </div>
             </div>
 
             <div>
-              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">Techniques</h2>
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-3">Attack Techniques</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {techniques.slice(0, 6).map((tech) => (
                   <button
                     key={tech.id}
                     onClick={() => setSearchParams({ technique: tech.id })}
-                    className="text-left p-4 rounded-lg border border-border/50 bg-card hover:border-primary/30 hover:bg-primary/5 transition-colors group"
+                    className="flex flex-col h-full text-left rounded-lg border border-border/50 bg-muted/20 p-4 hover:border-primary/30 transition-colors group"
                   >
-                    <div className="flex items-center gap-2 mb-1">
-                      <Route className="h-3.5 w-3.5 text-primary" />
-                      <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">{tech.name}</span>
+                    <div className="flex items-start gap-2.5 mb-2">
+                      <span className="font-semibold text-sm leading-snug flex-1 min-w-0 text-foreground group-hover:text-primary transition-colors">
+                        {tech.name}
+                      </span>
                     </div>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{tech.description}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 flex-1">
+                      {tech.description}
+                    </p>
                   </button>
                 ))}
               </div>
@@ -540,7 +545,7 @@ const AttackGraphPage = () => {
                       <div key={type} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                         <div className={`w-3 h-3 rounded-sm ${config.bg} ${config.border} border`} />
                         <Icon className={`h-3 w-3 ${config.text}`} />
-                        <span className="capitalize">{type === "logSource" ? "Log Source" : type === "attack" ? "Attack Path" : type}</span>
+                        <span className="capitalize">{type === "logSource" ? "Log Source" : type === "attack" ? "Attack Chain" : type}</span>
                       </div>
                     );
                   })}

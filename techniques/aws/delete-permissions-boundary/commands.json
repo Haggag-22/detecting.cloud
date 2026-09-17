@@ -1,0 +1,4 @@
+[
+  "aws iam delete-role-permissions-boundary --role-name TargetRole",
+  "aws iam delete-user-permissions-boundary --user-name TargetUser"
+]

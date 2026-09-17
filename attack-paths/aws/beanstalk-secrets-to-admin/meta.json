@@ -1,0 +1,23 @@
+{
+  "slug": "beanstalk-secrets-to-admin",
+  "title": "Beanstalk Secrets to Admin",
+  "description": "Elastic Beanstalk environment configurations often store IAM credentials or references to Parameter Store secrets. An attacker with elasticbeanstalk:DescribeConfigurationSettings can retrieve these environment variables. If the instance profile or referenced credentials have iam:CreateAccessKey, the attacker uses the stolen credentials to create long-lived access keys for themselves or a backdoor user. This pivots from read-only environment access to persistent administrative access.",
+  "severity": "High",
+  "objective": "privilege-escalation",
+  "tags": [
+    "Elastic Beanstalk",
+    "IAM",
+    "Credential Theft"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-beanstalk-env-theft",
+      "context": "Retrieve env vars containing IAM credentials"
+    },
+    {
+      "techniqueId": "tech-beanstalk-credential-pivot",
+      "context": "Use CreateAccessKey to generate persistent keys"
+    }
+  ],
+  "cloudProvider": "aws"
+}

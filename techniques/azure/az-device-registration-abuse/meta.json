@@ -1,0 +1,25 @@
+{
+  "id": "tech-az-device-registration-abuse",
+  "name": "Device Registration Policy Abuse",
+  "shortName": "Device Join",
+  "description": "Registering a device in Entra is how a laptop becomes 'known' and often skips extra checks. Attackers register their own machine, weaken the policy that requires MFA to join, or sign in from devices that are unknown or non-compliant. Once their device is trusted, later logins look more like an employee at the office. Device join without MFA, and policy changes that make join easier, are the two knobs they turn.",
+  "services": [
+    "Entra ID",
+    "Entra ID Protection"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-015",
+    "az-016",
+    "az-021",
+    "az-022",
+    "az-023"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "azure"
+}

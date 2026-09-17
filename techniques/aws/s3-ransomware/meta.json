@@ -1,0 +1,23 @@
+{
+  "id": "tech-s3-ransomware",
+  "name": "S3 Ransomware and Object Tampering",
+  "shortName": "S3 Ransomware",
+  "description": "S3 ransomware is not one API. Attackers turn off versioning so old copies cannot be restored, shorten lifecycle so objects expire, overwrite files, or encrypt them with a key only they hold. Users then see missing or unreadable files. The account still exists; the data is held hostage. Versioning-off plus bulk deletes or SSE-C overwrites from an unusual role is the pattern to catch early.",
+  "services": [
+    "S3"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-171",
+    "det-195",
+    "det-196",
+    "det-197"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "aws"
+}

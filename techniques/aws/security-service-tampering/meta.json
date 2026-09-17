@@ -1,0 +1,26 @@
+{
+  "id": "tech-security-service-tampering",
+  "name": "Security Service Tampering",
+  "shortName": "Detective Control Off",
+  "description": "Config, GuardDuty, and Security Hub are the cameras in the account. Turning recording off, shrinking a GuardDuty detector, adding the attacker's IPs to a trusted list, or suppressing findings means later activity will not alert. The attacker usually does this before louder steps such as creating users or sharing snapshots. Each product has a different button; the goal is the same: blind the defenders. Any change that reduces security telemetry should be treated as hostile until a ticket says otherwise.",
+  "services": [
+    "Config",
+    "GuardDuty",
+    "Security Hub"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-143",
+    "det-186",
+    "det-187",
+    "det-175"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws",
+  "detectionStrategy": "Hunt as one question: did someone turn a detective control off? Config, GuardDuty, and Security Hub share the same attacker goal even though the APIs differ."
+}

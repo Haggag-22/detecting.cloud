@@ -9,7 +9,7 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     hmr: {
-      overlay: false,
+      overlay: true,
     },
     fs: {
       // Allow importing detection rule files from /rules
@@ -24,6 +24,8 @@ export default defineConfig(({ mode }) => ({
     alias: {
       "@": path.resolve(__dirname, "./src"),
       "@rules": path.resolve(__dirname, "./rules"),
+      "@techniques": path.resolve(__dirname, "./techniques"),
+      "@attack-paths": path.resolve(__dirname, "./attack-paths"),
     },
   },
   assetsInclude: ["**/*.yml"],

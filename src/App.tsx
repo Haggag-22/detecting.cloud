@@ -17,7 +17,6 @@ import CloudTrailAnalyzer from "./pages/CloudTrailAnalyzer";
 import CommunityRules from "./pages/CommunityRules";
 import AdminSubscribers from "./pages/AdminSubscribers";
 import NotFound from "./pages/NotFound";
-import { AiAssistant } from "./components/AiAssistant";
 
 const queryClient = new QueryClient();
 
@@ -46,7 +45,6 @@ const App = () => (
           <Route path="/about" element={<About />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
-        <AiAssistant />
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

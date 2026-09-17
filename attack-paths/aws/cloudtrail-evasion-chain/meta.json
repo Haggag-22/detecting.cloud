@@ -1,0 +1,26 @@
+{
+  "slug": "cloudtrail-evasion-chain",
+  "title": "CloudTrail Evasion Chain",
+  "description": "An attacker with CloudTrail and S3 permissions performs multiple actions to reduce audit visibility. They use cloudtrail:UpdateTrail to change the trail configuration (e.g., disable logging or point to a different bucket). They use cloudtrail:PutEventSelectors to exclude data events or management events from being logged. They use s3:PutBucketLifecycleConfiguration on the CloudTrail bucket to add a lifecycle rule that deletes or transitions objects quickly, reducing the retention of existing logs. This chain degrades or eliminates audit trail coverage.",
+  "severity": "High",
+  "objective": "defense-evasion",
+  "tags": [
+    "CloudTrail",
+    "Defense Evasion"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-cloudtrail-config-update",
+      "context": "Update trail configuration"
+    },
+    {
+      "techniqueId": "tech-cloudtrail-event-selectors",
+      "context": "Modify event selectors to exclude events"
+    },
+    {
+      "techniqueId": "tech-cloudtrail-bucket-lifecycle",
+      "context": "Modify bucket lifecycle to delete logs"
+    }
+  ],
+  "cloudProvider": "aws"
+}

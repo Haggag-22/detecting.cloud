@@ -84,7 +84,7 @@ export default function AdminSubscribers() {
   if (!authenticated) {
     return (
       <Layout>
-        <div className="container py-20 flex items-center justify-center">
+        <div className="container flex min-h-[60vh] items-center justify-center">
           <Card className="w-full max-w-sm">
             <CardHeader className="text-center">
               <Lock className="h-10 w-10 text-primary mx-auto mb-2" />
@@ -110,7 +110,7 @@ export default function AdminSubscribers() {
 
   return (
     <Layout>
-      <div className="container py-10">
+      <div className="container">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
           <div>
             <h1 className="text-3xl font-bold mb-2">Subscriber Dashboard</h1>

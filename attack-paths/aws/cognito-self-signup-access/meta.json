@@ -1,0 +1,19 @@
+{
+  "slug": "cognito-self-signup-access",
+  "title": "Cognito Self-Signup Access",
+  "description": "When a Cognito User Pool has self-signup enabled without proper restrictions, anyone can create an account. An attacker registers with a valid email (or uses a disposable email) and gains access to the application protected by the User Pool. Depending on the application's authorization logic, the attacker may access resources intended only for legitimate users. This is a common misconfiguration that provides initial access to applications using Cognito for authentication.",
+  "severity": "High",
+  "objective": "initial-access",
+  "tags": [
+    "Cognito",
+    "Self-Signup",
+    "Initial Access"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-cognito-self-signup",
+      "context": "Create account via self-signup"
+    }
+  ],
+  "cloudProvider": "aws"
+}

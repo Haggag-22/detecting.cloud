@@ -1,0 +1,29 @@
+{
+  "id": "tech-volume-snapshot-loot",
+  "name": "EC2 Volume Snapshot Loot",
+  "shortName": "Snapshot Loot",
+  "description": "An attacker with ec2:CreateSnapshot creates a snapshot of an EC2 instance's EBS volume (root or data). They use ec2:ModifySnapshotAttribute to share the snapshot with their account or make it temporarily public. In their account, they use ec2:CopySnapshot and ec2:CreateVolume to create a volume from the snapshot, attach it to an instance they control, mount it, and extract credentials (e.g., from ~/.aws/credentials) or sensitive data. Unencrypted volumes are fully readable. Required permissions include ec2:CreateSnapshot, ec2:ModifySnapshotAttribute, and ec2:CopySnapshot.",
+  "services": [
+    "EC2"
+  ],
+  "permissions": [
+    "ec2:CreateSnapshot",
+    "ec2:ModifySnapshotAttribute",
+    "ec2:CreateVolume"
+  ],
+  "detectionIds": [
+    "det-079",
+    "det-080",
+    "det-081",
+    "det-082",
+    "det-083"
+  ],
+  "mitigations": [
+    "Restrict snapshot creation",
+    "Encrypt volumes",
+    "Monitor cross-account snapshot sharing"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "aws",
+  "detectionStrategy": "Snapshot abuse is best detected as a chain: snapshot creation is noisy, but sharing externally, making public, copying, and rehydrating the snapshot dramatically raises confidence. ModifySnapshotAttribute on createVolumePermission is a critical signal."
+}

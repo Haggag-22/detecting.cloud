@@ -1,0 +1,21 @@
+{
+  "id": "tech-ebs-encryption-disable",
+  "name": "Default EBS Encryption Disable",
+  "shortName": "EBS Encrypt Off",
+  "description": "Accounts can require that every new EBS disk is encrypted. An attacker who turns that default off in a region does not decrypt old disks; they make new ones and snapshots readable without KMS. Later, volumes they create or copy are easier to steal or share. This is a setup step, not the theft itself. The follow-on is usually a snapshot copy or a public share. Default encryption should only change through a reviewed infrastructure pipeline.",
+  "services": [
+    "EC2",
+    "EBS"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-147"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

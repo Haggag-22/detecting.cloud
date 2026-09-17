@@ -1,0 +1,18 @@
+{
+  "id": "tech-ec2-userdata-injection",
+  "name": "EC2 User Data Injection",
+  "shortName": "UserData Inject",
+  "description": "An attacker with ec2:ModifyInstanceAttribute can change the user data of a running instance. User data is executed when the instance boots. By injecting a malicious script (e.g., one that creates a backdoor user, exfiltrates credentials, or installs a reverse shell), the attacker ensures the script runs on the next reboot. If the instance is in an Auto Scaling group, new instances may also receive the modified user data. Required permission is ec2:ModifyInstanceAttribute with the userData attribute.",
+  "services": [
+    "EC2"
+  ],
+  "permissions": [
+    "ec2:ModifyInstanceAttribute"
+  ],
+  "detectionIds": [
+    "det-149"
+  ],
+  "mitigations": [],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,18 @@
+{
+  "id": "tech-share-ebs-snapshot",
+  "name": "EBS Snapshot Sharing",
+  "shortName": "EBS Share",
+  "description": "An attacker with ec2:ModifySnapshotAttribute adds create volume permission for an external account (or all accounts via group 'all'). The attacker's account uses ec2:CopySnapshot to copy the snapshot, then creates a volume and mounts it to extract data. This exfiltrates the full contents of the source volume. Unencrypted snapshots are fully readable. Required permission is ec2:ModifySnapshotAttribute. The attacker needs ec2:CopySnapshot in their account.",
+  "services": [
+    "EC2"
+  ],
+  "permissions": [
+    "ec2:ModifySnapshotAttribute"
+  ],
+  "detectionIds": [
+    "det-081"
+  ],
+  "mitigations": [],
+  "category": "exfiltration",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,3 @@
+[
+  "aws guardduty create-filter --detector-id xxx --name SuppressFindings --finding-criteria '{\"Criterion\":{\"service.additionalInfo.threatName\":{\"Eq\":[\"Backdoor\"]}}}' --action ARCHIVE"
+]

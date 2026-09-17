@@ -1,0 +1,20 @@
+{
+  "id": "tech-gcp-dns-tampering",
+  "name": "Cloud DNS Zone Tampering",
+  "shortName": "GCP DNS",
+  "description": "Cloud DNS is where GCP hostnames are published. Changing or deleting a zone points customers and mail at attacker infrastructure, or takes the name offline. People still type the real name. The answers come from the attacker. This is the same business risk as Route 53 or Azure DNS takeover. Zone modifications should be rare and owned by the DNS team.",
+  "services": [
+    "Cloud DNS"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-006"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "gcp"
+}

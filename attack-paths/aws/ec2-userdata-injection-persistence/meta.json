@@ -1,0 +1,19 @@
+{
+  "slug": "ec2-userdata-injection-persistence",
+  "title": "EC2 User Data Injection Persistence",
+  "description": "An attacker with ec2:ModifyInstanceAttribute can change the user data of a running instance. User data is executed when the instance boots. By injecting a malicious script (e.g., one that creates a backdoor user or installs a reverse shell), the attacker ensures the script runs on the next instance restart or when a new instance is launched from an AMI that includes the modified user data. This establishes persistence that survives instance replacement.",
+  "severity": "High",
+  "objective": "persistence",
+  "tags": [
+    "EC2",
+    "User Data",
+    "Persistence"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-ec2-userdata-injection",
+      "context": "Inject backdoor script into instance user data"
+    }
+  ],
+  "cloudProvider": "aws"
+}

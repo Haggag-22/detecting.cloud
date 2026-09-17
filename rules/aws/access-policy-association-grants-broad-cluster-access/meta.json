@@ -1,17 +1,17 @@
 {
   "id": "det-098",
-  "title": "Access Policy Association Grants Broad Cluster Access",
-  "description": "Detects EKS policy associations that grant cluster-wide or otherwise high-impact access. This should be driven by policy semantics and effective scope, not just policy-name substrings.",
+  "title": "EKS Access Policy Associated (visibility)",
+  "description": "Visibility baseline for any AssociateAccessPolicy call. Broad cluster-admin association is det-026. This rule is not mapped as coverage for EKS access-entry.",
   "awsService": "EKS",
   "relatedServices": [
     "IAM"
   ],
   "cloudProvider": "aws",
-  "severity": "High",
+  "severity": "Medium",
   "tags": [
     "EKS",
     "Access Policy",
-    "Privilege Escalation"
+    "Visibility"
   ],
   "logSources": [
     "AWS CloudTrail"

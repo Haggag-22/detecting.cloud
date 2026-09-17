@@ -1,0 +1,20 @@
+{
+  "id": "tech-az-dns-zone-tampering",
+  "name": "Azure DNS Zone Tampering",
+  "shortName": "Azure DNS",
+  "description": "Azure DNS holds the names customers type in a browser. Changing or deleting a zone lets an attacker point mail and websites at servers they own, or take the company offline. That is useful for phishing on the real hostname and for intercepting password-reset email. Zone edits outside the DNS change process are a takeover attempt until proven otherwise.",
+  "services": [
+    "Azure Activity"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-050"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "azure"
+}

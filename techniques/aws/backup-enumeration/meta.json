@@ -1,0 +1,21 @@
+{
+  "id": "tech-backup-enumeration",
+  "name": "AWS Backup Service Enumeration",
+  "shortName": "Backup Enum",
+  "description": "An attacker with backup:DescribeRecoveryPoint and backup:StartRestoreJob can enumerate recovery points (backups) and restore them to extract data. They list recovery points for protected resources (e.g., EBS volumes, RDS), then start a restore job to restore the backup to a location they control. Once restored, they mount volumes or access databases to extract credentials and sensitive data. Required permissions include backup:DescribeRecoveryPoint, backup:StartRestoreJob, and possibly backup:ListRecoveryPointsByResource.",
+  "services": [
+    "Backup"
+  ],
+  "permissions": [
+    "backup:DescribeRecoveryPoint",
+    "backup:StartRestoreJob"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict backup access",
+    "Encrypt recovery points",
+    "Audit restore jobs"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "aws"
+}

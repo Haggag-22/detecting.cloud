@@ -1,4 +1,4 @@
-title: Access Policy Association Grants Broad Cluster Access
+title: Access Policy Association (visibility)
 status: experimental
 logsource:
   service: cloudtrail
@@ -7,4 +7,4 @@ detection:
     eventSource: eks.amazonaws.com
     eventName: AssociateAccessPolicy
   condition: selection
-level: high
+level: medium

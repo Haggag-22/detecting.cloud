@@ -1,0 +1,22 @@
+{
+  "id": "tech-passrole-autoscaling",
+  "name": "PassRole via Auto Scaling",
+  "shortName": "PassRole ASG",
+  "description": "An attacker with iam:PassRole and autoscaling:CreateLaunchConfiguration creates a launch configuration that specifies an IAM instance profile with a privileged role. When instances are launched (via an Auto Scaling group or manually using the launch configuration), they receive the role's credentials via IMDS. The attacker may create an Auto Scaling group with min/max 1 to launch a single instance, or attach the launch config to an existing group. Required permissions are iam:PassRole and autoscaling:CreateLaunchConfiguration.",
+  "services": [
+    "IAM",
+    "Auto Scaling"
+  ],
+  "permissions": [
+    "iam:PassRole",
+    "autoscaling:CreateLaunchConfiguration"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict PassRole for Auto Scaling",
+    "Audit launch configurations",
+    "Use least-privilege launch roles"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,22 @@
+{
+  "id": "tech-codebuild-github-runner",
+  "name": "CodeBuild GitHub Runner Persistence",
+  "shortName": "CodeBuild Runner",
+  "description": "An attacker with codebuild:CreateProject and iam:PassRole creates a CodeBuild project configured to act as a GitHub Actions runner. When the organization's GitHub repository runs workflows, jobs can be routed to this CodeBuild project. The build runs with the CodeBuild service role's credentials, which may have broad permissions. The attacker modifies workflows (if they have repo access) or creates malicious workflows that exfiltrate credentials. This establishes persistence through the CI/CD pipeline. Required permissions are codebuild:CreateProject and iam:PassRole.",
+  "services": [
+    "CodeBuild",
+    "IAM"
+  ],
+  "permissions": [
+    "codebuild:CreateProject",
+    "iam:PassRole"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict CodeBuild project creation",
+    "Audit GitHub integrations",
+    "Use OIDC for GitHub Actions"
+  ],
+  "category": "persistence",
+  "cloudProvider": "aws"
+}

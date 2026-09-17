@@ -1,0 +1,33 @@
+{
+  "slug": "passrole-lambda-escalation",
+  "title": "PassRole Lambda Privilege Escalation",
+  "description": "An attacker who has iam:PassRole and lambda:CreateFunction can escalate to full administrative access. The attacker creates a new Lambda function and passes a high-privilege IAM role (e.g., one with AdministratorAccess) as the execution role. The Lambda code is written to create a backdoor IAM user and attach administrative policies, then generate access keys for that user. When the attacker invokes the Lambda, it runs with the passed role's permissions and performs these actions. The attacker then uses the newly created access keys for persistent access. This chain exploits the fact that PassRole allows assigning any role the attacker has permission to pass, and Lambda execution inherits that role's full permissions.",
+  "severity": "Critical",
+  "objective": "privilege-escalation",
+  "tags": [
+    "IAM",
+    "Lambda",
+    "PassRole",
+    "Privilege Escalation",
+    "Persistence"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-passrole-abuse",
+      "context": "Pass an administrative role to a new Lambda function"
+    },
+    {
+      "techniqueId": "tech-lambda-code-execution",
+      "context": "Deploy and invoke the Lambda function with admin privileges"
+    },
+    {
+      "techniqueId": "tech-iam-user-creation",
+      "context": "Create a backdoor IAM user with admin inline policy"
+    },
+    {
+      "techniqueId": "tech-access-key-creation",
+      "context": "Generate access keys for persistent programmatic access"
+    }
+  ],
+  "cloudProvider": "aws"
+}

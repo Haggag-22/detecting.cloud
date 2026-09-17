@@ -1,0 +1,22 @@
+{
+  "id": "tech-network-sg-data-plane-pivot",
+  "name": "Data-Plane Security Group Pivot",
+  "shortName": "SG Pivot",
+  "description": "Security groups are the firewall around databases and load balancers. Opening them to the internet, or to a wide internal range, lets the attacker reach data they could not reach from the control plane. This is not changing IAM. It is opening a network path to RDS, Elasticsearch, or a load balancer. Once the port is open they can brute-force, use stolen DB passwords, or scrape traffic. Security-group rules that suddenly allow 0.0.0.0/0 on data ports are the classic tell.",
+  "services": [
+    "RDS",
+    "ELB"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-190",
+    "det-192"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "lateral-movement",
+  "cloudProvider": "aws"
+}

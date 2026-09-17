@@ -1,0 +1,25 @@
+{
+  "id": "tech-ssm-via-tags",
+  "name": "SSM Access via CreateTags Bypass",
+  "shortName": "SSM CreateTags",
+  "description": "SSM Session Manager access can be restricted via resource tags (e.g., only principals with tag Key=SSMAccess,Value=true can start sessions on instances with matching tags). An attacker with ec2:CreateTags or ssm:AddTagsToResource adds the required tags to target instances, satisfying the session policy. They then use ssm:StartSession to gain shell access. This bypasses tag-based access controls. Required permissions are ec2:CreateTags or ssm:AddTagsToResource, plus ssm:StartSession.",
+  "services": [
+    "SSM",
+    "EC2"
+  ],
+  "permissions": [
+    "ssm:AddTagsToResource",
+    "ec2:CreateTags",
+    "ssm:StartSession"
+  ],
+  "detectionIds": [
+    "det-029"
+  ],
+  "mitigations": [
+    "Restrict CreateTags on EC2/SSM",
+    "Use resource policies",
+    "Audit tag changes"
+  ],
+  "category": "lateral-movement",
+  "cloudProvider": "aws"
+}

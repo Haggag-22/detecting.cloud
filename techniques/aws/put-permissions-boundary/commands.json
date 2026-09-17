@@ -1,0 +1,4 @@
+[
+  "aws iam put-role-permissions-boundary --role-name TargetRole --permissions-boundary arn:aws:iam::aws:policy/WeakBoundary",
+  "aws iam put-user-permissions-boundary --user-name TargetUser --permissions-boundary arn:aws:iam::aws:policy/WeakBoundary"
+]

@@ -1,0 +1,20 @@
+{
+  "id": "tech-az-cloud-shell-execution",
+  "name": "Azure Cloud Shell Execution",
+  "shortName": "Cloud Shell",
+  "description": "Azure Cloud Shell is a browser terminal that already has the signed-in user's cloud permissions. An attacker who is already in the portal can open Cloud Shell to run commands without planting malware on a laptop. This is not how they first get in. It is how they work after they have a session. Cloud Shell creation for a privileged account from an unusual place is interactive takeover, not initial phishing.",
+  "services": [
+    "Azure Activity"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-101"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "lateral-movement",
+  "cloudProvider": "azure"
+}

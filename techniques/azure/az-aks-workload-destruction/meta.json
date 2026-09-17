@@ -1,0 +1,22 @@
+{
+  "id": "tech-az-aks-workload-destruction",
+  "name": "AKS Cluster and Workload Destruction",
+  "shortName": "AKS Destroy",
+  "description": "AKS clusters, pods, and network policies are the running application. Deleting the cluster, mass-deleting pods, or opening/closing network policy can take the product down or isolate it for ransom. Creating a throwaway cluster can also be a staging ground. These are blunt impact actions, not subtle identity changes. Cluster delete and bulk pod delete should match a maintenance window.",
+  "services": [
+    "AKS"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-082",
+    "az-085",
+    "az-086"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "azure"
+}

@@ -1,0 +1,22 @@
+{
+  "id": "tech-gcp-gke-rbac-persistence",
+  "name": "GKE Admission and RBAC Persistence",
+  "shortName": "GKE RBAC",
+  "description": "On GKE, the same Kubernetes objects that persist on AKS persist here: admission webhooks, CronJobs, RoleBindings, ClusterRoleBindings. They keep the attacker in the cluster after the GCP login is revoked. GitOps should be the only writer of those objects. Bindings to cluster-admin and new mutating webhooks are the ones that matter first.",
+  "services": [
+    "GKE"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-019",
+    "gcp-020",
+    "gcp-021"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "gcp"
+}

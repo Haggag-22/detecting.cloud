@@ -6,6 +6,9 @@ detection:
   selection:
     eventSource: ec2.amazonaws.com
     eventName: ModifySnapshotAttribute
-  condition: selection
+  add_userid:
+    requestParameters.createVolumePermission.add.items{}.userId|exists: true
+  add_userids:
+    requestParameters.createVolumePermission.add.userIds|exists: true
+  condition: selection and (add_userid or add_userids)
 level: critical
-# External-account recipient evaluation requires parsing createVolumePermission.add.userIds and approved account allowlists.

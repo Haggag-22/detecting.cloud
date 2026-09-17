@@ -1,0 +1,27 @@
+{
+  "id": "tech-put-permissions-boundary",
+  "name": "IAM Permissions Boundary Weakening",
+  "shortName": "Boundary Weaken",
+  "description": "An attacker with iam:PutRolePermissionsBoundary or iam:PutUserPermissionsBoundary can replace an existing permissions boundary with a weaker one. The new boundary may grant broader actions (e.g., s3:* instead of s3:GetObject only) or cover more resources. This effectively escalates the principal's permissions without modifying attached policies. Required permissions are iam:PutRolePermissionsBoundary for roles or iam:PutUserPermissionsBoundary for users.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:PutRolePermissionsBoundary",
+    "iam:PutUserPermissionsBoundary"
+  ],
+  "detectionIds": [
+    "det-044",
+    "det-045",
+    "det-046",
+    "det-047"
+  ],
+  "mitigations": [
+    "Restrict boundary modifications",
+    "Audit boundary changes",
+    "Use least-privilege boundaries"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws",
+  "detectionStrategy": "Weakening is often not directly inferable from a single CloudTrail event unless the system knows approved boundary ARNs. Detection should focus on change visibility, non-approved boundary ARNs, sensitive targets, and suspicious follow-on behavior. Use allowlists for approved boundary policies where possible."
+}

@@ -1,0 +1,22 @@
+{
+  "id": "tech-az-leaked-credential-ti",
+  "name": "Leaked Credential and Threat-Intel Sign-In",
+  "shortName": "Leaked Creds",
+  "description": "Microsoft compares sign-ins against known leaked password lists, malware-related IP addresses, and its own threat intelligence. A match means that password or that network has already been seen in a breach or a botnet. The login might still succeed if MFA is off. Treat these as 'assume the password is public' and force a reset, even if the user says they were in the office.",
+  "services": [
+    "Entra ID Protection"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-067",
+    "az-070",
+    "az-075"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "azure"
+}

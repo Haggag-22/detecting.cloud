@@ -2,13 +2,13 @@
   "id": "az-040",
   "title": "Azure Application Gateway Modified or Deleted",
   "description": "Identifies when a application gateway is modified or deleted.",
-  "awsService": "Entra ID Apps",
+  "awsService": "Azure Networking",
   "relatedServices": [],
   "cloudProvider": "azure",
   "severity": "Medium",
   "tags": [
     "AZURE",
-    "Entra ID Apps",
+    "Azure Networking",
     "impact"
   ],
   "logSources": [

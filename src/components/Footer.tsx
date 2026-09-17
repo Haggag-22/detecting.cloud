@@ -75,7 +75,8 @@ export function Footer() {
           <div>
             <h4 className="font-semibold text-sm mb-3">Platform</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
-              <li><Link to="/attack-paths" className="hover:text-foreground transition-colors">Attack Paths</Link></li>
+              <li><Link to="/attack-paths" className="hover:text-foreground transition-colors">Attack Chains</Link></li>
+              <li><Link to="/techniques" className="hover:text-foreground transition-colors">Attack Techniques</Link></li>
               <li><Link to="/detection-engineering" className="hover:text-foreground transition-colors">Detection Rules</Link></li>
               <li><Link to="/simulator" className="hover:text-foreground transition-colors">Attack Simulator</Link></li>
               <li><Link to="/community-rules" className="hover:text-foreground transition-colors">Community Rules</Link></li>

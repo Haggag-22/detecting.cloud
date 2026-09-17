@@ -1,0 +1,22 @@
+{
+  "id": "tech-az-keyvault-destruction",
+  "name": "Key Vault Secret and Key Destruction",
+  "shortName": "Key Vault Destroy",
+  "description": "Key Vault holds secrets, keys, and certificates. Deleting or changing a vault, a key, or a secret can take applications down or make backups unrestorable \u2014 the same idea as deleting a KMS key in AWS. Attackers do this for ransom or to lock operators out of recovery. Soft-delete exists so you can undo some of this; purge is the point of no return. Vault and key deletion should be among the loudest Azure alerts you have.",
+  "services": [
+    "Key Vault"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-078",
+    "az-079",
+    "az-080"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "azure"
+}

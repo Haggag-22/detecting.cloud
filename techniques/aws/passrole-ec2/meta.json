@@ -1,0 +1,29 @@
+{
+  "id": "tech-passrole-ec2",
+  "name": "PassRole via EC2 RunInstances",
+  "shortName": "PassRole EC2",
+  "description": "An attacker with iam:PassRole and ec2:RunInstances launches a new EC2 instance with an IAM instance profile that has a high-privilege role. The instance profile is specified via the IamInstanceProfile parameter. Once the instance is running, the attacker accesses it (via SSM, user data exfiltration, or if they have network access) and queries the Instance Metadata Service to retrieve the role's temporary credentials. Required permissions are iam:PassRole for the instance profile role and ec2:RunInstances.",
+  "services": [
+    "IAM",
+    "EC2"
+  ],
+  "permissions": [
+    "iam:PassRole",
+    "ec2:RunInstances"
+  ],
+  "detectionIds": [
+    "det-065",
+    "det-066",
+    "det-067",
+    "det-068",
+    "det-069"
+  ],
+  "mitigations": [
+    "Restrict PassRole to specific role ARNs",
+    "Limit RunInstances to approved AMIs",
+    "Use permission boundaries"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws",
+  "detectionStrategy": "PassRole abuse via EC2 is best detected by monitoring EC2 RunInstances and instance-profile association changes (AssociateIamInstanceProfile, ReplaceIamInstanceProfileAssociation) that involve privileged or unusual instance profiles, then correlating with subsequent sensitive activity by the attached role. Do not alert on iam:PassRole directly; detect through EC2 activity and instance profile parameters."
+}

@@ -1,0 +1,20 @@
+{
+  "slug": "resource-policy-initial-access",
+  "title": "Resource Policy Initial Access",
+  "description": "S3 buckets and Lambda functions can have resource-based policies that grant access to principals. Misconfigurations such as Principal: * or overly broad account/role allowlists enable unauthenticated or weakly authenticated access. An attacker discovers these misconfigured resources (e.g., through enumeration or public disclosure) and accesses them without prior AWS credentials. This provides initial access to read S3 objects, invoke Lambda functions, or trigger other actions depending on the policy.",
+  "severity": "High",
+  "objective": "initial-access",
+  "tags": [
+    "S3",
+    "Lambda",
+    "Resource Policy",
+    "Misconfiguration"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-resource-policy-misconfig",
+      "context": "Access S3 or Lambda via misconfigured resource policy"
+    }
+  ],
+  "cloudProvider": "aws"
+}

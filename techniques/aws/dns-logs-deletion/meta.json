@@ -1,0 +1,20 @@
+{
+  "id": "tech-dns-logs-deletion",
+  "name": "Route53 Resolver Log Deletion",
+  "shortName": "DNS Logs",
+  "description": "Route53 Resolver can log DNS queries to CloudWatch or S3. An attacker with route53resolver:DeleteResolverQueryLogConfig deletes the query log configuration, stopping DNS query logging. This evades DNS-based detection (e.g., for C2 communication or data exfiltration via DNS). Required permission is route53resolver:DeleteResolverQueryLogConfig. The attacker may also need to disassociate the config from VPCs.",
+  "services": [
+    "Route53"
+  ],
+  "permissions": [
+    "route53resolver:DeleteResolverQueryLogConfig"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict resolver log deletion",
+    "Use centralized logging",
+    "Alert on log config changes"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,3 @@
+[
+  "aws route53resolver delete-resolver-query-log-config --resolver-query-log-config-id rqlc-xxx"
+]

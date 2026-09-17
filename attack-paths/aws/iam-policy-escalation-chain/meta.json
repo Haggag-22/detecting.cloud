@@ -1,0 +1,29 @@
+{
+  "slug": "iam-policy-escalation-chain",
+  "title": "IAM Policy Escalation Chain",
+  "description": "This path exploits iam:CreatePolicyVersion on a managed policy that the attacker is already attached to. The attacker creates a new policy version with a document that grants Action: * and Resource: *, then sets it as the default version. Because the attacker is attached to this policy, the new permissions take effect immediately without any additional API calls. The attacker then uses the escalated permissions to assume cross-account roles or perform other privileged actions across the organization. The key requirement is that the attacker must have CreatePolicyVersion on a policy they are attached to.",
+  "severity": "Critical",
+  "objective": "privilege-escalation",
+  "tags": [
+    "IAM",
+    "STS",
+    "Policy",
+    "Privilege Escalation",
+    "Cross-Account"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-create-policy-version",
+      "context": "Create a new policy version with Action:* Resource:*"
+    },
+    {
+      "techniqueId": "tech-attach-user-policy",
+      "context": "Ensure the escalated policy is attached and set as default"
+    },
+    {
+      "techniqueId": "tech-assumerole-abuse",
+      "context": "Assume cross-account roles using newly granted permissions"
+    }
+  ],
+  "cloudProvider": "aws"
+}

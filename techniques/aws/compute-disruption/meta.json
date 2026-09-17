@@ -1,0 +1,22 @@
+{
+  "id": "tech-compute-disruption",
+  "name": "Compute and Database Stop / Disruption",
+  "shortName": "Compute Stop",
+  "description": "EC2 instances, RDS databases, and ECS tasks are the computers and data stores the business actually runs on. An attacker with permission to stop or terminate those resources can take applications offline without deleting the account. This is disruption, not theft: websites go down, batch jobs fail, and recovery depends on backups and how fast operators can restart the fleet. It is often used as ransomware pressure or as cover while the attacker works elsewhere.",
+  "services": [
+    "EC2",
+    "RDS",
+    "ECS"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-176"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "aws"
+}

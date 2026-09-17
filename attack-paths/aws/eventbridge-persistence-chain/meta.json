@@ -1,0 +1,28 @@
+{
+  "slug": "eventbridge-persistence-chain",
+  "title": "EventBridge Persistence Chain",
+  "description": "The attacker uses iam:PassRole and lambda:CreateFunction to deploy a Lambda with an administrative role. The Lambda code performs malicious actions (e.g., creating backdoor users). The attacker then uses events:PutRule and events:PutTargets to create an EventBridge rule that invokes the Lambda on a schedule (e.g., every 5 minutes). The Lambda runs automatically without further attacker interaction, establishing persistence. Each execution can reinforce backdoor access or exfiltrate data.",
+  "severity": "High",
+  "objective": "persistence",
+  "tags": [
+    "Lambda",
+    "EventBridge",
+    "PassRole",
+    "Persistence"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-passrole-abuse",
+      "context": "Pass admin role to Lambda function"
+    },
+    {
+      "techniqueId": "tech-lambda-code-execution",
+      "context": "Deploy backdoor Lambda code"
+    },
+    {
+      "techniqueId": "tech-eventbridge-rule-persistence",
+      "context": "Create EventBridge rule to trigger Lambda on schedule"
+    }
+  ],
+  "cloudProvider": "aws"
+}

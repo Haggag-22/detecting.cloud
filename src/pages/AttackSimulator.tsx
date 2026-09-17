@@ -86,10 +86,10 @@ export default function AttackSimulator() {
 
   return (
     <Layout>
-      <div className="container py-10">
+      <div className="container">
         <div className="mb-8">
           <PageTitleWithIcon team="red" icon={Play}>
-            Attack Path Simulator
+            Attack Chain Simulator
           </PageTitleWithIcon>
           <p className="text-muted-foreground">
             Walk through real-world AWS attack chains step-by-step. See which techniques are detected and where your gaps are.

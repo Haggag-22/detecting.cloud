@@ -1,0 +1,22 @@
+{
+  "id": "tech-kms-key-policy-abuse",
+  "name": "KMS Key Policy Abuse",
+  "shortName": "KMS Policy",
+  "description": "Every KMS key has a policy that says who may encrypt or decrypt with it. An attacker who can change that policy can add themselves or a role they control. They do not need to steal the key bytes; they just get permission to use it. From there they can read encrypted snapshots, secrets, or databases. Key-policy edits should match a change ticket, and wildcard principals in a key policy are a red flag.",
+  "services": [
+    "KMS"
+  ],
+  "permissions": [
+    "kms:PutKeyPolicy"
+  ],
+  "detectionIds": [
+    "det-020"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

@@ -58,13 +58,13 @@ function buildSidebarNav(): SidebarNavStructure {
   const redTeam: SidebarSection[] = [
     {
       key: "attack-paths",
-      label: "Attack Paths",
+      label: "Attack Chains",
       icon: Crosshair,
       to: "/attack-paths",
     },
     {
       key: "techniques",
-      label: "Techniques Library",
+      label: "Attack Techniques",
       icon: Route,
       to: "/techniques",
     },
@@ -147,7 +147,7 @@ export function AppSidebar() {
   const [search, setSearch] = useState("");
 
   const allSearchItems: { label: string; to: string; type: string }[] = [];
-  attackPaths.forEach((ap) => allSearchItems.push({ label: ap.title, to: `/attack-paths?technique=${ap.slug}`, type: "Attack Path" }));
+  attackPaths.forEach((ap) => allSearchItems.push({ label: ap.title, to: `/attack-paths?technique=${ap.slug}`, type: "Attack Chain" }));
   techniques.forEach((t) => allSearchItems.push({ label: t.name, to: `/attack-paths/technique/${t.id}`, type: "Technique" }));
   detections.forEach((d) => allSearchItems.push({ label: d.title, to: `/detection-engineering?rule=${d.id}`, type: "Detection" }));
   allSearchItems.push({ label: "CloudTrail Analyzer", to: "/cloudtrail-analyzer", type: "Tool" });
@@ -204,7 +204,7 @@ export function AppSidebar() {
           <>
             {renderNavLink(nav.home, location)}
             <SidebarGroup className="border-l-2 border-red-500/25 pl-1.5 py-1">
-              <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-wider text-red-400/90">
+              <SidebarGroupLabel className="text-sm font-bold uppercase text-red-400/90">
                 Red team
               </SidebarGroupLabel>
               <SidebarGroupContent className="space-y-0">
@@ -214,7 +214,7 @@ export function AppSidebar() {
               </SidebarGroupContent>
             </SidebarGroup>
             <SidebarGroup className="border-l-2 border-blue-500/25 pl-1.5 py-1">
-              <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-wider text-blue-400/90">
+              <SidebarGroupLabel className="text-sm font-bold uppercase text-blue-400/90">
                 Blue team
               </SidebarGroupLabel>
               <SidebarGroupContent className="space-y-0">

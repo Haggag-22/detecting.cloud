@@ -13,16 +13,16 @@ export function buildKnowledgeBase(): string {
     const cat = techniqueCategories[t.category as TechniqueCategory];
     sections.push(
       `- **${t.name}** (ID: ${t.id}, Category: ${cat?.label || t.category})\n` +
-      `  Services: ${t.services.join(", ")}\n` +
-      `  Permissions: ${t.permissions.join(", ")}\n` +
+      `  Services: ${(t.services ?? []).join(", ")}\n` +
+      `  Permissions: ${(t.permissions ?? []).join(", ")}\n` +
       `  Description: ${t.description}\n` +
-      `  Mitigations: ${t.mitigations.join("; ")}\n` +
+      `  Mitigations: ${(t.mitigations ?? []).join("; ")}\n` +
       `  Page: /attack-paths?technique=${t.id}\n`
     );
   }
 
   // Attack Paths
-  sections.push("\n## Attack Paths\n");
+  sections.push("\n## Attack Chains\n");
   for (const ap of attackPaths) {
     const steps = ap.steps.map((s) => {
       const tech = techniques.find((t) => t.id === s.techniqueId);
@@ -43,10 +43,10 @@ export function buildKnowledgeBase(): string {
     sections.push(
       `- **${d.title}** (ID: ${d.id}, Service: ${d.awsService}, Severity: ${d.severity})\n` +
       `  Description: ${d.description}\n` +
-      `  Related Services: ${d.relatedServices.join(", ")}\n` +
-      `  Log Sources: ${d.logSources.join(", ")}\n` +
-      `  Tags: ${d.tags.join(", ")}\n` +
-      `  Related Attack Paths: ${d.relatedAttackSlugs.join(", ")}\n` +
+      `  Related Services: ${(d.relatedServices ?? []).join(", ")}\n` +
+      `  Log Sources: ${(d.logSources ?? []).join(", ")}\n` +
+      `  Tags: ${(d.tags ?? []).join(", ")}\n` +
+      `  Related Attack Chains: ${(d.relatedAttackSlugs ?? []).join(", ")}\n` +
       `  Page: /detection-engineering?rule=${d.id}\n`
     );
   }

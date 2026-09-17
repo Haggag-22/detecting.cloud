@@ -1,0 +1,22 @@
+{
+  "id": "tech-passrole-cloudformation",
+  "name": "PassRole via CloudFormation",
+  "shortName": "PassRole CFN",
+  "description": "An attacker with iam:PassRole and cloudformation:CreateStack deploys a CloudFormation stack whose template creates resources (e.g., Lambda functions, EC2 instances) with a privileged IAM role. The stack template specifies the role ARN in resource properties. When the stack is created, those resources run with the passed role's permissions. The attacker can then invoke the Lambda or access the EC2 instance to use the escalated credentials. Required permissions are iam:PassRole and cloudformation:CreateStack. The template must be valid and create resources that use the role.",
+  "services": [
+    "IAM",
+    "CloudFormation"
+  ],
+  "permissions": [
+    "iam:PassRole",
+    "cloudformation:CreateStack"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict PassRole for CloudFormation",
+    "Validate stack templates",
+    "Use change management"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

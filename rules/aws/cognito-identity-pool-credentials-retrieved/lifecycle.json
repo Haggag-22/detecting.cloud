@@ -1,0 +1,65 @@
+{
+  "whyItMatters": "Detects Cognito identity-pool credential issuance (GetCredentialsForIdentity / GetOpenIdToken) used to obtain AWS credentials from an identity pool, including unauthenticated pools.",
+  "threatContext": {
+    "attackerBehavior": "Detects Cognito identity-pool credential issuance (GetCredentialsForIdentity / GetOpenIdToken) used to obtain AWS credentials from an identity pool, including unauthenticated pools.",
+    "whyItMatters": "Cognito Identity Pool Credentials Retrieved is a high-signal control-plane action with no prior Sigma coverage in this catalog.",
+    "riskAndImpact": "If missed, the technique node stays dark and the attacker action is invisible."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.arn",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must log cognito-identity.amazonaws.com GetCredentialsForIdentity."
+    ],
+    "limitations": [
+      "Management events only; data-plane follow-on is out of scope for this rule."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "eventName",
+        "normalizedPath": "event.action"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"event\": {\n    \"action\": \"GetCredentialsForIdentity\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/attacker\"\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Approved actor",
+      "description": "Compare the caller to identity and platform-admin inventories.",
+      "examples": [
+        "identity platform pipeline",
+        "break-glass admin"
+      ],
+      "falsePositiveReduction": "Suppress known IdP or CI roles after review."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "Fire on successful GetCredentialsForIdentity from cognito-identity.amazonaws.com.",
+    "conditions": [
+      "eventSource = cognito-identity.amazonaws.com",
+      "eventName = GetCredentialsForIdentity"
+    ],
+    "whenToFire": "On each matching successful CloudTrail event."
+  },
+  "simulationCommand": "aws cognito-identity get-credentials-for-identity --identity-id us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "low-to-medium depending on platform automation",
+    "expectedVolume": "low",
+    "productionReadiness": "experimental"
+  }
+}

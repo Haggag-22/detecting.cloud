@@ -1,0 +1,17 @@
+{
+  "id": "tech-external-imds-ssrf",
+  "name": "External IMDS SSRF (No Credentials)",
+  "shortName": "IMDS SSRF",
+  "description": "A web application vulnerable to Server-Side Request Forgery (SSRF) can be tricked into making HTTP requests to the EC2 Instance Metadata Service at 169.254.169.254. If the app runs on EC2 and uses IMDSv1, an attacker can inject a URL that causes the server to fetch its own IAM role credentials and return them in the response. No AWS credentials are required; the attacker only needs to find an SSRF vulnerability in a publicly accessible app. The attacker crafts a request (e.g., via a callback URL or image src) pointing to the metadata endpoint.",
+  "services": [
+    "EC2",
+    "IAM"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-189"
+  ],
+  "mitigations": [],
+  "category": "credential-access",
+  "cloudProvider": "aws"
+}

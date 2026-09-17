@@ -1,0 +1,69 @@
+{
+  "whyItMatters": "Detects when a configuration change is made to an applications URI. URIs for domain names that no longer exist (dangling URIs), not using HTTPS, wildcards at the end of the domain, URIs that are no unique to that app, or URIs that point to domains you do not control should be investigated.",
+  "threatContext": {
+    "attackerBehavior": "Detects when a configuration change is made to an applications URI. URIs for domain names that no longer exist (dangling URIs), not using HTTPS, wildcards at the end of the domain, URIs that are no unique to that app, or URIs that point to domains you do not control should be investigated.",
+    "whyItMatters": "Application URI Configuration Changes is a Entra ID Apps control-plane or identity signal that defenders should investigate when it is unexpected.",
+    "riskAndImpact": "Unauthorized application uri configuration changes can enable persistence, privilege escalation, credential theft, or impact depending on the resource."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "Azure Audit Logs"
+    ],
+    "requiredFields": [
+      "eventTime",
+      "operationName",
+      "caller",
+      "status"
+    ],
+    "loggingRequirements": [
+      "Azure Audit Logs must be enabled for the tenant or project.",
+      "Retain raw request properties so the detection can be tuned to approved actors."
+    ],
+    "limitations": [
+      "Generated lifecycle — review threat research, enrichment, and testing before production.",
+      "Bare Sigma selections may fire on every matching event until customer inventory is supplied."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "operationName",
+        "normalizedPath": "event.action",
+        "notes": "Control-plane operation"
+      },
+      {
+        "rawPath": "caller",
+        "normalizedPath": "user.id",
+        "notes": "Actor identity when present"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2026-01-15T12:00:00Z\",\n  \"event\": {\n    \"action\": \"Application URI Configuration Changes\",\n    \"provider\": \"azure\",\n    \"outcome\": \"success\"\n  },\n  \"cloud\": {\n    \"provider\": \"azure\",\n    \"service\": \"Entra ID Apps\"\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Approved actor",
+      "description": "Compare the caller to change-management and privileged-identity inventories.",
+      "examples": [
+        "break-glass admin",
+        "CI/CD service principal"
+      ],
+      "falsePositiveReduction": "Suppress known automation identities after review."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "Alert when telemetry matches the Sigma selection for Application URI Configuration Changes.",
+    "conditions": [
+      "Detects when a configuration change is made to an applications URI. URIs for domain names that no longer exist (dangling URIs), not using HTTPS, wildcards at the end of the domain, URIs that are no unique to that app, or URIs that point to domains you do not control should be investigated."
+    ],
+    "whenToFire": "On each matching successful (or explicitly failed) control-plane event.",
+    "tuningGuidance": "Add approved-actor allowlists and sensitive-target inventories before production."
+  },
+  "simulationCommand": "Review the Sigma rule for az-038 and replay a matching azure audit event in a lab tenant.",
+  "quality": {
+    "signalQuality": 5,
+    "falsePositiveRate": "unknown until tuned",
+    "expectedVolume": "varies by tenant",
+    "productionReadiness": "experimental"
+  },
+  "generatedFromTemplate": true
+}

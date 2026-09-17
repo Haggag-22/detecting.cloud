@@ -1,0 +1,20 @@
+{
+  "id": "tech-gcp-workspace-mail-forwarding",
+  "name": "Workspace External Mail Forwarding",
+  "shortName": "Workspace Forward",
+  "description": "Automatic forwarding sends a copy of every incoming message to another address, often a personal Gmail. Executives and finance users are the usual targets because contracts and invoices flow through them. The user still gets mail, so they may never notice. New forwarding to an address outside the company is collection until the user confirms they set it.",
+  "services": [
+    "Google Workspace"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-014"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "exfiltration",
+  "cloudProvider": "gcp"
+}

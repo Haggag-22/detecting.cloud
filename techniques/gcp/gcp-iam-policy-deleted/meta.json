@@ -1,0 +1,20 @@
+{
+  "id": "tech-gcp-iam-policy-deleted",
+  "name": "GCP Access Policy Deleted",
+  "shortName": "GCP Policy Delete",
+  "description": "GCP IAM policies on a project, folder, or resource say who may do what. Deleting or replacing a policy can drop the defenders' roles and leave the attacker as the only admin. It can also open the resource to allUsers. This is privilege change by erasing the rules, not by adding one binding. Policy delete at project or org scope is a ten-alarm fire.",
+  "services": [
+    "GCP IAM"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-001"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "gcp"
+}

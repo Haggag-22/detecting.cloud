@@ -1,0 +1,3 @@
+[
+  "aws ec2-instance-connect send-serial-console-ssh-public-key --instance-id i-0abc123 --serial-port 0 --ssh-public-key file://~/.ssh/id_rsa.pub"
+]

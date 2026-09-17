@@ -1,0 +1,4 @@
+[
+  "aws s3 cp s3://misconfigured-bucket/sensitive-file . (if policy allows)",
+  "aws lambda invoke --function-name misconfigured-function output.json"
+]

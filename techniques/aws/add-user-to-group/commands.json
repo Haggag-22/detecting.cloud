@@ -1,0 +1,3 @@
+[
+  "aws iam add-user-to-group --user-name compromised-user --group-name AdminGroup"
+]

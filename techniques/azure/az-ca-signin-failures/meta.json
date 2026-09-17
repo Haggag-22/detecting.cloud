@@ -1,0 +1,22 @@
+{
+  "id": "tech-az-ca-signin-failures",
+  "name": "Conditional Access Sign-In Failures",
+  "shortName": "CA Block",
+  "description": "When Conditional Access blocks a sign-in, it often means the password was right but the extra requirements were not: no MFA, wrong device, wrong country. That is useful both as a near-miss (attacker has the password) and as a user-friction signal. A burst of failures for one privileged account, especially from anonymous IPs, is someone trying to get past the policy. Do not ignore these as 'just users who forgot MFA' when the account is an admin.",
+  "services": [
+    "Entra ID"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-045",
+    "az-123",
+    "az-126"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "initial-access",
+  "cloudProvider": "azure"
+}

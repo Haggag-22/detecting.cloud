@@ -1,0 +1,23 @@
+{
+  "slug": "passrole-glue-escalation",
+  "title": "PassRole Glue Escalation",
+  "description": "An attacker with iam:PassRole and glue:CreateDevEndpoint creates a Glue development endpoint with a high-privilege role. The endpoint is an EC2 instance that runs the Glue environment. The attacker uses glue:UpdateDevEndpoint to add their SSH public key to the endpoint. They then SSH into the endpoint and query the Instance Metadata Service to retrieve the endpoint's IAM role credentials. This provides the attacker with the privileged role's permissions for escalation.",
+  "severity": "High",
+  "objective": "privilege-escalation",
+  "tags": [
+    "IAM",
+    "Glue",
+    "PassRole"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-passrole-glue",
+      "context": "Create Glue dev endpoint with privileged role"
+    },
+    {
+      "techniqueId": "tech-glue-dev-endpoint-update",
+      "context": "Update SSH key and extract credentials"
+    }
+  ],
+  "cloudProvider": "aws"
+}

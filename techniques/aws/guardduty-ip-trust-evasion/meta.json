@@ -1,0 +1,19 @@
+{
+  "id": "tech-guardduty-ip-trust-evasion",
+  "name": "GuardDuty IP Trust List Evasion",
+  "shortName": "IP Trust List",
+  "description": "GuardDuty allows trusted IP lists that suppress findings from specified IP ranges. An attacker with guardduty:CreateIPSet or guardduty:UpdateIPSet adds their IP or CIDR range to a trusted list. Findings from that IP are then suppressed. The attacker creates a new IP set or updates an existing one with their address. Required permissions are guardduty:CreateIPSet and guardduty:UpdateIPSet. The IP set must be associated with the detector.",
+  "services": [
+    "GuardDuty"
+  ],
+  "permissions": [
+    "guardduty:CreateIPSet",
+    "guardduty:UpdateIPSet"
+  ],
+  "detectionIds": [
+    "det-187"
+  ],
+  "mitigations": [],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

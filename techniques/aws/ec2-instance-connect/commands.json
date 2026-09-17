@@ -1,0 +1,4 @@
+[
+  "aws ec2-instance-connect send-ssh-public-key --instance-id i-0abc123 --instance-os-user ec2-user --ssh-public-key file://~/.ssh/id_rsa.pub",
+  "ssh -i ~/.ssh/id_rsa ec2-user@ec2-xx-xx-xx-xx.compute.amazonaws.com"
+]

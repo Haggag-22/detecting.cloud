@@ -1,0 +1,3 @@
+[
+  "aws guardduty create-ip-set --detector-id xxx --name TrustedIPs --format TXT --location s3://bucket/ips.txt --activate"
+]

@@ -1,0 +1,69 @@
+{
+  "whyItMatters": "Indicates access attempt to the PRT resource which can be used to move laterally into an organization or perform credential theft",
+  "threatContext": {
+    "attackerBehavior": "Indicates access attempt to the PRT resource which can be used to move laterally into an organization or perform credential theft",
+    "whyItMatters": "Primary Refresh Token Access Attempt is a Entra ID Protection control-plane or identity signal that defenders should investigate when it is unexpected.",
+    "riskAndImpact": "Unauthorized primary refresh token access attempt can enable persistence, privilege escalation, credential theft, or impact depending on the resource."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "Azure riskdetection"
+    ],
+    "requiredFields": [
+      "eventTime",
+      "operationName",
+      "caller",
+      "status"
+    ],
+    "loggingRequirements": [
+      "Azure riskdetection must be enabled for the tenant or project.",
+      "Retain raw request properties so the detection can be tuned to approved actors."
+    ],
+    "limitations": [
+      "Generated lifecycle — review threat research, enrichment, and testing before production.",
+      "Bare Sigma selections may fire on every matching event until customer inventory is supplied."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "operationName",
+        "normalizedPath": "event.action",
+        "notes": "Control-plane operation"
+      },
+      {
+        "rawPath": "caller",
+        "normalizedPath": "user.id",
+        "notes": "Actor identity when present"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2026-01-15T12:00:00Z\",\n  \"event\": {\n    \"action\": \"Primary Refresh Token Access Attempt\",\n    \"provider\": \"azure\",\n    \"outcome\": \"success\"\n  },\n  \"cloud\": {\n    \"provider\": \"azure\",\n    \"service\": \"Entra ID Protection\"\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Approved actor",
+      "description": "Compare the caller to change-management and privileged-identity inventories.",
+      "examples": [
+        "break-glass admin",
+        "CI/CD service principal"
+      ],
+      "falsePositiveReduction": "Suppress known automation identities after review."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "Alert when telemetry matches the Sigma selection for Primary Refresh Token Access Attempt.",
+    "conditions": [
+      "Indicates access attempt to the PRT resource which can be used to move laterally into an organization or perform credential theft"
+    ],
+    "whenToFire": "On each matching successful (or explicitly failed) control-plane event.",
+    "tuningGuidance": "Add approved-actor allowlists and sensitive-target inventories before production."
+  },
+  "simulationCommand": "Review the Sigma rule for az-073 and replay a matching azure audit event in a lab tenant.",
+  "quality": {
+    "signalQuality": 5,
+    "falsePositiveRate": "unknown until tuned",
+    "expectedVolume": "varies by tenant",
+    "productionReadiness": "experimental"
+  },
+  "generatedFromTemplate": true
+}

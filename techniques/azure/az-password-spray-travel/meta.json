@@ -1,0 +1,32 @@
+{
+  "id": "tech-az-password-spray-travel",
+  "name": "Password Spray and Impossible-Travel Sign-In",
+  "shortName": "Spray / Travel",
+  "description": "Password spray is trying a few common passwords against many accounts so lockouts stay low. Impossible travel is a login from two far-apart places faster than a plane can fly. Anonymous VPNs, known-bad IPs, and a new country on an admin account are the same family of 'this is not the employee at their desk.' One lockout is a typo. A surge of failures plus a success from a VPN is a break-in. Correlate lockouts, sprays, and travel; do not treat them as separate curiosities.",
+  "services": [
+    "Entra ID",
+    "Entra ID Protection"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-006",
+    "az-008",
+    "az-011",
+    "az-017",
+    "az-061",
+    "az-062",
+    "az-063",
+    "az-064",
+    "az-068",
+    "az-069",
+    "az-071",
+    "az-072"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "initial-access",
+  "cloudProvider": "azure"
+}

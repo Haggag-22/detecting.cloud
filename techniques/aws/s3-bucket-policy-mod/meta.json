@@ -1,0 +1,26 @@
+{
+  "id": "tech-s3-bucket-policy-mod",
+  "name": "S3 Bucket Policy Modification",
+  "shortName": "Bucket Policy",
+  "description": "An attacker with s3:PutBucketPolicy can modify a bucket's resource policy to grant access to external principals (e.g., attacker account root) or make objects publicly readable. s3:DeleteBucketPolicy removes existing restrictions. s3:PutBucketReplication can configure replication to an attacker-controlled bucket for exfiltration. Required permissions are s3:PutBucketPolicy, s3:DeleteBucketPolicy, or s3:PutBucketReplication depending on the attack variant.",
+  "services": [
+    "S3",
+    "IAM"
+  ],
+  "permissions": [
+    "s3:PutBucketPolicy",
+    "s3:DeleteBucketPolicy",
+    "s3:PutBucketReplication"
+  ],
+  "detectionIds": [
+    "det-017",
+    "det-018"
+  ],
+  "mitigations": [
+    "Enable S3 Block Public Access at account level",
+    "Use SCPs to restrict bucket policy modifications",
+    "Monitor bucket policy changes via CloudTrail"
+  ],
+  "category": "exfiltration",
+  "cloudProvider": "aws"
+}

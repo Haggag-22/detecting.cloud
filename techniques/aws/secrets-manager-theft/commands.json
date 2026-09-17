@@ -1,0 +1,4 @@
+[
+  "aws secretsmanager list-secrets",
+  "aws secretsmanager get-secret-value --secret-id prod/database/admin-credentials"
+]

@@ -1,7 +1,7 @@
 {
   "id": "det-001",
-  "title": "IAM PassRole Privilege Escalation",
-  "description": "Detects when iam:PassRole is used to pass an administrative role to a Lambda function or other AWS service.",
+  "title": "IAM PassRole Privilege Escalation (legacy Lambda path)",
+  "description": "Legacy rule. Lambda CreateFunction with a high-privilege role is covered by det-012. iam:PassRole is not a standalone CloudTrail event; do not treat this title as PassRole coverage. Prefer det-012.",
   "awsService": "IAM",
   "relatedServices": [
     "Lambda",

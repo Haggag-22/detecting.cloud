@@ -1,0 +1,26 @@
+{
+  "id": "tech-organizations-leave",
+  "name": "AWS Organizations Leave",
+  "shortName": "Org Leave",
+  "description": "A member account can leave an AWS Organization by calling organizations:LeaveOrganization from the member account's root user. This removes the account from SCP coverage, allowing previously blocked actions. The account retains its resources but escapes organizational guardrails. Required permission is organizations:LeaveOrganization; only the member account root can call it. The management account must have enabled account leave in the organization settings.",
+  "services": [
+    "Organizations"
+  ],
+  "permissions": [
+    "organizations:LeaveOrganization"
+  ],
+  "detectionIds": [
+    "det-114",
+    "det-115",
+    "det-116",
+    "det-117"
+  ],
+  "mitigations": [
+    "Restrict LeaveOrganization",
+    "Use SCPs to deny leave",
+    "Alert on leave attempts"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws",
+  "detectionStrategy": "LeaveOrganization is a rare, high-signal defense-evasion action because it can remove an account from SCP and organization policy control. The strongest detections watch both successful and failed leave attempts and correlate them with subsequent sensitive activity once the account is no longer under organizational guardrails."
+}

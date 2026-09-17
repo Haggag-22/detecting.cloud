@@ -1,0 +1,29 @@
+{
+  "id": "tech-passrole-ecs",
+  "name": "PassRole via ECS RunTask",
+  "shortName": "PassRole ECS",
+  "description": "An attacker with iam:PassRole and ecs:RunTask runs an ECS task with a privileged task role. The task role is specified in the task definition. The attacker uses a task definition that runs a container they control (or one that exposes credentials). When the task runs, it receives the task role's credentials via the container metadata endpoint. The attacker's code exfiltrates these credentials. Required permissions are iam:PassRole for the task role and ecs:RunTask. The attacker may need ecs:RegisterTaskDefinition to create a custom task definition.",
+  "services": [
+    "IAM",
+    "ECS"
+  ],
+  "permissions": [
+    "iam:PassRole",
+    "ecs:RunTask"
+  ],
+  "detectionIds": [
+    "det-070",
+    "det-071",
+    "det-072",
+    "det-073",
+    "det-074"
+  ],
+  "mitigations": [
+    "Restrict PassRole for ECS",
+    "Use task execution role separation",
+    "Audit RunTask with custom roles"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws",
+  "detectionStrategy": "PassRole abuse via ECS is best detected through RunTask activity using privileged or unusual task roles and task definitions, especially when followed by sensitive API usage by the resulting task role. ECS task roles are delivered to containers and abuse shows up in downstream role activity. Do not alert on iam:PassRole directly; detect through ECS RunTask and task role context."
+}

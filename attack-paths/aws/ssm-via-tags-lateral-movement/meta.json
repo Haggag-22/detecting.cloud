@@ -1,0 +1,24 @@
+{
+  "slug": "ssm-via-tags-lateral-movement",
+  "title": "SSM Access via CreateTags Lateral Movement",
+  "description": "SSM Session Manager access can be restricted via resource tags (e.g., only principals with a specific tag can start sessions on instances with a matching tag). An attacker with ec2:CreateTags or ssm:AddTagsToResource can add the required tags to target instances, satisfying the session policy. The attacker then uses ssm:StartSession to gain interactive shell access to the instances without SSH keys or open port 22. This bypasses tag-based access controls for lateral movement.",
+  "severity": "High",
+  "objective": "lateral-movement",
+  "tags": [
+    "SSM",
+    "EC2",
+    "CreateTags",
+    "Lateral Movement"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-ssm-via-tags",
+      "context": "Add tags to instance to satisfy SSM session policy"
+    },
+    {
+      "techniqueId": "tech-ssm-session",
+      "context": "Start SSM session for interactive access"
+    }
+  ],
+  "cloudProvider": "aws"
+}

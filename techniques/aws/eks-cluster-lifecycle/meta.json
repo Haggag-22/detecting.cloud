@@ -1,0 +1,20 @@
+{
+  "id": "tech-eks-cluster-lifecycle",
+  "name": "EKS Cluster Create or Delete",
+  "shortName": "EKS Cluster CRUD",
+  "description": "An EKS cluster is the control plane for Kubernetes in AWS. Creating a cluster the attacker controls gives them a place to run workloads. Deleting a production cluster takes the whole application stack down. Neither of those is the same as adding a backdoor user to an existing cluster. Creation is provisioning; deletion is impact. Both should be rare outside platform-engineering pipelines. If a cluster appears or disappears without a ticket, assume hostile change until proven otherwise.",
+  "services": [
+    "EKS"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-152"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "aws"
+}

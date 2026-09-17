@@ -30,6 +30,12 @@ import { detectionsFromRules } from "./loadRulesFromDir";
 
 export const detections: Detection[] = detectionsFromRules;
 
+/** Azure/GCP imported rules whose lifecycle was auto-generated — coverage is provisional. */
+export function isDetectionProvisional(d: Detection): boolean {
+  if (d.lifecycle?.generatedFromTemplate) return true;
+  return !d.lifecycle?.threatContext || !d.telemetry || !(d.testingSteps && d.testingSteps.length);
+}
+
 /** Identity-related AWS services shown under IAM in Detection Rules / Coverage */
 const IAM_BROWSE_SERVICES = new Set([
   "STS",

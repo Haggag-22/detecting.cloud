@@ -1,0 +1,4 @@
+[
+  "aws cloudtrail stop-logging --name management-trail",
+  "aws cloudtrail delete-trail --name management-trail"
+]

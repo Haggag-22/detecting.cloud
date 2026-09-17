@@ -1,0 +1,20 @@
+{
+  "id": "tech-dynamodb-deletion-protection-bypass",
+  "name": "DynamoDB Deletion Protection Disabled",
+  "shortName": "DDB Unprotect",
+  "description": "DynamoDB can be set so a table cannot be deleted until someone first turns off deletion protection. That extra click is meant to stop accidents. An attacker who plans to wipe the table turns protection off first, then deletes or empties it. Seeing protection disabled is the warning shot: the destructive call may follow seconds later. If nobody in change control asked for it, treat it as preparation to destroy data.",
+  "services": [
+    "DynamoDB"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-024"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "aws"
+}

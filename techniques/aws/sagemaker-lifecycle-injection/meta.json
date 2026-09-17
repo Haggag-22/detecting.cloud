@@ -1,0 +1,28 @@
+{
+  "id": "tech-sagemaker-lifecycle-injection",
+  "name": "SageMaker Lifecycle Config Injection",
+  "shortName": "SageMaker Lifecycle",
+  "description": "SageMaker notebook instances and training jobs can run lifecycle scripts at startup. An attacker with sagemaker:CreateNotebookInstance or sagemaker:UpdateNotebookInstance sets a lifecycle config that runs malicious code (e.g., to exfiltrate credentials or run reverse shell). The code runs with the notebook/training role's permissions. Required permissions are sagemaker:CreateNotebookInstance or sagemaker:UpdateNotebookInstance with a custom lifecycle config.",
+  "services": [
+    "SageMaker"
+  ],
+  "permissions": [
+    "sagemaker:CreateNotebookInstance",
+    "sagemaker:UpdateNotebookInstance"
+  ],
+  "detectionIds": [
+    "det-101",
+    "det-102",
+    "det-103",
+    "det-104",
+    "det-105"
+  ],
+  "mitigations": [
+    "Restrict lifecycle config",
+    "Audit notebook instances",
+    "Use approved lifecycle scripts"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws",
+  "detectionStrategy": "SageMaker lifecycle configs execute at notebook startup with root access and the notebook execution role's privileges. The strongest detections watch lifecycle config create/update events, notebook association events, and subsequent execution-related activity or sensitive AWS API usage."
+}

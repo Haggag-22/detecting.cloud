@@ -1,0 +1,30 @@
+{
+  "slug": "ec2-imds-to-s3-exfiltration",
+  "title": "EC2 IMDS to S3 Exfiltration",
+  "description": "This attack chain begins when an attacker achieves code execution on an EC2 instance, either through a compromised application, RCE vulnerability, or stolen SSH keys. Once on the instance, the attacker queries the Instance Metadata Service at 169.254.169.254 to retrieve the IAM role credentials attached to the instance. These temporary credentials are then used to assume a cross-account role that has S3 access, or to directly access S3 buckets if the instance role already has permissions. The attacker downloads sensitive objects from target buckets to complete the exfiltration. This path requires no prior AWS credentials; the attacker only needs a foothold on the instance.",
+  "severity": "Critical",
+  "objective": "exfiltration",
+  "tags": [
+    "EC2",
+    "IAM",
+    "STS",
+    "S3",
+    "IMDS",
+    "Data Exfiltration"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-imds-credential-theft",
+      "context": "Gain initial credentials by querying the EC2 metadata endpoint"
+    },
+    {
+      "techniqueId": "tech-assumerole-abuse",
+      "context": "Use stolen credentials to assume a role with S3 access"
+    },
+    {
+      "techniqueId": "tech-s3-data-download",
+      "context": "Exfiltrate sensitive objects from target S3 buckets"
+    }
+  ],
+  "cloudProvider": "aws"
+}

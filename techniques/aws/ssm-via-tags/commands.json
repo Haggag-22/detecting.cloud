@@ -1,0 +1,4 @@
+[
+  "aws ec2 create-tags --resources i-0abc123 --tags Key=SSMAccess,Value=true",
+  "aws ssm start-session --target i-0abc123"
+]

@@ -1,0 +1,4 @@
+[
+  "aws sts assume-role --role-arn arn:aws:iam::ACCOUNT:role/TargetRole --role-session-name attacker-session",
+  "aws sts get-caller-identity (with assumed role credentials)"
+]

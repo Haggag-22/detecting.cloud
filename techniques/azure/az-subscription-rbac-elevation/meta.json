@@ -1,0 +1,23 @@
+{
+  "id": "tech-az-subscription-rbac-elevation",
+  "name": "Subscription RBAC Elevation",
+  "shortName": "Sub RBAC",
+  "description": "Azure subscriptions have their own roles: Owner, Contributor, User Access Administrator. Those roles can create resources, change networking, and grant more roles. An attacker who promotes a principal at subscription scope can run the cloud bill and the workloads without being Global Admin in Entra. Watch for Owner/Contributor grants, especially from a new source IP or a new service principal. Subscription Owner is as serious as a domain admin for that bill.",
+  "services": [
+    "Azure Activity",
+    "Entra ID"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-119",
+    "az-120",
+    "az-054"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "azure"
+}

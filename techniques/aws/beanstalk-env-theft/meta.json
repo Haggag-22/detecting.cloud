@@ -1,0 +1,27 @@
+{
+  "id": "tech-beanstalk-env-theft",
+  "name": "Elastic Beanstalk Environment Credential Theft",
+  "shortName": "Beanstalk Env",
+  "description": "Elastic Beanstalk environment configurations store environment variables that may contain database credentials, API keys, or IAM credentials. An attacker with elasticbeanstalk:DescribeConfigurationSettings retrieves the configuration for an environment, including option settings that contain sensitive values. The RDS connection string and other secrets are often stored here. Required permission is elasticbeanstalk:DescribeConfigurationSettings. The attacker specifies the application and environment names.",
+  "services": [
+    "Elastic Beanstalk",
+    "IAM"
+  ],
+  "permissions": [
+    "elasticbeanstalk:DescribeConfigurationSettings"
+  ],
+  "detectionIds": [
+    "det-122",
+    "det-123",
+    "det-124",
+    "det-125"
+  ],
+  "mitigations": [
+    "Avoid secrets in env config",
+    "Use Secrets Manager",
+    "Restrict DescribeConfigurationSettings"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "aws",
+  "detectionStrategy": "Beanstalk environment credential theft is fundamentally a sensitive configuration read. The strongest detections watch for unusual configuration retrieval, broad enumeration behavior, and rapid follow-on privileged actions suggesting harvested credentials or secrets were used."
+}

@@ -1,0 +1,21 @@
+{
+  "id": "tech-az-identity-protection-anomalies",
+  "name": "Identity Protection Anomalous Sign-Ins",
+  "shortName": "IDP Anomaly",
+  "description": "Microsoft Entra ID Protection scores sign-ins and directory changes that look automated, impossible, or hopped across tenants. A high-severity anomaly means Microsoft already thinks the session or the user is risky: leaked password, unfamiliar properties, or browser hopping between companies. It is not a proof by itself, but it is a strong starting point for incident response. Privileged users with high-severity Identity Protection alerts should be contained first and explained second.",
+  "services": [
+    "Entra ID Protection"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-060",
+    "az-074"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "initial-access",
+  "cloudProvider": "azure"
+}

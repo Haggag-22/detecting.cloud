@@ -1,4 +1,4 @@
-title: Snapshot Made Public
+title: EBS Snapshot Attribute Modified
 status: experimental
 logsource:
   service: cloudtrail
@@ -7,4 +7,4 @@ detection:
     eventSource: ec2.amazonaws.com
     eventName: ModifySnapshotAttribute
   condition: selection
-level: critical
+level: medium

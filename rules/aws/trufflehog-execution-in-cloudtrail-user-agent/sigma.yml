@@ -20,7 +20,7 @@ logsource:
     service: cloudtrail
 detection:
     selection:
-        userAgent: 'TruffleHog'
+        userAgent|contains: 'TruffleHog'
     condition: selection
 falsepositives:
     - Legitimate use of TruffleHog by security teams for credential scanning.

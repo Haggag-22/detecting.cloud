@@ -1,0 +1,27 @@
+{
+  "id": "tech-public-snapshot-loot",
+  "name": "Public EBS Snapshot Loot",
+  "shortName": "Public Snapshot",
+  "description": "Organizations sometimes share EBS snapshots publicly for collaboration or backup. An attacker uses ec2:DescribeSnapshots to find snapshots with createVolumePermission for 'all' or specific accounts. They use ec2:CopySnapshot to copy the snapshot to their account, create a volume, attach and mount it, and extract data. Unencrypted snapshots expose all volume contents including credentials and application data. No permissions in the source account are required; only the ability to copy public snapshots in the attacker's account.",
+  "services": [
+    "EC2"
+  ],
+  "permissions": [
+    "ec2:CopySnapshot",
+    "ec2:DescribeSnapshots"
+  ],
+  "detectionIds": [
+    "det-021",
+    "det-085",
+    "det-086",
+    "det-087"
+  ],
+  "mitigations": [
+    "Avoid public snapshots",
+    "Encrypt all volumes",
+    "Use SCPs to block public sharing"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "aws",
+  "detectionStrategy": "Public snapshot loot has split visibility: the owner account can best detect the snapshot being made public (ModifySnapshotAttribute with Group=all). The consumer/attacker account can best detect the copy and rehydration chain (CopySnapshot, CreateVolume, AttachVolume)."
+}

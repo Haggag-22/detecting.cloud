@@ -1,0 +1,21 @@
+{
+  "id": "tech-gcp-sa-destruction",
+  "name": "GCP Service Account Disabled, Deleted, or Modified",
+  "shortName": "GCP SA Destroy",
+  "description": "Service accounts are how GCP workloads prove who they are. Disabling or deleting one can halt pipelines (impact) or lock operators out of automation they needed to respond. Modifying the account \u2014 adding keys, changing who can impersonate it \u2014 can also be persistence. The same object is used for lockout and for takeover. Disable/delete of privileged service accounts should match a decommission ticket.",
+  "services": [
+    "GCP IAM"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-023",
+    "gcp-024"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "gcp"
+}

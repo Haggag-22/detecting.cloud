@@ -1,0 +1,26 @@
+{
+  "id": "tech-security-tool-discovery",
+  "name": "Cloud Service and Security-Tool Discovery",
+  "shortName": "Security Recon",
+  "description": "Before they disable logging, attackers look around: which regions are on, whether GuardDuty exists, where CloudTrail writes, what the organization tree looks like. That reconnaissance is quiet and mostly read-only. It tells them where the cameras are so they can walk around them. A burst of Describe* and List* calls against security services from a new identity is casing the building, not doing ops.",
+  "services": [
+    "EC2",
+    "GuardDuty",
+    "SSM",
+    "CloudTrail"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-142",
+    "det-174",
+    "det-178",
+    "det-164"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "discovery",
+  "cloudProvider": "aws"
+}

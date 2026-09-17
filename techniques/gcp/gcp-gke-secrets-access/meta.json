@@ -1,0 +1,20 @@
+{
+  "id": "tech-gcp-gke-secrets-access",
+  "name": "GKE Secrets Modified or Deleted",
+  "shortName": "GKE Secrets",
+  "description": "Kubernetes secrets on GKE hold the same kinds of passwords and tokens as anywhere else. Modifying or deleting them can steal credentials or break the app so operators scramble. Read is theft. Delete is impact. Replace can be both: they copy the value, then put junk back. Secret access from a workload that never needed those secrets is the giveaway.",
+  "services": [
+    "GKE"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-022"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "gcp"
+}

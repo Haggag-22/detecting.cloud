@@ -1,7 +1,7 @@
 {
   "id": "az-119",
   "title": "Azure Subscription Permission Elevation Via ActivityLogs",
-  "description": "Detects when a user has been elevated to manage all Azure Subscriptions. This change should be investigated immediately if it isn't planned. This setting could allow an attacker access to Azure subscriptions in your environment.",
+  "description": "Detects when a user has been elevated to manage all Azure Subscriptions, recorded in Azure Activity Logs. Investigate immediately if unplanned.",
   "awsService": "Azure Activity",
   "relatedServices": [],
   "cloudProvider": "azure",

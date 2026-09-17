@@ -1,0 +1,24 @@
+{
+  "slug": "trust-backdoor-persistence",
+  "title": "Trust Policy Backdoor Persistence",
+  "description": "An attacker with iam:UpdateAssumeRolePolicy modifies a role's trust policy to add their own principal (e.g., the root of an attacker-controlled AWS account) as a trusted entity. Once the trust policy is updated, the attacker can assume the role from their account at any time using sts:AssumeRole. This creates a persistent backdoor that survives key rotation or remediation of the original compromise. The attacker maintains long-term cross-account access through the backdoored role.",
+  "severity": "Critical",
+  "objective": "persistence",
+  "tags": [
+    "IAM",
+    "Trust Policy",
+    "Persistence",
+    "Cross-Account"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-trust-policy-modification",
+      "context": "Add attacker account root to role trust policy"
+    },
+    {
+      "techniqueId": "tech-assumerole-abuse",
+      "context": "Assume the backdoored role from attacker account"
+    }
+  ],
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,5 @@
+[
+  "Run: aws iam create-open-id-connect-provider --url https://example.invalid --client-id-list sts.amazonaws.com --thumbprint-list 0000000000000000000000000000000000000000",
+  "Confirm CloudTrail captured the event.",
+  "Run the Sigma rule against the event."
+]

@@ -1,0 +1,19 @@
+{
+  "id": "tech-ecs-task-credential-theft",
+  "name": "ECS Task Role Credential Theft",
+  "shortName": "ECS Cred Theft",
+  "description": "ECS tasks receive IAM credentials via the task role. These are available inside the container at the metadata endpoint (169.254.170.2 for ECS, or the container-specific endpoint). An attacker with code execution in a container (e.g., via RCE, vulnerable application, or compromised image) can curl the metadata endpoint to retrieve the task role's temporary credentials. The credentials allow the attacker to perform any action the task role permits. No additional AWS permissions are required; the attacker only needs execution in the container.",
+  "services": [
+    "ECS",
+    "IAM"
+  ],
+  "permissions": [],
+  "detectionIds": [],
+  "mitigations": [
+    "Use least-privilege task roles",
+    "Restrict container capabilities",
+    "Monitor ECS task credential access"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "aws"
+}

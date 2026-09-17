@@ -1,0 +1,22 @@
+{
+  "id": "tech-gcp-firewall-vpn-tampering",
+  "name": "GCP VPC Firewall and VPN Tampering",
+  "shortName": "GCP Firewall",
+  "description": "VPC firewall rules and VPN tunnels are the doors in and out of a GCP project. Opening a rule or deleting a VPN can expose a database or drop a site-to-site link. Attackers open ingress for access, or kill VPN as disruption. Nothing about IAM has to change for this to work. 0.0.0.0/0 on administrative ports, and unexpected VPN deletion, are the loud changes.",
+  "services": [
+    "VPC Firewall",
+    "GCP Audit Logs"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-007",
+    "gcp-026"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "gcp"
+}

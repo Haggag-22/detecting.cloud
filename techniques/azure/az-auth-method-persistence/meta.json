@@ -1,0 +1,20 @@
+{
+  "id": "tech-az-auth-method-persistence",
+  "name": "Authentication Method Change",
+  "shortName": "Auth Method",
+  "description": "Authentication methods are the phone numbers, authenticator apps, and FIDO keys on an Entra user. Adding a method the attacker controls means they can pass MFA next time even if you reset the password. This is how a phishing kit turns a one-time code into lasting access. Users do add phones when they get a new device. Attackers add a second authenticator in the middle of the night from a new country. Method registration on privileged users from unusual locations is the high-value alert.",
+  "services": [
+    "Entra ID"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-044"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "azure"
+}

@@ -1,0 +1,33 @@
+{
+  "slug": "lambda-persistence-backdoor",
+  "title": "Lambda Persistence Backdoor",
+  "description": "The attacker establishes persistent access by deploying a backdoor Lambda function with a privileged execution role. The Lambda code is designed to execute on every invocation (e.g., creating backdoor users or exfiltrating data). The attacker then configures EventBridge rules or S3 event notifications to trigger the Lambda automatically on a schedule or when specific events occur. Finally, the attacker disables or modifies CloudTrail to reduce the likelihood of detection. This creates a self-sustaining backdoor that continues to run even after the initial compromise is remediated.",
+  "severity": "High",
+  "objective": "persistence",
+  "tags": [
+    "Lambda",
+    "IAM",
+    "CloudTrail",
+    "Persistence",
+    "Defense Evasion"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-passrole-abuse",
+      "context": "Pass a privileged role to the backdoor Lambda function"
+    },
+    {
+      "techniqueId": "tech-lambda-code-execution",
+      "context": "Deploy malicious code that executes on every trigger"
+    },
+    {
+      "techniqueId": "tech-lambda-event-trigger",
+      "context": "Configure CloudWatch Events or S3 triggers for automatic execution"
+    },
+    {
+      "techniqueId": "tech-cloudtrail-disable",
+      "context": "Disable CloudTrail logging to evade detection"
+    }
+  ],
+  "cloudProvider": "aws"
+}

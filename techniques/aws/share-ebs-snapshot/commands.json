@@ -1,0 +1,3 @@
+[
+  "aws ec2 modify-snapshot-attribute --snapshot-id snap-xxx --attribute createVolumePermission --operation-type add --user-ids 999888777666"
+]

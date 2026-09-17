@@ -1,0 +1,20 @@
+{
+  "id": "tech-passrole-glue",
+  "name": "PassRole via Glue Dev Endpoint",
+  "shortName": "PassRole Glue",
+  "description": "An attacker with iam:PassRole and glue:CreateDevEndpoint creates a Glue development endpoint, which is an EC2 instance that runs the Glue environment. The endpoint has an IAM role attached. The attacker uses glue:UpdateDevEndpoint to add their SSH public key to the endpoint. They then SSH into the endpoint and query the Instance Metadata Service to retrieve the role's credentials. Required permissions are iam:PassRole, glue:CreateDevEndpoint, and glue:UpdateDevEndpoint.",
+  "services": [
+    "IAM",
+    "Glue"
+  ],
+  "permissions": [
+    "iam:PassRole",
+    "glue:CreateDevEndpoint"
+  ],
+  "detectionIds": [
+    "det-154"
+  ],
+  "mitigations": [],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

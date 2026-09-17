@@ -1,0 +1,27 @@
+{
+  "id": "tech-eks-access-entry",
+  "name": "EKS Create Access Entry",
+  "shortName": "EKS Access",
+  "description": "EKS access entries (replacing aws-auth ConfigMap) control which IAM principals can access the cluster. An attacker with eks:CreateAccessEntry and eks:AssociateAccessPolicy creates an access entry for their principal and associates a policy that grants cluster access (e.g., cluster-admin). They can then use kubectl or the Kubernetes API with their IAM credentials. Required permissions are eks:CreateAccessEntry and eks:AssociateAccessPolicy.",
+  "services": [
+    "EKS"
+  ],
+  "permissions": [
+    "eks:CreateAccessEntry",
+    "eks:AssociateAccessPolicy"
+  ],
+  "detectionIds": [
+    "det-096",
+    "det-097",
+    "det-099",
+    "det-100"
+  ],
+  "mitigations": [
+    "Restrict CreateAccessEntry",
+    "Audit access entries",
+    "Use IRSA with least-privilege"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws",
+  "detectionStrategy": "EKS access entries are a cluster access control surface that can replace aws-auth-style access control. The most useful detections combine CreateAccessEntry with AssociateAccessPolicy, especially when the target principal is suspicious, the policy is broad, or the actor is not an expected EKS administrator."
+}

@@ -1,0 +1,16 @@
+{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "IAMUser",
+    "arn": "arn:aws:iam::111111111111:user/mgmt-admin"
+  },
+  "eventTime": "2024-04-10T13:45:01Z",
+  "eventSource": "organizations.amazonaws.com",
+  "eventName": "DetachPolicy",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "policyId": "p-abcdef1234",
+    "targetId": "ou-root-prodaccounts"
+  }
+}

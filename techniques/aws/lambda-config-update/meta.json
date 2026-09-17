@@ -1,0 +1,19 @@
+{
+  "id": "tech-lambda-config-update",
+  "name": "Lambda Configuration Update",
+  "shortName": "Lambda Config",
+  "description": "An attacker with lambda:UpdateFunctionConfiguration or lambda:UpdateFunctionCode can modify a Lambda function to steal credentials or execute malicious code. UpdateFunctionConfiguration can add environment variables that exfiltrate data, change the function's role, or modify VPC settings. UpdateFunctionCode replaces the function's code with attacker-controlled code that runs with the function's IAM role. The attacker then invokes the function to execute their code. Required permissions are lambda:UpdateFunctionConfiguration and/or lambda:UpdateFunctionCode.",
+  "services": [
+    "Lambda"
+  ],
+  "permissions": [
+    "lambda:UpdateFunctionConfiguration",
+    "lambda:UpdateFunctionCode"
+  ],
+  "detectionIds": [
+    "det-165"
+  ],
+  "mitigations": [],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

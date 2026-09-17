@@ -1,0 +1,26 @@
+{
+  "id": "tech-s3-data-download",
+  "name": "S3 Data Exfiltration",
+  "shortName": "S3 Exfil",
+  "description": "An attacker with s3:GetObject and s3:ListBucket can download objects from S3 buckets. After obtaining credentials (via IMDS, stolen keys, or assumed roles), the attacker lists bucket contents and downloads sensitive objects. High-volume or unusual GetObject patterns are indicators of exfiltration. Required permissions are s3:GetObject to retrieve objects and s3:ListBucket to enumerate bucket contents. Cross-account access may also be achieved via bucket policies that grant access to external principals.",
+  "services": [
+    "S3",
+    "IAM"
+  ],
+  "permissions": [
+    "s3:GetObject",
+    "s3:ListBucket"
+  ],
+  "detectionIds": [
+    "det-003",
+    "det-017",
+    "det-018"
+  ],
+  "mitigations": [
+    "Enable S3 data event logging in CloudTrail",
+    "Use VPC endpoints to restrict S3 access paths",
+    "Implement S3 Block Public Access at the account level"
+  ],
+  "category": "exfiltration",
+  "cloudProvider": "aws"
+}

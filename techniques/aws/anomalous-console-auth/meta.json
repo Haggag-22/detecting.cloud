@@ -1,0 +1,24 @@
+{
+  "id": "tech-anomalous-console-auth",
+  "name": "Anomalous Console Authentication",
+  "shortName": "Console Auth",
+  "description": "The AWS Management Console is the web login for the account. When someone signs in from a country the user has never used, skips MFA, fails several times, or hops across many IP addresses in minutes, that often means a stolen password or a man-in-the-middle kit capturing the session. The attacker is not exploiting an AWS bug; they are using the real login page with credentials they obtained elsewhere. A single odd login can be travel. The combination of unusual location, missing MFA, and a burst of failures is what makes this look like theft rather than a tired employee.",
+  "services": [
+    "CloudTrail",
+    "IAM"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-145",
+    "det-183",
+    "det-184",
+    "det-199"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "initial-access",
+  "cloudProvider": "aws"
+}

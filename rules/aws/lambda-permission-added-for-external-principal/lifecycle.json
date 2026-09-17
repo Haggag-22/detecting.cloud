@@ -1,0 +1,65 @@
+{
+  "whyItMatters": "Detects lambda:AddPermission, which grants invoke rights via resource policy. This is the control-plane action for a Lambda resource-policy backdoor.",
+  "threatContext": {
+    "attackerBehavior": "Detects lambda:AddPermission, which grants invoke rights via resource policy. This is the control-plane action for a Lambda resource-policy backdoor.",
+    "whyItMatters": "Lambda Permission Added for External Principal is a high-signal control-plane action with no prior Sigma coverage in this catalog.",
+    "riskAndImpact": "If missed, the technique node stays dark and the attacker action is invisible."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.arn",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must log lambda.amazonaws.com AddPermission20150331."
+    ],
+    "limitations": [
+      "Management events only; data-plane follow-on is out of scope for this rule."
+    ]
+  },
+  "dataModeling": {
+    "rawToNormalized": [
+      {
+        "rawPath": "eventName",
+        "normalizedPath": "event.action"
+      },
+      {
+        "rawPath": "userIdentity.arn",
+        "normalizedPath": "user.arn"
+      }
+    ],
+    "exampleNormalizedEvent": "{\n  \"event\": {\n    \"action\": \"AddPermission20150331\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/attacker\"\n  }\n}"
+  },
+  "enrichment": [
+    {
+      "dimension": "Approved actor",
+      "description": "Compare the caller to identity and platform-admin inventories.",
+      "examples": [
+        "identity platform pipeline",
+        "break-glass admin"
+      ],
+      "falsePositiveReduction": "Suppress known IdP or CI roles after review."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "Fire on successful AddPermission20150331 from lambda.amazonaws.com.",
+    "conditions": [
+      "eventSource = lambda.amazonaws.com",
+      "eventName = AddPermission20150331"
+    ],
+    "whenToFire": "On each matching successful CloudTrail event."
+  },
+  "simulationCommand": "aws lambda add-permission --function-name TargetFunction --statement-id BackdoorAccess --action lambda:InvokeFunction --principal 999888777666",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "low-to-medium depending on platform automation",
+    "expectedVolume": "low",
+    "productionReadiness": "experimental"
+  }
+}

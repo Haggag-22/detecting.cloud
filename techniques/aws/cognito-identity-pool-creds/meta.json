@@ -1,0 +1,16 @@
+{
+  "id": "tech-cognito-identity-pool-creds",
+  "name": "Cognito Identity Pool Credential Access",
+  "shortName": "Identity Pool",
+  "description": "Cognito Identity Pools can be configured to allow unauthenticated access, granting temporary AWS credentials to anyone who requests them. The attacker calls GetCredentialsForIdentity (or the equivalent in the SDK) with an unauthenticated identity or a weakly authenticated one. The returned credentials are scoped to an IAM role. If that role is overprivileged (e.g., has S3 read, Lambda invoke), the attacker gains access without prior AWS credentials. Required: ability to call the Cognito Identity Pool API (often from a public app); no AWS permissions if unauthenticated access is enabled.",
+  "services": [
+    "Cognito"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-204"
+  ],
+  "mitigations": [],
+  "category": "credential-access",
+  "cloudProvider": "aws"
+}

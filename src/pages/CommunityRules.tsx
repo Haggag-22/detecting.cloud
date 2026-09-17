@@ -44,7 +44,7 @@ export default function CommunityRules() {
 
   return (
     <Layout>
-      <div className="container py-10">
+      <div className="container">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
           <div>
             <PageTitleWithIcon team="blue" icon={Bug}>

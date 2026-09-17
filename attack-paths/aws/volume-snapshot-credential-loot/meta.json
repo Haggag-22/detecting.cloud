@@ -1,0 +1,19 @@
+{
+  "slug": "volume-snapshot-credential-loot",
+  "title": "Volume Snapshot Credential Loot",
+  "description": "An attacker with ec2:CreateSnapshot and ec2:ModifySnapshotAttribute creates a snapshot of an EC2 instance's root or data volume. The snapshot is shared with the attacker's account (or made temporarily public), then copied and attached as a volume to an attacker-controlled instance. The attacker mounts the volume and extracts credentials from the filesystem (e.g., ~/.aws/credentials, application config files) or other sensitive data. Unencrypted volumes are especially vulnerable.",
+  "severity": "High",
+  "objective": "credential-access",
+  "tags": [
+    "EC2",
+    "Snapshot",
+    "Credential Access"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-volume-snapshot-loot",
+      "context": "Snapshot volume, copy, mount, and extract credentials"
+    }
+  ],
+  "cloudProvider": "aws"
+}

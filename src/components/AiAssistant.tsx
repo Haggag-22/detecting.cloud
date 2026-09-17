@@ -82,7 +82,12 @@ export function AiAssistant() {
 
   // Build knowledge base once
   useEffect(() => {
-    knowledgeRef.current = buildKnowledgeBase();
+    try {
+      knowledgeRef.current = buildKnowledgeBase();
+    } catch (err) {
+      console.error("Failed to build AI knowledge base", err);
+      knowledgeRef.current = "";
+    }
   }, []);
 
   // Auto-scroll

@@ -1,0 +1,21 @@
+{
+  "id": "tech-route53-domain-hijack",
+  "name": "Route 53 Domain Hijack / Transfer",
+  "shortName": "R53 Transfer",
+  "description": "Route 53 can hold the company's public domain names. If transfer lock is turned off and the domain is sent to another AWS account, the attacker can point email and websites wherever they want. That is how they intercept password resets or stand up a fake login page on your real hostname. Employees still type the correct URL. The DNS behind it now belongs to someone else. Domain transfers and lock changes should be among the rarest network changes you allow.",
+  "services": [
+    "Route 53"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-169",
+    "det-170"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "aws"
+}

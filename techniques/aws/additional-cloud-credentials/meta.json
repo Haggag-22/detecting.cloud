@@ -1,0 +1,20 @@
+{
+  "id": "tech-additional-cloud-credentials",
+  "name": "Additional Cloud Credentials",
+  "shortName": "Extra Creds",
+  "description": "AWS lets administrators add extra ways to log in besides a user's password or access keys: an SSH public key on a Linux instance, a service-specific credential, or an old access key that was turned back on. An attacker who already controls an IAM user or role can add one of these so they still have a way in after the original password is reset. This is different from creating a brand-new access key. It is a quieter way to keep a foothold on an identity that already exists.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-157"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "aws"
+}

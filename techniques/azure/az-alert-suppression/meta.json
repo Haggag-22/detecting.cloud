@@ -1,0 +1,20 @@
+{
+  "id": "tech-az-alert-suppression",
+  "name": "Azure Alert Suppression",
+  "shortName": "Suppress Alerts",
+  "description": "Azure Monitor and Microsoft Defender let you suppress alerts so noisy rules stop paging. An attacker who creates a suppression rule first is asking the platform not to wake you when they act next. The suppression often looks like a tuning change. If a new suppression appears and then privileged activity follows, the suppression was the setup. Only a small ops group should be allowed to mute detections.",
+  "services": [
+    "Azure Activity"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-121"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "azure"
+}

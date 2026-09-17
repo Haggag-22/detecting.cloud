@@ -1,0 +1,22 @@
+{
+  "id": "tech-az-service-principal-lifecycle",
+  "name": "Service Principal Lifecycle Abuse",
+  "shortName": "SP Lifecycle",
+  "description": "Service principals are the non-human identities apps use. Creating one, adding an owner, or deleting one you used as a backdoor are all ways to persist without a person logging in. They do not get tired, they do not use MFA by default, and they are easy to forget in a review. Unexpected service-principal create or owner add, especially with Graph permissions, is a backdoor until an app owner claims it.",
+  "services": [
+    "Entra ID Apps"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-102",
+    "az-117",
+    "az-118"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "azure"
+}

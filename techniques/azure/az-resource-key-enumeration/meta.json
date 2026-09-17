@@ -1,0 +1,20 @@
+{
+  "id": "tech-az-resource-key-enumeration",
+  "name": "Azure Resource Key Enumeration (listKeys)",
+  "shortName": "listKeys",
+  "description": "Many Azure services have access keys you can list with a management API: storage, Cosmos DB, Cognitive Services, and others. Those keys are often full control of the data plane, like a password for the resource. Attackers call listKeys to harvest them, then talk to storage or databases directly. This is not a burst of VM creates. It is reading secrets that live on the resource. listKeys from a new identity is credential theft.",
+  "services": [
+    "Azure Activity"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-116"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "azure"
+}

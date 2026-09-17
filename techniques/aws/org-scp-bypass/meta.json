@@ -1,0 +1,25 @@
+{
+  "id": "tech-org-scp-bypass",
+  "name": "Organizations SCP Modification",
+  "shortName": "SCP Bypass",
+  "description": "An attacker with organizations:DetachPolicy, organizations:UpdatePolicy, or organizations:DeletePolicy in the management account can remove or weaken Service Control Policies (SCPs). SCPs apply guardrails to member accounts; removing them enables previously blocked actions (e.g., disabling CloudTrail, creating unrestricted IAM users) across the organization. Required permissions are in the management account: organizations:DetachPolicy to detach an SCP from an OU or account, or organizations:UpdatePolicy to modify the policy document.",
+  "services": [
+    "Organizations",
+    "IAM"
+  ],
+  "permissions": [
+    "organizations:DetachPolicy",
+    "organizations:UpdatePolicy",
+    "organizations:DeletePolicy"
+  ],
+  "detectionIds": [
+    "det-030"
+  ],
+  "mitigations": [
+    "Use a dedicated management account with strict MFA",
+    "Alert on any SCP modifications immediately",
+    "Implement break-glass procedures for SCP changes"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

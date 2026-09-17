@@ -1,0 +1,20 @@
+{
+  "id": "tech-az-aks-event-deletion",
+  "name": "AKS Kubernetes Event Deletion",
+  "shortName": "AKS Events",
+  "description": "Kubernetes records important cluster events \u2014 crashes, deployments, permission changes \u2014 so operators can see what happened. On AKS, an attacker with rights to delete those events is wiping the cluster's short-term memory. The workloads may still be running a backdoor; you just cannot see the breadcrumb. Event deletion is almost never a normal admin task. Treat it as covering tracks.",
+  "services": [
+    "AKS"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-084"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "azure"
+}

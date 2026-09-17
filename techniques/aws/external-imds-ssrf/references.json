@@ -1,0 +1,10 @@
+[
+  {
+    "source": "Hacking the Cloud",
+    "url": "https://hackingthe.cloud/aws/exploitation/ec2-metadata-ssrf/"
+  },
+  {
+    "source": "CloudGoat",
+    "url": "https://github.com/RhinoSecurityLabs/cloudgoat/blob/master/cloudgoat/scenarios/aws/cloud_breach_s3.md"
+  }
+]

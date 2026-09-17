@@ -42,7 +42,7 @@ const Index = () => {
   };
 
   return (
-    <Layout>
+    <Layout padded={false}>
       <section className="relative overflow-hidden min-h-screen flex items-center">
         <div className="absolute inset-0 grid-pattern opacity-30" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-gradient-primary opacity-[0.04] blur-3xl" />
@@ -94,7 +94,7 @@ const Index = () => {
               </Link>
               <Link to="/attack-paths">
                 <Button size="lg" variant="outline" className="border-primary/30 text-primary hover:bg-primary/10">
-                  Explore Attack Paths
+                  Explore Attack Chains
                 </Button>
               </Link>
             </div>
@@ -107,8 +107,8 @@ const Index = () => {
               className="flex flex-wrap items-center justify-center gap-6 mt-10 text-sm text-muted-foreground"
             >
               {[
-                { icon: Crosshair, label: "Techniques", count: techniques.length },
-                { icon: Route, label: "Attack Paths", count: attackPaths.length },
+                { icon: Crosshair, label: "Attack Techniques", count: techniques.length },
+                { icon: Route, label: "Attack Chains", count: attackPaths.length },
                 { icon: Shield, label: "Detection Rules", count: detections.length },
                 { icon: Server, label: "AWS Services", count: new Set(techniques.flatMap(t => t.services)).size },
               ].map((stat) => (

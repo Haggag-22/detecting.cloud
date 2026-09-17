@@ -1,0 +1,23 @@
+{
+  "id": "tech-get-session-token-abuse",
+  "name": "STS GetSessionToken Abuse",
+  "shortName": "Session Token",
+  "description": "STS GetSessionToken turns a long-term access key (and optional MFA) into a temporary session. Attackers use it to get credentials that last hours and look like a normal CLI session. It is not the same as GetFederationToken, which is meant for federated users. A human using the CLI may call this legitimately. A key that never used MFA suddenly minting long sessions from a new IP is the suspicious pattern. Rotate the long-term key if the session was not expected.",
+  "services": [
+    "IAM",
+    "STS"
+  ],
+  "permissions": [
+    "sts:GetSessionToken"
+  ],
+  "detectionIds": [
+    "det-179"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "aws"
+}
