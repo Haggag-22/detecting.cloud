@@ -18,6 +18,7 @@ import CommunityRules from "./pages/CommunityRules";
 import AdminSubscribers from "./pages/AdminSubscribers";
 import NotFound from "./pages/NotFound";
 import { PageErrorBoundary } from "@/components/PageErrorBoundary";
+import { Seo } from "@/components/Seo";
 
 const queryClient = new QueryClient();
 
@@ -27,6 +28,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <Seo />
         <PageErrorBoundary>
           <Routes>
             <Route path="/" element={<Index />} />

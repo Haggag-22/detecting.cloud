@@ -1,4 +1,5 @@
 import { createRoot } from "react-dom/client";
+import { HelmetProvider } from "react-helmet-async";
 import App from "./App.tsx";
 import "./index.css";
 
@@ -13,7 +14,11 @@ function showBootError(err: unknown) {
 }
 
 try {
-  createRoot(rootEl).render(<App />);
+  createRoot(rootEl).render(
+    <HelmetProvider>
+      <App />
+    </HelmetProvider>,
+  );
 } catch (err) {
   showBootError(err);
 }

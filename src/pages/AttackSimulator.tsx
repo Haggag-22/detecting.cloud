@@ -133,7 +133,7 @@ export default function AttackSimulator() {
         {/* Attack Path Detection Summary */}
         <Card className="mb-8 border-border/50">
           <CardHeader className="py-4">
-            <CardTitle className="text-base font-medium">Attack Detection Coverage</CardTitle>
+            <h2 className="text-base font-medium leading-none tracking-tight">Attack Detection Coverage</h2>
           </CardHeader>
           <CardContent className="pt-0">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
@@ -449,10 +449,10 @@ export default function AttackSimulator() {
                 >
                   <Card>
                     <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
+                      <h2 className="flex items-center gap-2 text-2xl font-semibold leading-none tracking-tight">
                         <AlertTriangle className="h-5 w-5 text-primary" />
                         Simulation Complete
-                      </CardTitle>
+                      </h2>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="grid grid-cols-3 gap-4">
