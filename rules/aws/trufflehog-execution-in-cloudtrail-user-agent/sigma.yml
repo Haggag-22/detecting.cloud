@@ -9,8 +9,6 @@ references:
     - https://www.rapid7.com/blog/post/tr-crimson-collective-a-new-threat-group-observed-operating-in-the-cloud/
     - https://attack.mitre.org/detectionstrategies/DET0234/
     - https://attack.mitre.org/detectionstrategies/DET0430/
-author: Swachchhanda Shrawan Poudel (Nextron Systems)
-date: 2025-10-21
 tags:
     - attack.credential-access
     - attack.t1555

@@ -9,9 +9,6 @@ references:
     - https://attack.mitre.org/detectionstrategies/DET0338/
     - https://attack.mitre.org/detectionstrategies/DET0345/
     - https://attack.mitre.org/detectionstrategies/DET0560/
-author: Austin Songer
-date: 2021-09-22
-modified: 2022-12-18
 tags:
     - attack.initial-access
     - attack.lateral-movement

@@ -5,8 +5,6 @@ description: Detects sign-ins from new countries. The detection considers past a
 references:
     - https://learn.microsoft.com/en-us/entra/id-protection/concept-identity-protection-risks#new-country
     - https://learn.microsoft.com/en-us/entra/architecture/security-operations-user-accounts#unusual-sign-ins
-author: Mark Morowczynski '@markmorow', Gloria Lee, '@gleeiamglo'
-date: 2023-09-03
 tags:
     - attack.stealth
     - attack.t1078

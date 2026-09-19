@@ -4,8 +4,6 @@ status: test
 description: Detect when a user has reset their password in Azure AD
 references:
     - https://learn.microsoft.com/en-us/entra/architecture/security-operations-privileged-accounts
-author: YochanaHenderson, '@Yochana-H'
-date: 2022-08-03
 tags:
     - attack.privilege-escalation
     - attack.initial-access

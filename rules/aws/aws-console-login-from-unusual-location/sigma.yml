@@ -15,8 +15,6 @@ references:
     - https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-event-reference-aws-console-sign-in-events.html
     - https://attack.mitre.org/techniques/T1078/004/
     - https://attack.mitre.org/detectionstrategies/DET0546/
-author: SOF-ELK AWS ATT&CK Coverage
-date: 2026-07-15
 tags:
     - attack.initial-access
     - attack.persistence

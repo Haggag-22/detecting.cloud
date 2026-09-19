@@ -5,8 +5,6 @@ description: |
     Detects creation or update of SageMaker notebook lifecycle configurations that can execute code at notebook startup.
 references:
     - https://detecting.cloud/detection-engineering?rule=det-101
-author: Detecting.Cloud / SOF-ELK
-date: 2026-07-17
 tags:
     - attack.persistence
     - attack.t1525

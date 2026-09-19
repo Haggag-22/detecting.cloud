@@ -4,8 +4,6 @@ status: test
 description: Detects when an end user consents to an application
 references:
     - https://learn.microsoft.com/en-us/entra/architecture/security-operations-applications#end-user-consent
-author: Bailey Bercik '@baileybercik', Mark Morowczynski '@markmorow'
-date: 2022-07-28
 tags:
     - attack.credential-access
     - attack.t1528

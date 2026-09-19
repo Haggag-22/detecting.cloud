@@ -4,8 +4,6 @@ status: test
 description: Identifies when a privilege role can be activated without performing mfa.
 references:
     - https://learn.microsoft.com/en-us/entra/id-governance/privileged-identity-management/pim-how-to-configure-security-alerts#roles-dont-require-multi-factor-authentication-for-activation
-author: Mark Morowczynski '@markmorow', Gloria Lee, '@gleeiamglo'
-date: 2023-09-14
 tags:
     - attack.initial-access
     - attack.stealth

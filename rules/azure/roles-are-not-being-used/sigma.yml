@@ -4,8 +4,6 @@ status: test
 description: Identifies when a user has been assigned a privilege role and are not using that role.
 references:
     - https://learn.microsoft.com/en-us/entra/id-governance/privileged-identity-management/pim-how-to-configure-security-alerts#administrators-arent-using-their-privileged-roles
-author: Mark Morowczynski '@markmorow', Gloria Lee, '@gleeiamglo'
-date: 2023-09-14
 tags:
     - attack.initial-access
     - attack.stealth

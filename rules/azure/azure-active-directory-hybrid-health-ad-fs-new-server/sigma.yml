@@ -7,9 +7,6 @@ description: |
     This can be done programmatically via HTTP requests to Azure.
 references:
     - https://o365blog.com/post/hybridhealthagent/
-author: Roberto Rodriguez (Cyb3rWard0g), OTR (Open Threat Research), MSTIC
-date: 2021-08-26
-modified: 2023-10-11
 tags:
     - attack.defense-impairment
     - attack.t1578

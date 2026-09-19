@@ -6,8 +6,6 @@ description: |
 references:
     - https://attack.mitre.org/techniques/T1036/010/
     - https://attack.mitre.org/detectionstrategies/DET0383/
-author: SOF-ELK AWS ATT&CK Coverage
-date: 2026-07-15
 tags:
     - attack.stealth
     - attack.t1036.010

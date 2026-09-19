@@ -8,9 +8,6 @@ references:
     - https://attack.mitre.org/detectionstrategies/DET0185/
     - https://attack.mitre.org/detectionstrategies/DET0338/
     - https://attack.mitre.org/detectionstrategies/DET0345/
-author: Austin Songer @austinsonger
-date: 2021-07-24
-modified: 2022-10-09
 tags:
     - attack.lateral-movement
     - attack.privilege-escalation

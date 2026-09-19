@@ -4,9 +4,6 @@ status: test
 description: Identifies user login with multifactor authentication failures, which might be an indication an attacker has the password for the account but can't pass the MFA challenge.
 references:
     - https://learn.microsoft.com/en-us/entra/architecture/security-operations-privileged-accounts
-author: AlertIQ
-date: 2021-10-10
-modified: 2022-12-18
 tags:
     - attack.privilege-escalation
     - attack.persistence

@@ -7,8 +7,6 @@ description: |
 references:
     - https://learn.microsoft.com/en-us/entra/id-protection/howto-identity-protection-configure-mfa-policy
     - https://learn.microsoft.com/en-us/entra/identity/monitoring-health/reference-audit-activities
-author: Harjot Singh (@cyb3rjy0t)
-date: 2024-08-13
 tags:
     - attack.persistence
 logsource:

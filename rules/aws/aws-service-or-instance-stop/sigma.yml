@@ -6,8 +6,6 @@ description: |
 references:
     - https://attack.mitre.org/techniques/T1489/
     - https://attack.mitre.org/detectionstrategies/DET0021/
-author: SOF-ELK AWS ATT&CK Coverage
-date: 2026-07-15
 tags:
     - attack.impact
     - attack.t1489

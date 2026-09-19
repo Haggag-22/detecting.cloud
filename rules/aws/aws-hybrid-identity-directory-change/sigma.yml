@@ -7,8 +7,6 @@ references:
     - https://attack.mitre.org/techniques/T1556/007/
     - https://attack.mitre.org/detectionstrategies/DET0104/
     - https://attack.mitre.org/detectionstrategies/DET0293/
-author: SOF-ELK AWS ATT&CK Coverage
-date: 2026-07-15
 tags:
     - attack.credential-access
     - attack.defense-impairment

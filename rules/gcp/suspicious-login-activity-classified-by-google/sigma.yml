@@ -8,8 +8,6 @@ references:
     - https://developers.google.com/workspace/admin/reports/v1/appendix/activity/login#suspicious_login
     - https://developers.google.com/workspace/admin/reports/v1/appendix/activity/login#suspicious_login_less_secure_app
     - https://developers.google.com/workspace/admin/reports/v1/appendix/activity/login#suspicious_programmatic_login
-author: Tom Kluter
-date: 2026-04-28
 tags:
     - attack.initial-access
     - attack.privilege-escalation

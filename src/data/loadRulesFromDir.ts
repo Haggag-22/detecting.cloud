@@ -4,6 +4,7 @@ import type {
   RuleFormats,
   TelemetrySource,
 } from "./detectionTypes";
+import { stripSigmaAttribution } from "@/lib/sigma/stripMetadata";
 
 type MetaFile = Omit<Detection, "rules" | "telemetry" | "investigationSteps" | "testingSteps" | "lifecycle">;
 
@@ -92,7 +93,7 @@ function lookup<T>(map: Record<string, T>, dir: string, file: string): T | undef
 function buildRules(dir: string): RuleFormats {
   const rules: RuleFormats = {};
   const sigma = lookup(sigmaFiles, dir, "sigma.yml");
-  if (sigma) rules.sigma = sigma.trimEnd();
+  if (sigma) rules.sigma = stripSigmaAttribution(sigma).trimEnd();
   const splunk = lookup(splunkFiles, dir, "formats/splunk.txt");
   if (splunk) rules.splunk = splunk.trimEnd();
   const cloudtrail = lookup(cloudtrailFiles, dir, "formats/cloudtrail.sql");

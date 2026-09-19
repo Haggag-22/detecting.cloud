@@ -5,8 +5,6 @@ description: |
     Detects the deployment of workloads that are deployed by using the break-glass flag to override Binary Authorization controls.
 references:
     - https://cloud.google.com/binary-authorization
-author: Bryan Lim
-date: 2024-01-12
 tags:
     - attack.privilege-escalation
     - attack.t1548

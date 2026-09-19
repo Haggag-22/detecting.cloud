@@ -7,8 +7,6 @@ references:
     - https://attack.mitre.org/techniques/T1548/005/
     - https://attack.mitre.org/detectionstrategies/DET0345/
     - https://attack.mitre.org/detectionstrategies/DET0393/
-author: SOF-ELK AWS ATT&CK Coverage
-date: 2026-07-15
 tags:
     - attack.privilege-escalation
     - attack.t1548

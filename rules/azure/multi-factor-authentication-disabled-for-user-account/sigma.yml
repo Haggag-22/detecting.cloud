@@ -6,8 +6,6 @@ description: |
     Threat actors were seen disabling multi factor authentication for users in order to maintain or achieve access to the account. Also see in SIM Swap attacks.
 references:
     - https://www.sans.org/blog/defending-against-scattered-spider-and-the-com-with-cybercrime-intelligence/
-author: Harjot Singh (@cyb3rjy0t)
-date: 2024-08-21
 tags:
     - attack.credential-access
     - attack.persistence

@@ -5,9 +5,6 @@ description: Detects  when a firewall rule is modified or deleted in Google Clou
 references:
     - https://cloud.google.com/kubernetes-engine/docs/how-to/audit-logging
     - https://developers.google.com/resources/api-libraries/documentation/compute/v1/java/latest/com/google/api/services/compute/Compute.Firewalls.html
-author: Austin Songer @austinsonger
-date: 2021-08-13
-modified: 2022-10-09
 tags:
     - attack.defense-impairment
     - attack.t1685

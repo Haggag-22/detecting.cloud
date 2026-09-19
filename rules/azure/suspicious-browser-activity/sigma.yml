@@ -5,8 +5,6 @@ description: Indicates anomalous behavior based on suspicious sign-in activity a
 references:
     - https://learn.microsoft.com/en-us/entra/id-protection/concept-identity-protection-risks#suspicious-browser
     - https://learn.microsoft.com/en-us/entra/architecture/security-operations-user-accounts#unusual-sign-ins
-author: Mark Morowczynski '@markmorow', Gloria Lee, '@gleeiamglo'
-date: 2023-09-03
 tags:
     - attack.stealth
     - attack.t1078
