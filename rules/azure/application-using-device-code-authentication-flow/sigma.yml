@@ -1,5 +1,4 @@
 title: Application Using Device Code Authentication Flow
-id: 248649b7-d64f-46f0-9fb2-a52774166fb5
 status: test
 description: |
     Device code flow is an OAuth 2.0 protocol flow specifically for input constrained devices and is not used in all environments.

@@ -1,5 +1,4 @@
 title: Google Workspace Granted Domain API Access
-id: 04e2a23a-9b29-4a5c-be3a-3542e3f982ba
 status: test
 description: Detects when an API access service account is granted domain authority.
 references:

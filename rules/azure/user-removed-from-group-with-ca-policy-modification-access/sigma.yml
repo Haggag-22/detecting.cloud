@@ -1,5 +1,4 @@
 title: User Removed From Group With CA Policy Modification Access
-id: 665e2d43-70dc-4ccc-9d27-026c9dd7ed9c
 status: test
 description: Monitor and alert on group membership removal of groups that have CA policy modification access
 references:

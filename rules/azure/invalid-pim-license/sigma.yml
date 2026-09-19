@@ -1,5 +1,4 @@
 title: Invalid PIM License
-id: 58af08eb-f9e1-43c8-9805-3ad9b0482bd8
 status: test
 description: Identifies when an organization doesn't have the proper license for PIM and is out of compliance.
 references:

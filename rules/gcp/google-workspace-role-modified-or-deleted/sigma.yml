@@ -1,5 +1,4 @@
 title: Google Workspace Role Modified or Deleted
-id: 6aef64e3-60c6-4782-8db3-8448759c714e
 status: test
 description: Detects when an a role is modified or deleted in Google Workspace.
 references:

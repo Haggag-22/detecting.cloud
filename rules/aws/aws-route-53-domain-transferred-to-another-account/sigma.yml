@@ -1,5 +1,4 @@
 title: AWS Route 53 Domain Transferred to Another Account
-id: b056de1a-6e6e-4e40-a67e-97c9808cf41b
 status: test
 description: Detects when a request has been made to transfer a Route 53 domain to another AWS account.
 references:

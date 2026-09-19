@@ -1,5 +1,4 @@
 title: AWS IAM Additional Credentials Added
-id: db1c9126-f85c-47c8-b525-e684831b3456
 status: experimental
 description: |
     Detects addition or reactivation of non-access-key IAM credentials (UploadSSHPublicKey, CreateServiceSpecificCredential, ResetServiceSpecificCredential, UpdateAccessKey activation). Adds Additional Cloud Credentials (T1098.001) coverage for credential types beyond the existing SigmaHQ CreateAccessKey backdoor rule and the S3Browser login-profile rule.

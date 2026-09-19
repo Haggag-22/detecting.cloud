@@ -1,5 +1,4 @@
 title: Azure Active Directory Hybrid Health AD FS Service Delete
-id: 48739819-8230-4ee3-a8ea-e0289d1fb0ff
 status: test
 description: |
     This detection uses azureactivity logs (Administrative category) to identify the deletion of an Azure AD Hybrid health AD FS service instance in a tenant.

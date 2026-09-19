@@ -1,5 +1,4 @@
 title: AWS RDS Cluster Modification or Deletion
-id: d219e08b-11c4-4304-9f82-2665c5cd114b
 status: experimental
 description: |
     Detects modification or deletion of an AWS RDS cluster via ModifyDBCluster or DeleteDBCluster. DeleteDBCluster can be used by an adversary to destroy data and disrupt availability, while ModifyDBCluster can alter the cluster configuration to weaken security or facilitate unauthorized access.

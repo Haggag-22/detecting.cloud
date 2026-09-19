@@ -1,5 +1,4 @@
 title: Google Cloud Service Account Disabled or Deleted
-id: 13f81a90-a69c-4fab-8f07-b5bb55416a9f
 status: test
 description: Identifies when a service account is disabled or deleted in Google Cloud.
 references:

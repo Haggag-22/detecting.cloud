@@ -1,5 +1,4 @@
 title: Azure Application Security Group Modified or Deleted
-id: 835747f1-9329-40b5-9cc3-97d465754ce6
 status: test
 description: Identifies when a application security group is modified or deleted.
 references:

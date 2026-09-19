@@ -1,5 +1,4 @@
 title: Login to Disabled Account
-id: 908655e0-25cf-4ae1-b775-1c8ce9cf43d8
 status: test
 description: Detect failed attempts to sign in to disabled accounts.
 references:

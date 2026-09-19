@@ -1,5 +1,4 @@
 title: AWS STS GetCallerIdentity Enumeration Via TruffleHog
-id: 9b1b8e9b-0a5d-4af1-9d2f-4c4b6e7c2c9d
 status: experimental
 description: |
     Detects the use of TruffleHog for AWS credential validation by identifying GetCallerIdentity API calls where the userAgent indicates TruffleHog.

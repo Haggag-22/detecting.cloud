@@ -1,5 +1,4 @@
 title: AWS Log Enumeration
-id: d111f040-d403-470c-bbbf-ab07d4afd8e1
 status: experimental
 description: |
     Detects enumeration of CloudTrail and CloudWatch Logs (LookupEvents, GetTrailStatus, GetLogEvents, DescribeLogGroups) which adversaries perform to understand logging coverage before evasion.

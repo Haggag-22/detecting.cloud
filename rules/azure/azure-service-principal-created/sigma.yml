@@ -1,5 +1,4 @@
 title: Azure Service Principal Created
-id: 0ddcff6d-d262-40b0-804b-80eb592de8e3
 status: test
 description: Identifies when a service principal is created in Azure.
 references:

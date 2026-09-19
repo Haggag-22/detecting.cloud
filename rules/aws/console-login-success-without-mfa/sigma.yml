@@ -1,5 +1,4 @@
 title: AWS Successful Console Login Without MFA
-id: 77caf516-34e5-4df9-b4db-20744fea0a60
 status: experimental
 description: |
     Detects successful AWS console logins that were performed without Multi-Factor Authentication (MFA).

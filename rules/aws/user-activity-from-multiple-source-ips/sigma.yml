@@ -1,5 +1,4 @@
 title: AWS User Activity From Multiple Source IPs
-id: 46eb82ab-c077-4ff3-a6ad-44ee14e8a279
 status: experimental
 description: |
     Detects when the same AWS IAM user ARN performs actions from more than one distinct source IP within a 1-hour window.
@@ -41,7 +40,6 @@ level: medium
 name: aws_user_activity_multiple_source_ips_base
 ---
 title: AWS User Activity From Multiple Source IPs
-id: e6e66035-539c-4f13-a757-85ebfb7c9f84
 status: experimental
 description: Fires when a single IAM user ARN is observed from more than one distinct source IP address within a 1-hour window.
 correlation:

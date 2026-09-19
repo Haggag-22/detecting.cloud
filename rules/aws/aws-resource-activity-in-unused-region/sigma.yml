@@ -1,5 +1,4 @@
 title: AWS Resource Activity In Unused Region
-id: 4d3629f8-4c54-411b-8fbc-3b1a3235d089
 status: experimental
 description: |
     Detects resource-creating activity in AWS regions outside the organization's normally-used set. Adversaries operate in unused/unsupported regions to evade monitoring. Tune the region filter to the regions your organization actively uses.

@@ -1,5 +1,4 @@
 title: AWS Service Or Instance Stop
-id: d6cf4339-3e6b-4b77-a59a-9625df7861f2
 status: experimental
 description: |
     Detects stopping of compute and database services (EC2 StopInstances, RDS StopDBInstance/StopDBCluster, ECS DeleteService/StopTask) which adversaries use to disrupt availability.

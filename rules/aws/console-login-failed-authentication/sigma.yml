@@ -1,5 +1,4 @@
 title: AWS ConsoleLogin Failed Authentication
-id: 6393e346-1977-46ef-8987-ad414a145fad
 status: experimental
 description: |
     Detects failed AWS console login attempts due to authentication failures. Monitoring these events is crucial for identifying potential brute-force attacks or unauthorized access attempts to AWS accounts.

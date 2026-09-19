@@ -1,5 +1,4 @@
 title: Azure DNS Zone Modified or Deleted
-id: af6925b0-8826-47f1-9324-337507a0babd
 status: test
 description: Identifies when DNS zone is modified or deleted.
 references:

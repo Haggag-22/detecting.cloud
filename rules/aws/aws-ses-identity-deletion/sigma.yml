@@ -1,5 +1,4 @@
 title: AWS SES Identity Deletion
-id: 3db5a682-67c1-413d-8add-85c7938afa7d
 status: experimental
 description: |
     Detects an instance of an Amazon Simple Email Service (SES) identity being deleted via the "DeleteIdentity" event. This action could be performed by an adversary to remove traces of their activities after using the SES identity for malicious purposes, such as sending spam or phishing emails, aligning with defense evasion tactics.

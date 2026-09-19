@@ -1,5 +1,4 @@
 title: AWS RDS Master Password Change
-id: bb8d3183-94d6-4ef5-a6f6-fa89450bafce
 status: experimental
 description: |
     Detects when the master password for an AWS RDS database instance is changed via ModifyDBInstance where responseElements.pendingModifiedValues.masterUserPassword is present (returned masked). Adversaries may reset the master credential to gain or maintain access to the database, which can be a precursor to data access or exfiltration.

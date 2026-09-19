@@ -1,5 +1,4 @@
 title: AWS Root Credentials
-id: 8ad1600d-e9dc-4251-b0ee-a65268f29add
 status: test
 description: Detects AWS root account usage
 references:

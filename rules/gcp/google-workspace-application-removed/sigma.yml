@@ -1,5 +1,4 @@
 title: Google Workspace Application Removed
-id: ee2803f0-71c8-4831-b48b-a1fc57601ee4
 status: test
 description: Detects when an an application is removed from Google Workspace.
 references:

@@ -1,5 +1,4 @@
 title: Bitlocker Key Retrieval
-id: a0413867-daf3-43dd-9245-734b3a787942
 status: test
 description: Monitor and alert for Bitlocker key retrieval.
 references:

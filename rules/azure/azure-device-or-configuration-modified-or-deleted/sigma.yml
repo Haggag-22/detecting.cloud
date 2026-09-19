@@ -1,5 +1,4 @@
 title: Azure Device or Configuration Modified or Deleted
-id: 46530378-f9db-4af9-a9e5-889c177d3881
 status: test
 description: Identifies when a device or device configuration in azure is modified or deleted.
 references:

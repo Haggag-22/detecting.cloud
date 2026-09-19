@@ -1,5 +1,4 @@
 title: Azure Device No Longer Managed or Compliant
-id: 542b9912-c01f-4e3f-89a8-014c48cdca7d
 status: test
 description: Identifies when a device in azure is no longer managed or compliant
 references:

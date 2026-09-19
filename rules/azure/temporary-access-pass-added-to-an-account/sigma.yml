@@ -1,5 +1,4 @@
 title: Temporary Access Pass Added To An Account
-id: fa84aaf5-8142-43cd-9ec2-78cfebf878ce
 status: test
 description: Detects when a temporary access pass (TAP) is added to an account. TAPs added to priv accounts should be investigated
 references:

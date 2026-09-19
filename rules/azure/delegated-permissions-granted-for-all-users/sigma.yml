@@ -1,5 +1,4 @@
 title: Delegated Permissions Granted For All Users
-id: a6355fbe-f36f-45d8-8efc-ab42465cbc52
 status: test
 description: Detects when highly privileged delegated permissions are granted on behalf of all users
 references:

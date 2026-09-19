@@ -1,5 +1,4 @@
 title: AWS IAM Masquerade Account Name
-id: a1b2c3d4-e5f6-4789-a012-3456789abc01
 status: experimental
 description: |
     Detects creation of IAM users with names that mimic AWS service or administrative accounts (Masquerade Account Name). Adversaries use convincing account names to blend into the environment.

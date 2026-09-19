@@ -1,5 +1,4 @@
 title: Change to Authentication Method
-id: 4d78a000-ab52-4564-88a5-7ab5242b20c7
 status: test
 description: Change to authentication method could be an indicator of an attacker adding an auth method to the account so they can have continued access.
 references:

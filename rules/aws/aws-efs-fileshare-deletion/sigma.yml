@@ -1,5 +1,4 @@
 title: AWS EFS Fileshare Deletion
-id: 339712b5-6f0a-4b9a-b6b4-c0decc94576e
 status: experimental
 description: |
     Detects when an AWS EFS Fileshare is deleted via the DeleteFileSystem API call.

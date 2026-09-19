@@ -1,5 +1,4 @@
 title: Application AppID Uri Configuration Changes
-id: 1b45b0d1-773f-4f23-aedc-814b759563b1
 status: test
 description: Detects when a configuration change is made to an applications AppID URI.
 references:

@@ -1,5 +1,4 @@
 title: AWS Hybrid Identity Directory Change
-id: a1b2c3d4-e5f6-4789-a012-3456789abc07
 status: experimental
 description: |
     Detects changes to AWS Directory Service and hybrid identity integrations (AD connectors, trusts, directory sharing) mapping to Hybrid Identity (T1556.007).

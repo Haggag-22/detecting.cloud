@@ -1,5 +1,4 @@
 title: Successful Authentications From Countries You Do Not Operate Out Of
-id: 8c944ecb-6970-4541-8496-be554b8e2846
 status: test
 description: Detect successful authentications from countries you do not operate out of.
 references:
