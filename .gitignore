@@ -13,6 +13,16 @@ dist-ssr
 docs
 *.local
 
+# Secrets and local backend
+.env
+.env.*
+!.env.example
+supabase/
+scripts/
+
+# Finder / copy leftovers
+* 2.*
+
 # Editor directories and files
 .vscode/*
 .lovable
