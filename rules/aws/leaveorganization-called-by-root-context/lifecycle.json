@@ -30,26 +30,6 @@
       "Root attribution is high-signal but not always richly descriptive beyond account context."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.type",
-        "normalizedPath": "user.type",
-        "notes": "Execution context, expected to be Root"
-      },
-      {
-        "rawPath": "userIdentity.accountId",
-        "normalizedPath": "cloud.account.id",
-        "notes": "Account using root context"
-      },
-      {
-        "rawPath": "recipientAccountId",
-        "normalizedPath": "cloud.account.target_id",
-        "notes": "Member account attempting to leave"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"LeaveOrganization\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"type\": \"Root\"\n  },\n  \"cloud\": {\n    \"account\": {\n      \"id\": \"123456789012\",\n      \"target_id\": \"123456789012\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Root Governance Posture",

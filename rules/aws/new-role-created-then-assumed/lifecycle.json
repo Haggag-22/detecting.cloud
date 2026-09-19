@@ -32,31 +32,6 @@
       "AssumeRole success is the key event, so failed assumptions should be analyzed separately."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.roleName",
-        "normalizedPath": "aws.iam.role.name",
-        "notes": "Role created by CreateRole"
-      },
-      {
-        "rawPath": "requestParameters.roleArn",
-        "normalizedPath": "aws.iam.role.arn",
-        "notes": "Role assumed by later STS call"
-      },
-      {
-        "rawPath": "recipientAccountId",
-        "normalizedPath": "cloud.account.id",
-        "notes": "Account boundary for exact role correlation"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor creating or assuming the role"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateRole\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"role\": {\n        \"name\": \"BackdoorRole\",\n        \"arn\": \"arn:aws:iam::123456789012:role/BackdoorRole\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Exact Role Identity",

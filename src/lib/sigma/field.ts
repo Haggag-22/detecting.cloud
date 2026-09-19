@@ -123,16 +123,11 @@ export function matchToEsqlPredicate(m: SigmaFieldMatch): string {
 }
 
 /** Datadog Log Explorer / Cloud SIEM style facets */
-export function matchToDatadogClause(m: SigmaFieldMatch): string {
+export function matchToDatadogClause(
+  m: SigmaFieldMatch,
+  facetMap: Record<string, string> = {}
+): string {
   const field = normalizeFieldPath(m.field);
-  // Map common CloudTrail fields to Datadog facets
-  const facetMap: Record<string, string> = {
-    eventName: "@evt.name",
-    eventSource: "@evt.source",
-    "userIdentity.arn": "@userIdentity.arn",
-    "userIdentity.type": "@userIdentity.type",
-    sourceIPAddress: "@network.client.ip",
-  };
   const facet = facetMap[field] ?? `@${field}`;
 
   const parts = m.values.map((v) => {

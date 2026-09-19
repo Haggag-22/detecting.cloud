@@ -24,21 +24,6 @@
       "Bare Sigma selections may fire on every matching event until customer inventory is supplied."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "operationName",
-        "normalizedPath": "event.action",
-        "notes": "Control-plane operation"
-      },
-      {
-        "rawPath": "caller",
-        "normalizedPath": "user.id",
-        "notes": "Actor identity when present"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2026-01-15T12:00:00Z\",\n  \"event\": {\n    \"action\": \"App Assigned To Azure RBAC/Microsoft Entra Role\",\n    \"provider\": \"azure\",\n    \"outcome\": \"success\"\n  },\n  \"cloud\": {\n    \"provider\": \"azure\",\n    \"service\": \"Entra ID Apps\"\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Approved actor",

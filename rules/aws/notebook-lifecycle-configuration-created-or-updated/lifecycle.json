@@ -29,26 +29,6 @@
       "Legitimate ML platform administration may make similar changes."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor creating or modifying the lifecycle config"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "Create or update action"
-      },
-      {
-        "rawPath": "requestParameters.notebookInstanceLifecycleConfigName",
-        "normalizedPath": "aws.sagemaker.lifecycle_config.name",
-        "notes": "Lifecycle configuration being changed"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"CreateNotebookInstanceLifecycleConfig\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/admin\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"sagemaker\": {\n      \"lifecycle_config\": {\n        \"name\": \"malicious-config\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Actor Authorization",

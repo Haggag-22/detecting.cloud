@@ -30,31 +30,6 @@
       "CloudTrail alone does not tell you whether the user historically lacked console access unless you enrich it."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "User receiving the console password"
-      },
-      {
-        "rawPath": "enrichment.userType",
-        "normalizedPath": "aws.iam.target_user.type",
-        "notes": "Human, service, API-only, dormant, break-glass, etc."
-      },
-      {
-        "rawPath": "enrichment.previousConsoleAccess",
-        "normalizedPath": "aws.iam.target_user.previous_console_access",
-        "notes": "Whether the user already had console capability"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor creating the login profile"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateLoginProfile\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_user\": {\n        \"name\": \"svc-build-bot\",\n        \"type\": \"service\",\n        \"previous_console_access\": false\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "User Eligibility Classification",

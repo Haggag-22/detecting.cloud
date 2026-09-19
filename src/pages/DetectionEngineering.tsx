@@ -14,7 +14,7 @@ import { DetectionLifecycleSections } from "@/components/DetectionLifecycleSecti
 import { SeverityGauge } from "@/components/DetectionVisuals";
 import { SigmaRulePanel } from "@/components/SigmaRulePanel";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
-import { CloudProviderTabs, type CloudProviderId } from "@/components/CloudProviderTabs";
+import { CloudProviderTabs, parseCloudProviderId, type CloudProviderId } from "@/components/CloudProviderTabs";
 import { CountBadge } from "@/components/CountBadge";
 import { getServiceCardClassName } from "@/lib/serviceCardColors";
 import { cn } from "@/lib/utils";
@@ -48,10 +48,8 @@ const DetectionEngineeringPage = () => {
   const ruleParam = searchParams.get("rule");
   const serviceParamRaw = searchParams.get("service");
   const serviceParam = serviceParamRaw ? getBrowseService(serviceParamRaw) : null;
-  const providerParam = (searchParams.get("provider") as CloudProviderId | null) ?? "all";
-  const activeProvider: CloudProviderId = ["all", "aws", "azure", "gcp", "kubernetes"].includes(providerParam)
-    ? providerParam
-    : "all";
+  const providerParam = searchParams.get("provider");
+  const activeProvider = parseCloudProviderId(providerParam);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("all");
@@ -342,11 +340,7 @@ const DetectionEngineeringPage = () => {
     );
     const serviceRules = filterRules(baseRules);
     const providerLabel =
-      activeProvider === "kubernetes"
-        ? "Kubernetes"
-        : activeProvider === "all"
-          ? null
-          : activeProvider.toUpperCase();
+      activeProvider === "all" ? null : activeProvider.toUpperCase();
 
     return (
       <Layout>
@@ -473,15 +467,13 @@ const DetectionEngineeringPage = () => {
             })}
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-border/60 bg-card/40 px-6 py-14 text-center">
+          <div className="rounded-lg border border-dashed border-border/50 bg-card/40 px-6 py-14 text-center">
             <p className="text-sm text-muted-foreground">
               {hasActiveFilters
                 ? "No services match your search or filters."
                 : activeProvider === "all"
                   ? "No services match your search."
-                  : `No ${
-                      activeProvider === "kubernetes" ? "Kubernetes" : activeProvider.toUpperCase()
-                    } detection rules yet. AWS rules are available under the AWS tab.`}
+                  : `No ${activeProvider.toUpperCase()} detection rules yet. AWS rules are available under the AWS tab.`}
             </p>
           </div>
         )}
@@ -597,8 +589,8 @@ function CodeBlockWithCopy({
 }) {
   const id = `copy-${copyKey}`;
   return (
-    <div className="rounded-lg border border-border overflow-hidden">
-      <div className="px-4 py-2 bg-muted text-xs text-muted-foreground font-mono border-b border-border flex items-center justify-between">
+    <div className="rounded-lg border border-border/50 overflow-hidden">
+      <div className="px-4 py-2 bg-muted text-xs text-muted-foreground font-mono border-b border-border/50 flex items-center justify-between">
         <span>{language}</span>
         <Button
           variant="ghost"

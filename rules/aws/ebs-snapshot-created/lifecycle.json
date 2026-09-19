@@ -32,26 +32,6 @@
       "Backup and DLM workflows can generate high baseline volume in storage-heavy environments."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.volumeId",
-        "normalizedPath": "aws.ebs.volume.id",
-        "notes": "Source volume where available"
-      },
-      {
-        "rawPath": "requestParameters.description",
-        "normalizedPath": "aws.ebs.snapshot.description",
-        "notes": "Optional operator-provided description"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor creating the snapshot"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"storage\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateSnapshot\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/admin\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ebs\": {\n      \"volume\": {\n        \"id\": \"vol-0abc123\"\n      },\n      \"snapshot\": {\n        \"description\": \"manual backup\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Volume Sensitivity",

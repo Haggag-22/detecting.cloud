@@ -31,31 +31,6 @@
       "A single unauthorized read still needs context for prioritization."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor performing SES identity reconnaissance"
-      },
-      {
-        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
-        "normalizedPath": "aws.identity.session_issuer.arn",
-        "notes": "Underlying role where relevant"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "SES enumeration action performed"
-      },
-      {
-        "rawPath": "sourceIPAddress",
-        "normalizedPath": "source.ip",
-        "notes": "Originating source IP of the request"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"discovery\"\n    ],\n    \"type\": [\n      \"info\"\n    ],\n    \"action\": \"ListIdentities\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Authorized SES Readers",

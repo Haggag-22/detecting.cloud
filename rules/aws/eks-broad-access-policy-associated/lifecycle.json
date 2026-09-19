@@ -34,46 +34,6 @@
       "Best fidelity comes from correlating this event with actor allowlists, target-principal context, or recent CreateAccessEntry activity."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "Should equal eks.amazonaws.com"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "Should equal AssociateAccessPolicy"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor granting the access policy"
-      },
-      {
-        "rawPath": "requestParameters.clusterName",
-        "normalizedPath": "aws.eks.cluster.name",
-        "notes": "Target cluster"
-      },
-      {
-        "rawPath": "requestParameters.principalArn",
-        "normalizedPath": "aws.eks.target_principal.arn",
-        "notes": "Principal receiving Kubernetes permissions"
-      },
-      {
-        "rawPath": "requestParameters.policyArn",
-        "normalizedPath": "aws.eks.access_policy.arn",
-        "notes": "Associated EKS access policy"
-      },
-      {
-        "rawPath": "requestParameters.accessScope.type",
-        "normalizedPath": "aws.eks.access_scope.type",
-        "notes": "Cluster or namespace scope"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"AssociateAccessPolicy\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"aws\": {\n    \"eks\": {\n      \"cluster\": {\n        \"name\": \"my-cluster\"\n      },\n      \"target_principal\": {\n        \"arn\": \"arn:aws:iam::123456789012:role/app-role\"\n      },\n      \"access_policy\": {\n        \"arn\": \"arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy\"\n      },\n      \"access_scope\": {\n        \"type\": \"cluster\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Actor Context",

@@ -37,46 +37,6 @@
       "Legitimate patching, fleet management, and break-glass administration can generate true events that require actor and target allowlisting."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "AWS service source; expected ssm.amazonaws.com"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "SSM API action such as SendCommand or StartSession"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Primary actor ARN"
-      },
-      {
-        "rawPath": "requestParameters.documentName",
-        "normalizedPath": "aws.ssm.document.name",
-        "notes": "Run Command or Session document name"
-      },
-      {
-        "rawPath": "requestParameters.instanceIds",
-        "normalizedPath": "aws.ssm.targets.instance_ids",
-        "notes": "Explicit managed-node targets for SendCommand"
-      },
-      {
-        "rawPath": "requestParameters.parameters.commands",
-        "normalizedPath": "aws.ssm.command.commands",
-        "notes": "Most useful command payload for AWS-RunShellScript and AWS-RunPowerShellScript"
-      },
-      {
-        "rawPath": "requestParameters.target",
-        "normalizedPath": "aws.ssm.session.target",
-        "notes": "Interactive session target for StartSession"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"execution\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"SendCommand\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"aws\": {\n    \"ssm\": {\n      \"document\": {\n        \"name\": \"AWS-RunShellScript\"\n      },\n      \"targets\": {\n        \"instance_ids\": [\n          \"i-xxx\"\n        ]\n      },\n      \"command\": {\n        \"commands\": [\n          \"whoami\",\n          \"hostname\"\n        ]\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Identity Authorization Context",

@@ -39,41 +39,6 @@
       "Legitimate platform automation and management hosts can generate real but expected events."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "CloudTrail service that processed the request"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "Primary trigger is RunInstances"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor launching the instance"
-      },
-      {
-        "rawPath": "requestParameters.iamInstanceProfile.arn",
-        "normalizedPath": "aws.iam.instance_profile.arn",
-        "notes": "Profile attached at launch"
-      },
-      {
-        "rawPath": "responseElements.instancesSet.items{}.instanceId",
-        "normalizedPath": "cloud.instance.id",
-        "notes": "Launched instance identifier"
-      },
-      {
-        "rawPath": "requestParameters.metadataOptions.httpTokens",
-        "normalizedPath": "aws.ec2.metadata.http_tokens",
-        "notes": "Helps assess IMDS abuse friction"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"RunInstances\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\",\n    \"instance\": {\n      \"id\": \"i-0abc123\"\n    }\n  },\n  \"aws\": {\n    \"iam\": {\n      \"instance_profile\": {\n        \"arn\": \"arn:aws:iam::123456789012:instance-profile/AdminRole\"\n      }\n    },\n    \"ec2\": {\n      \"metadata\": {\n        \"http_tokens\": \"required\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Instance Profile Sensitivity",

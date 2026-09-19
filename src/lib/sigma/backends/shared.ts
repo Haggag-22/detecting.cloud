@@ -1,5 +1,6 @@
 import type { ConditionNode } from "../condition";
 import { expandWildcards, getSelectionMap, parseCondition } from "../condition";
+import { classifyLogsource } from "../logsource";
 import type { ParsedSigmaRule, SigmaFieldMatch, SigmaSelection } from "../types";
 import { joinAlts } from "../field";
 
@@ -66,30 +67,19 @@ export function collectAllMatches(rule: ParsedSigmaRule): SigmaFieldMatch[] {
 }
 
 export function defaultOutputFields(rule: ParsedSigmaRule): string[] {
-  const base = [
-    "eventTime",
-    "userIdentity.type",
-    "userIdentity.arn",
-    "eventName",
-    "eventSource",
-    "sourceIPAddress",
-  ];
-  const extras = new Set<string>();
+  const mapping = classifyLogsource(rule);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const push = (field: string) => {
+    if (!field || seen.has(field)) return;
+    seen.add(field);
+    out.push(field);
+  };
+  for (const field of mapping.outputFields) push(field);
   for (const sel of rule.selections) {
     for (const m of sel.matches) {
-      const f = m.field.replace(/\|.*/, "").replace(/\{\}/g, "");
-      if (
-        f.startsWith("requestParameters") ||
-        f.startsWith("responseElements") ||
-        f === "errorCode"
-      ) {
-        extras.add(f.split(".")[0] === "requestParameters" || f.split(".")[0] === "responseElements"
-          ? f
-          : f);
-      }
+      push(m.field.replace(/\|.*/, "").replace(/\{\}/g, ""));
     }
   }
-  // Keep list short
-  const extraList = [...extras].slice(0, 4);
-  return [...base.filter((b) => b !== "eventTime"), ...extraList];
+  return out.slice(0, 8);
 }

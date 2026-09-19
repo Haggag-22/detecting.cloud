@@ -30,31 +30,6 @@
       "Cross-account ownership checks may require additional validation beyond simple existence testing."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "distribution.id",
-        "normalizedPath": "aws.cloudfront.distribution.id",
-        "notes": "Affected CloudFront distribution"
-      },
-      {
-        "rawPath": "origin.domainName",
-        "normalizedPath": "aws.cloudfront.origin.domain_name",
-        "notes": "Configured S3 origin domain name"
-      },
-      {
-        "rawPath": "enrichment.bucketExists",
-        "normalizedPath": "s3.bucket.exists",
-        "notes": "Whether the origin bucket currently exists"
-      },
-      {
-        "rawPath": "distribution.aliases",
-        "normalizedPath": "url.domain",
-        "notes": "Customer-facing aliases for prioritization"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"info\"\n    ],\n    \"action\": \"orphaned_cloudfront_origin_check\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"aws\": {\n    \"cloudfront\": {\n      \"distribution\": {\n        \"id\": \"E1234\"\n      },\n      \"origin\": {\n        \"domain_name\": \"deleted-bucket.s3.amazonaws.com\"\n      }\n    }\n  },\n  \"s3\": {\n    \"bucket\": {\n      \"exists\": false\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Bucket Existence and Control",

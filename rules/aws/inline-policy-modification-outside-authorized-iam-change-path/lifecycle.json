@@ -38,36 +38,6 @@
       "CloudTrail alone does not prove target ownership relationships."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor ARN"
-      },
-      {
-        "rawPath": "userIdentity.principalId",
-        "normalizedPath": "user.id",
-        "notes": "Stable actor identifier for allowlisting"
-      },
-      {
-        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
-        "normalizedPath": "aws.identity.session_issuer.arn",
-        "notes": "Underlying role for assumed-role sessions"
-      },
-      {
-        "rawPath": "requestParameters.roleName",
-        "normalizedPath": "aws.iam.target_role.name",
-        "notes": "Target role"
-      },
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "Target user"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"PutRolePolicy\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/app-role/i-xxx\",\n    \"type\": \"AssumedRole\",\n    \"id\": \"AROAXXXXX:i-xxx\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_role\": {\n        \"name\": \"TargetRole\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Authorized IAM Change Actors",

@@ -37,36 +37,6 @@
       "Legitimate emergency or operational runs can still look suspicious without workflow context."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Task launch actor"
-      },
-      {
-        "rawPath": "userIdentity.principalId",
-        "normalizedPath": "user.id",
-        "notes": "Stable actor identifier"
-      },
-      {
-        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
-        "normalizedPath": "aws.identity.session_issuer.arn",
-        "notes": "Underlying role for assumed sessions"
-      },
-      {
-        "rawPath": "requestParameters.cluster",
-        "normalizedPath": "aws.ecs.cluster.name",
-        "notes": "Target cluster"
-      },
-      {
-        "rawPath": "requestParameters.taskDefinition",
-        "normalizedPath": "aws.ecs.task_definition.arn",
-        "notes": "Target task family or revision"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"compute\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"RunTask\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/app-role/i-xxx\",\n    \"type\": \"AssumedRole\",\n    \"id\": \"AROAXXXXX:i-xxx\"\n  },\n  \"aws\": {\n    \"ecs\": {\n      \"cluster\": {\n        \"name\": \"prod\"\n      },\n      \"task_definition\": {\n        \"arn\": \"backdoor-task:1\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Authorized Task Launchers",

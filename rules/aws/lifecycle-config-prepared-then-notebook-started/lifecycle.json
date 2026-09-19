@@ -32,31 +32,6 @@
       "Lifecycle-config create events without later association may be less meaningful."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.notebookInstanceName",
-        "normalizedPath": "aws.sagemaker.notebook.name",
-        "notes": "Notebook being prepared or started"
-      },
-      {
-        "rawPath": "requestParameters.lifecycleConfigName",
-        "normalizedPath": "aws.sagemaker.lifecycle_config.name",
-        "notes": "Lifecycle config attached to the notebook where available"
-      },
-      {
-        "rawPath": "requestParameters.notebookInstanceLifecycleConfigName",
-        "normalizedPath": "aws.sagemaker.lifecycle_config.name",
-        "notes": "Lifecycle config mutated before association"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "Preparation or start stage in the execution path"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"UpdateNotebookInstance\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"sagemaker\": {\n      \"notebook\": {\n        \"name\": \"target\"\n      },\n      \"lifecycle_config\": {\n        \"name\": \"malicious-config\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Notebook and Config Linkage",

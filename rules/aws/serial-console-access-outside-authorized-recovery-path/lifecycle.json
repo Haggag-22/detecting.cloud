@@ -33,31 +33,6 @@
       "The event does not prove what the actor did once serial-console access was established."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Primary actor requesting serial-console access"
-      },
-      {
-        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
-        "normalizedPath": "aws.identity.session_issuer.arn",
-        "notes": "Underlying role or identity source"
-      },
-      {
-        "rawPath": "requestParameters.instanceId",
-        "normalizedPath": "cloud.instance.id",
-        "notes": "Target host for serial-console access"
-      },
-      {
-        "rawPath": "sourceIPAddress",
-        "normalizedPath": "source.ip",
-        "notes": "Source IP of the actor"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"authentication\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"SendSerialConsoleSSHPublicKey\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\"\n  },\n  \"cloud\": {\n    \"instance\": {\n      \"id\": \"i-0abc123\"\n    }\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Authorized Recovery Actors",

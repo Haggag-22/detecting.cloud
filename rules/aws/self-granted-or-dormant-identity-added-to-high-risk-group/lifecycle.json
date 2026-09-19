@@ -31,31 +31,6 @@
       "Target-user history is necessary to distinguish dormant or backdoor-like accounts from ordinary users."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor ARN"
-      },
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "User receiving new group access"
-      },
-      {
-        "rawPath": "requestParameters.groupName",
-        "normalizedPath": "aws.iam.group.name",
-        "notes": "Granted group"
-      },
-      {
-        "rawPath": "enrichment.targetUserState",
-        "normalizedPath": "aws.iam.target_user.state",
-        "notes": "Dormant, new, active, break-glass, etc."
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"AddUserToGroup\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/attacker\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"group\": {\n        \"name\": \"AdminGroup\"\n      },\n      \"target_user\": {\n        \"name\": \"attacker\",\n        \"state\": \"active\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Self-Grant Resolution",

@@ -33,31 +33,6 @@
       "Some legitimate infrastructure roles are created and initialized quickly by automation."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.roleName",
-        "normalizedPath": "aws.iam.role.name",
-        "notes": "Newly created role"
-      },
-      {
-        "rawPath": "requestParameters.policyArn",
-        "normalizedPath": "aws.iam.policy.arn",
-        "notes": "Managed policy attached to the role"
-      },
-      {
-        "rawPath": "requestParameters.policyDocument",
-        "normalizedPath": "aws.iam.inline_policy.document",
-        "notes": "Inline policy added to the role"
-      },
-      {
-        "rawPath": "enrichment.permissionClass",
-        "normalizedPath": "aws.iam.role.permission_class",
-        "notes": "Semantic risk class of the resulting role permissions"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateRole\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"role\": {\n        \"name\": \"BackdoorRole\",\n        \"permission_class\": \"admin_equivalent\"\n      },\n      \"policy\": {\n        \"arn\": \"arn:aws:iam::aws:policy/AdministratorAccess\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Permission Semantics",

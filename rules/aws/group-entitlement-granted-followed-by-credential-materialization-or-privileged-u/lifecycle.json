@@ -32,26 +32,6 @@
       "Not every follow-on action was necessarily enabled by the group add unless group privilege is confirmed first."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.groupName",
-        "normalizedPath": "aws.iam.group.name",
-        "notes": "Granted group"
-      },
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "User added to the group"
-      },
-      {
-        "rawPath": "follow_on.eventName",
-        "normalizedPath": "related.event.action",
-        "notes": "Later credential creation, sign-in, or privileged action"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"AddUserToGroup\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"group\": {\n        \"name\": \"AdminGroup\"\n      },\n      \"target_user\": {\n        \"name\": \"compromised-user\"\n      }\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"CreateAccessKey\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Destination Group Risk",

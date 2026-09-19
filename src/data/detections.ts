@@ -10,8 +10,6 @@ export type {
   TelemetrySource,
   ThreatContext,
   TelemetryValidation,
-  FieldMapping,
-  DataModeling,
   EnrichmentContext,
   DetectionLogicExplanation,
   DetectionQuality,

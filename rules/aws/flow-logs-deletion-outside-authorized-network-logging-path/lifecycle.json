@@ -34,31 +34,6 @@
       "Flow log IDs require enrichment to fully understand impact."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor deleting the flow logs"
-      },
-      {
-        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
-        "normalizedPath": "aws.identity.session_issuer.arn",
-        "notes": "Underlying role where relevant"
-      },
-      {
-        "rawPath": "requestParameters.flowLogIds",
-        "normalizedPath": "aws.ec2.flow_log.ids",
-        "notes": "Deleted flow log identifiers"
-      },
-      {
-        "rawPath": "userIdentity.principalId",
-        "normalizedPath": "user.id",
-        "notes": "Stable actor identifier where available"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"DeleteFlowLogs\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\",\n    \"id\": \"AROAXXXXX:session\"\n  },\n  \"aws\": {\n    \"ec2\": {\n      \"flow_log\": {\n        \"ids\": [\n          \"fl-0abc123\"\n        ]\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Authorized Flow Log Managers",

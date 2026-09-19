@@ -34,41 +34,6 @@
       "This covers new function creation, not later role changes through UpdateFunctionConfiguration."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "CloudTrail service that handled the request"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "Lambda CreateFunction API action"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Caller identity"
-      },
-      {
-        "rawPath": "requestParameters.functionName",
-        "normalizedPath": "aws.lambda.function.name",
-        "notes": "New Lambda function name"
-      },
-      {
-        "rawPath": "requestParameters.role",
-        "normalizedPath": "aws.iam.passed_role.arn",
-        "notes": "Execution role attached during CreateFunction"
-      },
-      {
-        "rawPath": "sourceIPAddress",
-        "normalizedPath": "source.ip",
-        "notes": "Network origin of the request"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"CreateFunction20150331\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"aws\": {\n    \"lambda\": {\n      \"function\": {\n        \"name\": \"my-function\"\n      }\n    },\n    \"iam\": {\n      \"passed_role\": {\n        \"arn\": \"arn:aws:iam::123456789012:role/AdministratorAccess\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Execution Role Sensitivity",

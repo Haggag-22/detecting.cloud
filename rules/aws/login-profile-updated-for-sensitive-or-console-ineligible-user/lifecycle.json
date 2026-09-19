@@ -30,31 +30,6 @@
       "Without identity metadata this rule loses much of its value."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "User whose password was updated"
-      },
-      {
-        "rawPath": "enrichment.userType",
-        "normalizedPath": "aws.iam.target_user.type",
-        "notes": "Human, service, API-only, break-glass, dormant, etc."
-      },
-      {
-        "rawPath": "enrichment.userCriticality",
-        "normalizedPath": "aws.iam.target_user.criticality",
-        "notes": "Privileged or high-value user class"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor performing the reset"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"UpdateLoginProfile\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_user\": {\n        \"name\": \"break-glass-user\",\n        \"type\": \"break-glass\",\n        \"criticality\": \"privileged\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "User Sensitivity Classification",

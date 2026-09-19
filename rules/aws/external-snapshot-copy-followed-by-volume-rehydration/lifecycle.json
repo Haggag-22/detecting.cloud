@@ -32,31 +32,6 @@
       "Legitimate DR restores can resemble the same pattern without good allowlists."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.sourceSnapshotId",
-        "normalizedPath": "aws.ebs.snapshot.source_id",
-        "notes": "Original external or public snapshot being copied"
-      },
-      {
-        "rawPath": "requestParameters.snapshotId",
-        "normalizedPath": "aws.ebs.snapshot.id",
-        "notes": "Copied snapshot or restore lineage reference"
-      },
-      {
-        "rawPath": "requestParameters.volumeId",
-        "normalizedPath": "aws.ebs.volume.id",
-        "notes": "Derived restored volume"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor performing the copy or restore sequence"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"storage\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CopySnapshot\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::999999999999:user/attacker\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ebs\": {\n      \"snapshot\": {\n        \"source_id\": \"snap-xxx\",\n        \"id\": \"snap-copied-123\"\n      },\n      \"volume\": {\n        \"id\": \"vol-restored-123\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Copy-to-Volume Lineage",

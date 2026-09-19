@@ -31,31 +31,6 @@
       "The blocking control may require out-of-band investigation to identify precisely."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "errorCode",
-        "normalizedPath": "error.code",
-        "notes": "Reason the leave attempt failed"
-      },
-      {
-        "rawPath": "errorMessage",
-        "normalizedPath": "error.message",
-        "notes": "Detailed failure context where available"
-      },
-      {
-        "rawPath": "recipientAccountId",
-        "normalizedPath": "cloud.account.target_id",
-        "notes": "Member account that attempted to leave"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor attempting organization escape"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"LeaveOrganization\",\n    \"outcome\": \"failure\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"type\": \"Root\"\n  },\n  \"cloud\": {\n    \"account\": {\n      \"target_id\": \"123456789012\"\n    }\n  },\n  \"error\": {\n    \"code\": \"AccessDenied\",\n    \"message\": \"SCP denied\"\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Blocking Control",

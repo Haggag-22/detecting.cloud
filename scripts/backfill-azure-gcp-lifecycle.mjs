@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Backfill Azure/GCP detection-engineering phases 1–6 from meta.json + sigma.yml.
+ * Backfill Azure/GCP detection-engineering phases 1–5 from meta.json + sigma.yml.
  * Generated lifecycle is experimental until a detection engineer reviews it.
  */
 import fs from "fs";
@@ -45,21 +45,6 @@ function buildLifecycle(meta, provider) {
         "Generated lifecycle — review threat research, enrichment, and testing before production.",
         "Bare Sigma selections may fire on every matching event until customer inventory is supplied.",
       ],
-    },
-    dataModeling: {
-      rawToNormalized: [
-        { rawPath: "operationName", normalizedPath: "event.action", notes: "Control-plane operation" },
-        { rawPath: "caller", normalizedPath: "user.id", notes: "Actor identity when present" },
-      ],
-      exampleNormalizedEvent: JSON.stringify(
-        {
-          "@timestamp": "2026-01-15T12:00:00Z",
-          event: { action: title, provider: provider, outcome: "success" },
-          cloud: { provider, service },
-        },
-        null,
-        2
-      ),
     },
     enrichment: [
       {

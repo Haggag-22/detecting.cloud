@@ -34,31 +34,6 @@
       "Some legitimate operations teams do use runtime overrides as part of approved workflows."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.taskDefinition",
-        "normalizedPath": "aws.ecs.task_definition.arn",
-        "notes": "Base task definition"
-      },
-      {
-        "rawPath": "requestParameters.overrides.taskRoleArn",
-        "normalizedPath": "aws.ecs.run_task.override_task_role_arn",
-        "notes": "Runtime task-role override if present"
-      },
-      {
-        "rawPath": "enrichment.defaultTaskRoleArn",
-        "normalizedPath": "aws.ecs.task_definition.default_task_role_arn",
-        "notes": "Default task role from ECS inventory"
-      },
-      {
-        "rawPath": "enrichment.privilegeDelta",
-        "normalizedPath": "aws.ecs.run_task.task_role_privilege_delta",
-        "notes": "Whether runtime role meaningfully increases privilege"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"compute\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"RunTask\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ecs\": {\n      \"task_definition\": {\n        \"arn\": \"my-task:1\",\n        \"default_task_role_arn\": \"arn:aws:iam::123456789012:role/AppTaskRole\"\n      },\n      \"run_task\": {\n        \"override_task_role_arn\": \"arn:aws:iam::123456789012:role/ProdOpsRole\",\n        \"task_role_privilege_delta\": \"higher\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Default vs Overridden Role Comparison",

@@ -43,56 +43,6 @@
       "If the attacker also disrupts S3/KMS/CloudWatch Logs delivery, downstream SIEM visibility can degrade even though the API call itself is a CloudTrail event."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventTime",
-        "normalizedPath": "@timestamp",
-        "notes": "CloudTrail API event timestamp"
-      },
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.provider",
-        "notes": "Should equal cloudtrail.amazonaws.com"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "StopLogging, DeleteTrail, or UpdateTrail"
-      },
-      {
-        "rawPath": "errorCode",
-        "normalizedPath": "event.outcome",
-        "notes": "Absent = success; populated = failure"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor ARN"
-      },
-      {
-        "rawPath": "sourceIPAddress",
-        "normalizedPath": "source.ip",
-        "notes": "Caller IP"
-      },
-      {
-        "rawPath": "requestParameters.name",
-        "normalizedPath": "aws.cloudtrail.trail.name",
-        "notes": "Trail name or ARN"
-      },
-      {
-        "rawPath": "requestParameters.isMultiRegionTrail",
-        "normalizedPath": "aws.cloudtrail.trail.is_multi_region",
-        "notes": "Coverage reduction when set to false"
-      },
-      {
-        "rawPath": "requestParameters.enableLogFileValidation",
-        "normalizedPath": "aws.cloudtrail.trail.log_file_validation_enabled",
-        "notes": "Integrity reduction when false"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"StopLogging\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"aws\": {\n    \"cloudtrail\": {\n      \"trail\": {\n        \"name\": \"org-security-trail\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Identity Context",

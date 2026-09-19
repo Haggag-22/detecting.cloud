@@ -37,36 +37,6 @@
       "Automation that creates and attaches app-specific policies may require allowlisting."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "responseElements.policy.arn",
-        "normalizedPath": "aws.iam.policy.arn",
-        "notes": "Policy ARN created by CreatePolicy"
-      },
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "Target user for AttachUserPolicy"
-      },
-      {
-        "rawPath": "requestParameters.roleName",
-        "normalizedPath": "aws.iam.target_role.name",
-        "notes": "Target role for AttachRolePolicy"
-      },
-      {
-        "rawPath": "requestParameters.groupName",
-        "normalizedPath": "aws.iam.target_group.name",
-        "notes": "Target group for AttachGroupPolicy"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor who created and attached the policy"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"CreatePolicy\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/ec2-role/i-xxx\",\n    \"type\": \"AssumedRole\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"policy\": {\n        \"arn\": \"arn:aws:iam::123456789012:policy/BackdoorPolicy\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Self or Controlled-Principal Resolution",

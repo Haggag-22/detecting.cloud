@@ -31,31 +31,6 @@
       "The model should be tuned to local network and secrets workflows."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor deleting flow logs or performing follow-on actions"
-      },
-      {
-        "rawPath": "requestParameters.flowLogIds",
-        "normalizedPath": "aws.ec2.flow_log.ids",
-        "notes": "Flow logs removed during the first stage"
-      },
-      {
-        "rawPath": "follow_on.eventName",
-        "normalizedPath": "related.event.action",
-        "notes": "Suspicious action after telemetry removal"
-      },
-      {
-        "rawPath": "userIdentity.accountId",
-        "normalizedPath": "cloud.account.id",
-        "notes": "Account context for correlation where actor identity changes"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"DeleteFlowLogs\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ec2\": {\n      \"flow_log\": {\n        \"ids\": [\n          \"fl-0abc123\"\n        ]\n      }\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"ModifySnapshotAttribute\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Stable Actor or Account Linkage",

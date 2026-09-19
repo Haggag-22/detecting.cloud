@@ -3,8 +3,9 @@ import App from "./App.tsx";
 import "./index.css";
 
 const rootEl = document.getElementById("root")!;
-const theme = localStorage.getItem("theme") || "dark";
-document.documentElement.classList.add(theme);
+document.documentElement.classList.remove("light");
+document.documentElement.classList.add("dark");
+localStorage.removeItem("theme");
 
 function showBootError(err: unknown) {
   const message = err instanceof Error ? err.stack || err.message : String(err);

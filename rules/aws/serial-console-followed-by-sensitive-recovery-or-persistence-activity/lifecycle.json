@@ -31,31 +31,6 @@
       "Actor-only joins can still be noisy without operator and target context."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Primary actor performing the serial-console access or later cloud action"
-      },
-      {
-        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
-        "normalizedPath": "aws.identity.session_issuer.arn",
-        "notes": "Underlying role where relevant"
-      },
-      {
-        "rawPath": "requestParameters.instanceId",
-        "normalizedPath": "cloud.instance.id",
-        "notes": "Target host for serial-console access"
-      },
-      {
-        "rawPath": "follow_on.eventName",
-        "normalizedPath": "related.event.action",
-        "notes": "Sensitive action after the serial-console event"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"authentication\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"SendSerialConsoleSSHPublicKey\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"cloud\": {\n    \"instance\": {\n      \"id\": \"i-0abc123\"\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"UpdateLoginProfile\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Stable Actor Identity",

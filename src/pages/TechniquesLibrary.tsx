@@ -10,15 +10,13 @@ import { CountBadge } from "@/components/CountBadge";
 import { Route, ChevronRight } from "lucide-react";
 import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { Link, useSearchParams } from "react-router-dom";
-import { CloudProviderTabs, type CloudProviderId } from "@/components/CloudProviderTabs";
+import { CloudProviderTabs, parseCloudProviderId, type CloudProviderId } from "@/components/CloudProviderTabs";
 import { getServiceCardClassName } from "@/lib/serviceCardColors";
 import { cn } from "@/lib/utils";
 import {
   TECHNIQUE_CATEGORY_ICON,
   TECHNIQUE_CATEGORY_ICON_COLOR,
 } from "@/lib/techniqueCategoryStyles";
-
-const PROVIDER_IDS: CloudProviderId[] = ["all", "aws", "azure", "gcp", "kubernetes"];
 
 function techniquesHref(provider: CloudProviderId, category?: TechniqueCategory) {
   const params = new URLSearchParams();
@@ -30,7 +28,6 @@ function techniquesHref(provider: CloudProviderId, category?: TechniqueCategory)
 
 function providerLabel(id: CloudProviderId): string | null {
   if (id === "all") return null;
-  if (id === "kubernetes") return "Kubernetes";
   return id.toUpperCase();
 }
 
@@ -61,10 +58,7 @@ export default function TechniquesLibrary() {
   const categoryParam = searchParams.get("category") as TechniqueCategory | null;
   const activeCategory =
     categoryParam && categoryParam in techniqueCategories ? categoryParam : null;
-  const providerParam = (searchParams.get("provider") as CloudProviderId | null) ?? "all";
-  const activeProvider: CloudProviderId = PROVIDER_IDS.includes(providerParam)
-    ? providerParam
-    : "all";
+  const activeProvider = parseCloudProviderId(searchParams.get("provider"));
 
   const providerCounts = getTechniqueCountsByCloudProvider();
   const scopedTechniques =
@@ -129,7 +123,7 @@ export default function TechniquesLibrary() {
               ))}
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-border/60 bg-card/40 px-6 py-14 text-center">
+            <div className="rounded-lg border border-dashed border-border/50 bg-card/40 px-6 py-14 text-center">
               <p className="text-sm text-muted-foreground">
                 No {label ?? ""} techniques in this category.
               </p>
@@ -188,13 +182,11 @@ export default function TechniquesLibrary() {
             })}
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-border/60 bg-card/40 px-6 py-14 text-center">
+          <div className="rounded-lg border border-dashed border-border/50 bg-card/40 px-6 py-14 text-center">
             <p className="text-sm text-muted-foreground">
               {activeProvider === "all"
                 ? "No techniques yet."
-                : `No ${
-                    activeProvider === "kubernetes" ? "Kubernetes" : activeProvider.toUpperCase()
-                  } techniques yet. AWS techniques are available under the AWS tab.`}
+                : `No ${activeProvider.toUpperCase()} techniques yet. AWS techniques are available under the AWS tab.`}
             </p>
           </div>
         )}

@@ -32,31 +32,6 @@
       "Legitimate cross-account sharing workflows can resemble the same sequence."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.bucketName",
-        "normalizedPath": "s3.bucket.name",
-        "notes": "Bucket receiving ACL grant and later access"
-      },
-      {
-        "rawPath": "requestParameters.key",
-        "normalizedPath": "file.path",
-        "notes": "Object receiving ACL grant where applicable"
-      },
-      {
-        "rawPath": "enrichment.granteePrincipal",
-        "normalizedPath": "s3.acl.grantee.principal",
-        "notes": "Resolved recipient of the ACL grant"
-      },
-      {
-        "rawPath": "follow_on.userIdentity.arn",
-        "normalizedPath": "related.user.arn",
-        "notes": "Actor later accessing the granted resource"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"file\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"PutBucketAcl\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"s3\": {\n    \"bucket\": {\n      \"name\": \"target\"\n    },\n    \"acl\": {\n      \"grantee\": {\n        \"principal\": \"123456789999\"\n      }\n    }\n  },\n  \"related\": {\n    \"user\": {\n      \"arn\": \"arn:aws:iam::123456789999:user/external-reader\"\n    },\n    \"event\": {\n      \"action\": \"GetObject\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Resolved ACL Grantee",

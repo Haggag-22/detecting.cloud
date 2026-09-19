@@ -32,31 +32,6 @@
       "Sigma cannot express the real correlation logic by itself."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.roleName",
-        "normalizedPath": "aws.iam.target_role.name",
-        "notes": "Role whose boundary was removed"
-      },
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "User whose boundary was removed"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor removing boundary"
-      },
-      {
-        "rawPath": "follow_on.eventName",
-        "normalizedPath": "related.event.action",
-        "notes": "Subsequent privileged action"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"DeleteRolePermissionsBoundary\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_role\": {\n        \"name\": \"TargetRole\"\n      }\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"AssumeRole\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Boundary Effectiveness",

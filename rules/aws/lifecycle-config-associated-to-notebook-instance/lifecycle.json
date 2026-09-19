@@ -31,26 +31,6 @@
       "The notebook and config risk still require enrichment for prioritization."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.notebookInstanceName",
-        "normalizedPath": "aws.sagemaker.notebook.name",
-        "notes": "Notebook receiving the lifecycle config"
-      },
-      {
-        "rawPath": "requestParameters.lifecycleConfigName",
-        "normalizedPath": "aws.sagemaker.lifecycle_config.name",
-        "notes": "Lifecycle config being attached"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor attaching the config to the notebook"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"UpdateNotebookInstance\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"sagemaker\": {\n      \"notebook\": {\n        \"name\": \"target\"\n      },\n      \"lifecycle_config\": {\n        \"name\": \"malicious-config\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Notebook Criticality",

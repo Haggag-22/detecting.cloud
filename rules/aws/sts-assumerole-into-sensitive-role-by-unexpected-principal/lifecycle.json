@@ -32,41 +32,6 @@
       "Federated or SSO-heavy environments require careful allowlisting to avoid analyst fatigue"
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "STS API source"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "AssumeRole API"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Caller identity"
-      },
-      {
-        "rawPath": "requestParameters.roleArn",
-        "normalizedPath": "aws.sts.target_role.arn",
-        "notes": "Role being assumed"
-      },
-      {
-        "rawPath": "requestParameters.roleSessionName",
-        "normalizedPath": "aws.sts.session_name",
-        "notes": "Requested STS session name"
-      },
-      {
-        "rawPath": "sourceIPAddress",
-        "normalizedPath": "source.ip",
-        "notes": "Caller network"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"access\"\n    ],\n    \"action\": \"AssumeRole\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/compromised-dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.50\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"987654321098\"\n    }\n  },\n  \"aws\": {\n    \"sts\": {\n      \"target_role\": {\n        \"arn\": \"arn:aws:iam::987654321098:role/CrossAccountAdmin\"\n      },\n      \"session_name\": \"attacker-session\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Caller Identity Context",

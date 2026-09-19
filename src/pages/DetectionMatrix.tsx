@@ -23,7 +23,7 @@ import { LayoutGrid, Filter, Sparkles, Plus, Minus } from "lucide-react";
 import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { cn } from "@/lib/utils";
 import { TECHNIQUE_CATEGORY_ICON_COLOR } from "@/lib/techniqueCategoryStyles";
-import { CloudProviderTabs, type CloudProviderId } from "@/components/CloudProviderTabs";
+import { CloudProviderTabs, parseCloudProviderId, type CloudProviderId } from "@/components/CloudProviderTabs";
 import {
   getTechniqueCloudProvider,
   getTechniqueCountsByCloudProvider,
@@ -38,8 +38,6 @@ import {
 } from "@/lib/coverageMatrixModel";
 
 type CoverageFilter = "all" | "covered" | "partial" | "gaps";
-
-const PROVIDER_IDS: CloudProviderId[] = ["all", "aws", "azure", "gcp", "kubernetes"];
 
 const MATRIX_ZOOM_KEY = "threat-matrix-zoom";
 const ZOOM_MIN = 0.45;
@@ -112,10 +110,7 @@ function TechniqueCard({ entry }: { entry: TechniqueMatrixEntry }) {
 
 export default function DetectionMatrix() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const providerParam = (searchParams.get("provider") as CloudProviderId | null) ?? "all";
-  const activeProvider: CloudProviderId = PROVIDER_IDS.includes(providerParam)
-    ? providerParam
-    : "all";
+  const activeProvider = parseCloudProviderId(searchParams.get("provider"));
 
   const baseEntries = useMemo(() => buildTechniqueMatrixEntries(), []);
   const providerCounts = getTechniqueCountsByCloudProvider();
@@ -227,7 +222,7 @@ export default function DetectionMatrix() {
           onChange={setProvider}
         />
 
-        <Card className="min-w-0 max-w-full overflow-hidden border-border/60">
+        <Card className="min-w-0 max-w-full overflow-hidden">
             <CardHeader className="pb-3 space-y-4">
               <div className="flex flex-wrap items-center gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground" />
@@ -337,9 +332,7 @@ export default function DetectionMatrix() {
                     <p className="text-sm text-muted-foreground">
                       {activeProvider === "all"
                         ? "No techniques yet."
-                        : `No ${
-                            activeProvider === "kubernetes" ? "Kubernetes" : activeProvider.toUpperCase()
-                          } techniques yet. AWS techniques are available under the AWS tab.`}
+                        : `No ${activeProvider.toUpperCase()} techniques yet. AWS techniques are available under the AWS tab.`}
                     </p>
                   </div>
                 ) : (

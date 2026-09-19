@@ -31,31 +31,6 @@
       "Some legitimate notebooks routinely access secrets or S3 after startup."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Operator who prepared or started the notebook"
-      },
-      {
-        "rawPath": "requestParameters.notebookInstanceName",
-        "normalizedPath": "aws.sagemaker.notebook.name",
-        "notes": "Notebook involved in the lifecycle path"
-      },
-      {
-        "rawPath": "follow_on.eventName",
-        "normalizedPath": "related.event.action",
-        "notes": "Sensitive action after notebook preparation or start"
-      },
-      {
-        "rawPath": "enrichment.executionRoleArn",
-        "normalizedPath": "aws.sagemaker.notebook.execution_role.arn",
-        "notes": "Resolved notebook execution role where available"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"StartNotebookInstance\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"sagemaker\": {\n      \"notebook\": {\n        \"name\": \"target\",\n        \"execution_role\": {\n          \"arn\": \"arn:aws:iam::123456789012:role/SageMakerExecRole\"\n        }\n      }\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"GetSecretValue\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Execution Role Attribution",

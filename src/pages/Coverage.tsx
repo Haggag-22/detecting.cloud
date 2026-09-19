@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { getServiceIconOrFallback } from "@/components/AwsIcons";
-import { CloudProviderTabs, type CloudProviderId } from "@/components/CloudProviderTabs";
+import { CloudProviderTabs, parseCloudProviderId, type CloudProviderId } from "@/components/CloudProviderTabs";
 import { getServiceCardClassName } from "@/lib/serviceCardColors";
 import { CountBadge } from "@/components/CountBadge";
 import { cn } from "@/lib/utils";
@@ -47,9 +47,6 @@ function techniqueMatchesService(techniqueServices: string[], detectionService: 
   return techniqueServices.some((s) => aliases.includes(s));
 }
 
-/** Coverage matrix now includes AWS, Azure, and GCP techniques */
-const COVERAGE_PROVIDER_TABS: CloudProviderId[] = ["all", "aws", "azure", "gcp", "kubernetes"];
-
 const CoveragePage = () => {
   const [categoryFilter, setCategoryFilter] = useState<TechniqueCategory | "all">("all");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
@@ -59,9 +56,7 @@ const CoveragePage = () => {
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const matrixRef = useRef<HTMLDivElement>(null);
 
-  const coverageProvider: CloudProviderId = COVERAGE_PROVIDER_TABS.includes(provider)
-    ? provider
-    : "all";
+  const coverageProvider = parseCloudProviderId(provider);
 
   const providerCounts = getDetectionCountsByCloudProvider();
   const detectionsByService = useMemo(
@@ -165,12 +160,7 @@ const CoveragePage = () => {
     });
   };
 
-  const emptyProviderLabel =
-    coverageProvider === "kubernetes"
-      ? "Kubernetes"
-      : coverageProvider === "all"
-        ? null
-        : coverageProvider.toUpperCase();
+  const emptyProviderLabel = coverageProvider === "all" ? null : coverageProvider.toUpperCase();
 
   return (
     <Layout>
@@ -221,7 +211,6 @@ const CoveragePage = () => {
             value={coverageProvider}
             counts={providerCounts}
             onChange={selectProvider}
-            visibleProviders={COVERAGE_PROVIDER_TABS}
           />
 
           <div className="relative w-full sm:max-w-md mb-6">
@@ -274,7 +263,7 @@ const CoveragePage = () => {
               })}
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-border/60 bg-card/40 px-6 py-14 text-center">
+            <div className="rounded-lg border border-dashed border-border/50 bg-card/40 px-6 py-14 text-center">
               <p className="text-2xl font-bold text-muted-foreground mb-1">0%</p>
               <p className="text-sm text-muted-foreground">
                 {serviceSearch.trim()

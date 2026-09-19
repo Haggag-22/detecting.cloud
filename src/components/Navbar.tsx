@@ -5,7 +5,6 @@ import logoImg from "@/assets/logo.png";
 import { Button } from "@/components/ui/button";
 import { SearchDialog } from "@/components/SearchDialog";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { ThemeToggle } from "@/components/ThemeToggle";
 
 const navLinks = [
   { label: "Home", to: "/" },
@@ -68,7 +67,6 @@ export function Navbar({ showSidebarTrigger = false }: { showSidebarTrigger?: bo
               <Search className="h-4 w-4" />
               <span className="sr-only">Search (⌘K)</span>
             </Button>
-            <ThemeToggle />
             <a href="https://github.com/Haggag-22/detecting.cloud" target="_blank" rel="noopener noreferrer">
               <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground">
                 <Github className="h-4 w-4" />

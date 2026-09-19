@@ -32,31 +32,6 @@
       "The baseline event does not alone prove malicious intent."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Principal performing the credential pivot"
-      },
-      {
-        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
-        "normalizedPath": "aws.identity.session_issuer.arn",
-        "notes": "Underlying role where relevant"
-      },
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "iam.target.user.name",
-        "notes": "IAM user receiving an access key where applicable"
-      },
-      {
-        "rawPath": "requestParameters.roleArn",
-        "normalizedPath": "aws.sts.assume_role.target_arn",
-        "notes": "Role target for AssumeRole pivots"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"CreateAccessKey\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/aws-elasticbeanstalk-ec2-role/session\",\n    \"type\": \"AssumedRole\"\n  },\n  \"iam\": {\n    \"target\": {\n      \"user\": {\n        \"name\": \"backdoor\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Beanstalk Principal Linkage",

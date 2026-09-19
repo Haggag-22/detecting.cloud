@@ -45,8 +45,10 @@ export function convertToOpenSearch(rule: ParsedSigmaRule): { query: string; war
   const map = getSelectionMap(rule);
   const query = walkLucene(buildAst(rule), map, warnings);
 
+  const product = rule.logsource?.product ?? "aws";
+  const service = rule.logsource?.service ?? (product === "aws" ? "cloudtrail" : "");
   warnings.push(
-    "OpenSearch Lucene query from Sigma — map field names to your index mapping as needed"
+    `OpenSearch Lucene query from Sigma logsource (${product}${service ? `/${service}` : ""}) — map field names to your index mapping as needed`
   );
   return { query: query || "*:*", warnings };
 }

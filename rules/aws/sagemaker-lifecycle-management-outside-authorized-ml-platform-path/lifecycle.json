@@ -34,31 +34,6 @@
       "CloudTrail does not show whether the lifecycle script content itself is malicious."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor managing SageMaker lifecycle behavior"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "Lifecycle-config or notebook-association change type"
-      },
-      {
-        "rawPath": "requestParameters.notebookInstanceLifecycleConfigName",
-        "normalizedPath": "aws.sagemaker.lifecycle_config.name",
-        "notes": "Lifecycle config target where available"
-      },
-      {
-        "rawPath": "requestParameters.notebookInstanceName",
-        "normalizedPath": "aws.sagemaker.notebook.name",
-        "notes": "Notebook target where available"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"UpdateNotebookInstance\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\"\n  },\n  \"aws\": {\n    \"sagemaker\": {\n      \"notebook\": {\n        \"name\": \"target\"\n      },\n      \"lifecycle_config\": {\n        \"name\": \"malicious\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Authorized Lifecycle Managers",

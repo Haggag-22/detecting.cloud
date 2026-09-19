@@ -9,8 +9,10 @@ export function convertToSentinelOne(rule: ParsedSigmaRule): { query: string; wa
   });
   warnings.push(...condWarn);
 
+  const product = rule.logsource?.product ?? "aws";
+  const service = rule.logsource?.service ?? (product === "aws" ? "cloudtrail" : "");
   warnings.push(
-    "SentinelOne Deep Visibility query is best-effort — CloudTrail field names may need remapping to S1 cloud/endpoint schema"
+    `SentinelOne query from Sigma logsource (${product}${service ? `/${service}` : ""}) — remap fields to the S1 cloud/endpoint schema`
   );
   return {
     query: expression === "true" ? "true" : expression,

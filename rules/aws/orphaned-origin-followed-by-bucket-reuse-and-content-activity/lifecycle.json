@@ -31,31 +31,6 @@
       "If only CloudFront-facing effects are visible, additional telemetry may be required for full confirmation."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.bucketName",
-        "normalizedPath": "s3.bucket.name",
-        "notes": "Reclaimed bucket name tied to orphaned origin"
-      },
-      {
-        "rawPath": "requestParameters.key",
-        "normalizedPath": "file.path",
-        "notes": "Object uploaded after bucket reuse"
-      },
-      {
-        "rawPath": "enrichment.orphanedOriginMatch",
-        "normalizedPath": "aws.cloudfront.origin.orphaned_name_match",
-        "notes": "Links bucket to known orphaned origin"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "CreateBucket then PutObject sequence"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"storage\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateBucket\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::999999999999:user/attacker\",\n    \"type\": \"IAMUser\"\n  },\n  \"s3\": {\n    \"bucket\": {\n      \"name\": \"deleted-victim-bucket\"\n    }\n  },\n  \"aws\": {\n    \"cloudfront\": {\n      \"origin\": {\n        \"orphaned_name_match\": true\n      }\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"PutObject\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Orphaned-Origin Bucket Lineage",

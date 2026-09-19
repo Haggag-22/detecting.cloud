@@ -33,26 +33,6 @@
       "Without profile-to-role resolution this remains a feeder event only."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.iamInstanceProfile.name",
-        "normalizedPath": "aws.ec2.instance_profile.name",
-        "notes": "Instance profile attached at launch"
-      },
-      {
-        "rawPath": "requestParameters.instancesSet.items[].instanceType",
-        "normalizedPath": "cloud.instance.type",
-        "notes": "EC2 instance characteristics"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor launching the instance"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"compute\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"RunInstances\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ec2\": {\n      \"instance_profile\": {\n        \"name\": \"AdminInstanceProfile\"\n      }\n    }\n  },\n  \"cloud\": {\n    \"instance\": {\n      \"type\": \"t2.micro\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Profile-to-Role Resolution",

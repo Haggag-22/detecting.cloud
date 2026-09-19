@@ -32,41 +32,6 @@
       "Some legacy workloads intentionally run with httpTokens=optional and require exception handling"
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "EC2 API source"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "Instance launch or metadata option change"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor configuring the instance"
-      },
-      {
-        "rawPath": "requestParameters.metadataOptions.httpTokens",
-        "normalizedPath": "aws.ec2.metadata.http_tokens",
-        "notes": "RunInstances metadata configuration"
-      },
-      {
-        "rawPath": "requestParameters.httpTokens",
-        "normalizedPath": "aws.ec2.metadata.http_tokens",
-        "notes": "ModifyInstanceMetadataOptions path"
-      },
-      {
-        "rawPath": "requestParameters.instanceId",
-        "normalizedPath": "cloud.instance.id",
-        "notes": "Existing instance being modified"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"RunInstances\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"instance\": {\n      \"id\": \"i-0abc123\"\n    }\n  },\n  \"aws\": {\n    \"ec2\": {\n      \"metadata\": {\n        \"http_tokens\": \"optional\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Instance Role Sensitivity",

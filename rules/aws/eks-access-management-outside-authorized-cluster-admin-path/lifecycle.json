@@ -35,31 +35,6 @@
       "PrincipalId substring checks are too brittle without additional provenance."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor managing EKS authorization"
-      },
-      {
-        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
-        "normalizedPath": "aws.identity.session_issuer.arn",
-        "notes": "Underlying role or identity source"
-      },
-      {
-        "rawPath": "requestParameters.clusterName",
-        "normalizedPath": "aws.eks.cluster.name",
-        "notes": "Cluster where authorization is being changed"
-      },
-      {
-        "rawPath": "requestParameters.principalArn",
-        "normalizedPath": "aws.eks.access_entry.principal_arn",
-        "notes": "Principal affected by the change"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"CreateAccessEntry\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\"\n  },\n  \"aws\": {\n    \"eks\": {\n      \"cluster\": {\n        \"name\": \"prod\"\n      },\n      \"access_entry\": {\n        \"principal_arn\": \"arn:aws:iam::123456789012:user/attacker\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Authorized EKS Access Managers",

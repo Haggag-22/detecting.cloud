@@ -42,46 +42,6 @@
       "Range requests, retries, scanners, ETL jobs, and backup tools can distort both request count and inferred byte volume."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventTime",
-        "normalizedPath": "@timestamp",
-        "notes": "CloudTrail event time"
-      },
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.provider",
-        "notes": "S3 API provider"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "GetObject object-read action"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Principal performing the object read"
-      },
-      {
-        "rawPath": "requestParameters.bucketName",
-        "normalizedPath": "aws.s3.bucket.name",
-        "notes": "Target bucket"
-      },
-      {
-        "rawPath": "requestParameters.key",
-        "normalizedPath": "aws.s3.object.key",
-        "notes": "Target object key"
-      },
-      {
-        "rawPath": "additionalEventData.bytesTransferredOut",
-        "normalizedPath": "aws.s3.bytes_out",
-        "notes": "Optional; only use after validating field availability in your telemetry"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": \"data_access\",\n    \"type\": \"access\",\n    \"action\": \"GetObject\",\n    \"provider\": \"s3.amazonaws.com\",\n    \"read_only\": true,\n    \"outcome\": \"success\"\n  },\n  \"user\": {\n    \"type\": \"AssumedRole\",\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/DataReadRole/attacker-session\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.50\"\n  },\n  \"user_agent\": {\n    \"original\": \"aws-cli/2.15.0\"\n  },\n  \"aws\": {\n    \"s3\": {\n      \"bucket\": {\n        \"name\": \"company-sensitive-data\"\n      },\n      \"object\": {\n        \"key\": \"finance/2025/q1-report.xlsx\"\n      },\n      \"bytes_out\": 15728640\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Data Sensitivity and Bucket Criticality",

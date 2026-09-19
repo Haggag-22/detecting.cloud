@@ -32,41 +32,6 @@
       "Whitespace or formatting changes in policyDocument can affect naive string matching in some tools"
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "IAM API source"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "CreatePolicyVersion API"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor performing the policy change"
-      },
-      {
-        "rawPath": "requestParameters.policyArn",
-        "normalizedPath": "aws.iam.policy.arn",
-        "notes": "Target managed policy"
-      },
-      {
-        "rawPath": "requestParameters.setAsDefault",
-        "normalizedPath": "aws.iam.policy.set_as_default",
-        "notes": "Whether the new version becomes effective immediately"
-      },
-      {
-        "rawPath": "requestParameters.policyDocument",
-        "normalizedPath": "aws.iam.policy.document",
-        "notes": "New policy version content"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"CreatePolicyVersion\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    }\n  },\n  \"aws\": {\n    \"iam\": {\n      \"policy\": {\n        \"arn\": \"arn:aws:iam::123456789012:policy/ExistingPolicy\",\n        \"set_as_default\": true,\n        \"document\": {\n          \"Statement\": [\n            {\n              \"Effect\": \"Allow\",\n              \"Action\": \"*\",\n              \"Resource\": \"*\"\n            }\n          ]\n        }\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Policy Attachment Blast Radius",

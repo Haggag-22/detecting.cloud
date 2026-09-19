@@ -31,31 +31,6 @@
       "The model requires tuning to local governance workflows."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "recipientAccountId",
-        "normalizedPath": "cloud.account.target_id",
-        "notes": "Account attempting to leave the organization"
-      },
-      {
-        "rawPath": "userIdentity.accountId",
-        "normalizedPath": "cloud.account.id",
-        "notes": "Account context for later guardrail-sensitive actions"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor associated with the leave attempt or later changes"
-      },
-      {
-        "rawPath": "follow_on.eventName",
-        "normalizedPath": "related.event.action",
-        "notes": "Guardrail-sensitive action after the leave attempt"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"LeaveOrganization\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"cloud\": {\n    \"account\": {\n      \"target_id\": \"123456789012\"\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"CreateAccessKey\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Stable Account Linkage",

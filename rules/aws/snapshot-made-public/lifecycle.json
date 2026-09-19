@@ -33,31 +33,6 @@
       "Broad EventBridge matching needs downstream payload inspection to isolate public exposure."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.snapshotId",
-        "normalizedPath": "aws.ebs.snapshot.id",
-        "notes": "Snapshot being made public"
-      },
-      {
-        "rawPath": "requestParameters.groupNames",
-        "normalizedPath": "aws.ebs.snapshot.permission_groups",
-        "notes": "Direct group permission list where present"
-      },
-      {
-        "rawPath": "requestParameters.createVolumePermission.add.groups",
-        "normalizedPath": "aws.ebs.snapshot.added_permission_groups",
-        "notes": "Permission groups added in the request"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor exposing the snapshot publicly"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"ModifySnapshotAttribute\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ebs\": {\n      \"snapshot\": {\n        \"id\": \"snap-xxx\",\n        \"permission_groups\": [\n          \"all\"\n        ],\n        \"added_permission_groups\": [\n          \"all\"\n        ]\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Public Exposure Delta",

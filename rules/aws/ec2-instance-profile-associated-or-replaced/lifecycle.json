@@ -33,26 +33,6 @@
       "Some lifecycle automation legitimately swaps profiles during maintenance."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.instanceId",
-        "normalizedPath": "cloud.instance.id",
-        "notes": "Target EC2 instance"
-      },
-      {
-        "rawPath": "requestParameters.iamInstanceProfile.name",
-        "normalizedPath": "aws.ec2.instance_profile.name",
-        "notes": "Newly attached or replacement profile"
-      },
-      {
-        "rawPath": "enrichment.previousInstanceProfile",
-        "normalizedPath": "aws.ec2.previous_instance_profile.name",
-        "notes": "Prior profile for privilege-delta analysis"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"compute\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"AssociateIamInstanceProfile\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"cloud\": {\n    \"instance\": {\n      \"id\": \"i-xxx\"\n    }\n  },\n  \"aws\": {\n    \"ec2\": {\n      \"instance_profile\": {\n        \"name\": \"AdminProfile\"\n      },\n      \"previous_instance_profile\": {\n        \"name\": null\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Privilege Delta",

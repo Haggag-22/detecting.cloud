@@ -37,46 +37,6 @@
       "GetBucketPolicyStatus.IsPublic reflects policy-based public exposure, not ACL-only exposure."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "s3.amazonaws.com"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "DeletePublicAccessBlock or PutPublicAccessBlock"
-      },
-      {
-        "rawPath": "eventTime",
-        "normalizedPath": "@timestamp",
-        "notes": "CloudTrail event time"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor that changed public access settings"
-      },
-      {
-        "rawPath": "requestParameters.bucketName",
-        "normalizedPath": "aws.s3.bucket.name",
-        "notes": "Target bucket"
-      },
-      {
-        "rawPath": "requestParameters.PublicAccessBlockConfiguration.BlockPublicPolicy",
-        "normalizedPath": "aws.s3.bucket.public_access_block.bucket.block_public_policy",
-        "notes": "Policy exposure control"
-      },
-      {
-        "rawPath": "requestParameters.PublicAccessBlockConfiguration.RestrictPublicBuckets",
-        "normalizedPath": "aws.s3.bucket.public_access_block.bucket.restrict_public_buckets",
-        "notes": "Public bucket restriction control"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"DeletePublicAccessBlock\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"aws\": {\n    \"s3\": {\n      \"bucket\": {\n        \"name\": \"my-bucket\"\n      },\n      \"public_access_block\": {\n        \"bucket\": {\n          \"state\": \"removed\"\n        }\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Effective Exposure State",

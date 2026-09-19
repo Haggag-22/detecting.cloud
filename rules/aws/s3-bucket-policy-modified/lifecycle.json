@@ -35,41 +35,6 @@
       "Distinguishing true widening requires parsing principals, actions, resources, and conditions, then comparing them to the prior policy or an allowlist of approved external accounts."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "s3.amazonaws.com"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "PutBucketPolicy or DeleteBucketPolicy"
-      },
-      {
-        "rawPath": "eventTime",
-        "normalizedPath": "@timestamp",
-        "notes": "CloudTrail event time"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor that changed the policy"
-      },
-      {
-        "rawPath": "requestParameters.bucketName",
-        "normalizedPath": "aws.s3.bucket.name",
-        "notes": "Target bucket"
-      },
-      {
-        "rawPath": "requestParameters.policy",
-        "normalizedPath": "aws.s3.bucket.policy.json",
-        "notes": "Full submitted policy body"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"PutBucketPolicy\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"aws\": {\n    \"s3\": {\n      \"bucket\": {\n        \"name\": \"my-bucket\"\n      },\n      \"policy\": {\n        \"exposure\": {\n          \"principal_scope\": \"public\",\n          \"access_level\": \"read\"\n        }\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Identity And Change Provenance",

@@ -31,36 +31,6 @@
       "Infrastructure-as-code workflows may legitimately disable protection in lower environments."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "CloudTrail service source; should equal dynamodb.amazonaws.com"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "API action; should equal UpdateTable"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor performing the change"
-      },
-      {
-        "rawPath": "requestParameters.tableName",
-        "normalizedPath": "aws.dynamodb.table.name",
-        "notes": "Target DynamoDB table name"
-      },
-      {
-        "rawPath": "requestParameters.deletionProtectionEnabled",
-        "normalizedPath": "aws.dynamodb.deletion_protection_enabled",
-        "notes": "Boolean control-state change; alert when false"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"UpdateTable\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"aws\": {\n    \"dynamodb\": {\n      \"table\": {\n        \"name\": \"MyTable\",\n        \"deletion_protection_enabled\": false\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Identity Context",

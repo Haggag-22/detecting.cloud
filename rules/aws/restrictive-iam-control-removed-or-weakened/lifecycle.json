@@ -34,41 +34,6 @@
       "If you keep the scope detach/delete-only, you will miss weakening-by-replacement patterns."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "Detach, delete, boundary-removal, or version-switch event"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor ARN"
-      },
-      {
-        "rawPath": "requestParameters.roleName",
-        "normalizedPath": "aws.iam.target_role.name",
-        "notes": "Target role"
-      },
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "Target user"
-      },
-      {
-        "rawPath": "requestParameters.policyArn",
-        "normalizedPath": "aws.iam.policy.arn",
-        "notes": "Managed policy removed or changed"
-      },
-      {
-        "rawPath": "requestParameters.policyName",
-        "normalizedPath": "aws.iam.policy.name",
-        "notes": "Inline policy removed"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"DetachUserPolicy\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_user\": {\n        \"name\": \"TargetUser\"\n      },\n      \"policy\": {\n        \"arn\": \"arn:aws:iam::123456789012:policy/DenyS3Delete\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Restrictive Control Classification",

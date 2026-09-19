@@ -37,51 +37,6 @@
       "Legitimate onboarding, break-glass administration, Terraform, CloudFormation, and identity platform automation can generate true events that are operationally expected."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "IAM API source"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "AttachUserPolicy or PutUserPolicy"
-      },
-      {
-        "rawPath": "eventTime",
-        "normalizedPath": "@timestamp",
-        "notes": "CloudTrail event time"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor principal ARN"
-      },
-      {
-        "rawPath": "userIdentity.userName",
-        "normalizedPath": "user.name",
-        "notes": "Friendly actor name when caller is IAMUser"
-      },
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "User receiving the policy"
-      },
-      {
-        "rawPath": "requestParameters.policyArn",
-        "normalizedPath": "aws.iam.policy.arn",
-        "notes": "Managed policy target for AttachUserPolicy"
-      },
-      {
-        "rawPath": "requestParameters.policyDocument",
-        "normalizedPath": "aws.iam.policy.document",
-        "notes": "Inline policy JSON for PutUserPolicy"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"AttachUserPolicy\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"name\": \"dev-user\",\n    \"type\": \"IAMUser\",\n    \"id\": \"AIDAEXAMPLE\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    }\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_user\": {\n        \"name\": \"target-user\"\n      },\n      \"policy\": {\n        \"arn\": \"arn:aws:iam::aws:policy/AdministratorAccess\",\n        \"sensitivity\": \"high\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Policy Sensitivity Classification",

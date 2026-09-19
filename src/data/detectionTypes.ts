@@ -52,20 +52,7 @@ export interface TelemetryValidation {
   limitations?: string[];
 }
 
-/** Field mapping for normalization */
-export interface FieldMapping {
-  rawPath: string;
-  normalizedPath: string;
-  notes?: string;
-}
-
-/** Data modeling (Phase 3) */
-export interface DataModeling {
-  rawToNormalized: FieldMapping[];
-  exampleNormalizedEvent: string;
-}
-
-/** Enrichment context (Phase 4) */
+/** Enrichment context (Phase 3) */
 export interface EnrichmentContext {
   dimension: string;
   description: string;
@@ -73,7 +60,7 @@ export interface EnrichmentContext {
   falsePositiveReduction?: string;
 }
 
-/** Human-readable detection logic explanation (Phase 5 Detection Logic tab) */
+/** Human-readable detection logic explanation (Phase 4 Detection Logic tab) */
 export interface DetectionLogicExplanation {
   humanReadable: string;
   /** Exact conditions that trigger the detection */
@@ -113,7 +100,6 @@ export interface DetectionLifecycle {
   whyItMatters?: string;
   threatContext?: ThreatContext;
   telemetryValidation?: TelemetryValidation;
-  dataModeling?: DataModeling;
   enrichment?: EnrichmentContext[];
   logicExplanation?: DetectionLogicExplanation;
   /** Example CLI/API command to simulate the attack (for testing section) */
@@ -153,7 +139,7 @@ export interface Detection {
   investigationSteps?: string[];
   /** Safe lab testing procedures */
   testingSteps?: string[];
-  /** Full detection lifecycle metadata (8-section page) */
+  /** Full detection lifecycle metadata */
   lifecycle?: DetectionLifecycle;
 }
 

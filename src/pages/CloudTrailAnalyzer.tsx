@@ -323,7 +323,7 @@ export default function CloudTrailAnalyzer() {
                 </p>
               </CardHeader>
               <CardContent>
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer border-muted-foreground/25 hover:border-muted-foreground/50 transition-colors">
+                <label className="flex flex-col items-center justify-center w-full h-32 border border-dashed rounded-lg cursor-pointer border-border/50 hover:border-primary/30 transition-colors">
                   <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                   <span className="text-sm text-muted-foreground">Click or drag `.json`, `.jsonl`, `.ndjson`, or `.csv` file</span>
                   <input
@@ -495,7 +495,7 @@ export default function CloudTrailAnalyzer() {
                             canExport={filteredEvents.length > 0}
                           />
                         </div>
-                        <div className="flex-1 min-h-0 rounded-lg border overflow-hidden">
+                        <div className="flex-1 min-h-0 rounded-lg border border-border/50 overflow-hidden">
                           {viewMode === "table" ? (
                             <EventsTable
                               events={filteredEvents}
@@ -828,7 +828,7 @@ function EventsTimeline({
   className?: string;
 }) {
   return (
-    <ScrollArea className={cn("w-full rounded-md border", className)}>
+    <ScrollArea className={cn("w-full rounded-md border border-border/50", className)}>
       <div className="p-5">
         {events.map((ev) => (
           <React.Fragment key={ev.event_id}>
@@ -981,7 +981,7 @@ function EventsTable({
   className?: string;
 }) {
   return (
-    <ScrollArea className={cn("w-full rounded-lg border", className)}>
+    <ScrollArea className={cn("w-full rounded-lg border border-border/50", className)}>
       <Table className="w-full min-w-[1200px] table-fixed">
         <colgroup>
           <col style={{ width: "3%" }} />

@@ -175,7 +175,6 @@ const TechniqueDetailPage = () => {
                   className="block rounded-lg border border-border/50 bg-card p-4 hover:border-primary/30 transition-colors"
                 >
                   <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline" className="text-xs border-border text-muted-foreground">{det.awsService}</Badge>
                     <span className="font-medium text-sm">{det.title}</span>
                     <Badge className={`text-xs border-0 ml-auto ${severityColor[det.severity]}`}>{det.severity}</Badge>
                   </div>

@@ -40,51 +40,6 @@
       "Cross-account and cross-region exports are supported."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "CloudTrail provider; dynamodb.amazonaws.com"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "API action; ExportTableToPointInTime"
-      },
-      {
-        "rawPath": "eventTime",
-        "normalizedPath": "@timestamp",
-        "notes": "Primary event timestamp"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor ARN"
-      },
-      {
-        "rawPath": "requestParameters.tableArn",
-        "normalizedPath": "aws.dynamodb.table.arn",
-        "notes": "Exported table"
-      },
-      {
-        "rawPath": "requestParameters.s3Bucket",
-        "normalizedPath": "destination.bucket.name",
-        "notes": "Primary allowlist and exfiltration field"
-      },
-      {
-        "rawPath": "requestParameters.s3BucketOwner",
-        "normalizedPath": "destination.bucket.account.id",
-        "notes": "Critical for cross-account export triage"
-      },
-      {
-        "rawPath": "requestParameters.s3Prefix",
-        "normalizedPath": "destination.bucket.prefix",
-        "notes": "Useful for policy and allowlist scoping"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"ExportTableToPointInTime\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"aws\": {\n    \"dynamodb\": {\n      \"table\": {\n        \"arn\": \"arn:aws:dynamodb:us-east-1:123456789012:table/MyTable\"\n      },\n      \"export\": {\n        \"destination_bucket\": \"export-bucket\",\n        \"destination_prefix\": \"ddb/\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Destination Bucket Allowlist",

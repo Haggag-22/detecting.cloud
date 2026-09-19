@@ -34,31 +34,6 @@
       "The pivot event alone does not prove how the actor obtained the initial access."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Principal performing the pivot"
-      },
-      {
-        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
-        "normalizedPath": "aws.identity.session_issuer.arn",
-        "notes": "Underlying role where relevant"
-      },
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "iam.target.user.name",
-        "notes": "Target IAM user for CreateAccessKey where applicable"
-      },
-      {
-        "rawPath": "requestParameters.roleArn",
-        "normalizedPath": "aws.sts.assume_role.target_arn",
-        "notes": "Target role for AssumeRole pivots"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"AssumeRole\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/aws-elasticbeanstalk-ec2-role/session\",\n    \"type\": \"AssumedRole\"\n  },\n  \"aws\": {\n    \"sts\": {\n      \"assume_role\": {\n        \"target_arn\": \"arn:aws:iam::123456789012:role/TargetRole\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Beanstalk Linkage",

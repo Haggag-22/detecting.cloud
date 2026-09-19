@@ -34,26 +34,6 @@
       "Some sensitive data-plane access still depends on broader logging coverage."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.taskDefinition",
-        "normalizedPath": "aws.ecs.task_definition.arn",
-        "notes": "Task definition used at launch"
-      },
-      {
-        "rawPath": "enrichment.resolvedTaskRoleArn",
-        "normalizedPath": "aws.iam.role.arn",
-        "notes": "Resolved task role activated by the launch"
-      },
-      {
-        "rawPath": "follow_on.eventName",
-        "normalizedPath": "related.event.action",
-        "notes": "Sensitive API action later performed by the task role"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"compute\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"RunTask\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ecs\": {\n      \"task_definition\": {\n        \"arn\": \"backdoor-task:1\"\n      }\n    },\n    \"iam\": {\n      \"role\": {\n        \"arn\": \"arn:aws:iam::123456789012:role/TaskSecretsRole\"\n      }\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"GetSecretValue\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Resolved Task Role Identity",

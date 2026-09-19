@@ -34,41 +34,6 @@
       "Approved AMI sharing to specific accounts should not be conflated with public snapshot sharing."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "CloudTrail provider; should be ec2.amazonaws.com"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "API action; ModifySnapshotAttribute"
-      },
-      {
-        "rawPath": "eventTime",
-        "normalizedPath": "@timestamp",
-        "notes": "Primary event timestamp"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor ARN"
-      },
-      {
-        "rawPath": "requestParameters.snapshotId",
-        "normalizedPath": "aws.ec2.snapshot.id",
-        "notes": "Target snapshot"
-      },
-      {
-        "rawPath": "requestParameters.createVolumePermission",
-        "normalizedPath": "aws.ec2.snapshot.createVolumePermission",
-        "notes": "Canonical permission mutation payload; parse for all"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"ModifySnapshotAttribute\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"aws\": {\n    \"ec2\": {\n      \"snapshot\": {\n        \"id\": \"snap-xxx\",\n        \"createVolumePermission\": {\n          \"exposure\": \"public\"\n        }\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Identity Context",

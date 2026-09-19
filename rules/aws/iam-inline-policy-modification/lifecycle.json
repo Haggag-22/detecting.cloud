@@ -36,51 +36,6 @@
       "Some pipelines truncate or mishandle large inline policy documents."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "IAM API source"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "PutUserPolicy or PutRolePolicy"
-      },
-      {
-        "rawPath": "eventTime",
-        "normalizedPath": "@timestamp",
-        "notes": "CloudTrail event time"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor ARN"
-      },
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "Target user if PutUserPolicy"
-      },
-      {
-        "rawPath": "requestParameters.roleName",
-        "normalizedPath": "aws.iam.target_role.name",
-        "notes": "Target role if PutRolePolicy"
-      },
-      {
-        "rawPath": "requestParameters.policyName",
-        "normalizedPath": "aws.iam.policy.name",
-        "notes": "Inline policy name"
-      },
-      {
-        "rawPath": "requestParameters.policyDocument",
-        "normalizedPath": "aws.iam.policy.document",
-        "notes": "Inline policy JSON"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"PutRolePolicy\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_role\": {\n        \"name\": \"TargetRole\"\n      },\n      \"policy\": {\n        \"name\": \"EscalationPolicy\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Policy Content Risk",

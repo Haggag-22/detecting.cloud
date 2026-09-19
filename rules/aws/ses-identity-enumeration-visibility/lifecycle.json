@@ -30,31 +30,6 @@
       "Identity enumeration may be low-volume and easy to miss without baseline visibility."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor enumerating SES identities"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "Enumeration API used"
-      },
-      {
-        "rawPath": "requestParameters.identityType",
-        "normalizedPath": "aws.ses.identity.type",
-        "notes": "SES identity category requested where available"
-      },
-      {
-        "rawPath": "requestParameters.identities",
-        "normalizedPath": "aws.ses.identity.requested_values",
-        "notes": "Specific identities queried where available"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"discovery\"\n    ],\n    \"type\": [\n      \"info\"\n    ],\n    \"action\": \"ListIdentities\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/admin\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ses\": {\n      \"identity\": {\n        \"type\": \"EmailAddress\"\n      }\n    }\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "SES Usage Context",

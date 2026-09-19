@@ -31,31 +31,6 @@
       "Some sensitive hosts are accessed legitimately during routine maintenance or incident response."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.target",
-        "normalizedPath": "cloud.instance.id",
-        "notes": "Interactive session target"
-      },
-      {
-        "rawPath": "enrichment.targetEnvironment",
-        "normalizedPath": "cloud.instance.environment",
-        "notes": "Production, staging, development, etc."
-      },
-      {
-        "rawPath": "enrichment.targetSensitivity",
-        "normalizedPath": "cloud.instance.sensitivity",
-        "notes": "Bastion, directory, break-glass, secrets host, and similar classes"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor opening the session"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"session\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"StartSession\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"cloud\": {\n    \"instance\": {\n      \"id\": \"i-0abc123def456\",\n      \"environment\": \"production\",\n      \"sensitivity\": \"database\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Target Sensitivity Classification",

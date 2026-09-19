@@ -34,31 +34,6 @@
       "Without source ownership enrichment this rule can be noisy."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.sourceSnapshotId",
-        "normalizedPath": "aws.ebs.snapshot.source_id",
-        "notes": "Original snapshot being copied"
-      },
-      {
-        "rawPath": "requestParameters.sourceRegion",
-        "normalizedPath": "aws.region.source",
-        "notes": "Source region of the copied snapshot"
-      },
-      {
-        "rawPath": "requestParameters.destinationRegion",
-        "normalizedPath": "aws.region.destination",
-        "notes": "Destination region for the copied snapshot"
-      },
-      {
-        "rawPath": "recipientAccountId",
-        "normalizedPath": "cloud.account.id",
-        "notes": "Consumer account receiving the copied snapshot"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"storage\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CopySnapshot\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::999999999999:user/attacker\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ebs\": {\n      \"snapshot\": {\n        \"source_id\": \"snap-xxx\"\n      }\n    },\n    \"region\": {\n      \"source\": \"us-east-1\",\n      \"destination\": \"us-east-1\"\n    }\n  },\n  \"cloud\": {\n    \"account\": {\n      \"id\": \"999999999999\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Source Snapshot Ownership",

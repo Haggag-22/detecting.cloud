@@ -1,47 +1,42 @@
 import React from "react";
-import type { AwsIconComponent } from "@aws-icons/react/architecture-service";
-import {
-  AwsAutoScaling,
-  AwsBackup,
-  AmazonBedrock,
-  AwsCloudFormation,
-  AmazonCognito,
-  AmazonEventBridge,
-} from "@aws-icons/react/architecture-service";
-import {
-  AwsIdentityAccessManagementAwsSts,
-  AwsIdentityAccessManagementIamRolesAnywhere,
-} from "@aws-icons/react/resource";
 
-import iconIAM from "@/assets/icons/IAM.png";
-import iconLambda from "@/assets/icons/Lambda.png";
-import iconEC2 from "@/assets/icons/EC2.png";
-import iconS3 from "@/assets/icons/S3.png";
-import iconEBS from "@/assets/icons/EBS.png";
-import iconEFS from "@/assets/icons/EFS.png";
-import iconDynamoDB from "@/assets/icons/DynamoDB.png";
-import iconRDS from "@/assets/icons/RDS.png";
-import iconCloudTrail from "@/assets/icons/CloudTrail.png";
-import iconConfig from "@/assets/icons/Config.png";
-import iconKMS from "@/assets/icons/KMS.png";
-import iconEKS from "@/assets/icons/EKS.png";
-import iconECS from "@/assets/icons/ECS.png";
-import iconSecretsManager from "@/assets/icons/SecretsManager.png";
-import iconSSM from "@/assets/icons/SSM.png";
-import iconOrganizations from "@/assets/icons/Organizations.png";
-import iconSageMaker from "@/assets/icons/SageMaker.png";
-import iconSES from "@/assets/icons/SES.png";
-import iconCodeBuild from "@/assets/icons/CodeBuild.png";
-import iconElasticBeanstalk from "@/assets/icons/ElasticBeanstalk.png";
-import iconCloudFront from "@/assets/icons/CloudFront.png";
-import iconGuardDuty from "@/assets/icons/GuardDuty.png";
-import iconSecurityHub from "@/assets/icons/SecurityHub.png";
-import iconVPC from "@/assets/icons/VPC.png";
-import iconELB from "@/assets/icons/ELB.png";
-import iconRoute53 from "@/assets/icons/Route53.png";
-import iconGlue from "@/assets/icons/Glue.png";
-import iconDirectoryService from "@/assets/icons/DirectoryService.png";
-import iconIAMIdentityCenter from "@/assets/icons/IAMIdentityCenter.png";
+import iconIAM from "@/assets/icons/aws/IAM.svg";
+import iconLambda from "@/assets/icons/aws/Lambda.svg";
+import iconEC2 from "@/assets/icons/aws/EC2.svg";
+import iconS3 from "@/assets/icons/aws/S3.svg";
+import iconEBS from "@/assets/icons/aws/EBS.svg";
+import iconEFS from "@/assets/icons/aws/EFS.svg";
+import iconDynamoDB from "@/assets/icons/aws/DynamoDB.svg";
+import iconRDS from "@/assets/icons/aws/RDS.svg";
+import iconCloudTrail from "@/assets/icons/aws/CloudTrail.svg";
+import iconConfig from "@/assets/icons/aws/Config.svg";
+import iconKMS from "@/assets/icons/aws/KMS.svg";
+import iconEKS from "@/assets/icons/aws/EKS.svg";
+import iconECS from "@/assets/icons/aws/ECS.svg";
+import iconSecretsManager from "@/assets/icons/aws/SecretsManager.svg";
+import iconSSM from "@/assets/icons/aws/SSM.svg";
+import iconOrganizations from "@/assets/icons/aws/Organizations.svg";
+import iconSageMaker from "@/assets/icons/aws/SageMaker.svg";
+import iconSES from "@/assets/icons/aws/SES.svg";
+import iconCodeBuild from "@/assets/icons/aws/CodeBuild.svg";
+import iconElasticBeanstalk from "@/assets/icons/aws/ElasticBeanstalk.svg";
+import iconCloudFront from "@/assets/icons/aws/CloudFront.svg";
+import iconGuardDuty from "@/assets/icons/aws/GuardDuty.svg";
+import iconSecurityHub from "@/assets/icons/aws/SecurityHub.svg";
+import iconVPC from "@/assets/icons/aws/VPC.svg";
+import iconELB from "@/assets/icons/aws/ELB.svg";
+import iconRoute53 from "@/assets/icons/aws/Route53.svg";
+import iconGlue from "@/assets/icons/aws/Glue.svg";
+import iconDirectoryService from "@/assets/icons/aws/DirectoryService.svg";
+import iconIAMIdentityCenter from "@/assets/icons/aws/IAMIdentityCenter.svg";
+import iconSTS from "@/assets/icons/aws/STS.svg";
+import iconAutoScaling from "@/assets/icons/aws/AutoScaling.svg";
+import iconBackup from "@/assets/icons/aws/Backup.svg";
+import iconBedrock from "@/assets/icons/aws/Bedrock.svg";
+import iconCloudFormation from "@/assets/icons/aws/CloudFormation.svg";
+import iconCognito from "@/assets/icons/aws/Cognito.svg";
+import iconEventBridge from "@/assets/icons/aws/EventBridge.svg";
+import iconRolesAnywhere from "@/assets/icons/aws/RolesAnywhere.svg";
 
 import iconEntraID from "@/assets/icons/azure/EntraID.svg";
 import iconEntraIDProtection from "@/assets/icons/azure/EntraIDProtection.svg";
@@ -52,15 +47,16 @@ import iconAKS from "@/assets/icons/azure/AKS.svg";
 import iconAzureActivity from "@/assets/icons/azure/AzureActivity.svg";
 import iconAzureNetworking from "@/assets/icons/azure/AzureNetworking.svg";
 
-import iconGcpIAM from "@/assets/icons/gcp/IAM.png";
-import iconGke from "@/assets/icons/gcp/GKE.png";
-import iconCloudStorage from "@/assets/icons/gcp/CloudStorage.png";
-import iconCloudSql from "@/assets/icons/gcp/CloudSQL.png";
-import iconGcpNetworking from "@/assets/icons/gcp/Networking.png";
-import iconWorkspace from "@/assets/icons/gcp/Workspace.png";
-import iconDlp from "@/assets/icons/gcp/DLP.png";
-import iconGcp from "@/assets/icons/gcp/GCP.png";
-import iconGcpAudit from "@/assets/icons/gcp/GCPAudit.png";
+import iconGcpIAM from "@/assets/icons/gcp/IdentityAndAccessManagement.svg";
+import iconGke from "@/assets/icons/gcp/GoogleKubernetesEngine.svg";
+import iconCloudStorage from "@/assets/icons/gcp/CloudStorage.svg";
+import iconCloudSql from "@/assets/icons/gcp/CloudSQL.svg";
+import iconCloudDns from "@/assets/icons/gcp/CloudDNS.svg";
+import iconGcpFirewall from "@/assets/icons/gcp/CloudFirewallRules.svg";
+import iconWorkspace from "@/assets/icons/gcp/IdentityPlatform.svg";
+import iconDlp from "@/assets/icons/gcp/DataLossPrevention.svg";
+import iconGcp from "@/assets/icons/gcp/CloudGeneric.svg";
+import iconGcpAudit from "@/assets/icons/gcp/CloudAuditLogs.svg";
 
 interface IconProps {
   className?: string;
@@ -72,13 +68,6 @@ const defaultSize = 24;
 function createAwsIconComponent(iconPath: string): React.FC<IconProps> {
   return ({ className, size = defaultSize }) => (
     <img src={iconPath} alt="" width={size} height={size} className={className} style={{ objectFit: "contain" }} />
-  );
-}
-
-/** Wrap official @aws-icons/react components into our size/className API */
-function wrapPackageIcon(Icon: AwsIconComponent): React.FC<IconProps> {
-  return ({ className, size = defaultSize }) => (
-    <Icon width={size} height={size} className={className} style={{ display: "block", flexShrink: 0 }} />
   );
 }
 
@@ -114,16 +103,14 @@ const iconComponents: Record<string, React.FC<IconProps>> = {
   Glue: createAwsIconComponent(iconGlue),
   "Directory Service": createAwsIconComponent(iconDirectoryService),
   "IAM Identity Center": createAwsIconComponent(iconIAMIdentityCenter),
-
-  // Official AWS Architecture Icons (@aws-icons/react)
-  STS: wrapPackageIcon(AwsIdentityAccessManagementAwsSts),
-  "Auto Scaling": wrapPackageIcon(AwsAutoScaling),
-  Backup: wrapPackageIcon(AwsBackup),
-  Bedrock: wrapPackageIcon(AmazonBedrock),
-  CloudFormation: wrapPackageIcon(AwsCloudFormation),
-  Cognito: wrapPackageIcon(AmazonCognito),
-  EventBridge: wrapPackageIcon(AmazonEventBridge),
-  "Roles Anywhere": wrapPackageIcon(AwsIdentityAccessManagementIamRolesAnywhere),
+  STS: createAwsIconComponent(iconSTS),
+  "Auto Scaling": createAwsIconComponent(iconAutoScaling),
+  Backup: createAwsIconComponent(iconBackup),
+  Bedrock: createAwsIconComponent(iconBedrock),
+  CloudFormation: createAwsIconComponent(iconCloudFormation),
+  Cognito: createAwsIconComponent(iconCognito),
+  EventBridge: createAwsIconComponent(iconEventBridge),
+  "Roles Anywhere": createAwsIconComponent(iconRolesAnywhere),
 
   // Azure
   "Entra ID": createAwsIconComponent(iconEntraID),
@@ -140,8 +127,8 @@ const iconComponents: Record<string, React.FC<IconProps>> = {
   GKE: createAwsIconComponent(iconGke),
   "Cloud Storage": createAwsIconComponent(iconCloudStorage),
   "Cloud SQL": createAwsIconComponent(iconCloudSql),
-  "Cloud DNS": createAwsIconComponent(iconGcpNetworking),
-  "VPC Firewall": createAwsIconComponent(iconGcpNetworking),
+  "Cloud DNS": createAwsIconComponent(iconCloudDns),
+  "VPC Firewall": createAwsIconComponent(iconGcpFirewall),
   "Google Workspace": createAwsIconComponent(iconWorkspace),
   "Cloud DLP": createAwsIconComponent(iconDlp),
   "GCP Audit Logs": createAwsIconComponent(iconGcpAudit),

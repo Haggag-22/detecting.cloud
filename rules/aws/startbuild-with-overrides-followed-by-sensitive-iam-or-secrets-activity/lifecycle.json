@@ -33,31 +33,6 @@
       "The model is strongest when project-role lineage is available."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.projectName",
-        "normalizedPath": "aws.codebuild.project.name",
-        "notes": "Project launched with risky overrides"
-      },
-      {
-        "rawPath": "requestParameters.buildspecOverride",
-        "normalizedPath": "aws.codebuild.request.buildspec_override",
-        "notes": "Execution-changing build override"
-      },
-      {
-        "rawPath": "requestParameters.environmentVariablesOverride",
-        "normalizedPath": "aws.codebuild.request.environment_variables_override",
-        "notes": "Runtime variable override"
-      },
-      {
-        "rawPath": "follow_on.eventName",
-        "normalizedPath": "related.event.action",
-        "notes": "Sensitive action after the override-backed launch"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"process\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"StartBuild\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"codebuild\": {\n      \"project\": {\n        \"name\": \"target\"\n      }\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"GetSecretValue\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Build Role Lineage",

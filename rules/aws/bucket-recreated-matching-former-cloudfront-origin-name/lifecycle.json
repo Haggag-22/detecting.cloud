@@ -31,31 +31,6 @@
       "Same-owner recreation during remediation can appear similar to takeover unless ownership context is checked."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.bucketName",
-        "normalizedPath": "s3.bucket.name",
-        "notes": "Recreated bucket name"
-      },
-      {
-        "rawPath": "recipientAccountId",
-        "normalizedPath": "cloud.account.id",
-        "notes": "Account recreating the bucket"
-      },
-      {
-        "rawPath": "enrichment.orphanedOriginMatch",
-        "normalizedPath": "aws.cloudfront.origin.orphaned_name_match",
-        "notes": "Whether name matches risky orphaned-origin baseline"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor creating the bucket"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"storage\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateBucket\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::999999999999:user/attacker\",\n    \"type\": \"IAMUser\"\n  },\n  \"cloud\": {\n    \"account\": {\n      \"id\": \"999999999999\"\n    }\n  },\n  \"s3\": {\n    \"bucket\": {\n      \"name\": \"deleted-victim-bucket\"\n    }\n  },\n  \"aws\": {\n    \"cloudfront\": {\n      \"origin\": {\n        \"orphaned_name_match\": true\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Orphaned-Origin Name Baseline",

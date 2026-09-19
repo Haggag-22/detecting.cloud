@@ -38,46 +38,6 @@
       "For a multi-Region primary key with existing replicas, the key can enter PendingReplicaDeletion and the actual deletion waiting period does not begin until the last replica key is deleted."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "Should equal kms.amazonaws.com"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "ScheduleKeyDeletion API call"
-      },
-      {
-        "rawPath": "eventTime",
-        "normalizedPath": "@timestamp",
-        "notes": "Canonical event time"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor that scheduled deletion"
-      },
-      {
-        "rawPath": "requestParameters.keyId",
-        "normalizedPath": "aws.kms.key.id",
-        "notes": "Target KMS key ARN or key ID"
-      },
-      {
-        "rawPath": "requestParameters.pendingWindowInDays",
-        "normalizedPath": "aws.kms.key.deletion.pending_window_days",
-        "notes": "7-30 day waiting period"
-      },
-      {
-        "rawPath": "responseElements.keyState",
-        "normalizedPath": "aws.kms.key.state",
-        "notes": "PendingDeletion or PendingReplicaDeletion"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"ScheduleKeyDeletion\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"aws\": {\n    \"kms\": {\n      \"key\": {\n        \"id\": \"arn:aws:kms:us-east-1:123456789012:key/xxx\",\n        \"deletion\": {\n          \"pending_window_days\": 7\n        },\n        \"state\": \"PendingDeletion\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Key Criticality",

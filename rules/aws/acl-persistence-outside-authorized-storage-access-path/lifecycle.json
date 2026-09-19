@@ -33,31 +33,6 @@
       "The actor signal is strongest when combined with ACL-effectiveness and grant-scope context."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor changing the ACL"
-      },
-      {
-        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
-        "normalizedPath": "aws.identity.session_issuer.arn",
-        "notes": "Underlying role where relevant"
-      },
-      {
-        "rawPath": "requestParameters.bucketName",
-        "normalizedPath": "s3.bucket.name",
-        "notes": "Bucket whose ACL was modified"
-      },
-      {
-        "rawPath": "requestParameters.key",
-        "normalizedPath": "file.path",
-        "notes": "Object key for object ACL changes"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"file\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"PutBucketAcl\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\"\n  },\n  \"s3\": {\n    \"bucket\": {\n      \"name\": \"target\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Authorized ACL Managers",

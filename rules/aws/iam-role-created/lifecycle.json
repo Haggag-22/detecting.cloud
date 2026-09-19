@@ -33,26 +33,6 @@
       "Service-linked or IaC-created roles can dominate volume in some environments."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.roleName",
-        "normalizedPath": "aws.iam.role.name",
-        "notes": "Created role name"
-      },
-      {
-        "rawPath": "requestParameters.assumeRolePolicyDocument",
-        "normalizedPath": "aws.iam.role.trust_policy",
-        "notes": "Initial trust policy"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor creating the role"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateRole\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"role\": {\n        \"name\": \"BackdoorRole\",\n        \"trust_policy\": \"{}\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Trust Policy Risk",

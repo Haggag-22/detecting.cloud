@@ -32,31 +32,6 @@
       "Canned ACL text alone does not capture every nuanced grantee relationship."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.acl",
-        "normalizedPath": "s3.acl.canned",
-        "notes": "Canned ACL exposing the target where present"
-      },
-      {
-        "rawPath": "requestParameters.AccessControlPolicy",
-        "normalizedPath": "s3.acl.policy",
-        "notes": "Structured ACL grants and grantees"
-      },
-      {
-        "rawPath": "enrichment.grantScope",
-        "normalizedPath": "s3.acl.grant_scope",
-        "notes": "Resolved exposure class such as public or external-account"
-      },
-      {
-        "rawPath": "requestParameters.bucketName",
-        "normalizedPath": "s3.bucket.name",
-        "notes": "Target bucket receiving risky ACL grant"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"file\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"PutBucketAcl\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"s3\": {\n    \"bucket\": {\n      \"name\": \"target\"\n    },\n    \"acl\": {\n      \"canned\": \"public-read\",\n      \"grant_scope\": \"public\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Grant Scope",

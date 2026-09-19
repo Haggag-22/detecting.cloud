@@ -1,27 +1,27 @@
 import type { ParsedSigmaRule } from "../types";
 import { matchToSplunkExpr, normalizeFieldPath } from "../field";
+import { classifyLogsource, logsourceLabel } from "../logsource";
 import { collectAllMatches, defaultOutputFields, renderCondition } from "./shared";
+
+function splunkToken(value: string): string {
+  return /^[A-Za-z0-9._-]+$/.test(value) ? value : `"${value.replace(/"/g, '\\"')}"`;
+}
 
 export function convertToSplunk(rule: ParsedSigmaRule): { query: string; warnings: string[] } {
   const warnings = [...rule.parseWarnings];
+  const mapping = classifyLogsource(rule);
   const allMatches = collectAllMatches(rule);
 
-  // Pull eventName / eventSource into the base search for performance
-  const eventNames = allMatches
-    .filter((m) => normalizeFieldPath(m.field) === "eventName" && m.modifier === "equals")
-    .flatMap((m) => m.values.map(String));
-  const eventSources = allMatches
-    .filter((m) => normalizeFieldPath(m.field) === "eventSource" && m.modifier === "equals")
-    .flatMap((m) => m.values.map(String));
-
-  const baseParts = ["index=aws", "sourcetype=aws:cloudtrail"];
-  if (eventSources.length === 1) baseParts.push(`eventSource=${eventSources[0]}`);
-  else if (eventSources.length > 1) {
-    baseParts.push(`(${eventSources.map((s) => `eventSource=${s}`).join(" OR ")})`);
-  }
-  if (eventNames.length === 1) baseParts.push(`eventName=${eventNames[0]}`);
-  else if (eventNames.length > 1) {
-    baseParts.push(`(${eventNames.map((n) => `eventName=${n}`).join(" OR ")})`);
+  const baseParts = [`index=${mapping.splunkIndex}`, `sourcetype=${mapping.splunkSourcetype}`];
+  for (const field of mapping.splunkBaseFields) {
+    const values = allMatches
+      .filter((m) => normalizeFieldPath(m.field) === field && m.modifier === "equals")
+      .flatMap((m) => m.values.map(String));
+    if (values.length === 1) {
+      baseParts.push(`${field}=${splunkToken(values[0])}`);
+    } else if (values.length > 1) {
+      baseParts.push(`(${values.map((v) => `${field}=${splunkToken(v)}`).join(" OR ")})`);
+    }
   }
 
   const { expression, warnings: condWarn } = renderCondition(rule, matchToSplunkExpr, {
@@ -29,17 +29,17 @@ export function convertToSplunk(rule: ParsedSigmaRule): { query: string; warning
   });
   warnings.push(...condWarn);
 
-  // Drop trivial true; use where for complex remainder
   const fields = defaultOutputFields(rule);
-  const tableFields = ["_time", ...fields.filter((f) => f !== "eventTime")];
+  const tableFields = ["_time", ...fields];
 
   let query = baseParts.join(" ");
   if (expression && expression !== "true") {
-    // If expression is already covered by base search alone, still add where for modifiers
     query += `\n| where ${expression}`;
   }
   query += `\n| table ${tableFields.join(", ")}`;
 
-  warnings.push("Best-effort SPL from Sigma — validate field extractions for your sourcetype");
+  warnings.push(
+    `Splunk SPL from Sigma logsource (${logsourceLabel(mapping)}) — validate field extractions for sourcetype=${mapping.splunkSourcetype}`
+  );
   return { query, warnings };
 }

@@ -34,31 +34,6 @@
       "The rule is strongest when paired with approved principal and cluster governance context."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.clusterName",
-        "normalizedPath": "aws.eks.cluster.name",
-        "notes": "Cluster where access is being broadened"
-      },
-      {
-        "rawPath": "requestParameters.principalArn",
-        "normalizedPath": "aws.eks.access_entry.principal_arn",
-        "notes": "Principal receiving the policy association"
-      },
-      {
-        "rawPath": "requestParameters.policyArn",
-        "normalizedPath": "aws.eks.access_policy.arn",
-        "notes": "Associated EKS access policy"
-      },
-      {
-        "rawPath": "requestParameters.accessScope",
-        "normalizedPath": "aws.eks.access_policy.scope",
-        "notes": "Effective access scope for the policy"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"AssociateAccessPolicy\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"eks\": {\n      \"cluster\": {\n        \"name\": \"prod\"\n      },\n      \"access_entry\": {\n        \"principal_arn\": \"arn:aws:iam::123456789012:user/attacker\"\n      },\n      \"access_policy\": {\n        \"arn\": \"arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy\",\n        \"scope\": {\n          \"type\": \"cluster\"\n        }\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Policy Semantics",

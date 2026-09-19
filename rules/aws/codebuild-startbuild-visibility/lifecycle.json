@@ -31,31 +31,6 @@
       "The baseline does not prove whether the launched build was malicious."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor launching the build"
-      },
-      {
-        "rawPath": "requestParameters.projectName",
-        "normalizedPath": "aws.codebuild.project.name",
-        "notes": "CodeBuild project started"
-      },
-      {
-        "rawPath": "requestParameters.buildspecOverride",
-        "normalizedPath": "aws.codebuild.request.buildspec_override",
-        "notes": "Optional buildspec override"
-      },
-      {
-        "rawPath": "requestParameters.environmentVariablesOverride",
-        "normalizedPath": "aws.codebuild.request.environment_variables_override",
-        "notes": "Optional environment variable override"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"process\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"StartBuild\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/admin\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"codebuild\": {\n      \"project\": {\n        \"name\": \"my-project\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Project Criticality",

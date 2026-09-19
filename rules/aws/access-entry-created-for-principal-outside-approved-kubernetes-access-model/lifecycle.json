@@ -32,31 +32,6 @@
       "Principal type alone is not enough without environment context."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.clusterName",
-        "normalizedPath": "aws.eks.cluster.name",
-        "notes": "Cluster receiving the access entry"
-      },
-      {
-        "rawPath": "requestParameters.principalArn",
-        "normalizedPath": "aws.eks.access_entry.principal_arn",
-        "notes": "Principal being granted Kubernetes access"
-      },
-      {
-        "rawPath": "enrichment.principalClass",
-        "normalizedPath": "aws.eks.access_entry.principal_class",
-        "notes": "Resolved ownership or identity class of the principal"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor creating the access entry"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateAccessEntry\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"eks\": {\n      \"cluster\": {\n        \"name\": \"prod\"\n      },\n      \"access_entry\": {\n        \"principal_arn\": \"arn:aws:iam::123456789012:role/AppRole\",\n        \"principal_class\": \"application_role\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Principal Classification",

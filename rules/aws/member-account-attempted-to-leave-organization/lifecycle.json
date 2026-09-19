@@ -33,31 +33,6 @@
       "Actor identity may be root or minimally attributed in some cases."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor attempting to leave the organization where available"
-      },
-      {
-        "rawPath": "userIdentity.accountId",
-        "normalizedPath": "cloud.account.id",
-        "notes": "Source account identity context"
-      },
-      {
-        "rawPath": "recipientAccountId",
-        "normalizedPath": "cloud.account.target_id",
-        "notes": "Member account attempting to leave"
-      },
-      {
-        "rawPath": "errorCode",
-        "normalizedPath": "error.code",
-        "notes": "Failure context when the attempt is blocked"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"LeaveOrganization\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"type\": \"Root\"\n  },\n  \"cloud\": {\n    \"account\": {\n      \"id\": \"123456789012\",\n      \"target_id\": \"123456789012\"\n    }\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Account Governance Importance",

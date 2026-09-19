@@ -31,31 +31,6 @@
       "This API applies to customer-managed policies, not inline policies."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.policyArn",
-        "normalizedPath": "aws.iam.policy.arn",
-        "notes": "Managed policy being switched"
-      },
-      {
-        "rawPath": "requestParameters.versionId",
-        "normalizedPath": "aws.iam.policy.selected_version",
-        "notes": "Version selected by SetDefaultPolicyVersion"
-      },
-      {
-        "rawPath": "enrichment.previousDefaultVersionId",
-        "normalizedPath": "aws.iam.policy.previous_default_version",
-        "notes": "Cached prior default version"
-      },
-      {
-        "rawPath": "enrichment.selectedVersionClassification",
-        "normalizedPath": "aws.iam.policy.selected_version_classification",
-        "notes": "Semantic risk label for selected version"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"SetDefaultPolicyVersion\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"policy\": {\n        \"arn\": \"arn:aws:iam::123456789012:policy/TargetPolicy\",\n        \"selected_version\": \"v1\",\n        \"previous_default_version\": \"v3\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Policy Version Catalog",

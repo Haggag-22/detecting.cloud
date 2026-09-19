@@ -31,26 +31,6 @@
       "Some privileged profiles may be normal in tightly controlled infrastructure accounts."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.iamInstanceProfile.name",
-        "normalizedPath": "aws.ec2.instance_profile.name",
-        "notes": "Profile attached at launch"
-      },
-      {
-        "rawPath": "enrichment.instanceProfileRoleArn",
-        "normalizedPath": "aws.iam.role.arn",
-        "notes": "Resolved backing role ARN"
-      },
-      {
-        "rawPath": "enrichment.permissionClass",
-        "normalizedPath": "aws.iam.role.permission_class",
-        "notes": "Semantic risk class of the backing role"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"compute\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"RunInstances\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ec2\": {\n      \"instance_profile\": {\n        \"name\": \"WebOpsProfile\"\n      }\n    },\n    \"iam\": {\n      \"role\": {\n        \"arn\": \"arn:aws:iam::123456789012:role/WebOpsRole\",\n        \"permission_class\": \"admin_equivalent\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Backing Role Permission Class",

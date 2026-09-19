@@ -32,31 +32,6 @@
       "CloudWatch count-based approximations are not sufficient for real correlation."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "User whose password was updated"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor performing the reset"
-      },
-      {
-        "rawPath": "responseElements.ConsoleLogin",
-        "normalizedPath": "aws.signin.console_login",
-        "notes": "Successful login outcome"
-      },
-      {
-        "rawPath": "additionalEventData.MFAUsed",
-        "normalizedPath": "aws.signin.mfa_used",
-        "notes": "MFA posture of follow-on login"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"UpdateLoginProfile\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_user\": {\n        \"name\": \"TargetUser\"\n      }\n    },\n    \"signin\": {\n      \"console_login\": \"Success\",\n      \"mfa_used\": \"No\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Reset Relationship",

@@ -33,26 +33,6 @@
       "Some environments use groups sparingly while others use them heavily, which changes baseline volume."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.groupName",
-        "normalizedPath": "aws.iam.group.name",
-        "notes": "Destination IAM group"
-      },
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "Added user"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor adding the user"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"AddUserToGroup\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"group\": {\n        \"name\": \"AdminGroup\"\n      },\n      \"target_user\": {\n        \"name\": \"compromised-user\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Group Effective Permissions",

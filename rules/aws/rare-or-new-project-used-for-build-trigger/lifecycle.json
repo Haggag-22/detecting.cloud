@@ -31,31 +31,6 @@
       "Rarity alone does not prove malicious intent."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor launching the build"
-      },
-      {
-        "rawPath": "requestParameters.projectName",
-        "normalizedPath": "aws.codebuild.project.name",
-        "notes": "Build project being launched"
-      },
-      {
-        "rawPath": "baseline.firstSeen",
-        "normalizedPath": "risk.baseline.first_seen",
-        "notes": "First-seen timestamp for the actor-to-project pair"
-      },
-      {
-        "rawPath": "baseline.rarityScore",
-        "normalizedPath": "risk.baseline.rarity_score",
-        "notes": "Historical rarity of the actor-to-project pair"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"process\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"StartBuild\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"codebuild\": {\n      \"project\": {\n        \"name\": \"dormant-project\"\n      }\n    }\n  },\n  \"risk\": {\n    \"baseline\": {\n      \"first_seen\": \"2025-02-10T12:45:00Z\",\n      \"rarity_score\": \"new_pair\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Actor-to-Project Baseline",

@@ -30,26 +30,6 @@
       "A fast remediation may eliminate risk before exploitation occurs."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.bucketName",
-        "normalizedPath": "s3.bucket.name",
-        "notes": "Deleted bucket name"
-      },
-      {
-        "rawPath": "enrichment.cloudfrontOriginMatches",
-        "normalizedPath": "aws.cloudfront.origin.matches",
-        "notes": "Whether a distribution still references the bucket"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor deleting the bucket"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"storage\"\n    ],\n    \"type\": [\n      \"deletion\"\n    ],\n    \"action\": \"DeleteBucket\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/admin\",\n    \"type\": \"IAMUser\"\n  },\n  \"s3\": {\n    \"bucket\": {\n      \"name\": \"my-bucket\"\n    }\n  },\n  \"aws\": {\n    \"cloudfront\": {\n      \"origin\": {\n        \"matches\": true\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "CloudFront Origin Linkage",

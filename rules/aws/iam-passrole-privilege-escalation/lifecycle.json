@@ -31,41 +31,6 @@
       "Legitimate CI/CD pipelines often create functions and can generate false positives without actor allowlists"
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "CloudTrail service that processed the API call"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "Lambda creation API"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Caller identity"
-      },
-      {
-        "rawPath": "requestParameters.functionName",
-        "normalizedPath": "aws.lambda.function.name",
-        "notes": "New function name"
-      },
-      {
-        "rawPath": "requestParameters.role",
-        "normalizedPath": "aws.iam.passed_role.arn",
-        "notes": "Execution role passed during CreateFunction"
-      },
-      {
-        "rawPath": "sourceIPAddress",
-        "normalizedPath": "source.ip",
-        "notes": "Source network for the request"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"CreateFunction20150331\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    }\n  },\n  \"aws\": {\n    \"lambda\": {\n      \"function\": {\n        \"name\": \"backdoor-fn\"\n      }\n    },\n    \"iam\": {\n      \"passed_role\": {\n        \"arn\": \"arn:aws:iam::123456789012:role/AdminRole\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Identity Context",

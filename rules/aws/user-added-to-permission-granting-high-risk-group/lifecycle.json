@@ -31,26 +31,6 @@
       "Authorized onboarding automation can still generate true events that need context."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.groupName",
-        "normalizedPath": "aws.iam.group.name",
-        "notes": "Destination group"
-      },
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "Added user"
-      },
-      {
-        "rawPath": "enrichment.groupPermissionClass",
-        "normalizedPath": "aws.iam.group.permission_class",
-        "notes": "Semantic risk label for the group's effective permissions"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"AddUserToGroup\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"group\": {\n        \"name\": \"EngineeringOps\",\n        \"permission_class\": \"admin_equivalent\"\n      },\n      \"target_user\": {\n        \"name\": \"compromised-user\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Effective Group Permissions",

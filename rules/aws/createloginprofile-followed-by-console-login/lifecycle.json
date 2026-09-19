@@ -32,31 +32,6 @@
       "MFA and device context are sometimes incomplete depending on the pipeline."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "User receiving the login profile"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor creating the login profile"
-      },
-      {
-        "rawPath": "responseElements.ConsoleLogin",
-        "normalizedPath": "aws.signin.console_login",
-        "notes": "Successful sign-in outcome"
-      },
-      {
-        "rawPath": "additionalEventData.MFAUsed",
-        "normalizedPath": "aws.signin.mfa_used",
-        "notes": "MFA posture for follow-on login"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateLoginProfile\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_user\": {\n        \"name\": \"backdoor-user\"\n      }\n    },\n    \"signin\": {\n      \"console_login\": \"Success\",\n      \"mfa_used\": \"No\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Target User Eligibility",

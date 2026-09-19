@@ -33,17 +33,6 @@ function writeLifecycle(dir, { title, behavior, eventSource, eventName, command 
       loggingRequirements: [`CloudTrail must log ${eventSource} ${eventName}.`],
       limitations: ["Management events only; data-plane follow-on is out of scope for this rule."],
     },
-    dataModeling: {
-      rawToNormalized: [
-        { rawPath: "eventName", normalizedPath: "event.action" },
-        { rawPath: "userIdentity.arn", normalizedPath: "user.arn" },
-      ],
-      exampleNormalizedEvent: JSON.stringify(
-        { event: { action: eventName, provider: "aws" }, user: { arn: "arn:aws:iam::123456789012:user/attacker" } },
-        null,
-        2
-      ),
-    },
     enrichment: [
       {
         dimension: "Approved actor",

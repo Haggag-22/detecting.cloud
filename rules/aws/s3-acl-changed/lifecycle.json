@@ -32,31 +32,6 @@
       "The request format varies between canned ACLs and explicit access-control-policy structures."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.bucketName",
-        "normalizedPath": "s3.bucket.name",
-        "notes": "Bucket whose ACL was modified"
-      },
-      {
-        "rawPath": "requestParameters.key",
-        "normalizedPath": "file.path",
-        "notes": "Object key for PutObjectAcl where present"
-      },
-      {
-        "rawPath": "requestParameters.acl",
-        "normalizedPath": "s3.acl.canned",
-        "notes": "Canned ACL value where used"
-      },
-      {
-        "rawPath": "requestParameters.AccessControlPolicy",
-        "normalizedPath": "s3.acl.policy",
-        "notes": "Structured grant payload where used"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"file\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"PutBucketAcl\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/admin\",\n    \"type\": \"IAMUser\"\n  },\n  \"s3\": {\n    \"bucket\": {\n      \"name\": \"my-bucket\"\n    },\n    \"acl\": {\n      \"canned\": \"private\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "ACL Effectiveness",

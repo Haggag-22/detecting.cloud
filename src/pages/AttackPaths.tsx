@@ -11,27 +11,21 @@ import {
 import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { useSearchParams, Link, Navigate } from "react-router-dom";
 import { AttackFlowChain } from "@/components/AttackFlowChain";
-import { CloudProviderTabs, type CloudProviderId } from "@/components/CloudProviderTabs";
+import { CloudProviderTabs, parseCloudProviderId, type CloudProviderId } from "@/components/CloudProviderTabs";
 import { SeverityPill } from "@/components/SeverityPill";
 
 import { SEVERITY_BADGE_CLASS } from "@/lib/severityStyles";
 
 const severityColor = SEVERITY_BADGE_CLASS;
-const PROVIDER_IDS: CloudProviderId[] = ["all", "aws", "azure", "gcp", "kubernetes"];
-
 function providerLabel(id: CloudProviderId): string | null {
   if (id === "all") return null;
-  if (id === "kubernetes") return "Kubernetes";
   return id.toUpperCase();
 }
 
 const AttackPathsPage = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const techniqueParam = searchParams.get("technique");
-  const providerParam = (searchParams.get("provider") as CloudProviderId | null) ?? "all";
-  const activeProvider: CloudProviderId = PROVIDER_IDS.includes(providerParam)
-    ? providerParam
-    : "all";
+  const activeProvider = parseCloudProviderId(searchParams.get("provider"));
 
   // Redirect old technique URLs to the new dedicated route
   if (techniqueParam?.startsWith("tech-")) {
@@ -126,7 +120,7 @@ const AttackPathsPage = () => {
 
             {/* References */}
             {activeAttackPath.references && activeAttackPath.references.length > 0 && (
-              <div className="mt-6 rounded-lg border border-border p-6 bg-card">
+              <div className="mt-6 rounded-lg border border-border/50 p-6 bg-card">
                 <h3 className="flex items-center gap-2 font-semibold mb-4">
                   <LinkIcon className="h-4 w-4 text-primary" /> References
                 </h3>
@@ -192,13 +186,11 @@ const AttackPathsPage = () => {
             ))}
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-border/60 bg-card/40 px-6 py-14 text-center">
+          <div className="rounded-lg border border-dashed border-border/50 bg-card/40 px-6 py-14 text-center">
             <p className="text-sm text-muted-foreground">
               {activeProvider === "all"
                 ? "No attack chains yet."
-                : `No ${
-                    activeProvider === "kubernetes" ? "Kubernetes" : activeProvider.toUpperCase()
-                  } attack chains yet. AWS chains are available under the AWS tab.`}
+                : `No ${activeProvider.toUpperCase()} attack chains yet. AWS chains are available under the AWS tab.`}
             </p>
           </div>
         )}

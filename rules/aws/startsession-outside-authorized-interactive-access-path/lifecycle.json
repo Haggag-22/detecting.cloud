@@ -36,31 +36,6 @@
       "Legitimate helpdesk or break-glass paths can still look suspicious without workflow context."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Session initiator"
-      },
-      {
-        "rawPath": "userIdentity.principalId",
-        "normalizedPath": "user.id",
-        "notes": "Stable actor identifier"
-      },
-      {
-        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
-        "normalizedPath": "aws.identity.session_issuer.arn",
-        "notes": "Underlying role for assumed sessions"
-      },
-      {
-        "rawPath": "requestParameters.target",
-        "normalizedPath": "cloud.instance.id",
-        "notes": "Interactive session target"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"session\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"StartSession\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\",\n    \"id\": \"AROAXXXXX:session\"\n  },\n  \"cloud\": {\n    \"instance\": {\n      \"id\": \"i-0abc123\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Authorized Interactive Access Actors",

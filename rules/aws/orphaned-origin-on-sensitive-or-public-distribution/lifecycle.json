@@ -30,31 +30,6 @@
       "This rule is downstream of the core orphaned-origin posture control."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "distribution.id",
-        "normalizedPath": "aws.cloudfront.distribution.id",
-        "notes": "Affected sensitive distribution"
-      },
-      {
-        "rawPath": "distribution.aliases",
-        "normalizedPath": "url.domain",
-        "notes": "Public or customer-facing aliases"
-      },
-      {
-        "rawPath": "enrichment.distributionCriticality",
-        "normalizedPath": "asset.criticality",
-        "notes": "Resolved distribution priority"
-      },
-      {
-        "rawPath": "enrichment.bucketExists",
-        "normalizedPath": "s3.bucket.exists",
-        "notes": "Confirms orphaned-origin state"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"info\"\n    ],\n    \"action\": \"orphaned_cloudfront_origin_prioritized\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"aws\": {\n    \"cloudfront\": {\n      \"distribution\": {\n        \"id\": \"E1234\"\n      }\n    }\n  },\n  \"url\": {\n    \"domain\": [\n      \"www.example.com\"\n    ]\n  },\n  \"asset\": {\n    \"criticality\": \"production_customer_facing\"\n  },\n  \"s3\": {\n    \"bucket\": {\n      \"exists\": false\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Distribution Criticality",

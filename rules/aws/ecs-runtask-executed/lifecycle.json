@@ -34,26 +34,6 @@
       "Without role resolution this remains baseline visibility only."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.cluster",
-        "normalizedPath": "aws.ecs.cluster.name",
-        "notes": "Target ECS cluster"
-      },
-      {
-        "rawPath": "requestParameters.taskDefinition",
-        "normalizedPath": "aws.ecs.task_definition.arn",
-        "notes": "Task definition or family revision"
-      },
-      {
-        "rawPath": "requestParameters.overrides",
-        "normalizedPath": "aws.ecs.run_task.overrides",
-        "notes": "Runtime overrides that may affect roles or commands"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"compute\"\n    ],\n    \"type\": [\n      \"start\"\n    ],\n    \"action\": \"RunTask\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ecs\": {\n      \"cluster\": {\n        \"name\": \"prod\"\n      },\n      \"task_definition\": {\n        \"arn\": \"backdoor-task:1\"\n      },\n      \"run_task\": {\n        \"overrides\": {}\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Resolved Task and Execution Roles",

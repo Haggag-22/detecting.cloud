@@ -33,26 +33,6 @@
       "Broad EventBridge matching on ModifySnapshotAttribute needs downstream payload filtering."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.snapshotId",
-        "normalizedPath": "aws.ebs.snapshot.id",
-        "notes": "Snapshot being exposed externally"
-      },
-      {
-        "rawPath": "requestParameters.createVolumePermission.add.userIds",
-        "normalizedPath": "aws.ebs.snapshot.added_recipient_accounts",
-        "notes": "Recipient account IDs added to the permission set"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor changing snapshot permissions"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"ModifySnapshotAttribute\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ebs\": {\n      \"snapshot\": {\n        \"id\": \"snap-xxx\",\n        \"added_recipient_accounts\": [\n          \"999999999999\"\n        ]\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Recipient Account Ownership",

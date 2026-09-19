@@ -32,31 +32,6 @@
       "Legacy buckets may legitimately use ACLs as part of normal operations."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.bucketName",
-        "normalizedPath": "s3.bucket.name",
-        "notes": "Target bucket whose ACL was changed"
-      },
-      {
-        "rawPath": "requestParameters.key",
-        "normalizedPath": "file.path",
-        "notes": "Target object for PutObjectAcl where present"
-      },
-      {
-        "rawPath": "enrichment.objectOwnershipMode",
-        "normalizedPath": "s3.bucket.object_ownership",
-        "notes": "Whether ACLs are effective on the target"
-      },
-      {
-        "rawPath": "errorCode",
-        "normalizedPath": "error.code",
-        "notes": "Should be absent for successful effective ACL change"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"file\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"PutBucketAcl\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"s3\": {\n    \"bucket\": {\n      \"name\": \"legacy-bucket\",\n      \"object_ownership\": \"ObjectWriter\"\n    },\n    \"acl\": {\n      \"canned\": \"public-read\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Object Ownership Mode",

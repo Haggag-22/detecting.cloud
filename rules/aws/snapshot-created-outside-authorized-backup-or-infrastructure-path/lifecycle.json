@@ -34,31 +34,6 @@
       "CreateSnapshots may involve multi-volume workflows where the source volume context is broader than a single volumeId."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor creating the snapshot"
-      },
-      {
-        "rawPath": "userIdentity.principalId",
-        "normalizedPath": "user.id",
-        "notes": "Stable actor identifier"
-      },
-      {
-        "rawPath": "requestParameters.volumeId",
-        "normalizedPath": "aws.ebs.volume.id",
-        "notes": "Source volume where available"
-      },
-      {
-        "rawPath": "enrichment.volumeSensitivity",
-        "normalizedPath": "aws.ebs.volume.sensitivity",
-        "notes": "Resolved workload or data sensitivity of the source volume"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"storage\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateSnapshot\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\",\n    \"id\": \"AROAXXXXX:session\"\n  },\n  \"aws\": {\n    \"ebs\": {\n      \"volume\": {\n        \"id\": \"vol-0abc123\",\n        \"sensitivity\": \"production_database\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Authorized Snapshot Actors",

@@ -11,14 +11,21 @@ export const CLOUD_PROVIDERS: {
   { id: "aws", label: "AWS" },
   { id: "azure", label: "Azure" },
   { id: "gcp", label: "GCP" },
-  { id: "kubernetes", label: "Kubernetes" },
 ];
+
+export const VISIBLE_PROVIDER_IDS: CloudProviderId[] = CLOUD_PROVIDERS.map((p) => p.id);
+
+export function parseCloudProviderId(value: string | null): CloudProviderId {
+  if (value && VISIBLE_PROVIDER_IDS.includes(value as CloudProviderId)) {
+    return value as CloudProviderId;
+  }
+  return "all";
+}
 
 const PROVIDER_LOGOS: Partial<Record<CloudProviderId, string>> = {
   aws: "/cloud-providers/aws.png",
   azure: "/cloud-providers/azure.png",
   gcp: "/cloud-providers/gcp.png",
-  kubernetes: "/cloud-providers/kubernetes.png",
 };
 
 function ProviderIcon({ id }: { id: CloudProviderId }) {

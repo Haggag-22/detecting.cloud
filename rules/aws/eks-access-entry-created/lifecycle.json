@@ -32,26 +32,6 @@
       "The rule needs cluster and principal context to prioritize effectively."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor creating the access entry"
-      },
-      {
-        "rawPath": "requestParameters.clusterName",
-        "normalizedPath": "aws.eks.cluster.name",
-        "notes": "Cluster receiving the new access entry"
-      },
-      {
-        "rawPath": "requestParameters.principalArn",
-        "normalizedPath": "aws.eks.access_entry.principal_arn",
-        "notes": "Principal being granted EKS access"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateAccessEntry\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/admin\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"eks\": {\n      \"cluster\": {\n        \"name\": \"prod\"\n      },\n      \"access_entry\": {\n        \"principal_arn\": \"arn:aws:iam::123456789012:user/attacker\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Principal Type and Ownership",

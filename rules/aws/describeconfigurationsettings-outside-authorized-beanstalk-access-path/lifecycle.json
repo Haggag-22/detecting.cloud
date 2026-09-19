@@ -33,31 +33,6 @@
       "The read alone does not prove malicious use of any discovered material."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor performing the configuration read"
-      },
-      {
-        "rawPath": "userIdentity.sessionContext.sessionIssuer.arn",
-        "normalizedPath": "aws.identity.session_issuer.arn",
-        "notes": "Underlying role where relevant"
-      },
-      {
-        "rawPath": "requestParameters.applicationName",
-        "normalizedPath": "aws.elasticbeanstalk.application.name",
-        "notes": "Application being inspected"
-      },
-      {
-        "rawPath": "requestParameters.environmentName",
-        "normalizedPath": "aws.elasticbeanstalk.environment.name",
-        "notes": "Environment being inspected"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"discovery\"\n    ],\n    \"type\": [\n      \"info\"\n    ],\n    \"action\": \"DescribeConfigurationSettings\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/AppRole/session\",\n    \"type\": \"AssumedRole\"\n  },\n  \"aws\": {\n    \"elasticbeanstalk\": {\n      \"application\": {\n        \"name\": \"my-app\"\n      },\n      \"environment\": {\n        \"name\": \"prod\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Authorized Config Readers",

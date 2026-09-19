@@ -33,31 +33,6 @@
       "The model depends on good target-user enrichment."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "iam.target.user.name",
-        "notes": "IAM user receiving the new access key"
-      },
-      {
-        "rawPath": "enrichment.targetUserRisk",
-        "normalizedPath": "iam.target.user.risk_class",
-        "notes": "Resolved target-user risk classification"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor performing the Beanstalk recon and later key creation"
-      },
-      {
-        "rawPath": "requestParameters.environmentName",
-        "normalizedPath": "aws.elasticbeanstalk.environment.name",
-        "notes": "Beanstalk environment inspected earlier in the chain"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateAccessKey\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:sts::123456789012:assumed-role/aws-elasticbeanstalk-ec2-role/session\",\n    \"type\": \"AssumedRole\"\n  },\n  \"iam\": {\n    \"target\": {\n      \"user\": {\n        \"name\": \"backdoor\",\n        \"risk_class\": \"privileged_or_unexpected_key_target\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Target User Risk",

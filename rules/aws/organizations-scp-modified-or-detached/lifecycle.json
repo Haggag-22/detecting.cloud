@@ -36,41 +36,6 @@
       "Authorized platform engineering or Terraform workflows can generate true events that are operationally expected."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventSource",
-        "normalizedPath": "event.source",
-        "notes": "AWS service source; expected organizations.amazonaws.com"
-      },
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action",
-        "notes": "Organizations API action such as DetachPolicy, DeletePolicy, or UpdatePolicy"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Primary actor ARN"
-      },
-      {
-        "rawPath": "requestParameters.policyId",
-        "normalizedPath": "aws.organizations.policy.id",
-        "notes": "Target policy identifier"
-      },
-      {
-        "rawPath": "requestParameters.targetId",
-        "normalizedPath": "aws.organizations.target.id",
-        "notes": "Detached target root, OU, or account"
-      },
-      {
-        "rawPath": "requestParameters.content",
-        "normalizedPath": "aws.organizations.policy.content",
-        "notes": "Updated policy JSON for UpdatePolicy branch"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"DetachPolicy\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"source\": {\n    \"ip\": \"203.0.113.10\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    },\n    \"region\": \"us-east-1\"\n  },\n  \"aws\": {\n    \"organizations\": {\n      \"policy\": {\n        \"id\": \"p-xxx\"\n      },\n      \"target\": {\n        \"id\": \"ou-xxx\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Org Hierarchy and Target Criticality",

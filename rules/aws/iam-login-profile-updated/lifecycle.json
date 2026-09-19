@@ -33,26 +33,6 @@
       "Without sign-in correlation this remains a baseline signal."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor updating the login profile"
-      },
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "Target user whose password was changed"
-      },
-      {
-        "rawPath": "requestParameters.passwordResetRequired",
-        "normalizedPath": "aws.iam.target_user.password_reset_required",
-        "notes": "Whether forced reset was enabled"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"UpdateLoginProfile\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_user\": {\n        \"name\": \"TargetUser\",\n        \"password_reset_required\": true\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Self-Service vs Delegated Reset",

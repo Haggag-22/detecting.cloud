@@ -31,31 +31,6 @@
       "The same API covers both low-value and high-value telemetry removal until enrichment is applied."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.flowLogIds",
-        "normalizedPath": "aws.ec2.flow_log.ids",
-        "notes": "Deleted flow log identifiers"
-      },
-      {
-        "rawPath": "enrichment.resourceType",
-        "normalizedPath": "aws.ec2.flow_log.resource_type",
-        "notes": "Resolved target type such as VPC, subnet, or ENI"
-      },
-      {
-        "rawPath": "enrichment.resourceSensitivity",
-        "normalizedPath": "aws.ec2.flow_log.resource_sensitivity",
-        "notes": "Resolved sensitivity of the covered network segment"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor deleting the flow logs"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"iam\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"DeleteFlowLogs\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ec2\": {\n      \"flow_log\": {\n        \"ids\": [\n          \"fl-0abc123\"\n        ],\n        \"resource_type\": \"vpc\",\n        \"resource_sensitivity\": \"production_egress\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Target Network Sensitivity",

@@ -34,31 +34,6 @@
       "Legitimate DR and migration workflows can perform similar sequences and require strong allowlisting."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.snapshotId",
-        "normalizedPath": "aws.ebs.snapshot.id",
-        "notes": "Primary snapshot entity in the chain"
-      },
-      {
-        "rawPath": "requestParameters.sourceSnapshotId",
-        "normalizedPath": "aws.ebs.snapshot.source_id",
-        "notes": "Snapshot lineage reference used in copy or restore stages"
-      },
-      {
-        "rawPath": "requestParameters.volumeId",
-        "normalizedPath": "aws.ebs.volume.id",
-        "notes": "Derived volume in the restore branch"
-      },
-      {
-        "rawPath": "requestParameters.createVolumePermission",
-        "normalizedPath": "aws.ebs.snapshot.permission_delta",
-        "notes": "Exposure branch through sharing or public access"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"storage\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateSnapshot\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ebs\": {\n      \"snapshot\": {\n        \"id\": \"snap-xxx\",\n        \"source_id\": \"snap-xxx\",\n        \"permission_delta\": {\n          \"add\": {\n            \"userIds\": [\n              \"999999999999\"\n            ]\n          }\n        }\n      },\n      \"volume\": {\n        \"id\": \"vol-restored-123\"\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Branch Type",

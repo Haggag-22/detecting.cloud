@@ -32,31 +32,6 @@
       "Without policy parsing you cannot accurately reason about ExternalId, principal type, or scope."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.roleName",
-        "normalizedPath": "aws.iam.role.name",
-        "notes": "Created role name"
-      },
-      {
-        "rawPath": "requestParameters.assumeRolePolicyDocument",
-        "normalizedPath": "aws.iam.role.trust_policy",
-        "notes": "New trust policy to parse semantically"
-      },
-      {
-        "rawPath": "trustPolicy.Statement[].Principal",
-        "normalizedPath": "aws.iam.role.trust_principals",
-        "notes": "Resolved principal set from parsed trust policy"
-      },
-      {
-        "rawPath": "trustPolicy.Statement[].Condition",
-        "normalizedPath": "aws.iam.role.trust_conditions",
-        "notes": "Conditions such as sts:ExternalId or source restrictions"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"CreateRole\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"role\": {\n        \"name\": \"BackdoorRole\",\n        \"trust_principals\": [\n          \"arn:aws:iam::999999999999:root\"\n        ],\n        \"trust_conditions\": []\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Trust Principal Classification",

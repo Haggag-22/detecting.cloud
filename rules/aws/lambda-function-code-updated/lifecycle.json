@@ -23,19 +23,6 @@
       "Management events only; data-plane follow-on is out of scope for this rule."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "eventName",
-        "normalizedPath": "event.action"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"event\": {\n    \"action\": \"UpdateFunctionCode20150331v2\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/attacker\"\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Approved actor",

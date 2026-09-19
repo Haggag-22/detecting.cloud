@@ -30,31 +30,6 @@
       "This is better modeled as posture and hunting than as a primary alerting rule."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.snapshotId",
-        "normalizedPath": "aws.ebs.snapshot.id",
-        "notes": "Snapshot whose permissions are being inspected"
-      },
-      {
-        "rawPath": "requestParameters.attribute",
-        "normalizedPath": "aws.ebs.snapshot.requested_attribute",
-        "notes": "Permission attribute being queried"
-      },
-      {
-        "rawPath": "responseElements.createVolumePermission",
-        "normalizedPath": "aws.ebs.snapshot.current_permissions",
-        "notes": "Current evaluated permission state when available"
-      },
-      {
-        "rawPath": "userIdentity.arn",
-        "normalizedPath": "user.arn",
-        "notes": "Actor enumerating snapshot permissions"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"info\"\n    ],\n    \"action\": \"DescribeSnapshotAttribute\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/admin\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ebs\": {\n      \"snapshot\": {\n        \"id\": \"snap-xxx\",\n        \"requested_attribute\": \"createVolumePermission\",\n        \"current_permissions\": {\n          \"groups\": [\n            \"all\"\n          ]\n        }\n      }\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Current Exposure State",

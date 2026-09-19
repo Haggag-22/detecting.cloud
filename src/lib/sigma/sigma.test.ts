@@ -32,6 +32,57 @@ detection:
   condition: selection_delete or (selection_put and 1 of weaken_*)
 level: critical`;
 
+const AZURE_ACTIVITY_SIGMA = `title: Azure Firewall Modified or Deleted
+logsource:
+    product: azure
+    service: activitylogs
+detection:
+    selection:
+        operationName:
+            - MICROSOFT.NETWORK/AZUREFIREWALLS/WRITE
+            - MICROSOFT.NETWORK/AZUREFIREWALLS/DELETE
+    condition: selection
+level: medium`;
+
+const AZURE_AUDIT_SIGMA = `title: Users Added to Global or Device Admin Roles
+logsource:
+    product: azure
+    service: auditlogs
+detection:
+    selection:
+        Category: RoleManagement
+        OperationName|contains|all:
+            - 'Add'
+            - 'member to role'
+    condition: selection
+level: high`;
+
+const GCP_AUDIT_SIGMA = `title: GCP Access Policy Deleted
+logsource:
+    product: gcp
+    service: gcp.audit
+detection:
+    selection:
+        data.protoPayload.authorizationInfo.permission:
+            - 'accesscontextmanager.accessPolicies.delete'
+        data.protoPayload.authorizationInfo.granted: 'true'
+        data.protoPayload.serviceName: 'accesscontextmanager.googleapis.com'
+    condition: selection
+level: medium`;
+
+const GCP_WORKSPACE_SIGMA = `title: Google Workspace MFA Disabled
+logsource:
+    product: gcp
+    service: google_workspace.admin
+detection:
+    selection:
+        eventService: admin.googleapis.com
+        eventName:
+            - ENFORCE_STRONG_AUTHENTICATION
+            - ALLOW_STRONG_AUTHENTICATION
+    condition: selection
+level: medium`;
+
 describe("parseSigmaRule", () => {
   it("parses selections, modifiers, and condition", () => {
     const rule = parseSigmaRule(SAMPLE_SIGMA);
@@ -97,6 +148,20 @@ describe("convertSigma", () => {
     expect(result.query).toContain("@evt.name");
   });
 
+  it("uses source:azure for Azure Sigma logsource, not CloudTrail", () => {
+    const result = convertSigma(AZURE_ACTIVITY_SIGMA, "datadog");
+    expect(result.supported).toBe(true);
+    expect(result.query).toMatch(/^source:azure /);
+    expect(result.query).not.toContain("source:cloudtrail");
+    expect(result.query).toContain("@operationName:MICROSOFT.NETWORK/AZUREFIREWALLS/WRITE");
+  });
+
+  it("uses source:gcp for GCP audit Sigma logsource", () => {
+    const result = convertSigma(GCP_AUDIT_SIGMA, "datadog");
+    expect(result.query).toMatch(/^source:gcp /);
+    expect(result.query).not.toContain("source:cloudtrail");
+  });
+
   it("converts to Cortex XDR, CrowdStrike, OpenSearch, SentinelOne, QRadar, Snowflake", () => {
     const cortex = convertSigma(SAMPLE_SIGMA, "cortexxdr");
     expect(cortex.supported).toBe(true);
@@ -143,5 +208,87 @@ describe("convertSigma", () => {
     });
     expect(result.source).toBe("hybrid");
     expect(result.query).not.toBe("index=aws curated");
+  });
+});
+
+describe("provider-aware conversions", () => {
+  it("maps Azure activity logs off CloudTrail for Splunk, ES|QL, Snowflake, Cortex, and QRadar", () => {
+    const splunk = convertSigma(AZURE_ACTIVITY_SIGMA, "splunk");
+    expect(splunk.query).toContain("index=azure");
+    expect(splunk.query).toContain("sourcetype=azure:activitylogs");
+    expect(splunk.query).toContain("operationName=");
+    expect(splunk.query).not.toContain("index=aws");
+    expect(splunk.query).not.toContain("aws:cloudtrail");
+
+    const es = convertSigma(AZURE_ACTIVITY_SIGMA, "elasticsearch");
+    expect(es.query).toContain("FROM logs-azure.activitylogs-*");
+    expect(es.query).toContain("operationName");
+    expect(es.query).not.toContain("logs-aws.cloudtrail");
+
+    const snow = convertSigma(AZURE_ACTIVITY_SIGMA, "snowflake");
+    expect(snow.query).toContain("FROM azure_activity_logs");
+    expect(snow.query).not.toContain("cloudtrail_logs");
+
+    const cortex = convertSigma(AZURE_ACTIVITY_SIGMA, "cortexxdr");
+    expect(cortex.query).toContain("dataset = cloud_audit_logs");
+
+    const qradar = convertSigma(AZURE_ACTIVITY_SIGMA, "qradar");
+    expect(qradar.query).toContain("%Azure%");
+    expect(qradar.query).toContain('"operationName"');
+    expect(qradar.query).not.toContain("AWS CloudTrail");
+  });
+
+  it("maps Entra audit logs to Azure AD sources, not activity logs or CloudTrail", () => {
+    const datadog = convertSigma(AZURE_AUDIT_SIGMA, "datadog");
+    expect(datadog.query).toMatch(/^source:azure\.activedirectory /);
+    expect(datadog.query).toContain("@OperationName");
+    expect(datadog.query).not.toContain("@evt.name");
+    expect(datadog.query).not.toContain("source:cloudtrail");
+
+    const splunk = convertSigma(AZURE_AUDIT_SIGMA, "splunk");
+    expect(splunk.query).toContain("sourcetype=azure:aad:audit");
+    expect(splunk.query).not.toContain("aws:cloudtrail");
+
+    const es = convertSigma(AZURE_AUDIT_SIGMA, "elasticsearch");
+    expect(es.query).toContain("FROM logs-azure.auditlogs-*");
+  });
+
+  it("maps GCP audit logs off CloudTrail for every index-based backend", () => {
+    const datadog = convertSigma(GCP_AUDIT_SIGMA, "datadog");
+    expect(datadog.query).toMatch(/^source:gcp /);
+    expect(datadog.query).toContain("@data.protoPayload.serviceName");
+    expect(datadog.query).not.toContain("@evt.name");
+
+    const splunk = convertSigma(GCP_AUDIT_SIGMA, "splunk");
+    expect(splunk.query).toContain("index=gcp");
+    expect(splunk.query).toContain("sourcetype=google:gcp:pubsub:message");
+    expect(splunk.query).not.toContain("index=aws");
+
+    const es = convertSigma(GCP_AUDIT_SIGMA, "elasticsearch");
+    expect(es.query).toContain("FROM logs-gcp.audit-*");
+    expect(es.query).not.toContain("logs-aws.cloudtrail");
+
+    const snow = convertSigma(GCP_AUDIT_SIGMA, "snowflake");
+    expect(snow.query).toContain("FROM gcp_audit_logs");
+
+    const qradar = convertSigma(GCP_AUDIT_SIGMA, "qradar");
+    expect(qradar.query).toContain("Google Cloud");
+    expect(qradar.query).not.toContain("AWS CloudTrail");
+  });
+
+  it("maps Google Workspace eventName to gsuite, not CloudTrail @evt.name", () => {
+    const datadog = convertSigma(GCP_WORKSPACE_SIGMA, "datadog");
+    expect(datadog.query).toMatch(/^source:gsuite /);
+    expect(datadog.query).toContain("@eventName:ENFORCE_STRONG_AUTHENTICATION");
+    expect(datadog.query).not.toContain("@evt.name");
+    expect(datadog.query).not.toContain("source:cloudtrail");
+    expect(datadog.query).not.toContain("source:gcp ");
+
+    const es = convertSigma(GCP_WORKSPACE_SIGMA, "elasticsearch");
+    expect(es.query).toContain("FROM logs-google_workspace.admin-*");
+
+    const splunk = convertSigma(GCP_WORKSPACE_SIGMA, "splunk");
+    expect(splunk.query).toContain("index=gws");
+    expect(splunk.query).toContain("sourcetype=google:workspace:reports");
   });
 });

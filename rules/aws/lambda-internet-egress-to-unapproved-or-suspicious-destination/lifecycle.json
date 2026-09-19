@@ -40,41 +40,6 @@
       "Legitimate SaaS/API traffic often uses the same ports and protocols as suspicious egress, especially TCP/443."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "interfaceId",
-        "normalizedPath": "cloud.network.interface.id",
-        "notes": "Primary join key to ENI inventory and Lambda attribution cache"
-      },
-      {
-        "rawPath": "srcAddr",
-        "normalizedPath": "source.ip",
-        "notes": "Private IP of the observed ENI for egress flows"
-      },
-      {
-        "rawPath": "dstAddr",
-        "normalizedPath": "destination.ip",
-        "notes": "Observed destination from the ENI perspective"
-      },
-      {
-        "rawPath": "dstPort",
-        "normalizedPath": "destination.port",
-        "notes": "Common discriminator for web/API traffic versus unusual egress"
-      },
-      {
-        "rawPath": "bytes",
-        "normalizedPath": "network.bytes",
-        "notes": "Useful for exfiltration size and baseline modeling"
-      },
-      {
-        "rawPath": "flowDirection",
-        "normalizedPath": "network.direction",
-        "notes": "Filter to egress for this rule"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2026-03-17T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"network\"\n    ],\n    \"type\": [\n      \"connection\",\n      \"allowed\"\n    ],\n    \"action\": \"lambda_unapproved_external_egress\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"cloud\": {\n    \"provider\": \"aws\",\n    \"region\": \"us-east-1\",\n    \"account\": {\n      \"id\": \"123456789012\"\n    }\n  },\n  \"source\": {\n    \"ip\": \"10.0.12.45\"\n  },\n  \"destination\": {\n    \"ip\": \"198.51.100.24\",\n    \"port\": 443,\n    \"classification\": \"unknown\"\n  },\n  \"network\": {\n    \"direction\": \"egress\",\n    \"transport\": \"tcp\",\n    \"iana_number\": 6,\n    \"bytes\": 187452\n  },\n  \"cloud_network\": {\n    \"interface\": {\n      \"id\": \"eni-0abc123def456\"\n    }\n  },\n  \"lambda\": {\n    \"function\": {\n      \"name\": \"payments-webhook-worker\",\n      \"arn\": \"arn:aws:lambda:us-east-1:123456789012:function:payments-webhook-worker\"\n    }\n  },\n  \"user\": {\n    \"effective\": {\n      \"arn\": \"arn:aws:iam::123456789012:role/payments-webhook-role\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Function Context",

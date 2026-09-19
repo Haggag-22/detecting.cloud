@@ -32,26 +32,6 @@
       "Not every rapid follow-on action was necessarily enabled by the role change unless role capability is confirmed."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.iamInstanceProfile.name",
-        "normalizedPath": "aws.ec2.instance_profile.name",
-        "notes": "Activated profile"
-      },
-      {
-        "rawPath": "enrichment.instanceProfileRoleArn",
-        "normalizedPath": "aws.iam.role.arn",
-        "notes": "Resolved workload role ARN"
-      },
-      {
-        "rawPath": "follow_on.eventName",
-        "normalizedPath": "related.event.action",
-        "notes": "Sensitive action later performed by the workload role"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"compute\"\n    ],\n    \"type\": [\n      \"creation\"\n    ],\n    \"action\": \"RunInstances\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"ec2\": {\n      \"instance_profile\": {\n        \"name\": \"AdminProfile\"\n      }\n    },\n    \"iam\": {\n      \"role\": {\n        \"arn\": \"arn:aws:iam::123456789012:role/AdminRole\"\n      }\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"GetSecretValue\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Resolved Workload Role",

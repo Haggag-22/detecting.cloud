@@ -32,36 +32,6 @@
       "The raw Put*Boundary event does not reveal whether the new boundary is weaker."
     ]
   },
-  "dataModeling": {
-    "rawToNormalized": [
-      {
-        "rawPath": "requestParameters.permissionsBoundary",
-        "normalizedPath": "aws.iam.boundary.new_arn",
-        "notes": "New boundary ARN"
-      },
-      {
-        "rawPath": "enrichment.previousBoundaryArn",
-        "normalizedPath": "aws.iam.boundary.previous_arn",
-        "notes": "Previous boundary ARN"
-      },
-      {
-        "rawPath": "requestParameters.roleName",
-        "normalizedPath": "aws.iam.target_role.name",
-        "notes": "Target role"
-      },
-      {
-        "rawPath": "requestParameters.userName",
-        "normalizedPath": "aws.iam.target_user.name",
-        "notes": "Target user"
-      },
-      {
-        "rawPath": "follow_on.eventName",
-        "normalizedPath": "related.event.action",
-        "notes": "Subsequent privileged activity"
-      }
-    ],
-    "exampleNormalizedEvent": "{\n  \"@timestamp\": \"2025-02-10T12:45:00Z\",\n  \"event\": {\n    \"category\": [\n      \"configuration\"\n    ],\n    \"type\": [\n      \"change\"\n    ],\n    \"action\": \"PutRolePermissionsBoundary\",\n    \"outcome\": \"success\",\n    \"provider\": \"aws\"\n  },\n  \"user\": {\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\",\n    \"type\": \"IAMUser\"\n  },\n  \"aws\": {\n    \"iam\": {\n      \"target_role\": {\n        \"name\": \"TargetRole\"\n      },\n      \"boundary\": {\n        \"new_arn\": \"arn:aws:iam::123456789012:policy/CustomWeakBoundary\",\n        \"previous_arn\": \"arn:aws:iam::123456789012:policy/StandardBoundary\"\n      }\n    }\n  },\n  \"related\": {\n    \"event\": {\n      \"action\": \"GetSecretValue\"\n    }\n  }\n}"
-  },
   "enrichment": [
     {
       "dimension": "Boundary Weakening Diff",
