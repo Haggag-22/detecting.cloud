@@ -6,8 +6,9 @@ import { detections } from "@/data/detections";
 import { Badge } from "@/components/ui/badge";
 import {
   ChevronRight, Shield, Link as LinkIcon, Network, Lock,
-  FileJson, Copy, Check, Terminal, Play, Route,
+  FileJson, Copy, Check, Terminal, Play, Route, Crosshair,
 } from "lucide-react";
+import { Seo } from "@/components/Seo";
 import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { useState } from "react";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
@@ -47,6 +48,10 @@ const TechniqueDetailPage = () => {
 
   return (
     <Layout>
+      <Seo
+        title={`${technique.name} — Cloud Attack Technique | Detecting.Cloud`}
+        description={technique.description.slice(0, 155)}
+      />
       <div className="container max-w-4xl">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">

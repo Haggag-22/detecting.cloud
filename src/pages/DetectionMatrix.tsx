@@ -351,14 +351,14 @@ export default function DetectionMatrix() {
                       >
                         <div className="flex min-h-[5.25rem] flex-col items-center justify-center border-b border-border/40 bg-background/95 px-2 py-4 text-center backdrop-blur">
                           <div className="flex flex-col items-center justify-center gap-1.5">
-                            <h3
+                            <h2
                               className={cn(
                                 "font-display text-balance text-[11px] font-bold uppercase leading-snug tracking-[0.12em] antialiased sm:text-xs",
                                 TACTIC_HEADER_COLOR[tactic]
                               )}
                             >
                               {matrixTacticLabels[tactic]}
-                            </h3>
+                            </h2>
                             <p className="text-[10px] font-normal tabular-nums leading-normal text-muted-foreground">
                               {col.length} {col.length === 1 ? "technique" : "techniques"}
                             </p>

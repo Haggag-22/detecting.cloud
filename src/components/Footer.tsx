@@ -64,10 +64,10 @@ export function Footer() {
             <p className="text-xs text-muted-foreground mt-2">Get the latest cloud security research & detections.</p>
 
             <div className="flex gap-3 mt-4">
-              <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
+              <a href="https://github.com/Haggag-22/detecting.cloud" target="_blank" rel="noopener noreferrer" aria-label="Detecting.Cloud on GitHub" className="text-muted-foreground hover:text-foreground transition-colors">
                 <Github className="h-5 w-5" />
               </a>
-              <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="text-muted-foreground hover:text-foreground transition-colors">
+              <a href="https://twitter.com/DetectingCloud" target="_blank" rel="noopener noreferrer" aria-label="Detecting.Cloud on X (Twitter)" className="text-muted-foreground hover:text-foreground transition-colors">
                 <Twitter className="h-5 w-5" />
               </a>
             </div>
