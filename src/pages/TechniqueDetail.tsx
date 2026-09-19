@@ -36,8 +36,14 @@ const TechniqueDetailPage = () => {
   }
 
   const usedInPaths = getAttackPathsForTechnique(technique.id);
-  const relatedDetections = detections.filter((d) => technique.detectionIds.includes(d.id));
+  const detectionIds = technique.detectionIds ?? [];
+  const services = technique.services ?? [];
+  const permissions = technique.permissions ?? [];
+  const mitigations = technique.mitigations ?? [];
+  const relatedDetections = detections.filter((d) => detectionIds.includes(d.id));
   const CatIcon = TECHNIQUE_CATEGORY_ICON[technique.category];
+  const categoryLabel =
+    techniqueCategories[technique.category]?.label ?? technique.category.replace(/-/g, " ");
 
   return (
     <Layout>
@@ -52,11 +58,11 @@ const TechniqueDetailPage = () => {
         {/* Header */}
         <div className="mb-8">
           <div className="flex flex-wrap gap-2 mb-3">
-            <Badge className={`text-xs border-0 uppercase tracking-wide flex items-center gap-1 ${TECHNIQUE_CATEGORY_BADGE[technique.category]}`}>
-              {CatIcon && <CatIcon className={`h-3 w-3 ${TECHNIQUE_CATEGORY_ICON_COLOR[technique.category]}`} />}
-              {techniqueCategories[technique.category].label}
+            <Badge className={`text-xs border-0 uppercase tracking-wide flex items-center gap-1 ${TECHNIQUE_CATEGORY_BADGE[technique.category] ?? "bg-muted text-muted-foreground"}`}>
+              {CatIcon && <CatIcon className={`h-3 w-3 ${TECHNIQUE_CATEGORY_ICON_COLOR[technique.category] ?? ""}`} />}
+              {categoryLabel}
             </Badge>
-            {technique.services.map((svc) => (
+            {services.map((svc) => (
               <Badge key={svc} variant="outline" className="text-xs border-border text-muted-foreground">{svc}</Badge>
             ))}
           </div>
@@ -89,13 +95,13 @@ const TechniqueDetailPage = () => {
           <div className="rounded-lg border border-border/50 bg-card p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Category</p>
             <div className="flex items-center gap-1.5">
-              {CatIcon && <CatIcon className={`h-4 w-4 ${TECHNIQUE_CATEGORY_ICON_COLOR[technique.category]}`} />}
-              <span className="font-medium text-sm">{techniqueCategories[technique.category].label}</span>
+              {CatIcon && <CatIcon className={`h-4 w-4 ${TECHNIQUE_CATEGORY_ICON_COLOR[technique.category] ?? ""}`} />}
+              <span className="font-medium text-sm">{categoryLabel}</span>
             </div>
           </div>
           <div className="rounded-lg border border-border/50 bg-card p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Services</p>
-            <p className="text-sm font-medium">{technique.services.join(", ")}</p>
+            <p className="text-sm font-medium">{services.join(", ") || "—"}</p>
           </div>
           <div className="rounded-lg border border-border/50 bg-card p-4">
             <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Detections</p>
@@ -108,13 +114,13 @@ const TechniqueDetailPage = () => {
         </div>
 
         {/* Required Permissions */}
-        {technique.permissions.length > 0 && (
+        {permissions.length > 0 && (
           <div className="mb-8">
             <h2 className="flex items-center gap-2 font-display text-lg font-semibold mb-3">
               <Lock className="h-4 w-4 text-primary" /> Required Permissions
             </h2>
             <div className="flex flex-wrap gap-2">
-              {technique.permissions.map((p) => (
+              {permissions.map((p) => (
                 <code key={p} className="px-2.5 py-1.5 rounded-md bg-muted text-xs font-mono text-primary border border-border/50">
                   {p}
                 </code>
@@ -145,7 +151,7 @@ const TechniqueDetailPage = () => {
             <Shield className="h-4 w-4 text-emerald-400" /> Mitigations
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            {technique.mitigations.join(" ")}
+            {mitigations.join(" ") || "No mitigations documented yet."}
           </p>
         </div>
 

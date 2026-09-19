@@ -1,7 +1,8 @@
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import {
   ReactFlow,
+  ReactFlowProvider,
   Node,
   Edge,
   Background,
@@ -324,13 +325,14 @@ const nodeColors: Record<GraphNodeType, { bg: string; border: string; text: stri
 
 function GraphNodeComponent({ data }: NodeProps<Node<GraphNodeData>>) {
   const navigate = useNavigate();
-  const config = nodeColors[data.nodeType];
+  const nodeData = data ?? { label: "Unknown", nodeType: "technique" as const };
+  const config = nodeColors[nodeData.nodeType] ?? nodeColors.technique;
   const Icon = config.icon;
 
   return (
     <div
       className={`px-3 py-2 rounded-lg border ${config.bg} ${config.border} cursor-pointer hover:scale-105 transition-transform min-w-[120px] max-w-[220px]`}
-      onClick={() => data.link && navigate(data.link)}
+      onClick={() => nodeData.link && navigate(nodeData.link)}
       style={{
         fontFamily: "Inter, system-ui, -apple-system, sans-serif",
         WebkitFontSmoothing: "antialiased",
@@ -348,12 +350,12 @@ function GraphNodeComponent({ data }: NodeProps<Node<GraphNodeData>>) {
             fontFamily: "inherit",
           }}
         >
-          {data.label}
+          {nodeData.label}
         </span>
       </div>
-      {data.severity && (
-        <Badge className={`text-[10px] mt-1 border-0 ${severityBadgeClass(data.severity)}`}>
-          {data.severity}
+      {nodeData.severity && (
+        <Badge className={`text-[10px] mt-1 border-0 ${severityBadgeClass(String(nodeData.severity))}`}>
+          {String(nodeData.severity)}
         </Badge>
       )}
     </div>
@@ -393,7 +395,7 @@ const AttackGraphPage = () => {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
 
-  useMemo(() => {
+  useEffect(() => {
     setNodes(initialNodes);
     setEdges(initialEdges);
   }, [initialNodes, initialEdges, setNodes, setEdges]);
@@ -506,8 +508,23 @@ const AttackGraphPage = () => {
         )}
 
         {/* Graph */}
-        {hasSelection && (
+        {hasSelection && initialNodes.length === 0 && (
+          <div className="rounded-lg border border-border/50 bg-card px-6 py-14 text-center">
+            <p className="text-sm text-muted-foreground mb-4">
+              No graph found for this technique. It may have been renamed or removed.
+            </p>
+            <button
+              type="button"
+              onClick={() => setSearchParams({})}
+              className="text-sm text-primary hover:underline"
+            >
+              Browse the Attack Graph
+            </button>
+          </div>
+        )}
+        {hasSelection && initialNodes.length > 0 && (
           <div className="attack-graph-flow rounded-lg border border-border/50 bg-card overflow-hidden" style={{ height: "70vh" }}>
+            <ReactFlowProvider>
             <ReactFlow
               nodes={nodes}
               edges={edges}
@@ -528,7 +545,7 @@ const AttackGraphPage = () => {
               <MiniMap
                 className="attack-graph-minimap !rounded-lg"
                 nodeColor={(node) => {
-                  const nt = (node.data as GraphNodeData).nodeType;
+                  const nt = (node.data as GraphNodeData | undefined)?.nodeType;
                   if (nt === "attack") return "hsl(0 84% 60%)";
                   if (nt === "technique") return "hsl(43 96% 56%)";
                   if (nt === "detection") return "hsl(270 70% 65%)";
@@ -552,6 +569,7 @@ const AttackGraphPage = () => {
                 </div>
               </Panel>
             </ReactFlow>
+            </ReactFlowProvider>
           </div>
         )}
       </div>
