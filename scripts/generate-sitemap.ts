@@ -1,5 +1,5 @@
 // Runs before `vite dev` and `vite build` (predev/prebuild hooks); writes public/sitemap.xml.
-import { writeFileSync, readFileSync } from "fs";
+import { writeFileSync, readFileSync, readdirSync } from "fs";
 import { resolve } from "path";
 
 const BASE_URL = "https://detecting.cloud";
@@ -24,19 +24,35 @@ const staticEntries: SitemapEntry[] = [
   { path: "/about", changefreq: "yearly", priority: "0.5" },
 ];
 
-// Technique detail routes: ids declared in the techniques data files.
+// Technique detail routes: one per techniques/<provider>/<slug>/meta.json
 function techniqueEntries(): SitemapEntry[] {
   const ids = new Set<string>();
-  for (const file of ["src/data/techniques.ts"]) {
-    let source = "";
+  const root = resolve("techniques");
+  let providers: string[] = [];
+  try {
+    providers = readdirSync(root, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+  } catch {
+    return [];
+  }
+  for (const provider of providers) {
+    let slugs: string[] = [];
     try {
-      source = readFileSync(resolve(file), "utf8");
+      slugs = readdirSync(resolve(root, provider), { withFileTypes: true })
+        .filter((d) => d.isDirectory())
+        .map((d) => d.name);
     } catch {
       continue;
     }
-    for (const match of source.matchAll(/id:\s*"(tech-[a-z0-9-]+)"/g)) ids.add(match[1]);
+    for (const slug of slugs) {
+      try {
+        const meta = JSON.parse(readFileSync(resolve(root, provider, slug, "meta.json"), "utf8"));
+        if (typeof meta.id === "string") ids.add(meta.id);
+      } catch {
+        // skip entries without readable metadata
+      }
+    }
   }
-  return [...ids].map((id) => ({
+  return [...ids].sort().map((id) => ({
     path: `/attack-paths/technique/${id}`,
     changefreq: "monthly" as const,
     priority: "0.8",
