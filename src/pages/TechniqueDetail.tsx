@@ -48,6 +48,10 @@ const TechniqueDetailPage = () => {
 
   return (
     <Layout>
+      <Seo
+        title={`${technique.name} — Cloud Attack Technique | Detecting.Cloud`}
+        description={technique.description.slice(0, 155)}
+      />
       <div className="container max-w-4xl">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">

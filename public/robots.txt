@@ -12,3 +12,6 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /admin/
+
+Sitemap: https://detecting.cloud/sitemap.xml
