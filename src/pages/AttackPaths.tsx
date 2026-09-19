@@ -112,18 +112,18 @@ const AttackPathsPage = () => {
 
             {/* Visual Attack Flow */}
             <div>
-              <h3 className="flex items-center gap-2 font-semibold mb-4">
+              <h2 className="flex items-center gap-2 font-semibold mb-4">
                 <AlertTriangle className="h-4 w-4 text-primary" /> Attack Flow
-              </h3>
+              </h2>
               <AttackFlowChain steps={activeAttackPath.steps} />
             </div>
 
             {/* References */}
             {activeAttackPath.references && activeAttackPath.references.length > 0 && (
               <div className="mt-6 rounded-lg border border-border/50 p-6 bg-card">
-                <h3 className="flex items-center gap-2 font-semibold mb-4">
+                <h2 className="flex items-center gap-2 font-semibold mb-4">
                   <LinkIcon className="h-4 w-4 text-primary" /> References
-                </h3>
+                </h2>
                 <ul className="space-y-2">
                   {activeAttackPath.references.map((ref, i) => (
                     <li key={i} className="text-sm text-muted-foreground flex items-center gap-2">
