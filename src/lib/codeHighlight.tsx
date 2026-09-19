@@ -2,6 +2,10 @@ import type { ReactNode } from "react";
 
 /** Renders code with colored keys/fields using React elements (avoids HTML injection issues). */
 export function renderCodeWithColoredKeys(content: string, language: string): ReactNode {
+  if (typeof content !== "string" || !content) {
+    return <code />;
+  }
+
   const keyClass = "text-yellow-400";
   const parts: ReactNode[] = [];
   let keyIdx = 0;

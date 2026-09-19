@@ -17,6 +17,7 @@ import CloudTrailAnalyzer from "./pages/CloudTrailAnalyzer";
 import CommunityRules from "./pages/CommunityRules";
 import AdminSubscribers from "./pages/AdminSubscribers";
 import NotFound from "./pages/NotFound";
+import { PageErrorBoundary } from "@/components/PageErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -26,25 +27,27 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/research" element={<Navigate to="/" replace />} />
-          <Route path="/research/:slug" element={<Navigate to="/" replace />} />
-          <Route path="/attack-paths/technique/:id" element={<TechniqueDetail />} />
-          <Route path="/attack-paths" element={<AttackPaths />} />
-          <Route path="/techniques" element={<TechniquesLibrary />} />
-          <Route path="/detection-engineering" element={<DetectionEngineering />} />
-          <Route path="/attack-graph" element={<AttackGraph />} />
-          <Route path="/coverage" element={<Coverage />} />
-          <Route path="/detection-matrix" element={<Navigate to="/threat-matrix" replace />} />
-          <Route path="/threat-matrix" element={<DetectionMatrix />} />
-          <Route path="/simulator" element={<AttackSimulator />} />
-          <Route path="/cloudtrail-analyzer" element={<CloudTrailAnalyzer />} />
-          <Route path="/community-rules" element={<CommunityRules />} />
-          <Route path="/admin/subscribers" element={<AdminSubscribers />} />
-          <Route path="/about" element={<About />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <PageErrorBoundary>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/research" element={<Navigate to="/" replace />} />
+            <Route path="/research/:slug" element={<Navigate to="/" replace />} />
+            <Route path="/attack-paths/technique/:id" element={<TechniqueDetail />} />
+            <Route path="/attack-paths" element={<AttackPaths />} />
+            <Route path="/techniques" element={<TechniquesLibrary />} />
+            <Route path="/detection-engineering" element={<DetectionEngineering />} />
+            <Route path="/attack-graph" element={<AttackGraph />} />
+            <Route path="/coverage" element={<Coverage />} />
+            <Route path="/detection-matrix" element={<Navigate to="/threat-matrix" replace />} />
+            <Route path="/threat-matrix" element={<DetectionMatrix />} />
+            <Route path="/simulator" element={<AttackSimulator />} />
+            <Route path="/cloudtrail-analyzer" element={<CloudTrailAnalyzer />} />
+            <Route path="/community-rules" element={<CommunityRules />} />
+            <Route path="/admin/subscribers" element={<AdminSubscribers />} />
+            <Route path="/about" element={<About />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </PageErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

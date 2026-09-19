@@ -105,16 +105,12 @@ export default function TechniquesLibrary() {
             <span className="text-foreground">{techniqueCategories[activeCategory].label}</span>
           </div>
 
-          <div className="flex items-center gap-3 mb-2">
+          <div className="flex items-center gap-3 mb-8">
             {CatIcon && <CatIcon className={`h-8 w-8 shrink-0 ${TECHNIQUE_CATEGORY_ICON_COLOR[activeCategory]}`} />}
             <h1 className="font-display text-3xl font-bold tracking-tight">
               {techniqueCategories[activeCategory].label}
             </h1>
           </div>
-          <p className="text-muted-foreground mb-8">
-            {catTechniques.length} {catTechniques.length === 1 ? "technique" : "techniques"} in this category
-            {label ? ` · ${label}` : ""}.
-          </p>
 
           {catTechniques.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
