@@ -4,8 +4,6 @@ status: test
 description: Detects when sign-ins increased by 10% or greater.
 references:
     - https://learn.microsoft.com/en-us/entra/architecture/security-operations-user-accounts#monitoring-for-failed-unusual-sign-ins
-author: Mark Morowczynski '@markmorow', MikeDuddington, '@dudders1'
-date: 2022-08-11
 tags:
     - attack.privilege-escalation
     - attack.persistence

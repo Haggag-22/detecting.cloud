@@ -5,9 +5,6 @@ description: Detects when an a role privilege is deleted in Google Workspace.
 references:
     - https://cloud.google.com/logging/docs/audit/gsuite-audit-logging#3
     - https://developers.google.com/admin-sdk/reports/v1/appendix/activity/admin-delegated-admin-settings
-author: Austin Songer
-date: 2021-08-24
-modified: 2023-10-11
 tags:
     - attack.impact
 logsource:

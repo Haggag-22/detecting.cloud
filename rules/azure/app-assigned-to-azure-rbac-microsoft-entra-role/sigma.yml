@@ -4,9 +4,6 @@ status: test
 description: Detects when an app is assigned Azure AD roles, such as global administrator, or Azure RBAC roles, such as subscription owner.
 references:
     - https://learn.microsoft.com/en-us/entra/architecture/security-operations-applications#service-principal-assigned-to-a-role
-author: Bailey Bercik '@baileybercik', Mark Morowczynski '@markmorow'
-date: 2022-07-19
-modified: 2024-11-04
 tags:
     - attack.persistence
     - attack.privilege-escalation

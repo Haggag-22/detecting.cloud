@@ -5,8 +5,6 @@ description: Detects the modification of the findings on SecurityHub.
 references:
     - https://docs.aws.amazon.com/cli/latest/reference/securityhub/
     - https://attack.mitre.org/detectionstrategies/DET0497/
-author: Sittikorn S
-date: 2021-06-28
 tags:
     - attack.defense-impairment
     - attack.t1685

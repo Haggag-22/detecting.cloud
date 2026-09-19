@@ -10,8 +10,6 @@ references:
     - https://attack.mitre.org/techniques/T1539
     - https://attack.mitre.org/detectionstrategies/DET0546/
     - https://attack.mitre.org/detectionstrategies/DET0509/
-author: SOF-ELK AWS ATT&CK Coverage
-date: 2026-07-15
 tags:
     - attack.initial-access
     - attack.credential-access

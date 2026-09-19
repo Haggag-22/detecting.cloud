@@ -4,8 +4,6 @@ status: test
 description: Detects when a temporary access pass (TAP) is added to an account. TAPs added to priv accounts should be investigated
 references:
     - https://learn.microsoft.com/en-us/entra/architecture/security-operations-privileged-accounts#changes-to-privileged-accounts
-author: Mark Morowczynski '@markmorow', Yochana Henderson, '@Yochana-H'
-date: 2022-08-10
 tags:
     - attack.privilege-escalation
     - attack.initial-access

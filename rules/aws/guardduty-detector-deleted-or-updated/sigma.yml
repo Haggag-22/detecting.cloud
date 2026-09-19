@@ -20,8 +20,6 @@ references:
     - https://www.atomicredteam.io/atomic-red-team/atomics/T156001#atomic-test-46---aws---guardduty-suspension-or-deletion
     - https://attack.mitre.org/detectionstrategies/DET0289/
     - https://attack.mitre.org/detectionstrategies/DET0497/
-author: suktech24
-date: 2025-11-27
 tags:
     - attack.defense-impairment
     - attack.t1685

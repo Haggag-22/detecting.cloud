@@ -6,8 +6,6 @@ description: |
     The application then uses those credentials to authenticate the user against the identity provider.
 references:
     - https://learn.microsoft.com/en-us/entra/architecture/security-operations-applications#application-authentication-flows
-author: Mark Morowczynski '@markmorow', Bailey Bercik '@baileybercik'
-date: 2022-06-01
 tags:
     - attack.stealth
     - attack.t1078

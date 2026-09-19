@@ -7,8 +7,6 @@ references:
     - https://attack.mitre.org/techniques/T1136/003/
     - https://attack.mitre.org/detectionstrategies/DET0319/
     - https://docs.aws.amazon.com/accounts/latest/reference/API_EnableRegion.html
-author: SOF-ELK AWS ATT&CK Coverage
-date: 2026-07-15
 tags:
     - attack.persistence
     - attack.t1136.003

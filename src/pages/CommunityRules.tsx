@@ -10,6 +10,7 @@ import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { toast } from "sonner";
 import { communityRules } from "@/data/communityRules";
 import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
+import { stripSigmaAttribution } from "@/lib/sigma";
 
 import { SEVERITY_OUTLINE_CLASS } from "@/lib/severityStyles";
 
@@ -130,15 +131,19 @@ export default function CommunityRules() {
 
                 <pre className="bg-muted/50 rounded-md p-3 text-xs font-mono overflow-x-auto max-h-32 text-foreground">
                   {rule.format === "sigma"
-                    ? renderCodeWithColoredKeys(rule.rule, "yaml")
+                    ? renderCodeWithColoredKeys(stripSigmaAttribution(rule.rule), "yaml")
                     : <code>{rule.rule}</code>}
                 </pre>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">
-                    by <span className="text-foreground font-medium">{rule.author}</span> · {rule.createdAt}
-                  </span>
-                  <Button variant="ghost" size="sm" onClick={() => copyRule(rule.rule)} className="gap-1.5 text-xs">
+                <div className="flex items-center justify-end">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      copyRule(rule.format === "sigma" ? stripSigmaAttribution(rule.rule) : rule.rule)
+                    }
+                    className="gap-1.5 text-xs"
+                  >
                     <Copy className="h-3 w-3" /> Copy
                   </Button>
                 </div>

@@ -7,8 +7,6 @@ references:
     - https://attack.mitre.org/techniques/T1020/001/
     - https://docs.aws.amazon.com/vpc/latest/mirroring/traffic-mirroring-how-it-works.html
     - https://attack.mitre.org/detectionstrategies/DET0403/
-author: SOF-ELK AWS ATT&CK Coverage
-date: 2026-07-15
 tags:
     - attack.exfiltration
     - attack.t1020.001

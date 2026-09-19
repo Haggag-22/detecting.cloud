@@ -6,8 +6,6 @@ description: |
     URIs for domain names that no longer exist (dangling URIs), not using HTTPS, wildcards at the end of the domain, URIs that are no unique to that app, or URIs that point to domains you do not control should be investigated.
 references:
     - https://learn.microsoft.com/en-us/entra/architecture/security-operations-applications#application-configuration-changes
-author: Mark Morowczynski '@markmorow', Bailey Bercik '@baileybercik'
-date: 2022-06-02
 tags:
     - attack.initial-access
     - attack.stealth

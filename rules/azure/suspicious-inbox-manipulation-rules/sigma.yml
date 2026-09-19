@@ -5,8 +5,6 @@ description: Detects suspicious rules that delete or move messages or folders ar
 references:
     - https://learn.microsoft.com/en-us/entra/id-protection/concept-identity-protection-risks#suspicious-inbox-manipulation-rules
     - https://learn.microsoft.com/en-us/entra/architecture/security-operations-user-accounts#unusual-sign-ins
-author: Mark Morowczynski '@markmorow', Gloria Lee, '@gleeiamglo'
-date: 2023-09-03
 tags:
     - attack.stealth
     - attack.t1140

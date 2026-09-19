@@ -4,8 +4,6 @@ status: test
 description: Identifies an event where there are there are too many accounts assigned the Global Administrator role.
 references:
     - https://learn.microsoft.com/en-us/entra/id-governance/privileged-identity-management/pim-how-to-configure-security-alerts#there-are-too-many-global-administrators
-author: Mark Morowczynski '@markmorow', Gloria Lee, '@gleeiamglo'
-date: 2023-09-14
 tags:
     - attack.initial-access
     - attack.stealth

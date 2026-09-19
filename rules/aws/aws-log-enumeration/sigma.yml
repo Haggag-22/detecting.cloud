@@ -6,8 +6,6 @@ description: |
 references:
     - https://attack.mitre.org/techniques/T1654/
     - https://attack.mitre.org/detectionstrategies/DET0255/
-author: SOF-ELK AWS ATT&CK Coverage
-date: 2026-07-15
 tags:
     - attack.discovery
     - attack.t1654

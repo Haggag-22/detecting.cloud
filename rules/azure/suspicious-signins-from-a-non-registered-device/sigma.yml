@@ -4,9 +4,6 @@ status: test
 description: Detects risky authentication from a non AD registered device without MFA being required.
 references:
     - https://learn.microsoft.com/en-us/entra/architecture/security-operations-devices#non-compliant-device-sign-in
-author: Harjot Singh, '@cyb3rjy0t'
-date: 2023-01-10
-modified: 2025-07-02
 tags:
     - attack.privilege-escalation
     - attack.persistence

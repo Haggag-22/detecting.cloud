@@ -9,8 +9,6 @@ references:
     - https://www.crowdstrike.com/blog/analysis-of-intrusion-campaign-targeting-telecom-and-bpo-companies/
     - https://attack.mitre.org/detectionstrategies/DET0008/
     - https://attack.mitre.org/detectionstrategies/DET0185/
-author: Chester Le Bron (@123Le_Bron)
-date: 2024-02-26
 tags:
     - attack.lateral-movement
     - attack.t1021.007

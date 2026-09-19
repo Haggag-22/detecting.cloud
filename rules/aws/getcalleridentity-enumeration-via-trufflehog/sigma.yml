@@ -10,8 +10,6 @@ references:
     - https://docs.aws.amazon.com/STS/latest/APIReference/API_GetCallerIdentity.html
     - https://github.com/trufflesecurity/trufflehog
     - https://attack.mitre.org/detectionstrategies/DET0386/
-author: Adan Alvarez @adanalvarez
-date: 2025-10-12
 tags:
     - attack.discovery
     - attack.t1087.004

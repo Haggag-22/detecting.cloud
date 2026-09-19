@@ -1,3 +1,4 @@
+export { stripSigmaAttribution } from "./stripMetadata";
 export { parseSigmaRule, parseYamlSubset } from "./parse";
 export { parseCondition, expandWildcards } from "./condition";
 export { convertSigma, convertSigmaToAll, listConvertibleTargets } from "./convert";

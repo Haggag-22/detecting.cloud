@@ -7,8 +7,6 @@ description: |
 references:
     - https://www.gorillastack.com/blog/real-time-events/important-aws-cloudtrail-security-events-tracking/
     - https://attack.mitre.org/detectionstrategies/DET0080/
-author: jamesc-grafana
-date: 2024-07-11
 tags:
     - attack.initial-access
     - attack.t1190

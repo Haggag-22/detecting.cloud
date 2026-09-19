@@ -8,8 +8,6 @@ references:
     - https://help.fortinet.com/fsiem/Public_Resource_Access/7_2_1/rules/PH_RULE_AWS_Management_Console_Brute_Force_of_Root_User_Identity.htm
     - https://media.githubusercontent.com/media/splunk/attack_data/master/datasets/attack_techniques/T1110.001/aws_login_failure/aws_cloudtrail_events.json
     - https://attack.mitre.org/detectionstrategies/DET0463/
-author: Ivan Saakov, Nasreddine Bencherchali
-date: 2025-10-19
 tags:
     - attack.credential-access
     - attack.t1110

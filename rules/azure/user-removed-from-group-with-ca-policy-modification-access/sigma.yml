@@ -4,8 +4,6 @@ status: test
 description: Monitor and alert on group membership removal of groups that have CA policy modification access
 references:
     - https://learn.microsoft.com/en-us/entra/architecture/security-operations-infrastructure#conditional-access
-author: Mark Morowczynski '@markmorow', Thomas Detzner '@tdetzner'
-date: 2022-08-04
 tags:
     - attack.privilege-escalation
     - attack.credential-access

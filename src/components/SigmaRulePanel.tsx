@@ -12,6 +12,7 @@ import type { RuleFormats } from "@/data/detections";
 import {
   convertSigma,
   listConvertibleTargets,
+  stripSigmaAttribution,
   type ConversionResult,
   type SigmaTargetLanguage,
 } from "@/lib/sigma";
@@ -107,20 +108,21 @@ export function SigmaRulePanel({
   const targets = listConvertibleTargets();
   const [target, setTarget] = useState<SigmaTargetLanguage>("elasticsearch");
   const [converted, setConverted] = useState<ConversionResult | null>(null);
+  const displaySigma = useMemo(() => stripSigmaAttribution(sigma), [sigma]);
 
   // Map curated detection rule strings onto converter target ids
   const storedRules = useMemo(
     () => ({
-      sigma: rules.sigma,
+      sigma: displaySigma,
       splunk: rules.splunk,
       datadog: rules.datadog,
       elasticsearch: rules.esql,
     }),
-    [rules]
+    [displaySigma, rules]
   );
 
   const handleConvert = () => {
-    const result = convertSigma(sigma, target, { storedRules, preferStored: false });
+    const result = convertSigma(displaySigma, target, { storedRules, preferStored: false });
     setConverted(result);
   };
 
@@ -156,17 +158,17 @@ export function SigmaRulePanel({
               Convert
             </Button>
             <CopyDownloadButtons
-              code={sigma}
+              code={displaySigma}
               copiedId={copiedId}
               setCopiedId={setCopiedId}
               copyKey="sigma-primary"
-              onDownload={() => downloadFile(sigma, `${detectionId}.yml`)}
+              onDownload={() => downloadFile(displaySigma, `${detectionId}.yml`)}
               downloadLabel="Download .yml"
             />
           </div>
         </div>
 
-        <CodeBlock code={sigma} format="sigma" />
+        <CodeBlock code={displaySigma} format="sigma" />
       </div>
 
       {converted && (

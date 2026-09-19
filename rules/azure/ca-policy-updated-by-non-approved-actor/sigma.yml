@@ -4,9 +4,6 @@ status: test
 description: Monitor and alert on conditional access changes. Is Initiated by (actor) approved to make changes? Review Modified Properties and compare "old" vs "new" value.
 references:
     - https://learn.microsoft.com/en-us/entra/architecture/security-operations-infrastructure#conditional-access
-author: Corissa Koopmans, '@corissalea'
-date: 2022-07-19
-modified: 2024-05-28
 tags:
     - attack.privilege-escalation
     - attack.credential-access

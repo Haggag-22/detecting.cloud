@@ -9,8 +9,6 @@ references:
     - https://docs.aws.amazon.com/kms/latest/developerguide/ct-deleteimportedkeymaterial.html
     - https://attack.mitre.org/detectionstrategies/DET0215/
     - https://attack.mitre.org/detectionstrategies/DET0840/
-author: toopricey
-date: 2025-10-18
 tags:
     - attack.impact
     - attack.t1486
