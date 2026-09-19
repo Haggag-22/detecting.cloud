@@ -1,0 +1,25 @@
+{
+  "id": "det-034",
+  "title": "New Managed Policy Created and Attached to Self or Controlled Principal",
+  "description": "High-confidence privilege-escalation and persistence chain where an actor creates a new customer-managed policy and then attaches that same policy to their own IAM user, current role, or another principal they control within a short time window.",
+  "awsService": "IAM",
+  "relatedServices": [
+    "STS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "IAM",
+    "Inline Policy",
+    "Behavior Correlation",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Approved IAM engineering workflows that create and immediately attach policies",
+    "Infrastructure automation creating application-specific policies during deployment"
+  ],
+  "relatedAttackSlugs": []
+}

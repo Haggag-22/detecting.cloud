@@ -1,0 +1,13 @@
+title: Boundary Changed to Non-Approved Policy ARN
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - PutRolePermissionsBoundary
+      - PutUserPermissionsBoundary
+  condition: selection
+level: high
+# Enforce exact approved boundary ARNs and semantic weakening in downstream analytics.

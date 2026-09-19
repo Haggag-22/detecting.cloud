@@ -1,0 +1,10 @@
+title: EC2 Instance Connect Key Push to Sensitive Target
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2-instance-connect.amazonaws.com
+    eventName: SendSSHPublicKey
+  condition: selection
+level: high

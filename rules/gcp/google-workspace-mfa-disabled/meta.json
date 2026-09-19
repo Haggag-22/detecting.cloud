@@ -1,0 +1,21 @@
+{
+  "id": "gcp-013",
+  "title": "Google Workspace MFA Disabled",
+  "description": "Detects when multi-factor authentication (MFA) is disabled.",
+  "awsService": "Google Workspace",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "Google Workspace",
+    "impact"
+  ],
+  "logSources": [
+    "Google Workspace Audit"
+  ],
+  "falsePositives": [
+    "MFA may be disabled and performed by a system administrator."
+  ],
+  "relatedAttackSlugs": []
+}

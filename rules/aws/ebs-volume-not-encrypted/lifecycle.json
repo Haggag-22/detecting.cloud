@@ -1,0 +1,121 @@
+{
+  "whyItMatters": "Creating an unencrypted EBS volume weakens at-rest protections and can violate both security policy and compliance requirements. The important nuance is that requestParameters.encrypted=false is not enough by itself when regional EBS encryption-by-default is enabled.",
+  "threatContext": {
+    "attackerBehavior": "An attacker or negligent admin can create storage without encryption to avoid KMS governance, simplify downstream copying, or stage sensitive data on media with weaker policy controls.",
+    "realWorldUsage": "In practice this pattern appears more often in posture failures, legacy automation, and exception-heavy environments than in named intrusion reporting.",
+    "whyItMatters": "This rule is valuable as a security baseline detection, but only high-confidence when the created volume is actually unencrypted.",
+    "riskAndImpact": "If sensitive data lands on an unencrypted volume, the organization loses an important control boundary around KMS access, auditability, and policy enforcement."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.arn",
+      "userIdentity.type",
+      "requestParameters.encrypted",
+      "requestParameters.kmsKeyId",
+      "requestParameters.snapshotId",
+      "responseElements.volumeId",
+      "responseElements.encrypted",
+      "responseElements.kmsKeyId",
+      "awsRegion",
+      "sourceIPAddress",
+      "eventTime",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled for EC2/EBS APIs.",
+      "Retain both request and response fields; responseElements.encrypted is the most important confirmation field.",
+      "Maintain regional/account-level enrichment for EBS encryption-by-default state."
+    ],
+    "limitations": [
+      "If EBS encryption by default is enabled in the Region, an explicit request for encrypted=false can still result in an encrypted volume.",
+      "Some requests omit requestParameters.encrypted.",
+      "This is often a posture/compliance signal rather than a direct intrusion indicator."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Encryption Baseline Context",
+      "description": "Adds the regional EBS encryption-by-default setting and expected default KMS key.",
+      "examples": [
+        "GetEbsEncryptionByDefault result",
+        "default EBS KMS key ARN"
+      ],
+      "falsePositiveReduction": "Suppresses request-only matches when AWS still created an encrypted volume."
+    },
+    {
+      "dimension": "Volume Purpose and Asset Metadata",
+      "description": "Adds tags, application ownership, environment, and whether the created volume is tied to production, CI, or legacy migration workflows.",
+      "examples": [
+        "tags: prod, sandbox, migration",
+        "application owner",
+        "CMDB criticality"
+      ],
+      "falsePositiveReduction": "Separates real control failures on sensitive systems from tolerated lab or migration contexts."
+    },
+    {
+      "dimension": "Identity and Change Context",
+      "description": "Adds role purpose, automation source, ticket/change window, and prior provisioning behavior for the caller.",
+      "examples": [
+        "Terraform pipeline role",
+        "approved CAB change",
+        "first-time CreateVolume by this user"
+      ],
+      "falsePositiveReduction": "Reduces noise from known automation while highlighting unexpected manual activity."
+    },
+    {
+      "dimension": "Snapshot and Lineage Context",
+      "description": "Adds whether the volume was created empty or from a snapshot, and whether the source snapshot itself was encrypted or sensitive.",
+      "examples": [
+        "source snapshot encrypted=true",
+        "golden AMI lineage",
+        "database backup snapshot"
+      ],
+      "falsePositiveReduction": "Helps explain benign legacy restore scenarios and prioritize sensitive lineage."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should be modeled as a two-tier rule. The high-confidence branch is actual unencrypted volume creation, confirmed by responseElements.encrypted=false on a successful CreateVolume event. A lower-confidence branch can capture intent when requestParameters.encrypted=false, but it should only escalate if the Region's EBS encryption-by-default setting is disabled.",
+    "conditions": [
+      "High-confidence branch: eventSource equals ec2.amazonaws.com",
+      "eventName equals CreateVolume",
+      "responseElements.encrypted equals false",
+      "Optional lower-confidence branch: requestParameters.encrypted equals false and regional EBS encryption-by-default is disabled"
+    ],
+    "tuningGuidance": "1. Prefer responseElements.encrypted=false over request-only logic. 2. Join the event to regional encryption-by-default state. 3. Maintain an exception list for approved legacy, lab, or migration workflows.",
+    "whenToFire": "Fire immediately on confirmed unencrypted volume creation. Route request-only events to a lower-severity queue unless you have verified that default encryption was disabled in that Region."
+  },
+  "simulationCommand": "aws ec2 create-volume --availability-zone us-east-1a --size 20 --volume-type gp3 --no-encrypted --region us-east-1",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium (posture drift, legacy workflows, and request-only matches need context)",
+    "expectedVolume": "Near-zero in mature encrypted-by-default orgs; bursty in legacy, dev, or migration-heavy accounts",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query)",
+      "CloudWatch Logs Insights",
+      "Splunk",
+      "Datadog",
+      "Panther",
+      "Chronicle",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Batch: every 5-15 minutes for posture reporting. Real-time: EventBridge or streaming SIEM ingestion if you want immediate policy-violation alerts.",
+    "considerations": [
+      "Do not rely on requestParameters.encrypted=false alone.",
+      "This detection is often better owned jointly by security engineering and cloud governance.",
+      "Use a separate control to detect disabled EBS encryption-by-default."
+    ]
+  }
+}

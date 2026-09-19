@@ -1,0 +1,132 @@
+{
+  "whyItMatters": "Flow log deletion removes network telemetry—a high-signal defense-evasion event. Few legitimate operations require deleting flow logs; attackers use it to blind defenders before exfiltration or C2.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with ec2:DeleteFlowLogs deletes VPC flow log configurations to evade network-based detection. Flow logs capture accepted/rejected traffic for VPCs, subnets, or ENIs; deletion blinds defenders to C2, exfiltration, and lateral movement.",
+    "realWorldUsage": "Common in post-compromise defense evasion; observed in cloud-focused threat campaigns where attackers reduce logging before exfiltration.",
+    "whyItMatters": "Removing telemetry is a high-signal event—few legitimate operations require deleting flow logs at scale.",
+    "riskAndImpact": "Loss of network visibility enables undetected data exfiltration, C2 traffic, and lateral movement."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.arn",
+      "userIdentity.type",
+      "requestParameters.flowLogIds",
+      "sourceIPAddress",
+      "eventTime"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must be enabled with EC2 management events",
+      "No Data Events required"
+    ],
+    "limitations": [
+      "Flow log IDs in requestParameters.flowLogIds require enrichment (DescribeFlowLogs) to map to VPC/subnet",
+      "Cross-account deletion may have delayed propagation"
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Identity Context",
+      "description": "User/role metadata, owner, department; service account age, last-used.",
+      "examples": [
+        "user.email from HR/Okta",
+        "service_account.age_days",
+        "service_account.last_used"
+      ],
+      "falsePositiveReduction": "Filter known network/platform admins"
+    },
+    {
+      "dimension": "IP Reputation",
+      "description": "Threat intelligence and geolocation for source IP.",
+      "examples": [
+        "Tor exit node detection",
+        "Known C2 infrastructure",
+        "GeoIP for impossible travel"
+      ],
+      "falsePositiveReduction": "Escalate when source IP has threat intel hits"
+    },
+    {
+      "dimension": "Asset Metadata",
+      "description": "Flow log to VPC/subnet tags for target sensitivity.",
+      "examples": [
+        "VPC tags: prod, egress, security",
+        "Data classification",
+        "DescribeFlowLogs → VPC mapping"
+      ],
+      "falsePositiveReduction": "Higher severity for prod/egress/security VPCs"
+    },
+    {
+      "dimension": "Behavioral Baselines",
+      "description": "Historical behavior patterns for this identity.",
+      "examples": [
+        "First-time DeleteFlowLogs for this identity",
+        "Deviation from typical network-admin roles"
+      ],
+      "falsePositiveReduction": "Alert when non-privileged actor performs deletion"
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection identifies deletion of VPC flow log configurations via the DeleteFlowLogs API. Flow logs capture network traffic (accepted/rejected) for VPCs, subnets, or ENIs; their removal eliminates visibility into lateral movement, C2, and exfiltration. The rule is intentionally broad to provide baseline coverage—every DeleteFlowLogs event is in scope. In production, layer enrichment (identity context, asset criticality) or downstream correlation to reduce noise.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals DeleteFlowLogs",
+      "No additional filters—all DeleteFlowLogs events match"
+    ],
+    "tuningGuidance": "To reduce false positives: (1) Add an actor allowlist—exclude IAM roles used by network/platform automation (e.g., roles containing 'Network', 'Platform', 'Infra'). (2) Enrich with DescribeFlowLogs to map flow log IDs to VPC/subnet tags—escalate when target VPCs are tagged prod, egress, or security. (3) Correlate with det-111 (Flow Logs Deletion by Unexpected Actor) for higher-fidelity alerts.",
+    "whenToFire": "Fire on every DeleteFlowLogs event in CloudTrail. Legitimate flow log deletion is rare; most environments see fewer than 10 events per month. If volume is high, apply tuning before suppressing."
+  },
+  "simulationCommand": "aws ec2 delete-flow-logs --flow-log-ids fl-0abc123",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low (legitimate cleanup is rare)",
+    "expectedVolume": "1–10 events/month (org-dependent)",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query)",
+      "CloudWatch Logs Insights",
+      "Splunk",
+      "Datadog",
+      "Panther",
+      "Chronicle"
+    ],
+    "scheduling": "Batch: every 5–15 minutes; Real-time: EventBridge rule + Lambda or SIEM streaming",
+    "considerations": [
+      "Ensure CloudTrail log group/bucket has appropriate retention",
+      "Consider correlation with det-113 for follow-on behavior (DeleteFlowLogs → exfiltration)",
+      "No Data Events required—management events only"
+    ]
+  },
+  "detectionFlow": [
+    {
+      "id": "1",
+      "label": "CloudTrail Event (ec2.amazonaws.com)",
+      "type": "source"
+    },
+    {
+      "id": "2",
+      "label": "DeleteFlowLogs API Call",
+      "type": "transform"
+    },
+    {
+      "id": "3",
+      "label": "Detection Rule (eventSource + eventName match)",
+      "type": "rule"
+    },
+    {
+      "id": "4",
+      "label": "Alert",
+      "type": "alert"
+    }
+  ]
+}

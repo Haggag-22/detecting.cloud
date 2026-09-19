@@ -82,7 +82,12 @@ export function AiAssistant() {
 
   // Build knowledge base once
   useEffect(() => {
-    knowledgeRef.current = buildKnowledgeBase();
+    try {
+      knowledgeRef.current = buildKnowledgeBase();
+    } catch (err) {
+      console.error("Failed to build AI knowledge base", err);
+      knowledgeRef.current = "";
+    }
   }, []);
 
   // Auto-scroll
@@ -171,7 +176,7 @@ export function AiAssistant() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col w-[400px] max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-6rem)] rounded-xl border border-border bg-card shadow-2xl overflow-hidden">
+    <div className="fixed bottom-6 right-6 z-50 flex flex-col w-[400px] max-w-[calc(100vw-2rem)] h-[600px] max-h-[calc(100vh-6rem)] rounded-xl border border-border/50 bg-card shadow-2xl overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50">
         <div className="flex items-center gap-2">

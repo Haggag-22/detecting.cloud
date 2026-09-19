@@ -1,0 +1,27 @@
+{
+  "id": "tech-codebuild-env-theft",
+  "name": "CodeBuild Environment Credential Theft",
+  "shortName": "CodeBuild Env",
+  "description": "CodeBuild projects can have environment variables that contain credentials or reference Parameter Store/Secrets Manager. An attacker who can trigger a build (or modify the buildspec) injects code that exfiltrates these credentials during the build. The build runs with the CodeBuild service role; environment variables are available to the build process. The attacker may use a malicious buildspec or modify an existing project's build to run curl or similar to send credentials to an external server. No additional AWS permissions if they can trigger builds; otherwise codebuild:StartBuild.",
+  "services": [
+    "CodeBuild",
+    "IAM"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-126",
+    "det-127",
+    "det-128",
+    "det-129",
+    "det-130",
+    "det-200"
+  ],
+  "mitigations": [
+    "Avoid secrets in env vars",
+    "Use Secrets Manager with least-privilege",
+    "Audit CodeBuild projects"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "aws",
+  "detectionStrategy": "CodeBuild environment credential theft is best detected by looking for StartBuild executions that use dangerous overrides (buildspecOverride, environmentVariablesOverride), are initiated by unexpected actors, or are followed by secret access or IAM pivot behavior by the CodeBuild service role. Plaintext environment variables and buildspec overrides are especially risky."
+}

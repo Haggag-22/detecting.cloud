@@ -1,0 +1,24 @@
+{
+  "id": "tech-ecs-task-definition-backdoor",
+  "name": "ECS Task Definition Backdoor",
+  "shortName": "ECS Backdoor",
+  "description": "An attacker with ecs:RegisterTaskDefinition creates a new task definition that uses a malicious container image or overrides the entrypoint to run attacker code. When ecs:UpdateService deploys this task definition to a service, the attacker's code runs in the cluster with the task role's permissions. The attacker can exfiltrate credentials, access AWS resources, or establish persistence. Required permissions are ecs:RegisterTaskDefinition and ecs:UpdateService. The task role may have broad permissions if not properly scoped.",
+  "services": [
+    "ECS",
+    "IAM"
+  ],
+  "permissions": [
+    "ecs:RegisterTaskDefinition",
+    "ecs:UpdateService"
+  ],
+  "detectionIds": [
+    "det-027"
+  ],
+  "mitigations": [
+    "Restrict RegisterTaskDefinition",
+    "Use image signing",
+    "Audit task definition changes"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

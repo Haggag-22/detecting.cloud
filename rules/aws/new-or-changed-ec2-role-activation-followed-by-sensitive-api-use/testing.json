@@ -1,0 +1,5 @@
+[
+  "Launch EC2 with a powerful profile or attach a profile to an existing instance, then obtain instance credentials and call GetSecretValue, AssumeRole, or another sensitive API.",
+  "Verify both the activation event and later role activity appear in CloudTrail.",
+  "Run the correlation and confirm it pivots on the resolved workload role rather than only the original human actor."
+]

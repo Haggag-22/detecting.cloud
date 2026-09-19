@@ -1,0 +1,5 @@
+[
+  "Identify the error code, error message, and control that blocked the leave attempt.",
+  "Determine whether the actor and account had any legitimate reason to attempt leaving the organization.",
+  "Review recent guardrail-sensitive actions to assess whether the failed escape was part of broader malicious behavior."
+]

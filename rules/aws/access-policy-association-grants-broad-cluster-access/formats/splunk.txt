@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventSource=eks.amazonaws.com eventName=AssociateAccessPolicy
+| where like(requestParameters.policyArn, "%ClusterAdmin%") OR like(requestParameters.policyArn, "%AdminView%") OR like(requestParameters.policyArn, "%AmazonEKSClusterAdminPolicy%") OR like(requestParameters.policyArn, "%AmazonEKSAdminViewPolicy%") OR like(requestParameters.accessScope, "%cluster%")
+| table _time, userIdentity.arn, requestParameters.clusterName, requestParameters.principalArn, requestParameters.policyArn, requestParameters.accessScope, sourceIPAddress

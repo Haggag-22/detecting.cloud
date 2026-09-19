@@ -1,0 +1,35 @@
+{
+  "slug": "external-imds-ssrf-to-s3",
+  "title": "External IMDS SSRF to S3",
+  "description": "This critical path requires no prior AWS credentials. The attacker finds a web application that is vulnerable to Server-Side Request Forgery (SSRF) and runs on EC2. By injecting a URL pointing to the Instance Metadata Service (e.g., http://169.254.169.254/latest/meta-data/iam/security-credentials/), the attacker causes the server to fetch its own IAM role credentials and return them in the response. With these credentials, the attacker accesses S3 buckets that the instance role can read and exfiltrates sensitive data. This is a common scenario in CloudGoat and similar cloud security labs.",
+  "severity": "Critical",
+  "objective": "credential-access",
+  "tags": [
+    "EC2",
+    "IMDS",
+    "SSRF",
+    "S3",
+    "CloudGoat"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-external-imds-ssrf",
+      "context": "Use SSRF to query IMDS and obtain instance role credentials"
+    },
+    {
+      "techniqueId": "tech-s3-data-download",
+      "context": "Use stolen credentials to access and exfiltrate S3 buckets"
+    }
+  ],
+  "cloudProvider": "aws",
+  "references": [
+    {
+      "source": "CloudGoat",
+      "url": "https://github.com/RhinoSecurityLabs/cloudgoat/blob/master/cloudgoat/scenarios/aws/cloud_breach_s3.md"
+    },
+    {
+      "source": "Hacking the Cloud",
+      "url": "https://hackingthe.cloud/aws/exploitation/ec2-metadata-ssrf/"
+    }
+  ]
+}

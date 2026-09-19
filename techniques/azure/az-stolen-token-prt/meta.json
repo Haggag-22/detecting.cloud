@@ -1,0 +1,22 @@
+{
+  "id": "tech-az-stolen-token-prt",
+  "name": "Stolen Token and PRT Abuse",
+  "shortName": "Token / PRT",
+  "description": "Modern Microsoft login uses tokens, including the Primary Refresh Token on a Windows device that can mint new access tokens quietly. If an attacker steals a token or a PRT, they may never type the password again. Sign-ins then look almost legitimate except for odd device or location properties. Identity Protection flags some of this as 'anomalous token' or unfamiliar properties. Treat those as session theft: revoke sessions and reset credentials, do not just ask the user to 'try again.'",
+  "services": [
+    "Entra ID Protection"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-059",
+    "az-073",
+    "az-077"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "azure"
+}

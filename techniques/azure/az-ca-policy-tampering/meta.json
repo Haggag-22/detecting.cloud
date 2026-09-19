@@ -1,0 +1,26 @@
+{
+  "id": "tech-az-ca-policy-tampering",
+  "name": "Conditional Access Policy Tampering",
+  "shortName": "CA Tamper",
+  "description": "Conditional Access is the set of rules that say who must use MFA, which apps they may open, and from where. An attacker who can add, weaken, or delete those policies can turn off MFA for themselves, exclude a risky app, or open a backdoor group. Joining a group that is allowed to edit policies is the same attack with an extra step. Policy edits should be rare, ticketed, and done by a named identity team \u2014 not by a freshly created user.",
+  "services": [
+    "Entra ID",
+    "Entra ID Protection"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-001",
+    "az-002",
+    "az-003",
+    "az-055",
+    "az-056",
+    "az-124"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "azure"
+}

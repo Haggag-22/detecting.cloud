@@ -1,0 +1,22 @@
+{
+  "id": "det-175",
+  "title": "AWS SecurityHub Findings Evasion",
+  "description": "Detects the modification of the findings on SecurityHub.",
+  "awsService": "Security Hub",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "Security Hub",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "System or Network administrator behaviors",
+    "DEV, UAT, SAT environment. You should apply this rule with PROD environment only."
+  ],
+  "relatedAttackSlugs": []
+}

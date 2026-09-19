@@ -1,0 +1,17 @@
+title: Lambda Created with Admin Role
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: lambda.amazonaws.com
+    eventName: CreateFunction20150331
+  high_risk_role:
+    requestParameters.role|contains:
+      - 'Admin'
+      - 'AdministratorAccess'
+      - 'PowerUser'
+      - 'OrganizationAccountAccessRole'
+      - 'Security'
+  condition: selection and high_risk_role
+level: critical

@@ -1,0 +1,6 @@
+[
+  "Identify who initiated the export and the destination S3 bucket.",
+  "Verify if this was a scheduled data lake or backup.",
+  "Check the S3 bucket for unauthorized access.",
+  "Review export frequency for exfiltration patterns."
+]

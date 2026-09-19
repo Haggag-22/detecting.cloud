@@ -1,0 +1,22 @@
+{
+  "id": "az-066",
+  "title": "Suspicious Inbox Manipulation Rules",
+  "description": "Detects suspicious rules that delete or move messages or folders are set on a user's inbox.",
+  "awsService": "Entra ID Protection",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Protection",
+    "stealth",
+    "t1140"
+  ],
+  "logSources": [
+    "Azure riskdetection"
+  ],
+  "falsePositives": [
+    "Actual mailbox rules that are moving items based on their workflow."
+  ],
+  "relatedAttackSlugs": []
+}

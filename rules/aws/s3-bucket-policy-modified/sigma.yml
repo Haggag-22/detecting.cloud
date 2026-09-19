@@ -1,0 +1,12 @@
+title: S3 Bucket Policy Modified
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: s3.amazonaws.com
+    eventName:
+      - PutBucketPolicy
+      - DeleteBucketPolicy
+  condition: selection
+level: high

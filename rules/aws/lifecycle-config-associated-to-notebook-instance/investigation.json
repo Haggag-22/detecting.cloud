@@ -1,0 +1,5 @@
+[
+  "Identify the notebook, attached lifecycle config, and actor performing the association.",
+  "Verify whether that notebook was expected to reference the lifecycle config and whether the association change was approved.",
+  "Check for notebook start or restart activity soon after the association."
+]

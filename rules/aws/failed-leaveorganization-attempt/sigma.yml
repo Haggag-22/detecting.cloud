@@ -1,0 +1,12 @@
+title: Failed LeaveOrganization Attempt
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: organizations.amazonaws.com
+    eventName: LeaveOrganization
+  filter_error:
+    errorCode|exists: true
+  condition: selection and filter_error
+level: critical

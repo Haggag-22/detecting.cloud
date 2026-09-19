@@ -1,0 +1,99 @@
+{
+  "whyItMatters": "Only a narrow set of pipeline and engineering identities should be able to launch sensitive builds. When an unapproved actor starts a build, it can provide immediate code-execution and secret-access opportunities.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may trigger a privileged build from a compromised developer identity, app role, or unusual assumed role to reach CI/CD-held credentials and runtime access.",
+    "realWorldUsage": "This is attractive because build systems often trust the launch request and execute under higher-privilege service roles.",
+    "whyItMatters": "Actor authorization is the key question, not whether an ARN happens to contain CI or platform-like strings.",
+    "riskAndImpact": "If missed, defenders may not recognize that an unauthorized principal has gained a direct path into privileged CI/CD execution."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for CodeBuild",
+      "Authorized CodeBuild starter inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.projectName",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "StartBuild events must be ingested with full actor context.",
+      "The environment should maintain exact principals or workflows authorized to launch each project.",
+      "Trusted pipeline provenance should be modeled explicitly."
+    ],
+    "limitations": [
+      "Without authorization inventories the rule becomes a noisy anomaly detector.",
+      "Some legitimate support or break-glass workflows may launch builds under non-obvious identities.",
+      "The launch event alone does not prove the build executed malicious logic."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized Project Starters",
+      "description": "Exact inventory of actors or workflows allowed to start each project.",
+      "examples": [
+        "CodePipeline role",
+        "approved DevOps engineer"
+      ],
+      "falsePositiveReduction": "Replaces brittle role-name filtering."
+    },
+    {
+      "dimension": "Workflow Provenance",
+      "description": "Determine whether the launch came through a trusted CI/CD path or an unexpected manual session.",
+      "examples": [
+        "pipeline invocation",
+        "interactive console session"
+      ],
+      "falsePositiveReduction": "Separates expected launches from suspicious ones."
+    },
+    {
+      "dimension": "Project Privilege Level",
+      "description": "Classify the build project's secret access and downstream deployment power.",
+      "examples": [
+        "prod deployment project",
+        "low-risk lint project"
+      ],
+      "falsePositiveReduction": "Improves prioritization of unauthorized launches."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect `StartBuild` outside approved CI/CD access paths. It should match successful build launches and then check whether the actor and workflow provenance are explicitly authorized for the target project.",
+    "conditions": [
+      "eventSource equals codebuild.amazonaws.com",
+      "eventName equals StartBuild",
+      "actor is not in the approved starter inventory for the project or request lacks approved workflow provenance"
+    ],
+    "tuningGuidance": "1. Use exact actor and project authorization inventories. 2. Model pipeline provenance separately from manual sessions. 3. Escalate strongly when the project is privileged or the actor is workload-derived.",
+    "whenToFire": "Fire when a CodeBuild project is started by an identity outside approved access paths."
+  },
+  "simulationCommand": "aws codebuild start-build --project-name target --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with project starter inventories and workflow provenance; high with name heuristics",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with actor inventories",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because unauthorized build launches are immediately actionable.",
+    "considerations": [
+      "This is the actor-centric CodeBuild launch detector.",
+      "Actor authorization and workflow provenance are the main dependencies."
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+title: Login Profile Created for Suspicious or Non-Human User
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: CreateLoginProfile
+  condition: selection
+level: high

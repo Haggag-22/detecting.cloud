@@ -1,0 +1,5 @@
+[
+  "Identify the policy ARN, effective scope, and principal receiving the association.",
+  "Verify whether the policy semantics or cluster-wide scope were approved for that principal and cluster.",
+  "Determine whether the association represents intended admin onboarding or unexpected privilege escalation."
+]

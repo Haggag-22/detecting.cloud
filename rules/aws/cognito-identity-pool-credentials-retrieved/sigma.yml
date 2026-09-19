@@ -1,0 +1,13 @@
+title: Cognito Identity Pool Credentials Retrieved
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: cognito-identity.amazonaws.com
+    eventName:
+      - GetCredentialsForIdentity
+      - GetOpenIdToken
+      - GetId
+  condition: selection
+level: medium

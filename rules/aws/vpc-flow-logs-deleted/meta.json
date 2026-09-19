@@ -1,0 +1,23 @@
+{
+  "id": "det-110",
+  "title": "VPC Flow Logs Deleted",
+  "description": "Baseline visibility for deletion of one or more flow logs. Flow log deletion is intrinsically sensitive because it removes telemetry rather than merely reading or changing data.",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EC2",
+    "VPC",
+    "Flow Logs",
+    "Defense Evasion"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate infra cleanup",
+    "Flow log rotation"
+  ],
+  "relatedAttackSlugs": []
+}

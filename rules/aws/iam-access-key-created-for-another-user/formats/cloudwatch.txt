@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.type, userIdentity.userName, userIdentity.arn, requestParameters.userName, responseElements.accessKey.accessKeyId, sourceIPAddress
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "CreateAccessKey"
+| filter ispresent(requestParameters.userName)
+| filter (userIdentity.type = "IAMUser" and userIdentity.userName != requestParameters.userName) or userIdentity.type != "IAMUser"
+| sort @timestamp desc

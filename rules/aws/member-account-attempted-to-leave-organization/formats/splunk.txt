@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventSource=organizations.amazonaws.com eventName=LeaveOrganization
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.accountId, recipientAccountId, errorCode, errorMessage, sourceIPAddress

@@ -1,0 +1,96 @@
+{
+  "whyItMatters": "Lifecycle configs can run arbitrary code at notebook startup. Even when legitimately used for environment setup, they are a natural persistence and privilege-enablement mechanism in SageMaker.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may create or modify a lifecycle config to inject startup logic that downloads tools, retrieves secrets, or persists access when a notebook starts.",
+    "realWorldUsage": "This approach is attractive because it uses the expected customization path for notebook environments rather than obviously malicious runtime changes.",
+    "whyItMatters": "This baseline event feeds stronger detections about unauthorized operators, notebook association, and post-start sensitive activity.",
+    "riskAndImpact": "If missed, defenders may overlook the initial staging step that prepares malicious code to execute inside a SageMaker notebook environment."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for SageMaker"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.notebookInstanceLifecycleConfigName",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must ingest SageMaker management events.",
+      "The platform should retain lifecycle-config names and actor context.",
+      "Notebook-association and notebook-start events should be available for downstream correlation."
+    ],
+    "limitations": [
+      "CloudTrail does not expose the full lifecycle script body in a directly triage-friendly form.",
+      "Lifecycle-config creation alone does not prove execution.",
+      "Legitimate ML platform administration may make similar changes."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Actor Authorization",
+      "description": "Determine whether the actor is approved to manage SageMaker startup logic.",
+      "examples": [
+        "ML platform role",
+        "unexpected app role"
+      ],
+      "falsePositiveReduction": "Helps separate normal administration from suspicious lifecycle changes."
+    },
+    {
+      "dimension": "Lifecycle Config Usage",
+      "description": "Track whether the lifecycle config is referenced by active or sensitive notebooks.",
+      "examples": [
+        "attached to prod notebook",
+        "unused staging config"
+      ],
+      "falsePositiveReduction": "Improves prioritization when changed configs are operationally relevant."
+    },
+    {
+      "dimension": "Script Risk Context",
+      "description": "Assess whether the lifecycle script content or recent changes look high-risk.",
+      "examples": [
+        "downloads from external host",
+        "retrieves secrets at startup"
+      ],
+      "falsePositiveReduction": "Raises urgency when the config likely enables abuse."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain a broad visibility rule for all successful lifecycle-config creation and update events. It establishes the startup-code mutation baseline that stronger SageMaker detections depend on.",
+    "conditions": [
+      "eventSource equals sagemaker.amazonaws.com",
+      "eventName equals CreateNotebookInstanceLifecycleConfig or UpdateNotebookInstanceLifecycleConfig",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep this baseline broad. 2. Resolve whether the actor is authorized to manage lifecycle configs. 3. Correlate with later notebook association and startup events for higher-confidence detections.",
+    "whenToFire": "Fire on every successful lifecycle-config creation or update for visibility."
+  },
+  "simulationCommand": "aws sagemaker create-notebook-instance-lifecycle-config --notebook-instance-lifecycle-config-name demo-config",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium as a baseline visibility rule, low-medium with actor and usage enrichment",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because lifecycle-config changes can be executed soon after notebook start.",
+    "considerations": [
+      "This is the feeder rule for the stronger SageMaker lifecycle detections.",
+      "Notebook association context is a valuable enrichment."
+    ]
+  }
+}

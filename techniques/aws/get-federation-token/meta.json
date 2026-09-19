@@ -1,0 +1,20 @@
+{
+  "id": "tech-get-federation-token",
+  "name": "STS GetFederationToken Persistence",
+  "shortName": "Fed Token",
+  "description": "An attacker with sts:GetFederationToken creates federation tokens that are tied to their identity but have a configurable policy. Unlike AssumeRole credentials, federation tokens are not invalidated when the original access key is deleted or rotated. The attacker creates a token with broad permissions, stores the credentials, and uses them for persistent access. When the organization rotates keys or deletes the compromised user's keys, the federation token remains valid until it expires (up to 36 hours, but can be refreshed). Required permission is sts:GetFederationToken.",
+  "services": [
+    "STS",
+    "IAM"
+  ],
+  "permissions": [
+    "sts:GetFederationToken"
+  ],
+  "detectionIds": [
+    "det-181",
+    "det-144"
+  ],
+  "mitigations": [],
+  "category": "persistence",
+  "cloudProvider": "aws"
+}

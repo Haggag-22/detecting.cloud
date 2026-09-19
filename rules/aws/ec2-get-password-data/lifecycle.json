@@ -1,0 +1,52 @@
+{
+  "whyItMatters": "Detects ec2:GetPasswordData, used to retrieve the encrypted Windows administrator password for an instance.",
+  "threatContext": {
+    "attackerBehavior": "Detects ec2:GetPasswordData, used to retrieve the encrypted Windows administrator password for an instance.",
+    "whyItMatters": "EC2 GetPasswordData Retrieved is a high-signal control-plane action with no prior Sigma coverage in this catalog.",
+    "riskAndImpact": "If missed, the technique node stays dark and the attacker action is invisible."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.arn",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must log ec2.amazonaws.com GetPasswordData."
+    ],
+    "limitations": [
+      "Management events only; data-plane follow-on is out of scope for this rule."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Approved actor",
+      "description": "Compare the caller to identity and platform-admin inventories.",
+      "examples": [
+        "identity platform pipeline",
+        "break-glass admin"
+      ],
+      "falsePositiveReduction": "Suppress known IdP or CI roles after review."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "Fire on successful GetPasswordData from ec2.amazonaws.com.",
+    "conditions": [
+      "eventSource = ec2.amazonaws.com",
+      "eventName = GetPasswordData"
+    ],
+    "whenToFire": "On each matching successful CloudTrail event."
+  },
+  "simulationCommand": "aws ec2 get-password-data --instance-id i-0abc123",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "low-to-medium depending on platform automation",
+    "expectedVolume": "low",
+    "productionReadiness": "experimental"
+  }
+}

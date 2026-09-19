@@ -1,0 +1,8 @@
+fields @timestamp, eventSource, eventName, requestParameters.userName, userIdentity.arn
+| filter (eventSource = "iam.amazonaws.com" and eventName = "AddUserToGroup")
+  or eventName in ["CreateAccessKey", "AssumeRole", "GetSecretValue", "AttachUserPolicy", "PutUserPolicy", "ConsoleLogin"]
+| parse userIdentity.arn "*user/%{target_user}"
+| eval target_user=coalesce(requestParameters.userName, target_user)
+| stats count(*) as cnt, collect_list(eventName) as events by target_user
+| filter cnt > 1
+| sort cnt desc

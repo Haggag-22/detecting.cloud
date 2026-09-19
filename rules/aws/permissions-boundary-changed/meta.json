@@ -1,0 +1,22 @@
+{
+  "id": "det-044",
+  "title": "Permissions Boundary Changed",
+  "description": "Baseline visibility for any boundary change on a user or role. Boundary changes are high-sensitivity IAM events, but intent and risk depend on whether the new boundary strengthens, weakens, or simply rotates the previous control.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "IAM",
+    "Permissions Boundary",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate boundary updates",
+    "Terraform/CloudFormation"
+  ],
+  "relatedAttackSlugs": []
+}

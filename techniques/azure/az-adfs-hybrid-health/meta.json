@@ -1,0 +1,21 @@
+{
+  "id": "tech-az-adfs-hybrid-health",
+  "name": "AD FS Hybrid Health Tampering",
+  "shortName": "AD FS Health",
+  "description": "Hybrid Health watches AD FS, the on-premises sign-in service many companies still use for Microsoft 365. An attacker who registers a fake health server or deletes the real health service can hide bad sign-ins or spoof what the cloud thinks AD FS is doing. Employees still authenticate as usual; the monitoring story is what changes. Health-agent registration and deletion should be as tightly controlled as AD FS itself.",
+  "services": [
+    "Azure Activity"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-004",
+    "az-005"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "azure"
+}

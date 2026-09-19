@@ -1,0 +1,22 @@
+{
+  "id": "tech-trust-policy-modification",
+  "name": "IAM Trust Policy Modification",
+  "shortName": "Trust Mod",
+  "description": "An attacker with iam:UpdateAssumeRolePolicy can modify a role's trust policy to add their own principal (e.g., attacker account root or a user they control) as a trusted entity. Once the trust policy allows the attacker's principal, they can call sts:AssumeRole to obtain temporary credentials for that role. This enables backdoor access or cross-account privilege escalation. Required permission is iam:UpdateAssumeRolePolicy on the target role.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:UpdateAssumeRolePolicy"
+  ],
+  "detectionIds": [
+    "det-160"
+  ],
+  "mitigations": [
+    "Audit trust policy changes",
+    "Use SCPs to restrict AssumeRolePolicy modifications",
+    "Require ExternalId for cross-account trust"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,25 @@
+{
+  "id": "det-017",
+  "title": "S3 Bucket Policy Modified",
+  "description": "Detects modifications to S3 bucket policies which could expose data publicly or to unauthorized accounts.",
+  "awsService": "S3",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "S3",
+    "Bucket Policy",
+    "Data Exposure"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate infrastructure changes via Terraform/CloudFormation"
+  ],
+  "relatedAttackSlugs": [
+    "s3-data-exfiltration"
+  ]
+}

@@ -1,0 +1,3 @@
+[
+  "aws ssm start-session --target i-0abc123def456"
+]

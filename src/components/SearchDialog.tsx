@@ -17,7 +17,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
 
   const allItems = [
     { title: "Threat Matrix", description: "Red team — techniques by tactic with rules & path signals", url: "/threat-matrix", type: "Tool" },
-    ...attackPaths.map((a) => ({ title: a.title, description: a.description, url: `/attack-paths?technique=${a.slug}`, type: "Attack Path" })),
+    ...attackPaths.map((a) => ({ title: a.title, description: a.description, url: `/attack-paths?technique=${a.slug}`, type: "Attack Chain" })),
     ...techniques.map((t) => ({ title: t.name, description: t.description, url: `/attack-paths/technique/${t.id}`, type: "Technique" })),
     ...detections.map((d) => ({ title: d.title, description: d.description, url: `/detection-engineering?rule=${d.id}`, type: "Detection" })),
   ];
@@ -36,7 +36,7 @@ export function SearchDialog({ open, onOpenChange }: SearchDialogProps) {
           <Search className="h-4 w-4 text-muted-foreground shrink-0" />
           <input
             autoFocus
-            placeholder="Search attack paths, techniques, detections..."
+            placeholder="Search attack chains, techniques, detections..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"

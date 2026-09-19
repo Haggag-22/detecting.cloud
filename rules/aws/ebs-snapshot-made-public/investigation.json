@@ -1,0 +1,6 @@
+[
+  "Identify who made the snapshot public.",
+  "Assess whether the snapshot contains sensitive data.",
+  "Verify if this was for AMI sharing.",
+  "Revoke public access if unauthorized."
+]

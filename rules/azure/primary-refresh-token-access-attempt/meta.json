@@ -1,0 +1,22 @@
+{
+  "id": "az-073",
+  "title": "Primary Refresh Token Access Attempt",
+  "description": "Indicates access attempt to the PRT resource which can be used to move laterally into an organization or perform credential theft",
+  "awsService": "Entra ID Protection",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Protection",
+    "t1528",
+    "credential-access"
+  ],
+  "logSources": [
+    "Azure riskdetection"
+  ],
+  "falsePositives": [
+    "This detection is low-volume and is seen infrequently in most organizations. When this detection appears it's high risk, and users should be remediated."
+  ],
+  "relatedAttackSlugs": []
+}

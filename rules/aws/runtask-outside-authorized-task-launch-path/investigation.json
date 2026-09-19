@@ -1,0 +1,5 @@
+[
+  "Identify the actor type, ARN, principalId, and session issuer.",
+  "Verify whether this identity is approved to run this task family in this cluster and environment.",
+  "Check workflow provenance such as CI/CD, maintenance windows, service scheduler context, or break-glass approval."
+]

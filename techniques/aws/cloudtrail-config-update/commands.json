@@ -1,0 +1,4 @@
+[
+  "aws cloudtrail update-trail --name management-trail --no-is-multi-region-trail",
+  "aws cloudtrail put-event-selectors --trail-name management-trail --event-selectors []"
+]

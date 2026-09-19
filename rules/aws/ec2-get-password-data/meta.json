@@ -1,0 +1,22 @@
+{
+  "id": "det-203",
+  "title": "EC2 GetPasswordData Retrieved",
+  "description": "Detects ec2:GetPasswordData, used to retrieve the encrypted Windows administrator password for an instance.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EC2",
+    "Control Plane"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Authorized platform automation"
+  ],
+  "relatedAttackSlugs": []
+}

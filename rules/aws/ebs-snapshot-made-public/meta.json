@@ -1,0 +1,23 @@
+{
+  "id": "det-021",
+  "title": "EBS Snapshot Made Public",
+  "description": "Detects when an EBS snapshot is shared publicly, potentially exposing sensitive data.",
+  "awsService": "EBS",
+  "relatedServices": [
+    "EC2"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "EBS",
+    "Snapshot",
+    "Data Exposure"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Intentional sharing of non-sensitive AMI snapshots"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,23 @@
+{
+  "id": "az-036",
+  "title": "App Assigned To Azure RBAC/Microsoft Entra Role",
+  "description": "Detects when an app is assigned Azure AD roles, such as global administrator, or Azure RBAC roles, such as subscription owner.",
+  "awsService": "Entra ID Apps",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID Apps",
+    "persistence",
+    "privilege-escalation",
+    "t1098 003"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "When the permission is legitimately needed for the app"
+  ],
+  "relatedAttackSlugs": []
+}

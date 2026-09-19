@@ -1,0 +1,5 @@
+[
+  "Identify the actor and deleted flow log IDs.",
+  "Verify if deletion was authorized.",
+  "Check for follow-on network or exfiltration activity."
+]

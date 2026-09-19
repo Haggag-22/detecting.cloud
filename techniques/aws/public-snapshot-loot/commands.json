@@ -1,0 +1,4 @@
+[
+  "aws ec2 describe-snapshots --owner-ids self --query 'Snapshots[?State==`completed`]'",
+  "aws ec2 copy-snapshot --source-region us-east-1 --source-snapshot-id snap-xxx"
+]

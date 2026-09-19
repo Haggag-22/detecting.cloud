@@ -1,0 +1,4 @@
+[
+  "aws ec2 describe-instance-attribute --instance-id i-0abc123 --attribute userData",
+  "aws ec2 describe-instances --instance-ids i-0abc123 --query 'Reservations[].Instances[].UserData'"
+]

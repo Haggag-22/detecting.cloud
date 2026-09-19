@@ -1,0 +1,5 @@
+[
+  "Call DetachUserPolicy or DeleteUserPolicy on a test principal.",
+  "Verify CloudTrail captures the event.",
+  "Run the detection to confirm the alert triggers."
+]

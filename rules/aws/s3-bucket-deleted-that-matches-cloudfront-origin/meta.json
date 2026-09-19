@@ -1,0 +1,24 @@
+{
+  "id": "det-136",
+  "title": "S3 Bucket Deleted That Matches CloudFront Origin",
+  "description": "Detects deletion of an S3 bucket that is still referenced by a CloudFront distribution origin. This is the local precursor event that creates orphaned-origin takeover risk.",
+  "awsService": "S3",
+  "relatedServices": [
+    "CloudFront"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "CloudFront",
+    "S3",
+    "Origin Takeover"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Authorized bucket deletion",
+    "Distribution updated first"
+  ],
+  "relatedAttackSlugs": []
+}

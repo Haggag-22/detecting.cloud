@@ -1,0 +1,4 @@
+[
+  "curl $AWS_CONTAINER_CREDENTIALS_RELATIVE_URI (from within container)",
+  "Or: curl http://169.254.170.2$AWS_CONTAINER_CREDENTIALS_RELATIVE_URI"
+]

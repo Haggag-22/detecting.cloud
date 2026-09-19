@@ -1,0 +1,21 @@
+{
+  "id": "det-055",
+  "title": "UpdateLoginProfile Followed by Console Login",
+  "description": "High-confidence persistence or account takeover rule. UpdateLoginProfile for user X followed by successful ConsoleLogin by same user X shortly afterward. Escalate if login succeeds without MFA or from unusual source IP.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "IAM",
+    "Login Profile",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate password reset followed by user login"
+  ],
+  "relatedAttackSlugs": []
+}

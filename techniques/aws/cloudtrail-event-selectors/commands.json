@@ -1,0 +1,3 @@
+[
+  "aws cloudtrail put-event-selectors --trail-name management-trail --event-selectors '[{\"ReadWriteType\":\"ReadOnly\",\"IncludeManagementEvents\":true}]'"
+]

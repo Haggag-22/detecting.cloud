@@ -1,0 +1,22 @@
+{
+  "id": "det-146",
+  "title": "AWS EC2 Compute Configuration Modification",
+  "description": "Detects modification of EC2 compute configuration (ModifyImageAttribute, ModifyInstanceMetadataOptions, ModifyLaunchTemplate, ModifyInstanceAttribute) excluding startup-script (userData) changes which are covered separately, plus service-quota increase requests. Adversaries alter configurations to weaken security (e.g. disabling IMDSv2), share images, or raise quotas to launch more compute (e.g. for cryptomining). Aligned to MITRE ATT&CK DET0392-adjacent T1578.005 analytic AN1356 (RequestServiceQuotaIncrease).",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EC2",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate configuration management and image sharing.",
+    "Launch template versioning by IaC."
+  ],
+  "relatedAttackSlugs": []
+}

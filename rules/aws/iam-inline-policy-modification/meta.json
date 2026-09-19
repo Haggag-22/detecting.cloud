@@ -1,0 +1,22 @@
+{
+  "id": "det-031",
+  "title": "IAM Inline Policy Modification",
+  "description": "Baseline visibility for inline IAM policy creation or update on users and roles via PutUserPolicy or PutRolePolicy. This is an important IAM control-plane change that should be enriched with actor context, target criticality, and policy-content analysis before being treated as suspicious.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "IAM",
+    "Inline Policy",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate policy updates by admins",
+    "Infrastructure automation (Terraform, CloudFormation)"
+  ],
+  "relatedAttackSlugs": []
+}

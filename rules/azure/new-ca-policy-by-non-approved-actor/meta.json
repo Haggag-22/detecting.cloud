@@ -1,0 +1,23 @@
+{
+  "id": "az-003",
+  "title": "New CA Policy by Non-approved Actor",
+  "description": "Monitor and alert on conditional access changes.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "t1548"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Misconfigured role permissions",
+    "Verify whether the user identity, user agent, and/or hostname should be making changes in your environment."
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,26 @@
+{
+  "id": "tech-resource-policy-misconfig",
+  "name": "Resource Policy Misconfiguration Abuse",
+  "shortName": "Resource Policy",
+  "description": "S3 buckets, Lambda functions, and other resources can have resource-based policies that grant access. Misconfigurations such as Principal: '*' or overly broad account allowlists enable access without prior AWS credentials. An attacker discovers these misconfigured resources (via enumeration, public disclosure, or scanning) and accesses them. For S3, they use s3:GetObject; for Lambda, lambda:InvokeFunction. The attacker may use the AWS CLI, SDK, or curl with pre-signed URLs. No IAM credentials needed if the resource policy allows anonymous or broad access.",
+  "services": [
+    "S3",
+    "Lambda",
+    "IAM"
+  ],
+  "permissions": [
+    "s3:GetObject",
+    "lambda:InvokeFunction"
+  ],
+  "detectionIds": [
+    "det-017",
+    "det-018"
+  ],
+  "mitigations": [
+    "Avoid Principal *",
+    "Use least-privilege resource policies",
+    "Audit with Access Analyzer"
+  ],
+  "category": "initial-access",
+  "cloudProvider": "aws"
+}

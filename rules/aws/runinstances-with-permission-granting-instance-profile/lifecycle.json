@@ -1,0 +1,99 @@
+{
+  "whyItMatters": "An EC2 launch becomes much more important when the attached instance profile resolves to a role whose permissions materially expand what the workload can do.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may launch EC2 with a powerful instance profile to obtain metadata credentials and then operate under the attached role.",
+    "realWorldUsage": "This is a common cloud privilege-escalation path because compute launch with a role is operationally normal and provides durable credentials inside the workload.",
+    "whyItMatters": "The right decision factor is what the backing role can actually do, not whether the profile name looks like admin.",
+    "riskAndImpact": "If missed, a single compute launch can silently activate broad AWS permissions through a benign-looking profile name."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "IAM instance-profile and role inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.iamInstanceProfile",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail RunInstances telemetry must be ingested.",
+      "The environment must resolve the profile to its backing role and effective permissions.",
+      "Role trust should confirm the role is valid for EC2 use."
+    ],
+    "limitations": [
+      "Profile names are not reliable indicators of privilege.",
+      "The raw launch event does not contain the full backing role policy set.",
+      "Some privileged profiles may be normal in tightly controlled infrastructure accounts."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Backing Role Permission Class",
+      "description": "Classify the resolved role as admin-equivalent, pass-role capable, role-chaining, secrets-accessing, or lower risk.",
+      "examples": [
+        "AdministratorAccess",
+        "iam:PassRole + sts:AssumeRole"
+      ],
+      "falsePositiveReduction": "Captures dangerous compute role activation even with neutral profile names."
+    },
+    {
+      "dimension": "EC2 Trust Validity",
+      "description": "Verify that the backing role actually trusts ec2.amazonaws.com and is intended for workload use.",
+      "examples": [
+        "EC2 service trust",
+        "non-EC2 trust on attached role"
+      ],
+      "falsePositiveReduction": "Highlights role misuse or unusual profile attachment paths."
+    },
+    {
+      "dimension": "Launch Context",
+      "description": "Correlate launcher identity, target subnet/account, and provisioning workflow.",
+      "examples": [
+        "Auto Scaling launch template",
+        "manual operator launch"
+      ],
+      "falsePositiveReduction": "Separates expected infrastructure activity from suspicious compute role activation."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should first resolve the instance profile to its backing role, then classify the resulting permissions semantically. The detector becomes high value when the attached role grants material privilege or role-chaining capability.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals RunInstances",
+      "requestParameters.iamInstanceProfile exists",
+      "resolved backing role is classified as admin-equivalent, pass-role capable, role-chaining, secrets-accessing, or otherwise high-risk"
+    ],
+    "tuningGuidance": "1. Never rely on profile name patterns. 2. Validate that the backing role is meant for EC2. 3. Escalate further when the launch actor is unexpected or the role is used for sensitive APIs soon after launch.",
+    "whenToFire": "Fire when RunInstances activates an instance profile whose backing role materially expands workload privilege."
+  },
+  "simulationCommand": "aws ec2 run-instances --image-id ami-1234567890abcdef0 --instance-type t3.micro --iam-instance-profile Name=WebOpsProfile",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with backing-role resolution; high with profile-name heuristics",
+    "expectedVolume": "Low in mature environments with controlled privileged profiles",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with IAM inventory",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because the attached role may be used immediately.",
+    "considerations": [
+      "This is the permission-aware companion to `det-065`.",
+      "Profile-to-role and policy resolution are mandatory."
+    ]
+  }
+}

@@ -1,0 +1,12 @@
+title: SES Identity Enumeration Visibility
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ses.amazonaws.com
+    eventName:
+      - ListIdentities
+      - GetIdentityVerificationAttributes
+  condition: selection
+level: medium

@@ -1,0 +1,10 @@
+title: DescribeConfigurationSettings by Unexpected Actor
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: elasticbeanstalk.amazonaws.com
+    eventName: DescribeConfigurationSettings
+  condition: selection
+level: high

@@ -1,0 +1,24 @@
+{
+  "slug": "passrole-ec2-escalation",
+  "title": "PassRole EC2 Escalation",
+  "description": "An attacker with iam:PassRole and ec2:RunInstances launches a new EC2 instance with an IAM instance profile that has high privileges. The attacker specifies an AMI they control or a standard Amazon Linux AMI. Once the instance is running, the attacker accesses it (e.g., via SSM if they have StartSession, or by pre-configuring user data to exfiltrate credentials). The attacker queries the Instance Metadata Service to retrieve the instance role credentials, gaining the privileged role's permissions.",
+  "severity": "High",
+  "objective": "privilege-escalation",
+  "tags": [
+    "IAM",
+    "EC2",
+    "PassRole",
+    "IMDS"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-passrole-ec2",
+      "context": "Launch EC2 with privileged role via PassRole"
+    },
+    {
+      "techniqueId": "tech-imds-credential-theft",
+      "context": "Steal role credentials from instance IMDS"
+    }
+  ],
+  "cloudProvider": "aws"
+}

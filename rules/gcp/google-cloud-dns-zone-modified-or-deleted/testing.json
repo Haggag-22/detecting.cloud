@@ -1,0 +1,5 @@
+[
+  "Reproduce Google Cloud DNS Zone Modified or Deleted in a lab gcp tenant.",
+  "Confirm the matching audit/sign-in event is logged.",
+  "Run the Sigma rule against the event and confirm an alert."
+]

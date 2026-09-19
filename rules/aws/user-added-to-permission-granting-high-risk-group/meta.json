@@ -1,0 +1,21 @@
+{
+  "id": "det-057",
+  "title": "User Added to Permission-Granting High-Risk Group",
+  "description": "Detects group additions where the destination group grants admin-equivalent, takeover-enabling, or otherwise high-risk permissions. This should be based on effective group permissions rather than group-name patterns.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "AddUserToGroup",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Approved identity-lifecycle or onboarding automation"
+  ],
+  "relatedAttackSlugs": []
+}

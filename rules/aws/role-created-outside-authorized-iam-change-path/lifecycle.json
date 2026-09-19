@@ -1,0 +1,102 @@
+{
+  "whyItMatters": "Role creation by the wrong identity is a strong governance and abuse signal because only a narrow set of IAM admin or platform automation principals should provision new roles.",
+  "threatContext": {
+    "attackerBehavior": "An attacker using a workload role, developer session, or unapproved human identity may create a new role to establish persistence or prepare later abuse.",
+    "realWorldUsage": "Unexpected-actor IAM write activity is a common cloud post-compromise pattern because attackers exploit whatever control-plane permissions they already inherited.",
+    "whyItMatters": "Actor authorization is the key signal here, not whether the actor's ARN contains admin-like text.",
+    "riskAndImpact": "If missed, attackers can provision new trust and permission surfaces from identities that were never meant to manage IAM roles."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.principalId",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "userIdentity.invokedBy",
+      "sourceIPAddress",
+      "userAgent",
+      "requestParameters.roleName",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "The environment should maintain an exact inventory of principals allowed to create roles.",
+      "Session provenance such as invokedBy, session tags, or CI/CD context should be available where possible."
+    ],
+    "limitations": [
+      "Without actor inventory this rule becomes noisy.",
+      "Legitimate platform automation can look suspicious without workflow provenance.",
+      "Text-based actor filters are not reliable for either suppression or detection."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized Role Creators",
+      "description": "Exact inventory of principals or workflows allowed to create IAM roles.",
+      "examples": [
+        "platform terraform role",
+        "approved IAM admin role"
+      ],
+      "falsePositiveReduction": "Replaces brittle name heuristics with stable authorization context."
+    },
+    {
+      "dimension": "Workflow Provenance",
+      "description": "Correlate CI/CD, CloudFormation, Terraform, session tags, and deployment tickets.",
+      "examples": [
+        "CloudFormation service role",
+        "manual console session"
+      ],
+      "falsePositiveReduction": "Separates expected provisioning from suspicious out-of-band creation."
+    },
+    {
+      "dimension": "Scope and Account Boundary",
+      "description": "Determine whether the actor is allowed to create roles in this account, OU, or environment.",
+      "examples": [
+        "prod platform admin",
+        "dev workload role creating prod role"
+      ],
+      "falsePositiveReduction": "Makes scope violations meaningfully higher signal."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should be an actor-authorization detector. It should alert when CreateRole occurs outside approved IAM or platform workflows, using exact actor inventories and session provenance rather than text filters on principal names.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals CreateRole",
+      "actor is not in the approved role-creator inventory or request lacks approved workflow provenance, or actor is outside allowed environment scope"
+    ],
+    "tuningGuidance": "1. Use exact ARNs and principalIds. 2. Treat CI/CD and IaC as workflow context, not name fragments. 3. Escalate when the created role also has risky trust or is assumed shortly afterward.",
+    "whenToFire": "Fire when a new role is created outside authorized IAM change paths, especially when the actor is a workload identity or the role is risky."
+  },
+  "simulationCommand": "aws iam create-role --role-name BackdoorRole --assume-role-policy-document file://trust-policy.json --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium without actor inventory, low-medium with workflow and scope enrichment",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with lookup tables",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because suspicious role creation often precedes quick follow-on abuse.",
+    "considerations": [
+      "Use this as an actor-centric severity multiplier for `det-061`, `det-062`, and `det-064`.",
+      "Avoid all substring-based admin suppression."
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "gcp-008",
+  "title": "Google Full Network Traffic Packet Capture",
+  "description": "Identifies potential full network packet capture in gcp. This feature can potentially be abused to read sensitive data from unencrypted internal traffic.",
+  "awsService": "GCP Audit Logs",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "GCP Audit Logs",
+    "collection",
+    "t1074"
+  ],
+  "logSources": [
+    "GCP Audit Logs"
+  ],
+  "falsePositives": [
+    "Full Network Packet Capture may be done by a system or network administrator.",
+    "If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

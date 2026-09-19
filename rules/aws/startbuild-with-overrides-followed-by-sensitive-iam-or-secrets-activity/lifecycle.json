@@ -1,0 +1,100 @@
+{
+  "whyItMatters": "This is one of the highest-fidelity CodeBuild abuse patterns: an execution-changing build launch is followed by sensitive credential or secret activity soon afterward.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may inject a malicious build launch and then use the build runtime or build role to access secrets, assume roles, decrypt protected data, or create new credentials.",
+    "realWorldUsage": "This is attractive because it turns a trusted CI/CD path into a short-lived privileged execution environment.",
+    "whyItMatters": "The ordered combination of risky launch override plus sensitive follow-on activity is much stronger than either event alone.",
+    "riskAndImpact": "If missed, defenders may fail to connect build-path manipulation to the sensitive cloud actions it enabled."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for CodeBuild",
+      "AWS CloudTrail management events for IAM, STS, Secrets Manager, and KMS"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.projectName",
+      "requestParameters.buildspecOverride",
+      "requestParameters.environmentVariablesOverride",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "Override-backed StartBuild events and follow-on sensitive events must be ingested into the same analytics environment.",
+      "The detector should link the initiating actor to build-role activity where possible.",
+      "The engine must support ordered time-window correlation."
+    ],
+    "limitations": [
+      "Direct actor-only joins may miss sensitive actions executed solely by the build role.",
+      "Some legitimate builds intentionally access secrets or decrypt data.",
+      "The model is strongest when project-role lineage is available."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Build Role Lineage",
+      "description": "Resolve the project service role and any derived execution identity used after launch.",
+      "examples": [
+        "same initiating actor",
+        "CodeBuild project role"
+      ],
+      "falsePositiveReduction": "Improves correlation between launch and follow-on sensitive actions."
+    },
+    {
+      "dimension": "Sensitive Action Class",
+      "description": "Classify the post-build action as secrets access, role assumption, decrypt, or credential creation.",
+      "examples": [
+        "GetSecretValue",
+        "AssumeRole"
+      ],
+      "falsePositiveReduction": "Makes the abuse path easier to triage."
+    },
+    {
+      "dimension": "Override Content Risk",
+      "description": "Assess whether the launch override could plausibly drive the later sensitive activity.",
+      "examples": [
+        "secret exfil command",
+        "credential environment override"
+      ],
+      "falsePositiveReduction": "Raises confidence that the two stages are causally linked."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a CodeBuild abuse chain: a build is started with execution-changing overrides and sensitive cloud activity follows soon afterward from the same initiating context or linked build role. It should require event order and stable linkage across the two stages.",
+    "conditions": [
+      "first eventSource equals codebuild.amazonaws.com and eventName equals StartBuild with buildspecOverride or environmentVariablesOverride present",
+      "second event is GetSecretValue, CreateAccessKey, AssumeRole, or Decrypt by the same normalized actor or linked build execution identity",
+      "follow-on activity occurs within 30 minutes"
+    ],
+    "tuningGuidance": "1. Require order. 2. Link initiator and build role where possible. 3. Escalate strongly when the project is privileged or the override content clearly enables the follow-on activity.",
+    "whenToFire": "Fire when an override-backed build launch is followed quickly by sensitive credential, secrets, or decryption activity."
+  },
+  "simulationCommand": "aws codebuild start-build --project-name target --buildspec-override file://override.yml",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with build-role lineage and ordered correlation",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with ordered event windows",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is preferred because the override-to-sensitive-activity chain is immediately actionable.",
+    "considerations": [
+      "This is the highest-fidelity CodeBuild credential-theft detector in the batch.",
+      "Build-role lineage and override content context are the main dependencies."
+    ]
+  }
+}

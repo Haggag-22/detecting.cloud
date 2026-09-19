@@ -1,0 +1,6 @@
+[
+  "Identify who created the unencrypted volume.",
+  "Verify if the environment has encryption exceptions.",
+  "Assess compliance impact.",
+  "Consider enabling encryption by default."
+]

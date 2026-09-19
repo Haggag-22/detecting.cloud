@@ -1,0 +1,32 @@
+{
+  "slug": "iam-backdoor-exfiltration",
+  "title": "IAM Backdoor & Data Exfiltration",
+  "description": "After gaining IAM privileges, the attacker creates a hidden backdoor user with a low-profile name and attaches an administrative inline policy. Access keys are generated for this user to enable persistent programmatic access. The attacker then modifies S3 bucket policies on target buckets to add their external account as an allowed principal, or to grant the backdoor user explicit access. Using the backdoor credentials, the attacker downloads sensitive data from the buckets. This path ensures access survives key rotation of the original compromised credentials.",
+  "severity": "High",
+  "objective": "exfiltration",
+  "tags": [
+    "IAM",
+    "S3",
+    "Persistence",
+    "Data Exfiltration"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-iam-user-creation",
+      "context": "Create a hidden IAM user with administrative inline policy"
+    },
+    {
+      "techniqueId": "tech-access-key-creation",
+      "context": "Generate access keys for the backdoor user"
+    },
+    {
+      "techniqueId": "tech-s3-bucket-policy-mod",
+      "context": "Modify bucket policies to allow cross-account access"
+    },
+    {
+      "techniqueId": "tech-s3-data-download",
+      "context": "Download sensitive data using the backdoor credentials"
+    }
+  ],
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,4 @@
+[
+  "aws iam create-user --user-name svc-cloudwatch-metrics",
+  "aws iam put-user-policy --user-name svc-cloudwatch-metrics --policy-name AdminAccess --policy-document file://admin-policy.json"
+]

@@ -1,0 +1,5 @@
+[
+  "Launch an EC2 instance without enforcing IMDSv2.",
+  "Verify CloudTrail shows metadataOptions.httpTokens.",
+  "Run the detection to confirm it triggers on optional tokens."
+]

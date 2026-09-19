@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com eventName=ModifySnapshotAttribute
+| where like(requestParameters.groupNames, "%all%") OR like(requestParameters.createVolumePermission.add.groups, "%all%") OR mvcount(mvfilter(requestParameters.createVolumePermission.add.groups="all"))>0
+| table _time, userIdentity.arn, requestParameters.snapshotId, requestParameters.groupNames, requestParameters.createVolumePermission, sourceIPAddress

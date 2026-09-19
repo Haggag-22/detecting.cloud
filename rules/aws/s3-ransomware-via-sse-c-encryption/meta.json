@@ -1,0 +1,21 @@
+{
+  "id": "det-197",
+  "title": "S3 Ransomware via SSE-C Encryption",
+  "description": "Detects S3 object writes that use customer-provided encryption keys (SSE-C), a technique used to encrypt a victim's objects with attacker-held keys and hold them for ransom (Data Encrypted for Impact). Aligned to MITRE ATT&CK T1486 analytic AN0606 (PutObject/UploadPart with SSE-C). REQUIRES S3 DATA-EVENT LOGGING: PutObject/CopyObject/UploadPart are S3 data-plane events and are NOT recorded by default CloudTrail management-event logging (the standard SOF-ELK ingest). Enable CloudTrail S3 data events on the relevant buckets for this rule to fire.",
+  "awsService": "S3",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "S3",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate applications that use SSE-C with client-managed encryption keys."
+  ],
+  "relatedAttackSlugs": []
+}

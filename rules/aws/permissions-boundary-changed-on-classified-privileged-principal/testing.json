@@ -1,0 +1,5 @@
+[
+  "Set a boundary on a role with 'admin' in the name.",
+  "Verify CloudTrail captures the event.",
+  "Run the detection to confirm the alert triggers."
+]

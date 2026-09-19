@@ -1,0 +1,22 @@
+{
+  "id": "tech-unused-region-expansion",
+  "name": "Unused-Region Expansion",
+  "shortName": "EnableRegion",
+  "description": "AWS accounts can use many regions. Attackers like quiet ones: no GuardDuty, thin CloudTrail, nobody watching the bill. They enable a region or simply start creating resources where you never operate. From there they mine, exfiltrate, or persist far from your usual dashboards. Region opt-in and first-time resource creation in unused regions should page the cloud team.",
+  "services": [
+    "Organizations",
+    "EC2"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-153",
+    "det-168"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

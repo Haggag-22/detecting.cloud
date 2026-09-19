@@ -1,0 +1,14 @@
+title: Lifecycle Config Associated to Notebook Instance
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: sagemaker.amazonaws.com
+    eventName:
+      - CreateNotebookInstance
+      - UpdateNotebookInstance
+  filter_lifecycle:
+    requestParameters.lifecycleConfigName|exists: true
+  condition: selection and filter_lifecycle
+level: high

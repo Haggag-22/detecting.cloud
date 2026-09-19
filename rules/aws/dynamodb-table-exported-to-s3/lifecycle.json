@@ -1,0 +1,126 @@
+{
+  "whyItMatters": "A DynamoDB export to S3 creates a durable offline copy of an entire table outside the application's normal access path. The detection becomes especially valuable when paired with destination-bucket allowlisting and table sensitivity.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with dynamodb:ExportTableToPointInTime and permission to write to an S3 bucket can export a full or incremental copy of a table without iterating through item reads.",
+    "realWorldUsage": "Managed export features are commonly favored in cloud abuse because they create large-scale data copies through native control-plane APIs that blend with admin activity.",
+    "whyItMatters": "This is a high-impact event for sensitive tables because it can move large datasets into S3 with one API call.",
+    "riskAndImpact": "If a regulated or business-critical table is exported to an unapproved bucket, the organization may lose control over retention, sharing, replication, encryption, and downstream access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.arn",
+      "userIdentity.type",
+      "requestParameters.tableArn",
+      "requestParameters.s3Bucket",
+      "requestParameters.s3BucketOwner",
+      "requestParameters.s3Prefix",
+      "requestParameters.exportType",
+      "requestParameters.exportFormat",
+      "requestParameters.s3SseAlgorithm",
+      "requestParameters.s3SseKmsKeyId",
+      "responseElements.exportDescription.exportArn",
+      "sourceIPAddress",
+      "awsRegion",
+      "eventTime",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled for DynamoDB APIs.",
+      "Maintain an allowlist of approved destination buckets, owners, and optional prefixes for analytics or backup workflows.",
+      "Optionally enable S3 data events on high-risk destination buckets to observe follow-on object access after export."
+    ],
+    "limitations": [
+      "The export event shows initiation, not who later read, copied, or shared the generated S3 objects.",
+      "Without bucket allowlists and table sensitivity metadata, the rule will be noisy in data-lake-heavy environments.",
+      "Cross-account and cross-region exports are supported."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Destination Bucket Allowlist",
+      "description": "Adds whether the bucket, owner account, and optional prefix are approved for DynamoDB exports in this environment.",
+      "examples": [
+        "approved data lake bucket",
+        "backup bucket owner account",
+        "allowed prefix /ddb-exports/prod/"
+      ],
+      "falsePositiveReduction": "Suppresses routine exports to sanctioned destinations and highlights non-standard buckets immediately."
+    },
+    {
+      "dimension": "Table Sensitivity and Ownership",
+      "description": "Adds data classification, business owner, regulatory flags, and whether the table contains credentials, PII, or customer records.",
+      "examples": [
+        "classification: restricted",
+        "owner: payments team",
+        "contains customer PII"
+      ],
+      "falsePositiveReduction": "Lets low-risk analytics tables generate informational alerts while sensitive tables trigger high-priority incidents."
+    },
+    {
+      "dimension": "Identity and Workflow Context",
+      "description": "Adds role purpose, expected export cadence, CI/data-engineering association, and whether the actor usually performs table exports.",
+      "examples": [
+        "data lake pipeline role",
+        "first-time export by IAM user",
+        "approved ETL change window"
+      ],
+      "falsePositiveReduction": "Separates expected ETL activity from suspicious one-off exports by unusual principals."
+    },
+    {
+      "dimension": "Bucket Security Posture",
+      "description": "Adds destination bucket policy posture, public exposure checks, replication settings, and whether the bucket lives in another account or Region.",
+      "examples": [
+        "bucket public access block disabled",
+        "cross-account owner present",
+        "SSE-KMS missing"
+      ],
+      "falsePositiveReduction": "Raises fidelity by distinguishing controlled internal exports from destinations that increase exfiltration risk."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should start broad by matching every ExportTableToPointInTime event, because the API itself represents creation of an offline S3 copy of table data. The production signal comes from prioritization: exports to non-allowlisted buckets, cross-account bucket owners, unusual prefixes, sensitive tables, or unexpected actors should score much higher than known analytics and backup workflows.",
+    "conditions": [
+      "eventSource equals dynamodb.amazonaws.com",
+      "eventName equals ExportTableToPointInTime",
+      "escalate when requestParameters.s3Bucket is not allowlisted",
+      "escalate when requestParameters.s3BucketOwner is present and does not match the expected owning account",
+      "escalate when the exported table is classified sensitive or the actor is not part of an approved export workflow"
+    ],
+    "tuningGuidance": "1. Maintain an explicit allowlist of approved bucket names, owning accounts, and prefixes. 2. Join the event to table sensitivity metadata. 3. Allowlist known ETL, backup, and data lake roles by both identity and destination.",
+    "whenToFire": "Fire on every export for visibility, but send highest-severity alerts when the destination bucket is unapproved, cross-account, weakly governed, or tied to a sensitive table."
+  },
+  "simulationCommand": "aws dynamodb export-table-to-point-in-time --table-arn arn:aws:dynamodb:us-east-1:123456789012:table/Customers --s3-bucket ddb-export-lab-123456789012 --s3-prefix suspicious/customers/$(date +%Y%m%d-%H%M%S) --export-format DYNAMODB_JSON --s3-sse-algorithm AES256 --region us-east-1",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Medium (legitimate analytics, backup, and data lake exports are common in some environments)",
+    "expectedVolume": "Low to moderate, highly org-dependent",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query)",
+      "CloudWatch Logs Insights",
+      "Splunk",
+      "Datadog",
+      "Panther",
+      "Chronicle",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Batch: every 5-15 minutes for centralized analytics. Real-time: EventBridge or streaming CloudTrail for immediate review of sensitive-table exports.",
+    "considerations": [
+      "PITR must be enabled on the table or the export will fail.",
+      "Bucket allowlists should include bucket owner and prefix, not just bucket name.",
+      "Add S3-side follow-up telemetry for the destination when the bucket is unapproved or the table is sensitive."
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "source": [
+    "aws.codebuild"
+  ],
+  "detail-type": [
+    "AWS API Call via CloudTrail"
+  ],
+  "detail": {
+    "eventSource": [
+      "codebuild.amazonaws.com"
+    ],
+    "eventName": [
+      "StartBuild"
+    ]
+  }
+}

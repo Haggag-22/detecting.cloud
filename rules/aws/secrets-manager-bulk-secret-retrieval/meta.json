@@ -1,0 +1,24 @@
+{
+  "id": "det-028",
+  "title": "Secrets Manager Bulk Secret Retrieval",
+  "description": "Detects retrieval of multiple secrets in a short timeframe, indicating potential credential harvesting.",
+  "awsService": "Secrets Manager",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "Secrets Manager",
+    "Credential Access",
+    "Exfiltration"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Application startup loading configuration secrets",
+    "Secret rotation processes"
+  ],
+  "relatedAttackSlugs": []
+}

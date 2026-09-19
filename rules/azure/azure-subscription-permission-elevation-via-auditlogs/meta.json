@@ -1,0 +1,25 @@
+{
+  "id": "az-120",
+  "title": "Azure Subscription Permission Elevation Via AuditLogs",
+  "description": "Detects when a user has been elevated to manage all Azure Subscriptions, recorded in Entra ID Audit Logs. Investigate immediately if unplanned.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "initial-access",
+    "stealth",
+    "t1078"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "If this was approved by System Administrator."
+  ],
+  "relatedAttackSlugs": []
+}

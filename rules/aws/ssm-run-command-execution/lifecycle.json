@@ -1,0 +1,119 @@
+{
+  "whyItMatters": "SSM gives attackers remote access through the AWS control plane without needing SSH keys, bastions, or inbound admin ports. A tuned SendCommand or StartSession detection is valuable because it reveals who accessed which managed node and, for Run Command, often what they attempted to execute.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with ssm:SendCommand can execute commands across one or many managed nodes using SSM documents such as AWS-RunShellScript or AWS-RunPowerShellScript. An attacker with ssm:StartSession can open an interactive shell to a managed instance through Session Manager.",
+    "realWorldUsage": "This is a common post-compromise and red-team tradecraft pattern in AWS because SSM bypasses traditional remote-access choke points like key distribution, jump hosts, and security group port 22 exposure.",
+    "whyItMatters": "A raw SendCommand or StartSession event is useful baseline visibility, but the highest-value signal comes from preserving command content, target identity, and actor context.",
+    "riskAndImpact": "Successful abuse can lead to credential theft from the host, staging of malware, disabling local defenses, pivoting into more sensitive workloads, and use of the instance role for downstream AWS API abuse."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for Systems Manager)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "sourceIPAddress",
+      "userAgent",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.documentName",
+      "requestParameters.instanceIds",
+      "requestParameters.targets",
+      "requestParameters.parameters.commands",
+      "requestParameters.target",
+      "requestParameters.reason",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled for ssm.amazonaws.com in every region where managed nodes run.",
+      "The ingestion pipeline must preserve nested requestParameters.parameters content.",
+      "For StartSession, enable Session Manager session logging to CloudWatch Logs or S3 for investigations."
+    ],
+    "limitations": [
+      "StartSession in CloudTrail shows that an interactive session began, but it does not expose the shell commands executed inside the session.",
+      "SendCommand command content is only available when the selected document and parameters expose it.",
+      "Legitimate patching, fleet management, and break-glass administration can generate true events that require actor and target allowlisting."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Identity Authorization Context",
+      "description": "Classify whether the caller is an approved SSM administrator, platform automation role, workload role, helpdesk role, or unexpected human or app identity.",
+      "examples": [
+        "approved SSM admin role",
+        "application role unexpectedly calling SendCommand"
+      ],
+      "falsePositiveReduction": "Separates expected fleet-management activity from suspicious SSM use by identities that should never administer hosts."
+    },
+    {
+      "dimension": "Target Asset Criticality",
+      "description": "Resolve targeted instance IDs or tag selectors into hostnames, EC2 tags, business owner, environment, workload tier, and sensitivity.",
+      "examples": [
+        "Environment=prod",
+        "database tier",
+        "shared services instance"
+      ],
+      "falsePositiveReduction": "Prevents every SSM event from looking equally important and elevates sessions or commands that touch crown-jewel systems."
+    },
+    {
+      "dimension": "Command and Document Semantics",
+      "description": "Classify the SSM document and parameters to distinguish benign maintenance from suspicious remote execution.",
+      "examples": [
+        "AWS-RunShellScript with curl | bash",
+        "PowerShell with encoded command",
+        "commands containing aws sts get-caller-identity"
+      ],
+      "falsePositiveReduction": "Keeps routine patching or inventory collection from generating the same priority as clearly suspicious command content."
+    },
+    {
+      "dimension": "Behavioral Baselines and Access Path",
+      "description": "Compare the actor, source IP, document, and target against historical SSM behavior.",
+      "examples": [
+        "first-ever StartSession by an application role",
+        "known admin role connecting from a new geography"
+      ],
+      "falsePositiveReduction": "Historical baselines sharply reduce noise in SSM-heavy environments where some administrative use is normal."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should move beyond simple baseline visibility and become a context-rich remote-execution signal. The strongest branch is SendCommand, where the event often exposes the target set, document, and command payload. The StartSession branch is still important for lateral-movement coverage, but because CloudTrail does not expose in-session shell commands, it should rely more heavily on actor allowlists, target criticality, and correlation with session logs.",
+    "conditions": [
+      "eventSource equals ssm.amazonaws.com",
+      "eventName equals SendCommand or StartSession",
+      "for SendCommand preserve documentName, instanceIds or targets, and parameters.commands",
+      "for StartSession preserve target and reason",
+      "actor is not in an approved SSM administration or automation allowlist, or the target or command context materially increases risk"
+    ],
+    "tuningGuidance": "1. Maintain an explicit allowlist for approved SSM admin and automation identities. 2. Parse and score requestParameters.parameters.commands. 3. Enrich instance IDs and target selectors with EC2 tags, owner, and workload sensitivity. 4. For StartSession, combine CloudTrail with Session Manager logs.",
+    "whenToFire": "Fire at high priority when SendCommand or StartSession is performed by an unexpected actor, against a sensitive host, or with suspicious command or document context."
+  },
+  "simulationCommand": "aws ssm send-command --instance-ids i-0abc123def4567890 --document-name AWS-RunShellScript --comment 'lab remote exec validation' --parameters '{\"commands\":[\"whoami\",\"hostname\",\"id\"]}' --region us-east-1",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium-Low after actor allowlisting and target or command enrichment; Medium in SSM-heavy operations environments if deployed as a raw baseline",
+    "expectedVolume": "Low to moderate depending on SSM adoption; typically low after approved admin and automation workflows are modeled",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query over CloudTrail)",
+      "CloudWatch Logs Insights",
+      "Splunk",
+      "EventBridge + Lambda",
+      "Panther / Chronicle / Datadog style cloud detections"
+    ],
+    "scheduling": "Batch: every 5-15 minutes for CloudTrail-backed analytics. Real-time: EventBridge or SIEM streaming for immediate notification.",
+    "considerations": [
+      "Real-time pipelines must preserve nested requestParameters.parameters content or they will lose key command context.",
+      "For StartSession, pair the alert with Session Manager log storage in CloudWatch Logs or S3.",
+      "Target selectors in requestParameters.targets may require post-processing to identify actual affected instances."
+    ]
+  }
+}

@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventSource=iam.amazonaws.com eventName=AddUserToGroup
+| table _time, userIdentity.arn, eventName, requestParameters.groupName, requestParameters.userName, sourceIPAddress

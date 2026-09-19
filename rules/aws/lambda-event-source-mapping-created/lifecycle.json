@@ -1,0 +1,122 @@
+{
+  "whyItMatters": "Creating an event source mapping establishes a durable auto-execution path between a data source and Lambda. The important signal is not every mapping creation, but mappings that are unexpected for the actor, the function, or the source resource.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with lambda:CreateEventSourceMapping can attach a Lambda function they control, or a legitimate function they have modified, to a queue or stream such as SQS, DynamoDB Streams, or Kinesis. This gives them trigger-based execution whenever new records arrive and can quietly wire malicious or repurposed code into an existing event-driven workflow.",
+    "realWorldUsage": "Serverless persistence and trigger abuse are common in cloud attack-path research and red-team operations because integration changes often receive less scrutiny than IAM or compute changes.",
+    "whyItMatters": "A new mapping can fundamentally change what code executes in response to business events. If the mapping links a sensitive stream or queue to an unexpected function, defenders can miss both the persistence mechanism and the downstream data exposure.",
+    "riskAndImpact": "Undetected malicious mappings can enable covert persistence, unauthorized invocation on every new event, exfiltration of records from queues or streams, and operational disruption by redirecting or over-consuming production event flows."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for Lambda)",
+      "Configuration inventory for approved function-to-source relationships"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.functionName",
+      "requestParameters.eventSourceArn",
+      "requestParameters.enabled",
+      "requestParameters.startingPosition",
+      "requestParameters.batchSize",
+      "sourceIPAddress",
+      "awsRegion",
+      "recipientAccountId",
+      "eventTime"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled for Lambda API activity.",
+      "The pipeline must preserve requestParameters.eventSourceArn and requestParameters.functionName.",
+      "Maintain an inventory of approved source-to-function mappings and approved deployer identities."
+    ],
+    "limitations": [
+      "CreateEventSourceMapping covers streams, queues, and Kafka-style sources, but not all Lambda trigger types such as S3 notifications or EventBridge rules.",
+      "UpdateEventSourceMapping is a separate API and should be covered independently.",
+      "CloudTrail alone cannot determine whether the new mapping is expected; baseline and ownership context are required for high fidelity."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Identity Context",
+      "description": "Classify the caller by role family, ownership, deployment authority, and whether the identity is approved to manage Lambda triggers.",
+      "examples": [
+        "CI/CD runner role",
+        "Terraform execution role",
+        "Developer SSO permission set"
+      ],
+      "falsePositiveReduction": "Suppresses approved deployment workflows and elevates mappings created by unexpected human or workload identities."
+    },
+    {
+      "dimension": "Function Criticality",
+      "description": "Add business ownership, environment, execution role sensitivity, and whether the target function is production or security-relevant.",
+      "examples": [
+        "Function tags: env=prod",
+        "Execution role can access customer data",
+        "Recently modified function code"
+      ],
+      "falsePositiveReduction": "Prioritizes mappings that attach new triggers to sensitive or high-impact functions."
+    },
+    {
+      "dimension": "Source Resource Context",
+      "description": "Classify the event source by service type, data sensitivity, owner, and whether the source ARN is approved for this function.",
+      "examples": [
+        "DynamoDB stream for CustomerPII table",
+        "SQS dead-letter queue",
+        "Kinesis stream owned by a different team"
+      ],
+      "falsePositiveReduction": "Distinguishes normal app wiring from suspicious linkage to sensitive or cross-team data sources."
+    },
+    {
+      "dimension": "Relationship Baseline",
+      "description": "Track whether this exact source-to-function pair or actor has been seen before.",
+      "examples": [
+        "First time this function was mapped to any DynamoDB stream",
+        "First time this source ARN was used with Lambda",
+        "Change occurred outside normal release window"
+      ],
+      "falsePositiveReduction": "Turns a noisy API event into a novelty-based detection that highlights unexpected integrations."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should not alert on every CreateEventSourceMapping event because application teams legitimately create mappings during normal deployments. The better approach is to treat the CloudTrail API call as the starting point and then alert only when the new source-to-function relationship is suspicious: the actor is not an approved deployer, the mapping is novel for the environment, or the source or target is sensitive.",
+    "conditions": [
+      "eventSource equals lambda.amazonaws.com",
+      "eventName equals CreateEventSourceMapping",
+      "requestParameters.functionName exists",
+      "requestParameters.eventSourceArn exists",
+      "and at least one suspicious predicate is true: actor not in approved deployment inventory, source-to-function pair not in approved mapping inventory, or source or target marked sensitive"
+    ],
+    "tuningGuidance": "1. Maintain an allowlist of approved deployment roles and IaC identities. 2. Build an inventory of approved source-to-function relationships. 3. Escalate when the source ARN belongs to a sensitive queue, stream, or cross-team resource, or when the target Lambda is production or security-critical.",
+    "whenToFire": "Fire when a new event source mapping is created outside expected deployment context or when it establishes a new or sensitive source-to-function relationship."
+  },
+  "simulationCommand": "aws lambda create-event-source-mapping --function-name payment-export-fn --event-source-arn arn:aws:dynamodb:us-east-1:123456789012:table/CustomerPII/stream/2026-03-17T00:00:00.000 --starting-position LATEST --enabled",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium (normal app deployments create mappings unless actor and mapping baselines are modeled)",
+    "expectedVolume": "Low in stable production environments; bursty during application releases",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query with approved-mapping inventory join)",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "EventBridge + Lambda enrichment function"
+    ],
+    "scheduling": "Batch: every 5-15 minutes for centralized CloudTrail analytics. Real-time: EventBridge on CreateEventSourceMapping with enrichment against approved deployers and mapping inventory.",
+    "considerations": [
+      "This rule is only high fidelity when backed by approved actor and approved mapping inventories.",
+      "Treat CreateEventSourceMapping as one part of the lifecycle; also monitor UpdateEventSourceMapping and Lambda code or role changes.",
+      "Remember that S3 notifications and EventBridge triggers are configured through different APIs and need separate coverage."
+    ]
+  }
+}

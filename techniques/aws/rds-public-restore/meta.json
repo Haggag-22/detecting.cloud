@@ -1,0 +1,20 @@
+{
+  "id": "tech-rds-public-restore",
+  "name": "RDS Public Exposure via Snapshot Restore",
+  "shortName": "RDS Public Restore",
+  "description": "Restoring from an RDS snapshot creates a new database that is a copy of the old one. If the attacker sets that copy as publicly reachable, the data is on the internet even though the original instance stayed private. This is different from sharing a snapshot with another AWS account. Here the copy is exposed to the world. They can then connect from anywhere and export the contents. Public restores of production snapshots are almost never legitimate.",
+  "services": [
+    "RDS"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-191"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "exfiltration",
+  "cloudProvider": "aws"
+}

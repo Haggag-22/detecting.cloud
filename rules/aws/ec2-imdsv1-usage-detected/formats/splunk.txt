@@ -1,0 +1,4 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com (eventName=RunInstances OR eventName=ModifyInstanceMetadataOptions)
+| eval httpTokens=coalesce(requestParameters.metadataOptions.httpTokens, requestParameters.httpTokens)
+| where httpTokens="optional"
+| table _time, userIdentity.type, userIdentity.arn, eventName, responseElements.instancesSet.items{}.instanceId, requestParameters.instanceId, sourceIPAddress

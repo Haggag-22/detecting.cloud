@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects when an AWS RDS database instance is restored from a snapshot and configured to be publicly accessible via RestoreDBInstanceFromDBSnapshot where responseElements.publiclyAccessible is true. Adversaries can abuse this to expose a copy of a database to the internet and exfiltrate its contents.",
+  "threatContext": {
+    "attackerBehavior": "Detects when an AWS RDS database instance is restored from a snapshot and configured to be publicly accessible via RestoreDBInstanceFromDBSnapshot where responseElements.publiclyAccessible is true. Adversaries can abuse this to expose a copy of a database to the internet and exfiltrate its contents.",
+    "whyItMatters": "Detects when an AWS RDS database instance is restored from a snapshot and configured to be publicly accessible via RestoreDBInstanceFromDBSnapshot where responseElements.publiclyAccessible is true. Adversaries can abuse this to expose a copy of a database to the internet and exfiltrate its contents.",
+    "riskAndImpact": "Abuse related to RDS can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects when an AWS RDS database instance is restored from a snapshot and configured to be publicly accessible via RestoreDBInstanceFromDBSnapshot where responseElements.publiclyAccessible is true. Adversaries can abuse this to expose a copy of a database to the internet and exfiltrate its contents.",
+    "whenToFire": "When CloudTrail shows activity matching this Public AWS RDS Instance Restored From Snapshot detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

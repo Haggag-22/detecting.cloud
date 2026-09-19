@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, eventName, requestParameters.userName, requestParameters.policyArn, requestParameters.policyDocument, sourceIPAddress
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName in ["AttachUserPolicy", "PutUserPolicy"]
+| filter userIdentity.principalId not like /terraform|cloudformation/
+| filter requestParameters.policyArn like /AdministratorAccess|IAMFullAccess|PowerUserAccess/ or requestParameters.policyDocument like /"Action":"*"/ or requestParameters.policyDocument like /iam:PassRole|sts:AssumeRole|secretsmanager:GetSecretValue|kms:Decrypt/
+| sort @timestamp desc

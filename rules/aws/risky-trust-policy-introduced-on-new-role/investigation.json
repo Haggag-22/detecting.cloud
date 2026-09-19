@@ -1,0 +1,5 @@
+[
+  "Inspect the trust policy for external, root, wildcard, or federated principals.",
+  "Verify whether cross-account or third-party trust was approved.",
+  "Review whether ExternalId, source ARN, source account, or org-based conditions are present."
+]

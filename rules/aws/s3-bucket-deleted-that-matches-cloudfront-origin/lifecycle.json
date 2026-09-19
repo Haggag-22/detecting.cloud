@@ -1,0 +1,97 @@
+{
+  "whyItMatters": "Deleting a bucket that CloudFront still references creates the local condition for origin takeover. If the name becomes available, another account may be able to claim it and serve content behind the trusted distribution.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may wait for or intentionally cause a referenced origin bucket to disappear so the name can later be reclaimed and used for hostile content delivery.",
+    "realWorldUsage": "This class of issue appears when infrastructure teardown, renaming, or migration leaves distribution origins pointing at non-existent S3 buckets.",
+    "whyItMatters": "The deletion is not the exploit itself, but it is the moment defenders can still intervene before name reuse turns the misconfiguration into a takeover path.",
+    "riskAndImpact": "If missed, a customer-facing or trusted CloudFront distribution may continue pointing at a bucket name that can later be claimed by another party."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail for S3 bucket deletion",
+      "CloudFront distribution origin inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.bucketName",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "DeleteBucket events must be ingested promptly.",
+      "The platform should maintain current CloudFront origin inventories or perform on-demand distribution lookups.",
+      "Origin normalization must correctly map S3 bucket names to CloudFront origin domain names."
+    ],
+    "limitations": [
+      "Bucket deletion alone is not sufficient without CloudFront origin context.",
+      "Custom origins and some origin naming patterns require careful parsing.",
+      "A fast remediation may eliminate risk before exploitation occurs."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "CloudFront Origin Linkage",
+      "description": "Determine whether the deleted bucket is still referenced by any CloudFront distribution origin.",
+      "examples": [
+        "single prod distribution",
+        "no remaining origin references"
+      ],
+      "falsePositiveReduction": "Separates generic bucket deletion from orphan-risk creation."
+    },
+    {
+      "dimension": "Distribution Sensitivity",
+      "description": "Classify the affected distribution by business criticality and public exposure.",
+      "examples": [
+        "customer-facing site",
+        "internal test distribution"
+      ],
+      "falsePositiveReduction": "Improves prioritization of orphan-risk events."
+    },
+    {
+      "dimension": "Decommission Workflow Context",
+      "description": "Determine whether origin references were expected to be removed as part of a planned migration.",
+      "examples": [
+        "approved migration",
+        "untracked deletion"
+      ],
+      "falsePositiveReduction": "Separates expected teardown from risky orphan creation."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect `DeleteBucket` when the deleted bucket name still maps to an active CloudFront S3 origin. It is the precursor-stage detector for CloudFront orphaned-origin takeover risk.",
+    "conditions": [
+      "eventSource equals s3.amazonaws.com",
+      "eventName equals DeleteBucket",
+      "deleted bucket name matches at least one currently configured CloudFront S3 origin"
+    ],
+    "tuningGuidance": "1. Normalize S3 origin hostnames accurately. 2. Refresh CloudFront origin inventories regularly. 3. Escalate strongly when the affected distribution is public or high-value.",
+    "whenToFire": "Fire when a deleted S3 bucket is still referenced by a CloudFront distribution origin."
+  },
+  "simulationCommand": "aws s3api delete-bucket --bucket my-bucket",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with CloudFront origin linkage and decommission context",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with CloudFront origin inventory joins",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because defenders can still remediate before name reuse occurs.",
+    "considerations": [
+      "This is the precursor-event detector for the orphaned-origin family.",
+      "CloudFront origin linkage is the main dependency."
+    ]
+  }
+}

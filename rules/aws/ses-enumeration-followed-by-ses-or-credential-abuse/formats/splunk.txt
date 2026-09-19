@@ -1,0 +1,8 @@
+index=aws sourcetype=aws:cloudtrail
+  ((eventSource=ses.amazonaws.com AND eventName IN ("ListIdentities","GetIdentityVerificationAttributes")) OR (eventSource=ses.amazonaws.com AND eventName IN ("PutIdentityPolicy","SetIdentityNotificationTopic","VerifyEmailIdentity")) OR eventName="CreateAccessKey")
+| eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
+| eval is_enum=if(eventSource="ses.amazonaws.com" AND eventName IN ("ListIdentities","GetIdentityVerificationAttributes"), 1, 0)
+| eval is_abuse=if((eventSource="ses.amazonaws.com" AND eventName IN ("PutIdentityPolicy","SetIdentityNotificationTopic","VerifyEmailIdentity")) OR eventName="CreateAccessKey", 1, 0)
+| transaction actor maxspan=30m
+| where mvcount(mvfilter(is_enum=1))>0 AND mvcount(mvfilter(is_abuse=1))>0
+| table _time, actor, eventName

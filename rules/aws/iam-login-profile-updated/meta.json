@@ -1,0 +1,23 @@
+{
+  "id": "det-052",
+  "title": "IAM Login Profile Updated",
+  "description": "Baseline visibility when an IAM user's console password is changed. Password changes can be legitimate, especially in support workflows or account recovery.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "IAM",
+    "Login Profile",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate password reset",
+    "User-initiated password change",
+    "Helpdesk password reset"
+  ],
+  "relatedAttackSlugs": []
+}

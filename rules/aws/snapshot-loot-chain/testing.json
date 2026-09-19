@@ -1,0 +1,5 @@
+[
+  "Execute a full controlled chain: create a snapshot, then share it externally or copy it, then create a volume from it and attach it.",
+  "Verify each stage records the expected snapshot or derived volume references in CloudTrail.",
+  "Run the detection and confirm the chain only fires when ordered lineage is present rather than mere actor co-occurrence."
+]

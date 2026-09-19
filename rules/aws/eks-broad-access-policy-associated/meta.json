@@ -1,0 +1,25 @@
+{
+  "id": "det-026",
+  "title": "EKS Broad Access Policy Associated",
+  "description": "Detects broad EKS access policies associated to principals through access entries, a concrete cluster access-weakening event.",
+  "awsService": "EKS",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "EKS",
+    "Kubernetes",
+    "Authentication"
+  ],
+  "logSources": [
+    "AWS CloudTrail",
+    "EKS Audit Logs"
+  ],
+  "falsePositives": [
+    "Approved platform administration",
+    "Expected cluster bootstrap or delegated admin workflows"
+  ],
+  "relatedAttackSlugs": []
+}

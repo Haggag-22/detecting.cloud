@@ -1,0 +1,117 @@
+{
+  "whyItMatters": "PassRole is a classic hidden escalation path in AWS because the privilege is not logged as its own API call. The abuse shows up only in the service API request where a powerful role is attached to a resource the attacker controls.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with iam:PassRole and a service creation permission such as lambda:CreateFunction can create a Lambda function and assign it a more privileged execution role than the attacker currently has. Once invoked, the Lambda runs with the permissions of the passed role, effectively converting resource creation into immediate privilege escalation.",
+    "realWorldUsage": "PassRole abuse is a well-documented AWS escalation path in cloud red-team tradecraft, public pentest writeups, and AWS security guidance. It commonly appears in post-compromise privilege escalation chains when developers or CI roles have broad create permissions and weakly scoped role-passing permissions.",
+    "whyItMatters": "The attacker does not need to directly assume the target role. They only need to attach it to a service they control, which makes this a subtle but high-impact path to admin or data access.",
+    "riskAndImpact": "Successful abuse can lead to full administrative control, access to secrets, data exfiltration, persistence through long-lived functions, and follow-on lateral movement through the newly granted role."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for Lambda)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.functionName",
+      "requestParameters.role",
+      "sourceIPAddress",
+      "eventTime"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled for Lambda API activity",
+      "No separate iam:PassRole CloudTrail event exists; detection must infer PassRole from the service API request",
+      "Retain requestParameters in the logging pipeline because the passed role ARN lives there"
+    ],
+    "limitations": [
+      "This rule detects the Lambda CreateFunction path, not every PassRole-capable service",
+      "Role name matching is heuristic unless enriched with authoritative high-risk role inventory",
+      "Legitimate CI/CD pipelines often create functions and can generate false positives without actor allowlists"
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Identity Context",
+      "description": "Add ownership, department, SSO role, and workload metadata for the caller to determine whether the actor is expected to deploy Lambda functions with elevated roles.",
+      "examples": [
+        "SSO permission set name",
+        "Okta group membership",
+        "Service account owner",
+        "CI/CD bot inventory"
+      ],
+      "falsePositiveReduction": "Suppress trusted deployment roles while escalating unexpected developer or workload identities."
+    },
+    {
+      "dimension": "Passed Role Sensitivity",
+      "description": "Classify the role being passed by attached permissions, path, tags, and whether it grants admin, data access, or security-tool access.",
+      "examples": [
+        "Role has AdministratorAccess",
+        "Role path /security-response/",
+        "Role tagged prod=true",
+        "Role can access secretsmanager:GetSecretValue"
+      ],
+      "falsePositiveReduction": "Differentiate benign low-privilege function creation from genuinely dangerous role delegation."
+    },
+    {
+      "dimension": "Function Deployment Context",
+      "description": "Enrich with deployment source, code package location, runtime, and whether the function was created by a known pipeline or management tool.",
+      "examples": [
+        "Created by Terraform runner",
+        "S3 code bucket path",
+        "Runtime python3.12",
+        "Known deployment account"
+      ],
+      "falsePositiveReduction": "Reduce alerts from expected deployments while highlighting ad hoc or one-off function creation."
+    },
+    {
+      "dimension": "Behavioral Baseline",
+      "description": "Track whether the actor has previously created functions, passed this role before, or deployed to this account/region.",
+      "examples": [
+        "First time CreateFunction for actor",
+        "First time passing AdminRole",
+        "Out-of-hours deployment"
+      ],
+      "falsePositiveReduction": "Raises fidelity when the action is novel for the identity or environment."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection looks for Lambda CreateFunction requests where the caller passes an execution role whose name or ARN indicates elevated privileges. Because iam:PassRole is not emitted as its own CloudTrail API event, the correct engineering approach is to inspect the downstream service API request that embeds the role ARN. The rule is intentionally focused on Lambda because it is one of the most common and operationally useful PassRole abuse paths: the attacker creates a function, attaches a powerful role, and then invokes code under that role. In production, treat Sigma as the canonical baseline, then enrich the passed role and caller identity so the detection distinguishes real escalation from authorized deployment workflows.",
+    "conditions": [
+      "eventSource equals lambda.amazonaws.com",
+      "eventName equals CreateFunction20150331",
+      "requestParameters.role contains a high-risk role marker such as Admin, AdministratorAccess, PowerUser, or OrganizationAccountAccessRole"
+    ],
+    "tuningGuidance": "1. Maintain an allowlist of approved deployment roles, CI/CD identities, and platform automation accounts. 2. Replace simple role-name heuristics with an enrichment table that classifies execution roles by attached permissions and sensitivity. 3. Escalate only when the caller is not in an approved role family or when the passed role is materially more privileged than the caller.",
+    "whenToFire": "Fire whenever a Lambda CreateFunction request passes a high-risk role, especially in production accounts or when initiated by a developer, workload role, or unusual source IP. In mature environments this should be a low-volume, high-signal alert after actor allowlists are applied."
+  },
+  "simulationCommand": "aws lambda create-function --function-name backdoor-fn --runtime python3.12 --handler lambda_function.lambda_handler --role arn:aws:iam::123456789012:role/AdminRole --zip-file fileb://function.zip",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium-Low (mostly CI/CD or platform deployment activity after tuning)",
+    "expectedVolume": "Low in mature environments; bursty during deployments",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query)",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Batch: every 5-15 minutes in Athena or SIEM; Real-time: EventBridge on CreateFunction20150331",
+    "considerations": [
+      "Role sensitivity enrichment materially improves fidelity",
+      "Because iam:PassRole itself is not logged, keep requestParameters.role intact through normalization",
+      "Pair with post-creation Lambda invocation monitoring for higher-confidence escalation chains"
+    ]
+  }
+}

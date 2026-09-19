@@ -1,0 +1,5 @@
+[
+  "Identify the actor, number of distinct applications or environments touched, and the exact window of enumeration.",
+  "Verify whether the breadth of enumeration is consistent with legitimate administration or deployment activity.",
+  "Check for follow-on IAM, STS, Secrets Manager, or KMS actions after the burst."
+]

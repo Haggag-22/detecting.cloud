@@ -1,0 +1,20 @@
+{
+  "id": "tech-gcp-packet-capture",
+  "name": "GCP Full Packet Capture",
+  "shortName": "Packet Capture",
+  "description": "Packet capture and traffic mirroring on GCP copy raw network traffic. If that traffic is not encrypted, the copy includes passwords, tokens, and queries between services. The VMs keep running. Nobody has to install an agent on the host. Capture jobs that are not a documented incident-response or performance test are collection. Full capture of east-west traffic is especially sensitive.",
+  "services": [
+    "GCP Audit Logs"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-008"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "exfiltration",
+  "cloudProvider": "gcp"
+}

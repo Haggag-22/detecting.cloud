@@ -1,0 +1,4 @@
+index=aws sourcetype=aws:cloudtrail eventName=CreateAccessKey
+| where isnotnull(requestParameters.userName)
+| where (userIdentity.type="IAMUser" AND userIdentity.userName!=requestParameters.userName) OR userIdentity.type!="IAMUser"
+| table _time, userIdentity.type, userIdentity.userName, userIdentity.arn, requestParameters.userName, responseElements.accessKey.accessKeyId, sourceIPAddress

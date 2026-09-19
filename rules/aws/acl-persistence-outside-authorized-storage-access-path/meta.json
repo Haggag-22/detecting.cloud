@@ -1,0 +1,22 @@
+{
+  "id": "det-134",
+  "title": "ACL Persistence Outside Authorized Storage Access Path",
+  "description": "Detects S3 ACL mutations by identities outside approved storage-administration or automation paths. This should use explicit actor authorization and workflow provenance, not role-name substring allowlists.",
+  "awsService": "S3",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "S3",
+    "ACL",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Known storage/platform admin",
+    "Terraform/CloudFormation"
+  ],
+  "relatedAttackSlugs": []
+}

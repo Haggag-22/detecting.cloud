@@ -1,0 +1,26 @@
+{
+  "id": "det-130",
+  "title": "STS AssumeRole into Sensitive Role by Unexpected Principal",
+  "description": "Detects AssumeRole activity targeting sensitive roles when the caller is outside expected admin, platform, or automation identities.",
+  "awsService": "IAM",
+  "relatedServices": [
+    "STS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "STS",
+    "AssumeRole",
+    "Lateral Movement",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Expected cross-account administration",
+    "Approved federated admin access",
+    "Break-glass or incident-response role assumptions"
+  ],
+  "relatedAttackSlugs": []
+}

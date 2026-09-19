@@ -1,0 +1,36 @@
+title: AWS Cloud Service Discovery
+id: 1b046f5f-d0d9-4c24-b895-6cbf21f23727
+status: experimental
+description: |
+    Detects enumeration of available AWS services, regions, and organization structure (Cloud Service Discovery) that adversaries perform to understand the target environment.
+references:
+    - https://attack.mitre.org/techniques/T1526/
+    - https://attack.mitre.org/detectionstrategies/DET0402/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.discovery
+    - attack.t1526
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection_ec2:
+        eventSource: ec2.amazonaws.com
+        eventName:
+            - DescribeRegions
+            - DescribeAvailabilityZones
+            - DescribeAccountAttributes
+    selection_org:
+        eventSource: organizations.amazonaws.com
+        eventName:
+            - DescribeOrganization
+            - ListAWSServiceAccessForOrganization
+    selection_quota:
+        eventSource: servicequotas.amazonaws.com
+        eventName: ListServiceQuotas
+    condition: 1 of selection_*
+falsepositives:
+    - Cloud inventory, billing, and posture-management tooling.
+    - Administrators exploring the environment.
+level: low

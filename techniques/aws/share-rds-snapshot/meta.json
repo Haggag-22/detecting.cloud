@@ -1,0 +1,20 @@
+{
+  "id": "tech-share-rds-snapshot",
+  "name": "RDS Snapshot Sharing",
+  "shortName": "RDS Share",
+  "description": "An attacker with rds:ModifyDBSnapshotAttribute adds restore permission for an external account. The attacker's account uses rds:CopyDBSnapshot to copy the snapshot, then restores it to a new DB instance and extracts database contents. This exfiltrates full database data. Unencrypted snapshots are fully readable. Required permission is rds:ModifyDBSnapshotAttribute. The attacker needs rds:CopyDBSnapshot in their account.",
+  "services": [
+    "RDS"
+  ],
+  "permissions": [
+    "rds:ModifyDBSnapshotAttribute"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict RDS snapshot sharing",
+    "Encrypt snapshots",
+    "Audit sharing changes"
+  ],
+  "category": "exfiltration",
+  "cloudProvider": "aws"
+}

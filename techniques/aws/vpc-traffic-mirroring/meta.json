@@ -1,0 +1,22 @@
+{
+  "id": "tech-vpc-traffic-mirroring",
+  "name": "VPC Traffic Mirroring Collection",
+  "shortName": "Traffic Mirror",
+  "description": "VPC Traffic Mirroring copies packets from a network interface to a destination the attacker chooses. It is meant for troubleshooting. Used badly, it is a tap on unencrypted traffic between applications: credentials, session cookies, database queries. Nothing is changed on the source instance, so hosts look healthy. New mirror sessions that are not part of a packet-capture request are collection, not debugging.",
+  "services": [
+    "VPC"
+  ],
+  "permissions": [
+    "ec2:CreateTrafficMirrorSession"
+  ],
+  "detectionIds": [
+    "det-182"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "exfiltration",
+  "cloudProvider": "aws"
+}

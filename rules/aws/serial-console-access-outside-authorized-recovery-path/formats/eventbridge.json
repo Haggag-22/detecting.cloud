@@ -1,0 +1,16 @@
+{
+  "source": [
+    "aws.ec2-instance-connect"
+  ],
+  "detail-type": [
+    "AWS API Call via CloudTrail"
+  ],
+  "detail": {
+    "eventSource": [
+      "ec2-instance-connect.amazonaws.com"
+    ],
+    "eventName": [
+      "SendSerialConsoleSSHPublicKey"
+    ]
+  }
+}

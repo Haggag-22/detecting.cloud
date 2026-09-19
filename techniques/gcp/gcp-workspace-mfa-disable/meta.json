@@ -1,0 +1,20 @@
+{
+  "id": "tech-gcp-workspace-mfa-disable",
+  "name": "Google Workspace MFA Disabled",
+  "shortName": "Workspace MFA Off",
+  "description": "Google 2-step verification is the second factor on Workspace. Turning it off for a user, or for the whole org, makes a stolen password enough. Helpdesk sometimes disables it to recover a locked user. Attackers disable it to keep access. The difference is a ticket and a short window before it is turned back on. MFA off on admin users should page, not wait for a weekly review.",
+  "services": [
+    "Google Workspace"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-013"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "gcp"
+}

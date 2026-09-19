@@ -1,0 +1,23 @@
+{
+  "slug": "cognito-identity-pool-privesc",
+  "title": "Cognito Identity Pool Privilege Escalation",
+  "description": "Cognito Identity Pools can be configured to allow unauthenticated access, granting temporary AWS credentials to anyone who requests them. The credentials are scoped to an IAM role. If that role is overprivileged (e.g., has S3 read access to sensitive buckets), an attacker can obtain credentials without authentication and use them to access resources. The attacker calls GetCredentialsForIdentity (or the equivalent in the SDK) and receives temporary keys with the role's permissions.",
+  "severity": "High",
+  "objective": "privilege-escalation",
+  "tags": [
+    "Cognito",
+    "Identity Pool",
+    "Privilege Escalation"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-cognito-identity-pool-creds",
+      "context": "Get credentials from identity pool"
+    },
+    {
+      "techniqueId": "tech-s3-data-download",
+      "context": "Use overprivileged role to access S3"
+    }
+  ],
+  "cloudProvider": "aws"
+}

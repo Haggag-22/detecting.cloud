@@ -1,0 +1,19 @@
+title: Snapshot Copied or Rehydrated After Creation
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_create:
+    eventSource: ec2.amazonaws.com
+    eventName:
+      - CreateSnapshot
+      - CreateSnapshots
+  selection_rehydrate:
+    eventSource: ec2.amazonaws.com
+    eventName:
+      - CopySnapshot
+      - CreateVolume
+      - AttachVolume
+  condition: selection_create
+level: high
+# High-confidence use requires lineage correlation across snapshotId, sourceSnapshotId, and derived volume entities.

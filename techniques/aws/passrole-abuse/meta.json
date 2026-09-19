@@ -1,0 +1,24 @@
+{
+  "id": "tech-passrole-abuse",
+  "name": "IAM PassRole Abuse",
+  "shortName": "PassRole",
+  "description": "When creating or configuring AWS resources like Lambda functions, EC2 instances, or Glue dev endpoints, the caller must have iam:PassRole permission to assign an IAM role to that resource. An attacker with iam:PassRole and a service-specific create permission (e.g., lambda:CreateFunction) can pass a high-privilege role to a new resource they control. The resource then runs with that role's permissions, effectively escalating the attacker's access. The attacker creates a Lambda with an admin role, invokes it, and the Lambda code runs with full admin rights. Required permissions include iam:PassRole plus the service action (lambda:CreateFunction, ec2:RunInstances, glue:CreateDevEndpoint, etc.).",
+  "services": [
+    "IAM",
+    "Lambda",
+    "EC2"
+  ],
+  "permissions": [
+    "iam:PassRole"
+  ],
+  "detectionIds": [
+    "det-012"
+  ],
+  "mitigations": [
+    "Restrict PassRole to specific role ARNs via resource conditions",
+    "Implement permission boundaries on all roles",
+    "Use SCPs to limit which roles can be passed"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

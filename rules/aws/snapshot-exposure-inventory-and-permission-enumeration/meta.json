@@ -1,0 +1,27 @@
+{
+  "id": "det-085",
+  "title": "Snapshot Exposure Inventory and Permission Enumeration",
+  "description": "Posture and hunting control for identifying snapshots that are already public or externally shared, plus visibility into explicit permission enumeration via `DescribeSnapshotAttribute`. This is primarily a scheduled inventory or hygiene control, not a pure event-driven alert.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "EBS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EC2",
+    "EBS",
+    "Snapshot",
+    "Posture",
+    "Hunting"
+  ],
+  "logSources": [
+    "AWS CloudTrail",
+    "EC2 API"
+  ],
+  "falsePositives": [
+    "Intentionally public AMIs",
+    "Approved public snapshots"
+  ],
+  "relatedAttackSlugs": []
+}

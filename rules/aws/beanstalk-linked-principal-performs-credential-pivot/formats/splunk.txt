@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail ((eventSource=iam.amazonaws.com AND eventName=CreateAccessKey) OR (eventSource=sts.amazonaws.com AND eventName=AssumeRole))
+| table _time, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName, requestParameters.roleArn, sourceIPAddress

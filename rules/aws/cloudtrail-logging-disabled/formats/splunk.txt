@@ -1,0 +1,4 @@
+index=aws sourcetype=aws:cloudtrail eventSource=cloudtrail.amazonaws.com
+| where (eventName="StopLogging" OR eventName="DeleteTrail") OR (eventName="UpdateTrail" AND (requestParameters.isMultiRegionTrail=false OR requestParameters.includeGlobalServiceEvents=false OR requestParameters.enableLogFileValidation=false OR requestParameters.isOrganizationTrail=false))
+| where isnull(errorCode)
+| table _time, userIdentity.type, userIdentity.arn, eventName, requestParameters.name, requestParameters.isMultiRegionTrail, requestParameters.includeGlobalServiceEvents, requestParameters.enableLogFileValidation, requestParameters.isOrganizationTrail, sourceIPAddress

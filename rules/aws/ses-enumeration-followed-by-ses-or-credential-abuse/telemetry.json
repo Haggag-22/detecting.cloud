@@ -1,0 +1,11 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "ses.amazonaws.com",
+  "importantFields": [
+    "eventSource",
+    "eventName",
+    "userIdentity.arn",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"ses.amazonaws.com\",\n  \"eventName\": \"ListIdentities\",\n  \"userIdentity\": {\n    \"type\": \"IAMUser\",\n    \"arn\": \"arn:aws:iam::123456789012:user/attacker\"\n  },\n  \"requestParameters\": {\n    \"identityType\": \"EmailAddress\"\n  },\n  \"sourceIPAddress\": \"203.0.113.10\",\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

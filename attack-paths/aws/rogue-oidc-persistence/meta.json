@@ -1,0 +1,23 @@
+{
+  "slug": "rogue-oidc-persistence",
+  "title": "Rogue OIDC Persistence",
+  "description": "An attacker with iam:CreateOpenIDConnectProvider creates an OIDC identity provider that points to an attacker-controlled URL (e.g., a server that issues OIDC tokens). The attacker then modifies role trust policies (if they have UpdateAssumeRolePolicy) to trust this provider. From their IdP, the attacker issues tokens that satisfy the trust policy and assumes the role via sts:AssumeRoleWithWebIdentity. This creates persistence through a trusted identity source that the organization may not immediately recognize as malicious.",
+  "severity": "High",
+  "objective": "persistence",
+  "tags": [
+    "IAM",
+    "OIDC",
+    "Persistence"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-rogue-oidc-provider",
+      "context": "Create OIDC provider pointing to attacker IdP"
+    },
+    {
+      "techniqueId": "tech-assumerole-abuse",
+      "context": "Assume roles via rogue IdP"
+    }
+  ],
+  "cloudProvider": "aws"
+}

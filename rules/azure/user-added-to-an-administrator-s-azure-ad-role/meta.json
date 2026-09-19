@@ -1,0 +1,26 @@
+{
+  "id": "az-025",
+  "title": "User Added to an Administrator's Azure AD Role",
+  "description": "User Added to an Administrator's Azure AD Role",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "initial-access",
+    "persistence",
+    "privilege-escalation",
+    "stealth",
+    "t1098 003",
+    "t1078"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "PIM (Privileged Identity Management) generates this event each time 'eligible role' is enabled."
+  ],
+  "relatedAttackSlugs": []
+}

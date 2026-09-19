@@ -1,0 +1,26 @@
+{
+  "id": "tech-delete-permissions-boundary",
+  "name": "IAM Permissions Boundary Deletion",
+  "shortName": "Boundary Delete",
+  "description": "Permissions boundaries cap the maximum permissions a user or role can have. An attacker with iam:DeleteRolePermissionsBoundary or iam:DeleteUserPermissionsBoundary can remove the boundary from a principal, allowing it to use its full attached policy permissions without the boundary's restrictions. This is especially effective when the principal has broad managed policies attached but was constrained by a boundary. Required permissions are iam:DeleteRolePermissionsBoundary for roles or iam:DeleteUserPermissionsBoundary for users.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:DeleteRolePermissionsBoundary",
+    "iam:DeleteUserPermissionsBoundary"
+  ],
+  "detectionIds": [
+    "det-041",
+    "det-042",
+    "det-043"
+  ],
+  "mitigations": [
+    "Restrict boundary deletion",
+    "Monitor IAM boundary changes",
+    "Use SCPs to enforce boundaries"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws",
+  "detectionStrategy": "Removing a permissions boundary immediately expands a principal's effective permissions if attached policies were previously constrained. Detection should monitor DeleteRolePermissionsBoundary and DeleteUserPermissionsBoundary, focus on unexpected actors, and correlate boundary removal with follow-on privileged activity to reduce false positives."
+}

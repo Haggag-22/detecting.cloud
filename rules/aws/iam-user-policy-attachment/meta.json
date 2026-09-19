@@ -1,0 +1,26 @@
+{
+  "id": "det-004",
+  "title": "IAM User Policy Attachment",
+  "description": "Detects when an IAM policy is attached directly to a user, which may indicate privilege escalation.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "Privilege Escalation",
+    "Policy"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Onboarding processes for new users"
+  ],
+  "relatedAttackSlugs": [
+    "iam-privilege-escalation",
+    "assumerole-abuse",
+    "create-policy-version-abuse",
+    "iam-backdoor-policies"
+  ]
+}

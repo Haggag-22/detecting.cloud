@@ -1,0 +1,10 @@
+title: IAM OpenID Connect Provider Created
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: CreateOpenIDConnectProvider
+  condition: selection
+level: high

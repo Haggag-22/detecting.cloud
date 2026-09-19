@@ -1,0 +1,6 @@
+[
+  "Identify the actor and target for User Removed From Group With CA Policy Modification Access.",
+  "Confirm whether the change was authorized (ticket, PIM, change window).",
+  "Check for follow-on privilege, persistence, or data-access activity.",
+  "Revert unauthorized changes and rotate credentials if the actor is compromised."
+]

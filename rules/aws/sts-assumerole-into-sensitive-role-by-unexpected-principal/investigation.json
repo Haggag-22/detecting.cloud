@@ -1,0 +1,6 @@
+[
+  "Identify the caller, source IP, and target role ARN.",
+  "Validate whether the caller is authorized to assume the target role under normal operations.",
+  "Review the target role trust policy, attached permissions, and recent changes.",
+  "Look for follow-on sensitive API activity using the assumed role session."
+]

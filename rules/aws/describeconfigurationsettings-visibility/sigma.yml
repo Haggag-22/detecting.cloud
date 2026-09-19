@@ -1,0 +1,10 @@
+title: Beanstalk DescribeConfigurationSettings Visibility
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: elasticbeanstalk.amazonaws.com
+    eventName: DescribeConfigurationSettings
+  condition: selection
+level: medium

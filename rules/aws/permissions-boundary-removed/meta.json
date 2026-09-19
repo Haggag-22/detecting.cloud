@@ -1,0 +1,22 @@
+{
+  "id": "det-041",
+  "title": "Permissions Boundary Removed",
+  "description": "Baseline visibility when a permissions boundary is deleted from a role or user. This is a high-sensitivity IAM control-plane event, but it still needs target criticality and prior-state context before it should be treated as confirmed abuse.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "IAM",
+    "Permissions Boundary",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate boundary lifecycle management",
+    "Terraform/CloudFormation"
+  ],
+  "relatedAttackSlugs": []
+}

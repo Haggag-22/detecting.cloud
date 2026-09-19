@@ -1,0 +1,18 @@
+title: Lambda Internet Egress to Unapproved or Suspicious Destination
+status: experimental
+logsource:
+  product: aws
+  service: vpcflow
+detection:
+  selection_egress:
+    flowDirection: egress
+    action: ACCEPT
+  selection_lambda:
+    interfaceId|startswith: eni-
+  suspicious_port:
+    dstPort:
+      - 4444
+      - 8080
+      - 8443
+  condition: selection_egress and selection_lambda and suspicious_port
+level: high

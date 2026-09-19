@@ -1,0 +1,5 @@
+[
+  "Run `PutBucketAcl` or `PutObjectAcl` in a lab bucket or object.",
+  "Verify CloudTrail records the request parameters and target names.",
+  "Run the baseline detector and confirm it records all ACL mutations."
+]

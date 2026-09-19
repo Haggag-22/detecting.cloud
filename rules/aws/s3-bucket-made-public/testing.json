@@ -1,0 +1,5 @@
+[
+  "Remove PublicAccessBlock from a test bucket.",
+  "Verify CloudTrail captures DeletePublicAccessBlock.",
+  "Run the detection to confirm the alert triggers."
+]

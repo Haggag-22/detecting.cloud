@@ -1,0 +1,10 @@
+title: DynamoDB Table Export to S3
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: dynamodb.amazonaws.com
+    eventName: ExportTableToPointInTime
+  condition: selection
+level: high

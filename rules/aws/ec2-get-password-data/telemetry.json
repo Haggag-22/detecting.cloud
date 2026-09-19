@@ -1,0 +1,12 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "ec2.amazonaws.com",
+  "importantFields": [
+    "eventSource",
+    "eventName",
+    "userIdentity.arn",
+    "sourceIPAddress",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"ec2.amazonaws.com\",\n  \"eventName\": \"GetPasswordData\",\n  \"userIdentity\": {\n    \"type\": \"IAMUser\",\n    \"arn\": \"arn:aws:iam::123456789012:user/attacker\"\n  },\n  \"eventTime\": \"2026-01-15T12:00:00Z\",\n  \"sourceIPAddress\": \"203.0.113.10\"\n}"
+}

@@ -7,7 +7,14 @@ const MIN_WIDTH = 220;
 const MAX_WIDTH = 500;
 const DEFAULT_WIDTH = 272;
 
-export function Layout({ children }: { children: React.ReactNode }) {
+export function Layout({
+  children,
+  /** Homepage hero is flush; every other page uses the same title offset. */
+  padded = true,
+}: {
+  children: React.ReactNode;
+  padded?: boolean;
+}) {
   const [sidebarWidth, setSidebarWidth] = useState(DEFAULT_WIDTH);
   const isResizing = useRef(false);
 
@@ -51,7 +58,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           className="relative shrink-0 w-1 cursor-col-resize z-30 hover:bg-primary/30 transition-colors"
         />
         <div className="flex min-w-0 flex-1 flex-col overflow-x-hidden">
-          <main className="min-w-0 flex-1">{children}</main>
+          <main className={`min-w-0 flex-1 ${padded ? "pt-12 pb-12" : ""}`}>{children}</main>
           <Footer />
         </div>
       </div>

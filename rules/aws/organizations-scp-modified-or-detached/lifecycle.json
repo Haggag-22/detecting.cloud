@@ -1,0 +1,118 @@
+{
+  "whyItMatters": "SCP changes are organization-level guardrail events, not routine account-local administration. A high-fidelity detection should explain which policy was weakened, where in the org hierarchy it applied, and whether the affected root, OU, or account is security- or production-critical.",
+  "threatContext": {
+    "attackerBehavior": "An attacker operating in the management account or a delegated administrator context can weaken organizational guardrails by detaching, deleting, or updating a Service Control Policy.",
+    "realWorldUsage": "This pattern is a classic cloud defense-evasion objective in both adversary emulation and real-world post-compromise tradecraft because SCPs are one of the few controls that shape permissions across many accounts at once.",
+    "whyItMatters": "Not all Organizations policy activity is equally important; the high-value signal is specifically guardrail weakening.",
+    "riskAndImpact": "If this goes undetected, attackers can convert a contained identity compromise into broad organizational freedom of action, including logging reduction, IAM privilege escalation, and widespread drift."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for AWS Organizations)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "sourceIPAddress",
+      "userAgent",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.policyId",
+      "requestParameters.targetId",
+      "requestParameters.content",
+      "responseElements.policy.policySummary.type",
+      "responseElements.policy.policySummary.name",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be centralized from the management account and any delegated administrator accounts that can call Organizations APIs.",
+      "Queries and validation workflows should include us-east-1.",
+      "The detection pipeline should maintain a policy inventory keyed by policyId so DetachPolicy and DeletePolicy can be confirmed as SCP-related."
+    ],
+    "limitations": [
+      "DetachPolicy and DeletePolicy do not inherently prove in the raw request that the policy type is SERVICE_CONTROL_POLICY; enrichment from policy inventory is usually required.",
+      "UpdatePolicy content shows the new policy text, but not whether the effective guardrail posture is stronger or weaker unless you diff against the previous version.",
+      "Authorized platform engineering or Terraform workflows can generate true events that are operationally expected."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Org Hierarchy and Target Criticality",
+      "description": "Resolve targetId into root, OU, or account metadata and annotate business sensitivity.",
+      "examples": [
+        "root affecting the entire organization",
+        "production OU",
+        "security OU",
+        "low-risk sandbox account"
+      ],
+      "falsePositiveReduction": "Prevents low-impact org maintenance from being treated the same as a guardrail change affecting production or security-critical scopes."
+    },
+    {
+      "dimension": "Policy Diff and Guardrail Semantics",
+      "description": "Classify what changed in the SCP itself, such as removed denies, narrowed conditions, or broadened actions.",
+      "examples": [
+        "removed deny on cloudtrail:StopLogging",
+        "dropped region restriction condition"
+      ],
+      "falsePositiveReduction": "Focuses the rule on materially dangerous policy weakening instead of every cosmetic update."
+    },
+    {
+      "dimension": "Governance and Change Approval Context",
+      "description": "Correlate SCP changes with known Terraform runs, approved maintenance windows, CAB tickets, and break-glass procedures.",
+      "examples": [
+        "approved change request",
+        "Terraform pipeline run ID",
+        "out-of-band console change with no ticket"
+      ],
+      "falsePositiveReduction": "Allows planned governance work to be downgraded while preserving visibility into unapproved guardrail weakening."
+    },
+    {
+      "dimension": "Actor Trust and Access Path",
+      "description": "Profile who made the change and how: management-account admin, delegated admin role, federated console user, automation role, and source IP reputation.",
+      "examples": [
+        "known platform engineering role from corporate VPN",
+        "first-ever Organizations policy change by an IAM user"
+      ],
+      "falsePositiveReduction": "Separates expected governance operators from suspicious identities abusing rare, high-impact Organizations permissions."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should focus on guardrail weakening, not generic Organizations administration. The highest-confidence branch is any DetachPolicy or DeletePolicy that affects an SCP, especially when the impacted target maps to the root, a production OU, a security OU, or shared-services accounts. The UpdatePolicy branch should only be considered high fidelity when the new SCP content weakens effective controls.",
+    "conditions": [
+      "eventSource equals organizations.amazonaws.com",
+      "eventName equals DetachPolicy, DeletePolicy, or UpdatePolicy",
+      "policyId resolves to a SERVICE_CONTROL_POLICY through response data or enrichment inventory",
+      "highest severity when requestParameters.targetId maps to a root, security OU, production OU, or shared-services scope"
+    ],
+    "tuningGuidance": "1. Maintain a policyId to policy type, name, and attached targets lookup. 2. Add an SCP diff classifier that detects removed deny statements, dropped conditions, or broadened actions. 3. Correlate with approved change windows, Terraform runs, and break-glass tickets rather than suppressing all platform-admin actors.",
+    "whenToFire": "Fire immediately for any successful DetachPolicy or DeletePolicy involving an SCP, especially when the affected scope is the root or a critical OU or account. Fire for UpdatePolicy when the new content weakens the SCP."
+  },
+  "simulationCommand": "aws organizations detach-policy --policy-id p-abc123def456 --target-id ou-ab12-22222222 --profile management --region us-east-1",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low after approved governance workflows are modeled; Medium-Low in organizations with frequent Terraform-driven SCP maintenance",
+    "expectedVolume": "Very low; typically near-zero to single digits per month even in large organizations",
+    "productionReadiness": "production"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query over centralized CloudTrail)",
+      "CloudWatch Logs Insights",
+      "Splunk",
+      "EventBridge + Lambda",
+      "Panther / Chronicle / Datadog style cloud detections"
+    ],
+    "scheduling": "Batch: every 5-15 minutes for centralized CloudTrail analytics. Real-time: EventBridge or SIEM streaming from the management account for immediate alerting on guardrail changes.",
+    "considerations": [
+      "Organizations activity should be collected and queried with us-east-1 visibility in mind.",
+      "A policy inventory and org hierarchy lookup are essential for turning raw policyId and targetId values into meaningful guardrail-impact alerts.",
+      "For UpdatePolicy, diff the previous and new policy JSON before suppressing anything."
+    ]
+  }
+}

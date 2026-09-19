@@ -1,0 +1,12 @@
+title: EKS Access Entry by Unexpected Actor
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: eks.amazonaws.com
+    eventName:
+      - CreateAccessEntry
+      - AssociateAccessPolicy
+  condition: selection
+level: high

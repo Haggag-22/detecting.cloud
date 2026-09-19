@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com eventName=ModifySnapshotAttribute
+| where requestParameters.createVolumePermission.add.userIds IS NOT NULL AND mvcount(requestParameters.createVolumePermission.add.userIds)>0
+| table _time, userIdentity.arn, requestParameters.snapshotId, requestParameters.createVolumePermission, sourceIPAddress

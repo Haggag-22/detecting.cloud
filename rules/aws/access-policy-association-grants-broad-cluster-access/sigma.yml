@@ -1,0 +1,10 @@
+title: Access Policy Association (visibility)
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: eks.amazonaws.com
+    eventName: AssociateAccessPolicy
+  condition: selection
+level: medium

@@ -1,0 +1,13 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "kms.amazonaws.com",
+  "importantFields": [
+    "eventName",
+    "userIdentity.arn",
+    "requestParameters.keyId",
+    "requestParameters.policy",
+    "sourceIPAddress",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"kms.amazonaws.com\",\n  \"eventName\": \"PutKeyPolicy\",\n  \"userIdentity\": {\n    \"type\": \"IAMUser\",\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\"\n  },\n  \"requestParameters\": {\n    \"keyId\": \"arn:aws:kms:us-east-1:123456789012:key/xxx\",\n    \"policyName\": \"default\"\n  },\n  \"sourceIPAddress\": \"203.0.113.10\",\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

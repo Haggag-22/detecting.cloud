@@ -1,0 +1,12 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "cloudfront.amazonaws.com",
+  "importantFields": [
+    "eventSource",
+    "eventName",
+    "requestParameters.id",
+    "responseElements.distributionConfig.origins",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"cloudfront.amazonaws.com\",\n  \"eventName\": \"GetDistribution\",\n  \"requestParameters\": {\n    \"id\": \"E1234\"\n  },\n  \"responseElements\": {\n    \"distributionConfig\": {\n      \"origins\": {\n        \"items\": [\n          {\n            \"domainName\": \"deleted-bucket.s3.amazonaws.com\"\n          }\n        ]\n      }\n    }\n  },\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

@@ -1,0 +1,16 @@
+title: Public Snapshot Loot Chain
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_copy:
+    eventSource: ec2.amazonaws.com
+    eventName: CopySnapshot
+  selection_volume:
+    eventSource: ec2.amazonaws.com
+    eventName:
+      - CreateVolume
+      - AttachVolume
+  condition: selection_copy
+level: critical
+# Full chain correlation requires sourceSnapshotId, derived snapshot/volume lineage, and ordered stage progression.

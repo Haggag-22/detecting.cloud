@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.arn, eventName, eventSource, requestParameters.taskDefinition
+| filter (eventSource = "ecs.amazonaws.com" and eventName = "RunTask")
+  or eventName in ["AssumeRole", "GetSecretValue", "AttachRolePolicy", "PutRolePolicy", "RegisterTaskDefinition"]
+| stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
+| filter cnt > 1
+| sort cnt desc

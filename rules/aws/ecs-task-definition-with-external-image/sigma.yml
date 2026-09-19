@@ -1,0 +1,16 @@
+title: ECS Task Definition External Image
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ecs.amazonaws.com
+    eventName: RegisterTaskDefinition
+  suspicious_registry:
+    requestParameters.containerDefinitions{}.image|contains:
+      - 'docker.io/'
+      - 'index.docker.io/'
+      - 'ghcr.io/'
+      - 'quay.io/'
+  condition: selection and suspicious_registry
+level: high

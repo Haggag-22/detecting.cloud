@@ -1,0 +1,21 @@
+{
+  "id": "det-187",
+  "title": "GuardDuty IPSet Created",
+  "description": "Detects updates of the GuardDuty list of trusted IPs, perhaps to disable security alerts against malicious IPs.",
+  "awsService": "GuardDuty",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "GuardDuty",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Valid change in the GuardDuty (e.g. to ignore internal scanners)"
+  ],
+  "relatedAttackSlugs": []
+}

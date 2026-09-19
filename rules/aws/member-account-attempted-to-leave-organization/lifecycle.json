@@ -1,0 +1,99 @@
+{
+  "whyItMatters": "Leaving an AWS Organization can remove centralized policy, SCP, and governance coverage from an account. Even attempts are high-value signals because they indicate interest in escaping guardrails.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with sufficient control over a member account may try to leave the organization to shed SCP enforcement and reduce centralized security oversight.",
+    "realWorldUsage": "This is attractive because it can weaken or remove inherited guardrails before later persistence, credential creation, or logging changes.",
+    "whyItMatters": "The attempt itself is meaningful, even when blocked, because it reveals defense-evasion intent.",
+    "riskAndImpact": "If missed, defenders may overlook a direct attempt to detach an account from organization-level protection and governance."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for Organizations"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.accountId",
+      "recipientAccountId",
+      "errorCode",
+      "errorMessage",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must ingest Organizations management events.",
+      "The environment should preserve both actor context and recipient account context.",
+      "Guardrail-sensitive follow-on actions should be available for downstream correlation."
+    ],
+    "limitations": [
+      "The event alone does not show why the account attempted to leave.",
+      "Some authorized restructuring projects may involve legitimate leave actions.",
+      "Actor identity may be root or minimally attributed in some cases."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Account Governance Importance",
+      "description": "Determine how critical the member account is and what guardrails it currently inherits from the organization.",
+      "examples": [
+        "prod member account",
+        "shared services account"
+      ],
+      "falsePositiveReduction": "Improves prioritization when high-value accounts attempt to leave."
+    },
+    {
+      "dimension": "Workflow Provenance",
+      "description": "Understand whether the leave attempt aligns with approved migration, divestiture, or restructuring workflows.",
+      "examples": [
+        "documented account migration",
+        "untracked manual leave"
+      ],
+      "falsePositiveReduction": "Separates legitimate org changes from suspicious escape attempts."
+    },
+    {
+      "dimension": "Attempt Outcome",
+      "description": "Track whether the leave action succeeded, failed, or was denied by policy or configuration.",
+      "examples": [
+        "success",
+        "blocked by SCP"
+      ],
+      "falsePositiveReduction": "Helps triage the urgency and next containment steps."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain a broad visibility rule for every `LeaveOrganization` attempt. It establishes the baseline signal that an account tried to detach itself from organizational control, regardless of whether the attempt succeeded.",
+    "conditions": [
+      "eventSource equals organizations.amazonaws.com",
+      "eventName equals LeaveOrganization"
+    ],
+    "tuningGuidance": "1. Keep this baseline broad. 2. Enrich with account governance criticality and attempt outcome. 3. Correlate quickly with post-leave guardrail-sensitive actions for higher confidence.",
+    "whenToFire": "Fire on every successful or failed LeaveOrganization attempt."
+  },
+  "simulationCommand": "aws organizations leave-organization",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low in most environments because LeaveOrganization is rare and sensitive",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because organization-escape attempts are immediately actionable.",
+    "considerations": [
+      "This is the baseline Organizations escape detector.",
+      "Account governance context is the most important enrichment."
+    ]
+  }
+}

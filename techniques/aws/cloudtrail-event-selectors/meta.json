@@ -1,0 +1,20 @@
+{
+  "id": "tech-cloudtrail-event-selectors",
+  "name": "CloudTrail Event Selectors Modification",
+  "shortName": "Event Selectors",
+  "description": "An attacker with cloudtrail:PutEventSelectors modifies the trail's event selectors to exclude data events (S3, Lambda) or management events. They can set ReadWriteType to ReadOnly to exclude write events, or remove data event selectors entirely. This reduces what is logged without disabling the trail. Required permission is cloudtrail:PutEventSelectors. The trail continues to exist but logs fewer events.",
+  "services": [
+    "CloudTrail"
+  ],
+  "permissions": [
+    "cloudtrail:PutEventSelectors"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict PutEventSelectors",
+    "Use organization trail",
+    "Audit event selector changes"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

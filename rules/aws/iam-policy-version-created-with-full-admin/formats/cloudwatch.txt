@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.policyArn, requestParameters.setAsDefault, sourceIPAddress
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "CreatePolicyVersion"
+| filter requestParameters.setAsDefault = true
+| filter requestParameters.policyDocument like /"Action":"*"/ and requestParameters.policyDocument like /"Resource":"*"/
+| sort @timestamp desc

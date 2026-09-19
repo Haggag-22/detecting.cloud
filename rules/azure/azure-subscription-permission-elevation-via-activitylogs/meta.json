@@ -1,0 +1,25 @@
+{
+  "id": "az-119",
+  "title": "Azure Subscription Permission Elevation Via ActivityLogs",
+  "description": "Detects when a user has been elevated to manage all Azure Subscriptions, recorded in Azure Activity Logs. Investigate immediately if unplanned.",
+  "awsService": "Azure Activity",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Azure Activity",
+    "privilege-escalation",
+    "persistence",
+    "initial-access",
+    "stealth",
+    "t1078 004"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "If this was approved by System Administrator."
+  ],
+  "relatedAttackSlugs": []
+}

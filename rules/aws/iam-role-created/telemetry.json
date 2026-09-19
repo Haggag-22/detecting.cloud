@@ -1,0 +1,14 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "iam.amazonaws.com",
+  "importantFields": [
+    "eventSource",
+    "eventName",
+    "userIdentity.arn",
+    "requestParameters.roleName",
+    "requestParameters.assumeRolePolicyDocument",
+    "sourceIPAddress",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"iam.amazonaws.com\",\n  \"eventName\": \"CreateRole\",\n  \"userIdentity\": {\n    \"type\": \"IAMUser\",\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\"\n  },\n  \"requestParameters\": {\n    \"roleName\": \"BackdoorRole\",\n    \"assumeRolePolicyDocument\": \"{}\"\n  },\n  \"sourceIPAddress\": \"203.0.113.10\",\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

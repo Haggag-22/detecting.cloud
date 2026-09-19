@@ -1,0 +1,20 @@
+{
+  "slug": "cloudfront-takeover-initial-access",
+  "title": "CloudFront Orphaned Origin Takeover",
+  "description": "When a CloudFront distribution uses an S3 bucket as its origin and that bucket is later deleted, the distribution becomes orphaned. The origin domain (e.g., bucket-name.s3.amazonaws.com) may still resolve to the S3 namespace. An attacker can create a new S3 bucket with the same name as the deleted bucket. CloudFront will then serve content from the attacker's bucket, allowing the attacker to serve malicious content to users visiting the distribution URL. This provides initial access or enables phishing and malware distribution through a trusted domain.",
+  "severity": "Critical",
+  "objective": "initial-access",
+  "tags": [
+    "CloudFront",
+    "S3",
+    "Origin Takeover",
+    "Initial Access"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-cloudfront-origin-takeover",
+      "context": "Create S3 bucket matching orphaned origin domain"
+    }
+  ],
+  "cloudProvider": "aws"
+}

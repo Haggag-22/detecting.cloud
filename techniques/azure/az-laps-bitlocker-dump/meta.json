@@ -1,0 +1,21 @@
+{
+  "id": "tech-az-laps-bitlocker-dump",
+  "name": "LAPS / BitLocker Key Dump",
+  "shortName": "LAPS Dump",
+  "description": "Windows LAPS stores local admin passwords in Entra. BitLocker recovery keys are stored there too. Anyone who can read them can unlock a laptop or log in as local admin. That is a shortcut around the user's own password and around disk encryption. Helpdesk staff retrieve these keys for a reason. Attackers retrieve them in bulk. Bulk LAPS or BitLocker reads from a non-helpdesk identity are credential theft.",
+  "services": [
+    "Entra ID"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-013",
+    "az-042"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "azure"
+}

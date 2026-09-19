@@ -1,0 +1,21 @@
+{
+  "id": "det-143",
+  "title": "AWS Config Recording Disabled",
+  "description": "Detects AWS Config Service disabling",
+  "awsService": "Config",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "Config",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Valid change in AWS Config Service"
+  ],
+  "relatedAttackSlugs": []
+}

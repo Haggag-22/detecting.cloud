@@ -1,0 +1,22 @@
+{
+  "id": "gcp-022",
+  "title": "Google Cloud Kubernetes Secrets Modified or Deleted",
+  "description": "Identifies when the Secrets are Modified or Deleted.",
+  "awsService": "GKE",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "GKE",
+    "credential-access"
+  ],
+  "logSources": [
+    "GCP Audit Logs"
+  ],
+  "falsePositives": [
+    "Secrets being modified or deleted may be performed by a system administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Secrets modified or deleted from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

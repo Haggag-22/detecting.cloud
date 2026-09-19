@@ -1,0 +1,102 @@
+{
+  "whyItMatters": "Cluster authorization changes should come from a narrow set of trusted platform or automation identities. When an unapproved actor manages EKS access, the event is a strong control-plane abuse signal.",
+  "threatContext": {
+    "attackerBehavior": "An attacker operating through a compromised IAM user, workload role, or unexpected assumed role may try to create access entries or associate policies to establish cluster control.",
+    "realWorldUsage": "This is a practical escalation method because it leverages native EKS access-management APIs and can look like legitimate administration without context.",
+    "whyItMatters": "Authorization context and workflow provenance matter more than whether the actor's ARN contains cluster-admin-like terms.",
+    "riskAndImpact": "If missed, unauthorized actors can directly change cluster access models and establish durable Kubernetes footholds."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EKS",
+      "Authorized cluster-admin and automation principal inventory",
+      "IaC and platform workflow provenance data"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.principalId",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.clusterName",
+      "requestParameters.principalArn",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CreateAccessEntry and AssociateAccessPolicy events must be ingested with full actor context.",
+      "The environment should maintain exact principals allowed to manage EKS authorization.",
+      "Automation provenance such as Terraform, CloudFormation, or brokered workflows should be modeled explicitly."
+    ],
+    "limitations": [
+      "Without actor inventories the rule becomes weak anomaly detection.",
+      "Some legitimate emergency access-management operations may be manual and out-of-band.",
+      "PrincipalId substring checks are too brittle without additional provenance."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized EKS Access Managers",
+      "description": "Exact inventory of principals allowed to create access entries or associate access policies for each cluster or environment.",
+      "examples": [
+        "platform admin role",
+        "approved Terraform pipeline"
+      ],
+      "falsePositiveReduction": "Replaces brittle role-name and principalId allowlists."
+    },
+    {
+      "dimension": "Workflow Provenance",
+      "description": "Determine whether the request came from a trusted IaC, brokered approval, or break-glass workflow.",
+      "examples": [
+        "Terraform apply",
+        "manual unknown session"
+      ],
+      "falsePositiveReduction": "Separates expected automation from suspicious manual access changes."
+    },
+    {
+      "dimension": "Cluster Scope",
+      "description": "Model which clusters or environments each authorized actor may manage.",
+      "examples": [
+        "dev clusters only",
+        "prod platform team"
+      ],
+      "falsePositiveReduction": "Prevents broad admin allowlists from hiding out-of-scope changes."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect EKS access-management changes outside approved cluster-admin paths. It should match `CreateAccessEntry` and `AssociateAccessPolicy`, resolve the actor and workflow provenance, and then check whether that principal is explicitly allowed to manage authorization on the target cluster.",
+    "conditions": [
+      "eventSource equals eks.amazonaws.com",
+      "eventName equals CreateAccessEntry or AssociateAccessPolicy",
+      "actor is not in the approved EKS access-manager inventory or actor is outside approved cluster scope or request lacks approved workflow provenance"
+    ],
+    "tuningGuidance": "1. Use exact principal inventories. 2. Model actor-to-cluster scope, not only global admin allowlists. 3. Treat IaC, break-glass, and platform workflows as explicit approved paths with auditability.",
+    "whenToFire": "Fire when EKS access-management APIs are used by an identity outside approved cluster-admin workflows."
+  },
+  "simulationCommand": "aws eks create-access-entry --cluster-name prod --principal-arn arn:aws:iam::123456789012:user/demo-user --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with actor inventories and workflow provenance; high with ARN substring heuristics",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with actor and cluster inventories",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because unauthorized authorization changes are immediately actionable.",
+    "considerations": [
+      "This is the actor-centric EKS access-management detector.",
+      "Actor inventory, workflow provenance, and cluster scope are the main dependencies."
+    ]
+  }
+}

@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.notebookInstanceName, requestParameters.notebookInstanceLifecycleConfigName, requestParameters.lifecycleConfigName
+| filter eventSource = "sagemaker.amazonaws.com"
+| filter eventName in ["CreateNotebookInstanceLifecycleConfig", "UpdateNotebookInstanceLifecycleConfig", "UpdateNotebookInstance", "StartNotebookInstance"]
+| stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
+| filter cnt >= 2
+| sort cnt desc

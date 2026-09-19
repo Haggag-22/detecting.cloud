@@ -1,0 +1,5 @@
+[
+  "Apply `PutBucketAcl` or `PutObjectAcl` with a public or external-account grant in a lab bucket where ACLs are effective.",
+  "Verify CloudTrail records either the canned ACL or structured access-control-policy grant details.",
+  "Run the detector and confirm it identifies broad or cross-account exposure specifically."
+]

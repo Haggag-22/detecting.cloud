@@ -1,0 +1,119 @@
+{
+  "whyItMatters": "Making an EBS snapshot public is a high-impact exposure event because any AWS account can use that snapshot to create a volume and inspect its contents.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with ec2:ModifySnapshotAttribute can add the public all group to a snapshot's createVolumePermission, turning a private backup into globally accessible storage.",
+    "realWorldUsage": "Public snapshot exposure is more commonly seen as cloud data exposure, post-compromise collection, and red-team tradecraft than as a noisy day-to-day admin action.",
+    "whyItMatters": "This is one of the clearest control-plane indicators that sensitive block-storage data may have been exposed outside intended trust boundaries.",
+    "riskAndImpact": "If the snapshot contains application data, credentials, database files, or filesystem artifacts, public access can lead to broad unauthorized disclosure and follow-on compromise."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.arn",
+      "userIdentity.type",
+      "requestParameters.snapshotId",
+      "requestParameters.groupNames",
+      "requestParameters.createVolumePermission",
+      "sourceIPAddress",
+      "recipientAccountId",
+      "eventTime",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled for EC2/EBS APIs.",
+      "Preserve full requestParameters because public-sharing evidence may appear in either groupNames or nested createVolumePermission fields.",
+      "Maintain regional awareness of EBS block-public-access state for investigation context."
+    ],
+    "limitations": [
+      "Already-public snapshots do not generate fresh events.",
+      "If EBS block public access is enabled, the attempt may fail or the snapshot may not be publicly reachable, but the event still reflects dangerous intent.",
+      "Approved AMI sharing to specific accounts should not be conflated with public snapshot sharing."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Identity Context",
+      "description": "Adds owner, role purpose, federation source, and normal administrative scope for the actor that changed snapshot permissions.",
+      "examples": [
+        "Okta group membership",
+        "role owner from IAM catalog",
+        "break-glass role indicator"
+      ],
+      "falsePositiveReduction": "Helps suppress known image-publishing or platform roles while escalating unexpected actors."
+    },
+    {
+      "dimension": "Snapshot Sensitivity",
+      "description": "Adds source volume tags, attached instance metadata, data classification, and whether the snapshot is tied to production, security, or regulated workloads.",
+      "examples": [
+        "source volume tags: prod, database",
+        "attached instance name",
+        "CMDB application criticality"
+      ],
+      "falsePositiveReduction": "Allows stronger alerting on sensitive snapshots and softer handling of low-risk lab artifacts."
+    },
+    {
+      "dimension": "Image Publishing Context",
+      "description": "Distinguishes direct public snapshot exposure from sanctioned image-distribution workflows such as Image Builder pipelines or approved public AMI publication.",
+      "examples": [
+        "EC2 Image Builder role",
+        "golden-image pipeline tag",
+        "AMI ID linked to snapshot"
+      ],
+      "falsePositiveReduction": "Prevents approved image pipeline activity from being treated as generic malicious exposure."
+    },
+    {
+      "dimension": "Exposure Guardrails",
+      "description": "Adds the regional EBS block-public-access state, snapshot encryption state, and prior permission baseline.",
+      "examples": [
+        "snapshot block public access enabled",
+        "snapshot encrypted with CMK",
+        "previous permission state private"
+      ],
+      "falsePositiveReduction": "Separates successful public exposure from blocked or already-known posture conditions."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should identify the specific control-plane action that makes an EBS snapshot public: ModifySnapshotAttribute where the request adds the public all group. The rule should stay narrowly focused on public exposure, not broader sharing, because explicit account sharing and AMI workflows are materially different.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals ModifySnapshotAttribute",
+      "request indicates public access by adding group all via requestParameters.groupNames or requestParameters.createVolumePermission",
+      "prefer errorCode is null for the main alert"
+    ],
+    "tuningGuidance": "1. Do not suppress approved private AMI sharing or snapshot sharing to specific account IDs under this rule. 2. Allowlist only well-governed image publishing roles after verifying they intentionally publish public artifacts. 3. Add a companion posture hunt for existing public snapshots because this rule only catches the permission-change event.",
+    "whenToFire": "Fire on every successful transition to public snapshot access. In most environments this should be extremely rare to near-zero."
+  },
+  "simulationCommand": "aws ec2 modify-snapshot-attribute --snapshot-id snap-0abc123def4567890 --attribute createVolumePermission --operation-type add --group-names all --region us-east-1",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low (true public snapshot exposure is rare; most noise comes from niche image-publishing workflows)",
+    "expectedVolume": "Near-zero in mature environments; occasional single events in image-publishing or testing accounts",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query)",
+      "CloudWatch Logs Insights",
+      "Splunk",
+      "Datadog",
+      "Panther",
+      "Chronicle",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Batch: every 5-15 minutes for centralized CloudTrail analytics. Real-time: EventBridge on CloudTrail management events for immediate alerting.",
+    "considerations": [
+      "Model public exposure separately from explicit external-account sharing.",
+      "Keep a parallel inventory control for already-public snapshots.",
+      "Correlate with CreateSnapshot and CopySnapshot to understand downstream use."
+    ]
+  }
+}

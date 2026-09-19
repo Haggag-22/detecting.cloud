@@ -1,0 +1,26 @@
+{
+  "id": "det-013",
+  "title": "Lambda Event Source Mapping Created",
+  "description": "Detects new Lambda event source mappings which could be used for persistence via trigger-based execution.",
+  "awsService": "Lambda",
+  "relatedServices": [
+    "DynamoDB",
+    "S3"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "Lambda",
+    "Persistence",
+    "Event Source"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate application deployments"
+  ],
+  "relatedAttackSlugs": [
+    "lambda-persistence"
+  ]
+}

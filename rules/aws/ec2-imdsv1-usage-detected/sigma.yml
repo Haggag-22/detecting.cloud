@@ -1,0 +1,15 @@
+title: EC2 IMDSv1 Usage
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_run:
+    eventSource: ec2.amazonaws.com
+    eventName: RunInstances
+    requestParameters.metadataOptions.httpTokens: optional
+  selection_modify:
+    eventSource: ec2.amazonaws.com
+    eventName: ModifyInstanceMetadataOptions
+    requestParameters.httpTokens: optional
+  condition: 1 of selection_*
+level: medium

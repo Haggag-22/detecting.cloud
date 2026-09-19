@@ -1,0 +1,22 @@
+title: StartSession Followed by Sensitive API Activity
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_start:
+    eventSource: ssm.amazonaws.com
+    eventName: StartSession
+  selection_sensitive:
+    eventName:
+      - GetSecretValue
+      - Decrypt
+      - AssumeRole
+      - CreateAccessKey
+      - PutUserPolicy
+      - AttachRolePolicy
+      - PutRolePolicy
+      - CreateSnapshot
+      - CreateSnapshots
+  condition: selection_start
+level: critical
+# Full correlation requires stable actor or session identity and ordered short-window sequencing.

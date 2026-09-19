@@ -1,0 +1,5 @@
+[
+  "Identify the direct actor, session issuer, and workflow provenance behind the serial-console event.",
+  "Verify whether this identity is explicitly authorized for recovery or serial-console operations on the target environment.",
+  "Determine whether the access came from an approved incident-response, SRE, or break-glass workflow or from an unexpected principal."
+]

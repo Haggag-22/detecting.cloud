@@ -1,0 +1,15 @@
+title: New Managed Policy Created and Attached to Self or Controlled Principal
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - CreatePolicy
+      - AttachUserPolicy
+      - AttachRolePolicy
+      - AttachGroupPolicy
+  condition: selection
+level: critical
+# Full correlation requires join on created policy ARN and actor identity.

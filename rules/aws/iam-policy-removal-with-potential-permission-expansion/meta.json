@@ -1,0 +1,22 @@
+{
+  "id": "det-038",
+  "title": "IAM Policy Removal With Potential Permission Expansion",
+  "description": "Baseline visibility into IAM policy removals with emphasis on changes that may reduce guardrails or expand effective permissions. Broad detach and delete activity remains useful baseline telemetry, but higher-fidelity escalation depends on state, policy semantics, and follow-on behavior.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "IAM",
+    "Policy Detach",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate policy lifecycle management",
+    "Terraform/CloudFormation detach operations"
+  ],
+  "relatedAttackSlugs": []
+}

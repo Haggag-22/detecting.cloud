@@ -1,0 +1,95 @@
+{
+  "whyItMatters": "Already-exposed snapshots may persist long after the original control-plane event. A posture and hunting control is necessary because event-driven detections alone cannot guarantee you catch current exposure state.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may enumerate snapshot permissions to identify exposed data or validate whether a previously shared snapshot remains accessible.",
+    "realWorldUsage": "Permission enumeration is a common precursor to data access, but more importantly, public or external exposure can persist indefinitely without new write events.",
+    "whyItMatters": "This control is primarily about current exposure state and secondarily about who is inspecting snapshot permissions.",
+    "riskAndImpact": "If omitted, defenders may miss long-lived public or externally shared snapshots that remain exposed despite no recent mutation activity."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "Scheduled EC2 inventory or custom posture checks"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "requestParameters.snapshotId",
+      "requestParameters.attribute",
+      "responseElements",
+      "eventTime"
+    ],
+    "loggingRequirements": [
+      "CloudTrail should capture DescribeSnapshotAttribute activity for visibility into permission inspection.",
+      "A separate scheduled inventory job must evaluate current snapshot exposure state across all owned snapshots.",
+      "Approved public or cross-account snapshots should be documented for posture suppression."
+    ],
+    "limitations": [
+      "DescribeSnapshotAttribute activity does not equal exposure; it only shows inspection.",
+      "A public snapshot can remain exposed with no fresh CloudTrail reads or writes.",
+      "This is better modeled as posture and hunting than as a primary alerting rule."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Current Exposure State",
+      "description": "Determine whether the snapshot is currently public or shared to external accounts.",
+      "examples": [
+        "groups = all",
+        "userIds include external account"
+      ],
+      "falsePositiveReduction": "Makes the control about actual posture rather than mere inspection events."
+    },
+    {
+      "dimension": "Enumeration Intent",
+      "description": "Identify whether permission inspection is part of routine security hygiene or suspicious reconnaissance.",
+      "examples": [
+        "scheduled inventory lambda",
+        "manual developer query"
+      ],
+      "falsePositiveReduction": "Separates benign hygiene from curious or suspicious inspection."
+    },
+    {
+      "dimension": "Approved Exception Catalog",
+      "description": "Maintain documented exceptions for intentionally public or cross-account shared snapshots.",
+      "examples": [
+        "approved public golden image",
+        "approved DR snapshot share"
+      ],
+      "falsePositiveReduction": "Keeps the posture control focused on true exposure issues."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should be treated as a posture and hunting control. Scheduled inventory should evaluate current snapshot exposure state across all owned snapshots, while DescribeSnapshotAttribute events provide visibility into who is enumerating permissions.",
+    "conditions": [
+      "scheduled inventory finds a snapshot with public access or unapproved external-account permissions, or CloudTrail shows DescribeSnapshotAttribute against createVolumePermission for monitoring or investigative visibility"
+    ],
+    "tuningGuidance": "1. Do not treat DescribeSnapshotAttribute alone as proof of exposure. 2. Build a periodic inventory over all owned snapshots. 3. Separate posture findings from suspicious permission enumeration activity.",
+    "whenToFire": "Fire posture findings when current exposure state is unsafe, and separately surface permission enumeration when the actor or timing is suspicious."
+  },
+  "simulationCommand": "aws ec2 describe-snapshot-attribute --snapshot-id snap-xxx --attribute createVolumePermission",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Low for posture findings with exception catalogs; medium for raw enumeration visibility",
+    "expectedVolume": "Low for posture exceptions, environment-dependent for inventory runs",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Scheduled inventory jobs",
+      "Config/custom compliance checks",
+      "Athena or Splunk hunts",
+      "EventBridge + Lambda for enumeration visibility"
+    ],
+    "scheduling": "This should primarily run on a schedule because current exposure state may persist without new mutation events.",
+    "considerations": [
+      "Treat this as posture plus hunting, not a pure real-time detection.",
+      "Exception management is essential."
+    ]
+  }
+}

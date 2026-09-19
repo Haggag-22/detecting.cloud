@@ -1,0 +1,22 @@
+{
+  "id": "gcp-014",
+  "title": "Google Workspace Out Of Domain Email Forwarding",
+  "description": "Detects automatic email forwarding to external domains in Google Workspace, which may indicate data leakage or misuse.",
+  "awsService": "Google Workspace",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "Google Workspace",
+    "t1114 003",
+    "collection"
+  ],
+  "logSources": [
+    "Google Workspace Audit"
+  ],
+  "falsePositives": [
+    "Legitimate forwarding"
+  ],
+  "relatedAttackSlugs": []
+}

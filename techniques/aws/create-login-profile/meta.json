@@ -1,0 +1,26 @@
+{
+  "id": "tech-create-login-profile",
+  "name": "IAM Create Login Profile",
+  "shortName": "Login Profile",
+  "description": "An attacker with iam:CreateLoginProfile can set a password for an IAM user, enabling AWS Management Console access. This is used for persistence when the attacker has created a backdoor user or compromised an existing user that lacked console access. The attacker can then log in via the web console in addition to programmatic access. Required permission is iam:CreateLoginProfile. The target user must not already have a login profile.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:CreateLoginProfile"
+  ],
+  "detectionIds": [
+    "det-048",
+    "det-049",
+    "det-050",
+    "det-051"
+  ],
+  "mitigations": [
+    "Restrict CreateLoginProfile",
+    "Prefer SSO over IAM user console",
+    "Monitor login profile creation"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws",
+  "detectionStrategy": "Creating a console password for an IAM user enables Management Console access. In SSO-first or programmatic-only environments, this is highly suspicious. Detection should monitor CreateLoginProfile, focus on unexpected actors and non-human target users, and correlate with ConsoleLogin for high-confidence persistence detection."
+}

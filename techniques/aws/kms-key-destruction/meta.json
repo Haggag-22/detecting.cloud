@@ -1,0 +1,21 @@
+{
+  "id": "tech-kms-key-destruction",
+  "name": "KMS Key Destruction",
+  "shortName": "KMS Destroy",
+  "description": "KMS keys protect disks, backups, and secrets. Scheduling a key for deletion, or tampering with imported key material, makes that data unreadable after the waiting period. Attackers use this as ransomware: pay us or the key (and everything it encrypted) is gone. AWS gives a waiting window before deletion finishes, which is the last chance to cancel. Key deletion should be among the most tightly controlled actions in the account.",
+  "services": [
+    "KMS"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-019",
+    "det-163"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "aws"
+}

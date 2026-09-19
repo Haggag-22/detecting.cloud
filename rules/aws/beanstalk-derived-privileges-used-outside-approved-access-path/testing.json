@@ -1,0 +1,5 @@
+[
+  "From a lab principal linked to an Elastic Beanstalk environment but outside the approved pivot set, perform `AssumeRole` or `CreateAccessKey`.",
+  "Verify CloudTrail records the actor and pivot target context.",
+  "Run the detector and confirm it relies on explicit authorization and Beanstalk linkage rather than ARN substrings."
+]

@@ -1,0 +1,23 @@
+{
+  "id": "det-030",
+  "title": "Organizations SCP Modified or Detached",
+  "description": "Detects changes to Service Control Policies which could remove security guardrails across the organization.",
+  "awsService": "Organizations",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "Organizations",
+    "SCP",
+    "Defense Evasion"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Planned governance changes by cloud platform team"
+  ],
+  "relatedAttackSlugs": []
+}

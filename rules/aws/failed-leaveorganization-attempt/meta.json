@@ -1,0 +1,21 @@
+{
+  "id": "det-116",
+  "title": "Failed LeaveOrganization Attempt",
+  "description": "Detects blocked or failed `LeaveOrganization` attempts. A denied escape attempt is still a serious defense-evasion signal because it shows intent to detach the account from organizational guardrails.",
+  "awsService": "Organizations",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "Organizations",
+    "LeaveOrganization",
+    "Defense Evasion"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Expected policy denial during testing"
+  ],
+  "relatedAttackSlugs": []
+}

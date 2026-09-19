@@ -1,0 +1,24 @@
+{
+  "id": "det-084",
+  "title": "EBS Snapshot Attribute Modified",
+  "description": "Visibility baseline for any ModifySnapshotAttribute call. Public exposure (group=all) is det-021; external-account sharing is det-081. Do not treat this as a Critical public-snapshot alert.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "EBS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EC2",
+    "EBS",
+    "Snapshot",
+    "Visibility"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate snapshot permission updates"
+  ],
+  "relatedAttackSlugs": []
+}

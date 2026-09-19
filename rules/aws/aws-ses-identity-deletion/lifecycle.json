@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects an instance of an Amazon Simple Email Service (SES) identity being deleted via the \"DeleteIdentity\" event. This action could be performed by an adversary to remove traces of their activities after using the SES identity for malicious purposes, such as sending spam or phishing emails, aligning with defense evasion tactics.",
+  "threatContext": {
+    "attackerBehavior": "Detects an instance of an Amazon Simple Email Service (SES) identity being deleted via the \"DeleteIdentity\" event. This action could be performed by an adversary to remove traces of their activities after using the SES identity for malicious purposes, such as sending spam or phishing emails, aligning with defense evasion tactics.",
+    "whyItMatters": "Detects an instance of an Amazon Simple Email Service (SES) identity being deleted via the \"DeleteIdentity\" event. This action could be performed by an adversary to remove traces of their activities after using the SES identity for malicious purposes, such as sending spam or phishing emails, aligning with defense evasion tactics.",
+    "riskAndImpact": "Abuse related to SES can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects an instance of an Amazon Simple Email Service (SES) identity being deleted via the \"DeleteIdentity\" event. This action could be performed by an adversary to remove traces of their activities after using the SES identity for malicious purposes, such as sending spam or phishing emails, aligning with defense evasion tactics.",
+    "whenToFire": "When CloudTrail shows activity matching this AWS SES Identity Deletion detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

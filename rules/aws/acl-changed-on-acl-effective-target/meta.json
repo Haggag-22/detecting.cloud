@@ -1,0 +1,21 @@
+{
+  "id": "det-132",
+  "title": "ACL Changed on ACL-Effective Target",
+  "description": "Detects ACL mutations that are materially effective because the target bucket or object still honors ACLs. This should distinguish real access-control changes from no-op ACL requests against `BucketOwnerEnforced` targets.",
+  "awsService": "S3",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "S3",
+    "ACL",
+    "Persistence"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legacy ACL-enabled bucket management"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com (eventName=AssociateIamInstanceProfile OR eventName=ReplaceIamInstanceProfileAssociation)
+| table _time, userIdentity.arn, eventName, requestParameters.instanceId, requestParameters.iamInstanceProfile, sourceIPAddress

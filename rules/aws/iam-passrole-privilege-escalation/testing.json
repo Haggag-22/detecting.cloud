@@ -1,0 +1,6 @@
+[
+  "Create a Lambda function with a privileged IAM role.",
+  "Ensure the role has administrative privileges.",
+  "Observe the CloudTrail event for CreateFunction.",
+  "Run the detection query to confirm the alert triggers."
+]

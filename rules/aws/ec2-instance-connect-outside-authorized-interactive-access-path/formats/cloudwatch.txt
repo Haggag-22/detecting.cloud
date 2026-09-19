@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, requestParameters.instanceId, sourceIPAddress
+| filter eventSource = "ec2-instance-connect.amazonaws.com"
+| filter eventName = "SendSSHPublicKey"
+| sort @timestamp desc

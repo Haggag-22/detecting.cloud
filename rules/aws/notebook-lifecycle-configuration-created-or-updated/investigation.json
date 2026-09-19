@@ -1,0 +1,5 @@
+[
+  "Identify the actor, lifecycle config name, and whether the action was a creation or update.",
+  "Verify whether the script content and change window were authorized for the target ML environment.",
+  "Check whether the lifecycle config was later attached to a notebook instance or followed by notebook start activity."
+]

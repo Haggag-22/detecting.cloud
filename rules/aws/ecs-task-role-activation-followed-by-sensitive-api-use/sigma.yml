@@ -1,0 +1,18 @@
+title: RunTask Followed by Sensitive Activity from Task Role
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_run:
+    eventSource: ecs.amazonaws.com
+    eventName: RunTask
+  selection_sensitive:
+    eventName:
+      - AssumeRole
+      - GetSecretValue
+      - AttachRolePolicy
+      - PutRolePolicy
+      - RegisterTaskDefinition
+  condition: selection_run
+level: critical
+# Full correlation requires resolved task-role identity and follow-on role-use mapping.

@@ -1,0 +1,21 @@
+{
+  "id": "tech-az-inbox-collection",
+  "name": "Inbox Forwarding and Manipulation",
+  "shortName": "Inbox Rules",
+  "description": "Mailbox rules can forward every message to an outside address or silently move mail to a folder the user never opens. Attackers use this to read contracts, password resets, and MFA messages without sitting in the mailbox all day. The employee still sees some mail, so they do not notice. New forwarding to a personal domain, or rules that delete mail, on an executive mailbox is collection.",
+  "services": [
+    "Entra ID Protection"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-065",
+    "az-066"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "exfiltration",
+  "cloudProvider": "azure"
+}

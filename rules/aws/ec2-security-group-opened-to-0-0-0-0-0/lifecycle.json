@@ -1,0 +1,124 @@
+{
+  "whyItMatters": "Opening a security group to 0.0.0.0/0 is a high-value network exposure signal because it can instantly make existing workloads reachable from the entire internet. The real risk depends on what port and protocol were opened and whether the security group is attached to internet-reachable assets.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with ec2:AuthorizeSecurityGroupIngress adds an ingress rule that allows traffic from 0.0.0.0/0 to a security group. This is commonly used to expose SSH, RDP, database, cache, or internal application ports so the attacker can gain direct access or stage follow-on exploitation and persistence.",
+    "realWorldUsage": "Security-group exposure changes are a common post-compromise and misconfiguration pattern in cloud environments. Attackers and red teams frequently open port 22 or 3389 for direct access, while exposure of database and application ports is used to enable lateral movement or public exploitation of previously internal services.",
+    "whyItMatters": "CloudTrail records the exact moment the exposure is created, which gives defenders a reliable control-plane signal before internet scanning or exploitation begins.",
+    "riskAndImpact": "If the affected security group is attached to instances, ENIs, or load balancers on reachable network paths, the change can expose management services, sensitive applications, or data-plane ports to the internet."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for EC2)",
+      "EC2 / VPC inventory for security-group attachment enrichment"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.groupId",
+      "requestParameters.groupName",
+      "requestParameters.ipPermissions.items{}.ipProtocol",
+      "requestParameters.ipPermissions.items{}.fromPort",
+      "requestParameters.ipPermissions.items{}.toPort",
+      "requestParameters.ipPermissions.items{}.ipRanges.items{}.cidrIp",
+      "sourceIPAddress",
+      "eventTime",
+      "recipientAccountId",
+      "awsRegion"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled for EC2 API activity.",
+      "The logging pipeline must preserve nested ipPermissions arrays.",
+      "To distinguish benign public services from dangerous exposure, enrichment should resolve the security group to attached ENIs, instances, and load balancers."
+    ],
+    "limitations": [
+      "The CloudTrail event shows a configuration change, not whether a service was actually listening or reachable from the internet.",
+      "A rule opened to 0.0.0.0/0 may be low risk if the security group is unattached or only protects an approved public web service.",
+      "The current baseline scope does not cover IPv6 ::/0 unless explicitly added."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Port and Protocol Risk",
+      "description": "Classify the added rule by protocol and port range so the alert reflects the difference between expected public web traffic and dangerous exposure of admin or data ports.",
+      "examples": [
+        "tcp/22 SSH",
+        "tcp/3389 RDP",
+        "tcp/5432 PostgreSQL",
+        "ipProtocol=-1 all traffic"
+      ],
+      "falsePositiveReduction": "Reduces noise from approved 80/443 exposure and raises urgency for management, database, and all-traffic rules."
+    },
+    {
+      "dimension": "Asset Attachment and Reachability",
+      "description": "Resolve the security group to attached ENIs, instances, and load balancers, then determine whether those assets are actually internet-reachable.",
+      "examples": [
+        "SG attached to instance with public IP",
+        "SG attached only to private ENIs",
+        "SG currently unattached"
+      ],
+      "falsePositiveReduction": "A public CIDR on an unattached or private-only SG is less urgent than the same rule on a public EC2 or internet-facing ALB."
+    },
+    {
+      "dimension": "Asset Criticality and Workload Context",
+      "description": "Add business and workload metadata so exposure of production admin hosts, databases, or regulated applications is prioritized above sandbox or edge web tiers.",
+      "examples": [
+        "Tag env=prod",
+        "CMDB service owner payments-api",
+        "Database node in regulated environment"
+      ],
+      "falsePositiveReduction": "Known public-facing web tiers can be tuned differently from sensitive internal systems that should never be internet-exposed."
+    },
+    {
+      "dimension": "Identity and Change Context",
+      "description": "Characterize who made the change and whether it came from expected automation or suspicious ad hoc modification.",
+      "examples": [
+        "Terraform execution role",
+        "Network admin SSO role",
+        "Developer IAM user from unusual IP"
+      ],
+      "falsePositiveReduction": "Expected IaC and network-admin changes can be allowlisted, while manual one-off exposure changes remain high signal."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should identify EC2 security-group ingress rules that introduce 0.0.0.0/0 as a source CIDR, because that change can immediately expose protected services to the internet. The baseline CloudTrail match is intentionally simple, but production value comes from interpreting the nested ipPermissions structure so analysts know exactly which protocol and ports were opened.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals AuthorizeSecurityGroupIngress",
+      "requestParameters.ipPermissions contains an IPv4 CIDR of 0.0.0.0/0",
+      "severity should be adjusted using protocol, port range, and whether the affected security group is attached to reachable assets"
+    ],
+    "tuningGuidance": "1. Treat public exposure of management and data ports as high priority by default. 2. Maintain allowlists for approved public-facing services such as ALBs or web tiers exposing 80/443. 3. Enrich every alert with SG attachments, public-IP status, subnet routing, and service ownership before suppression.",
+    "whenToFire": "Fire whenever a new ingress rule introduces 0.0.0.0/0, then prioritize based on protocol, port, and asset reachability."
+  },
+  "simulationCommand": "aws ec2 authorize-security-group-ingress --group-id sg-0abc123456789def0 --ip-permissions '[{\"IpProtocol\":\"tcp\",\"FromPort\":22,\"ToPort\":22,\"IpRanges\":[{\"CidrIp\":\"0.0.0.0/0\",\"Description\":\"lab-open-ssh\"}]}]'",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Medium (approved public web services and IaC workflows can legitimately open 80/443, but exposure of admin or data ports is usually high signal)",
+    "expectedVolume": "Low to moderate depending on infrastructure change frequency and how much public-facing infrastructure the environment runs",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query)",
+      "CloudWatch Logs Insights",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Batch: every 5-15 minutes for CloudTrail analytics; Real-time: EventBridge or SIEM streaming on AuthorizeSecurityGroupIngress with Lambda enrichment for SG attachments and reachability.",
+    "considerations": [
+      "Without enrichment, this is best treated as a configuration-exposure signal rather than confirmed internet exposure.",
+      "Port and protocol parsing should be first-class in the detection pipeline.",
+      "Extend coverage to IPv6 ::/0 and newer SG rule APIs to avoid blind spots."
+    ]
+  }
+}

@@ -1,0 +1,10 @@
+title: Role Created Outside Authorized IAM Change Path
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: CreateRole
+  condition: selection
+level: high

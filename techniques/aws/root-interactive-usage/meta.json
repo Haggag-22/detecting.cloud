@@ -1,0 +1,20 @@
+{
+  "id": "tech-root-interactive-usage",
+  "name": "Root Account Interactive Usage",
+  "shortName": "Root Usage",
+  "description": "The AWS account root user is the email-and-password owner of the whole account. Day-to-day work should use IAM roles, not root. When root is used in the console or API, someone has the keys to everything: billing, all IAM, every bucket. The only common legitimate case is a documented break-glass emergency. Any other root activity is a credential emergency until proven otherwise.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-193"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

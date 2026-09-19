@@ -1,0 +1,22 @@
+{
+  "id": "det-114",
+  "title": "Member Account Attempted to Leave Organization",
+  "description": "Baseline visibility for any `LeaveOrganization` attempt. Even blocked or failed attempts matter because this action can sever the account from SCPs and centralized guardrail coverage.",
+  "awsService": "Organizations",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "Organizations",
+    "LeaveOrganization",
+    "Defense Evasion"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Authorized account migration",
+    "Org restructuring"
+  ],
+  "relatedAttackSlugs": []
+}

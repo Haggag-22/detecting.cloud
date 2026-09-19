@@ -1,0 +1,7 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com (eventName=CreateSnapshot OR eventName=CreateSnapshots OR eventName=CopySnapshot OR eventName=CreateVolume OR eventName=AttachVolume)
+| eval snapshot_id=coalesce(requestParameters.snapshotId, requestParameters.sourceSnapshotId)
+| eval is_create=if(eventName IN ("CreateSnapshot","CreateSnapshots"), 1, 0)
+| eval is_rehydrate=if(eventName IN ("CopySnapshot","CreateVolume","AttachVolume"), 1, 0)
+| transaction userIdentity.arn maxspan=2h
+| where mvcount(mvfilter(is_create=1))>0 AND mvcount(mvfilter(is_rehydrate=1))>0
+| table _time, userIdentity.arn, eventName, snapshot_id

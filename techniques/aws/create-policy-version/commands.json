@@ -1,0 +1,3 @@
+[
+  "aws iam create-policy-version --policy-arn arn:aws:iam::ACCOUNT:policy/DevPolicy --policy-document file://malicious-policy.json --set-as-default"
+]

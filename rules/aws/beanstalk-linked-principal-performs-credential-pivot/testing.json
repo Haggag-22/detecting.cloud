@@ -1,0 +1,5 @@
+[
+  "From a lab principal linked to an Elastic Beanstalk environment, perform `AssumeRole` or `CreateAccessKey` in a controlled test.",
+  "Verify CloudTrail records the principal and target role or user context.",
+  "Run the detector and confirm it relies on Beanstalk linkage enrichment rather than string matches on principal ARNs."
+]

@@ -1,0 +1,5 @@
+[
+  "Identify the ACL grant and resolve the exact grantee principal, account, or group that received access.",
+  "Confirm that later `GetObject`, `ListBucket`, or `PutObject` activity came from that granted principal or recipient account rather than an unrelated actor touching the same bucket.",
+  "Assess whether the sequence represents expected sharing or suspicious persistence and external use."
+]

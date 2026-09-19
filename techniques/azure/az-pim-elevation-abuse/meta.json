@@ -1,0 +1,25 @@
+{
+  "id": "tech-az-pim-elevation-abuse",
+  "name": "PIM Elevation Abuse",
+  "shortName": "PIM Abuse",
+  "description": "Privileged Identity Management (PIM) is supposed to make admin roles temporary and approved. Attackers abuse it by activating roles too often, skipping MFA on activation, turning PIM alerts off, or assigning standing admin outside PIM. The portal still says 'PIM,' so it can look like legitimate elevation. The difference is who approved it and whether MFA happened. Standing Global Admin and MFA-less PIM activations are the cases that matter most.",
+  "services": [
+    "Entra ID PIM"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-104",
+    "az-105",
+    "az-106",
+    "az-108",
+    "az-109",
+    "az-110"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "azure"
+}

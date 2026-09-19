@@ -1,0 +1,4 @@
+[
+  "aws iam list-policy-versions --policy-arn arn:aws:iam::ACCOUNT:policy/TargetPolicy",
+  "aws iam set-default-policy-version --policy-arn arn:aws:iam::ACCOUNT:policy/TargetPolicy --version-id v1"
+]

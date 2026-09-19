@@ -1,0 +1,8 @@
+index=aws sourcetype=aws:cloudtrail
+  ((eventSource=ec2.amazonaws.com AND eventName=DeleteFlowLogs) OR (eventName=AttachInternetGateway OR eventName=CreateRoute OR eventName=AuthorizeSecurityGroupIngress OR eventName=AuthorizeSecurityGroupEgress OR eventName=CreateNetworkAclEntry OR eventName=ModifySnapshotAttribute OR eventName=GetSecretValue OR eventName=Decrypt))
+| eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
+| eval is_delete=if(eventSource="ec2.amazonaws.com" AND eventName="DeleteFlowLogs", 1, 0)
+| eval is_suspicious=if(eventName IN ("AttachInternetGateway","CreateRoute","AuthorizeSecurityGroupIngress","AuthorizeSecurityGroupEgress","CreateNetworkAclEntry","ModifySnapshotAttribute","GetSecretValue","Decrypt"), 1, 0)
+| transaction actor maxspan=30m
+| where mvcount(mvfilter(is_delete=1))>0 AND mvcount(mvfilter(is_suspicious=1))>0
+| table _time, actor, eventName, requestParameters.flowLogIds

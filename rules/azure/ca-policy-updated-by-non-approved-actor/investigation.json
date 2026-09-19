@@ -1,0 +1,6 @@
+[
+  "Identify the actor and target for CA Policy Updated by Non Approved Actor.",
+  "Confirm whether the change was authorized (ticket, PIM, change window).",
+  "Check for follow-on privilege, persistence, or data-access activity.",
+  "Revert unauthorized changes and rotate credentials if the actor is compromised."
+]

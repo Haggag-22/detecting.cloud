@@ -1,0 +1,5 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, eventName, requestParameters.name, requestParameters.isMultiRegionTrail, requestParameters.includeGlobalServiceEvents, requestParameters.enableLogFileValidation, requestParameters.isOrganizationTrail, sourceIPAddress
+| filter eventSource = "cloudtrail.amazonaws.com"
+| filter isblank(errorCode)
+| filter eventName = "StopLogging" or eventName = "DeleteTrail" or (eventName = "UpdateTrail" and (requestParameters.isMultiRegionTrail = false or requestParameters.includeGlobalServiceEvents = false or requestParameters.enableLogFileValidation = false or requestParameters.isOrganizationTrail = false))
+| sort @timestamp desc

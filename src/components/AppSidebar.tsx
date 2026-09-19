@@ -7,7 +7,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarFooter,
   SidebarGroup,
   SidebarGroupLabel,
   SidebarGroupContent,
@@ -23,7 +22,6 @@ import {
   LayoutGrid,
   FileJson,
   Github,
-  Play,
   Home,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -31,7 +29,6 @@ import { attackPaths } from "@/data/attackPaths";
 import { techniques } from "@/data/techniques";
 import { detections } from "@/data/detections";
 import { LucideIcon } from "lucide-react";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import logoImg from "@/assets/logo.png";
 
 interface SidebarSection {
@@ -58,13 +55,13 @@ function buildSidebarNav(): SidebarNavStructure {
   const redTeam: SidebarSection[] = [
     {
       key: "attack-paths",
-      label: "Attack Paths",
+      label: "Attack Chains",
       icon: Crosshair,
       to: "/attack-paths",
     },
     {
       key: "techniques",
-      label: "Techniques Library",
+      label: "Attack Techniques",
       icon: Route,
       to: "/techniques",
     },
@@ -73,12 +70,6 @@ function buildSidebarNav(): SidebarNavStructure {
       label: "Attack Graph",
       icon: NetworkIcon,
       to: "/attack-graph",
-    },
-    {
-      key: "simulator",
-      label: "Attack Simulator",
-      icon: Play,
-      to: "/simulator",
     },
     {
       key: "threat-matrix",
@@ -147,7 +138,7 @@ export function AppSidebar() {
   const [search, setSearch] = useState("");
 
   const allSearchItems: { label: string; to: string; type: string }[] = [];
-  attackPaths.forEach((ap) => allSearchItems.push({ label: ap.title, to: `/attack-paths?technique=${ap.slug}`, type: "Attack Path" }));
+  attackPaths.forEach((ap) => allSearchItems.push({ label: ap.title, to: `/attack-paths?technique=${ap.slug}`, type: "Attack Chain" }));
   techniques.forEach((t) => allSearchItems.push({ label: t.name, to: `/attack-paths/technique/${t.id}`, type: "Technique" }));
   detections.forEach((d) => allSearchItems.push({ label: d.title, to: `/detection-engineering?rule=${d.id}`, type: "Detection" }));
   allSearchItems.push({ label: "CloudTrail Analyzer", to: "/cloudtrail-analyzer", type: "Tool" });
@@ -160,12 +151,23 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r border-border/50">
       <SidebarHeader className="p-4 space-y-4">
-        <Link to="/" className="flex items-center gap-2.5 group-data-[collapsible=icon]:justify-center">
-          <img src={logoImg} alt="Detecting.Cloud logo" className="h-8 w-8 rounded-lg shrink-0" />
-          <span className="font-display font-bold text-base tracking-tight group-data-[collapsible=icon]:hidden">
-            Detecting<span className="text-primary">.Cloud</span>
-          </span>
-        </Link>
+        <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
+          <Link to="/" className="flex min-w-0 flex-1 items-center gap-2.5 group-data-[collapsible=icon]:flex-none">
+            <img src={logoImg} alt="Detecting.Cloud logo" className="h-8 w-8 rounded-lg shrink-0" />
+            <span className="font-display font-bold text-base tracking-tight group-data-[collapsible=icon]:hidden">
+              Detecting<span className="text-primary">.Cloud</span>
+            </span>
+          </Link>
+          <a
+            href="https://github.com/Haggag-22/detecting.cloud"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="GitHub repository"
+            className="ml-auto p-1 rounded-md text-muted-foreground hover:text-foreground transition-colors shrink-0 group-data-[collapsible=icon]:hidden"
+          >
+            <Github className="h-4 w-4" />
+          </a>
+        </div>
 
         <div className="relative group-data-[collapsible=icon]:hidden">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
@@ -204,7 +206,7 @@ export function AppSidebar() {
           <>
             {renderNavLink(nav.home, location)}
             <SidebarGroup className="border-l-2 border-red-500/25 pl-1.5 py-1">
-              <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-wider text-red-400/90">
+              <SidebarGroupLabel className="text-sm font-bold uppercase text-red-400/90">
                 Red team
               </SidebarGroupLabel>
               <SidebarGroupContent className="space-y-0">
@@ -214,7 +216,7 @@ export function AppSidebar() {
               </SidebarGroupContent>
             </SidebarGroup>
             <SidebarGroup className="border-l-2 border-blue-500/25 pl-1.5 py-1">
-              <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-wider text-blue-400/90">
+              <SidebarGroupLabel className="text-sm font-bold uppercase text-blue-400/90">
                 Blue team
               </SidebarGroupLabel>
               <SidebarGroupContent className="space-y-0">
@@ -226,22 +228,6 @@ export function AppSidebar() {
           </>
         )}
       </SidebarContent>
-
-      <SidebarFooter className="p-3 border-t border-border/50">
-        <div className="flex items-center justify-between group-data-[collapsible=icon]:justify-center">
-          <ThemeToggle />
-          <div className="flex items-center gap-1 group-data-[collapsible=icon]:hidden">
-            <a
-              href="https://github.com/Haggag-22/detecting.cloud"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-1.5 rounded-md text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Github className="h-4 w-4" />
-            </a>
-          </div>
-        </div>
-      </SidebarFooter>
     </Sidebar>
   );
 }

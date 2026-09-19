@@ -1,0 +1,20 @@
+{
+  "id": "tech-az-acr-lifecycle",
+  "name": "Azure Container Registry Lifecycle",
+  "shortName": "ACR CRUD",
+  "description": "Azure Container Registry stores the images your clusters run. Creating a registry the attacker owns, or deleting yours, is a supply and availability problem: they can host images, or they can take yours away. Seeing create or delete in the activity log does not by itself prove they pushed a backdoored image. It proves someone changed the place images live. Treat unexpected registry create/delete as impact until image-push logs say otherwise.",
+  "services": [
+    "Azure Activity"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-046"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "azure"
+}

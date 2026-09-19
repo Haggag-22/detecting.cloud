@@ -1,0 +1,5 @@
+[
+  "Apply an ACL grant to a lab bucket or object, then access it from the granted principal or recipient account within one hour.",
+  "Verify both the grant and the later access events appear in CloudTrail with enough identity context to link the grantee to the access actor.",
+  "Run the correlation detector and confirm it requires ordered grant-to-access linkage rather than simple bucket co-occurrence."
+]

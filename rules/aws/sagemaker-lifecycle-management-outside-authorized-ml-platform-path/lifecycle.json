@@ -1,0 +1,101 @@
+{
+  "whyItMatters": "SageMaker lifecycle management should come from a narrow set of trusted platform or automation identities. When an unapproved actor changes startup logic, the event is a strong persistence or privilege-enablement signal.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may use a compromised app role, developer identity, or unexpected assumed role to change SageMaker startup behavior and establish execution on notebooks.",
+    "realWorldUsage": "This is practical because lifecycle-config management looks administrative and may blend in with normal notebook operations without strong context.",
+    "whyItMatters": "Authorization context and workflow provenance matter much more than role-name substrings.",
+    "riskAndImpact": "If missed, unauthorized identities can establish durable startup-code execution paths in SageMaker environments."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for SageMaker",
+      "Authorized ML platform and automation principal inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.notebookInstanceLifecycleConfigName",
+      "requestParameters.notebookInstanceName",
+      "requestParameters.lifecycleConfigName",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "Lifecycle-config and notebook-association events must be ingested with full actor context.",
+      "The environment should maintain exact principals approved to manage SageMaker startup logic.",
+      "Trusted IaC or ML platform workflow provenance should be modeled explicitly."
+    ],
+    "limitations": [
+      "Without actor inventories the rule becomes weak anomaly logic.",
+      "Some emergency or out-of-band ML platform operations may be manual.",
+      "CloudTrail does not show whether the lifecycle script content itself is malicious."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized Lifecycle Managers",
+      "description": "Exact inventory of identities allowed to create, modify, or attach lifecycle configs.",
+      "examples": [
+        "ML platform admin role",
+        "approved provisioning pipeline"
+      ],
+      "falsePositiveReduction": "Replaces brittle role-name allowlists."
+    },
+    {
+      "dimension": "Workflow Provenance",
+      "description": "Determine whether the request came from a trusted IaC, platform broker, or approved automation path.",
+      "examples": [
+        "Terraform apply",
+        "manual unknown session"
+      ],
+      "falsePositiveReduction": "Separates expected automation from suspicious manual changes."
+    },
+    {
+      "dimension": "Environment Scope",
+      "description": "Model which notebooks or environments each authorized actor may manage.",
+      "examples": [
+        "dev notebooks only",
+        "prod ML platform team"
+      ],
+      "falsePositiveReduction": "Prevents broad admin allowlists from hiding out-of-scope changes."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect SageMaker lifecycle-management activity outside approved ML platform paths. It should match lifecycle-config and notebook-association changes, resolve the actor and workflow provenance, and then check whether that identity is explicitly allowed to manage startup logic in the target environment.",
+    "conditions": [
+      "eventSource equals sagemaker.amazonaws.com",
+      "eventName equals CreateNotebookInstanceLifecycleConfig, UpdateNotebookInstanceLifecycleConfig, CreateNotebookInstance, or UpdateNotebookInstance",
+      "actor is not in the approved SageMaker lifecycle-manager inventory or actor is outside approved environment scope or request lacks approved workflow provenance"
+    ],
+    "tuningGuidance": "1. Use exact actor inventories. 2. Model actor-to-environment scope, not only global ML admin allowlists. 3. Treat IaC and platform automation as explicit approved paths with auditability.",
+    "whenToFire": "Fire when SageMaker lifecycle-management APIs are used by an identity outside approved ML platform workflows."
+  },
+  "simulationCommand": "aws sagemaker update-notebook-instance --notebook-instance-name target --lifecycle-config-name malicious --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with actor inventories and workflow provenance; high with role-name heuristics",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with actor and environment inventories",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because unauthorized startup-logic changes are immediately actionable.",
+    "considerations": [
+      "This is the actor-centric SageMaker lifecycle detector.",
+      "Actor inventory, workflow provenance, and environment scope are the main dependencies."
+    ]
+  }
+}

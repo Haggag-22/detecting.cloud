@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventName=ExportTableToPointInTime
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.tableArn, requestParameters.s3Bucket, requestParameters.s3BucketOwner, requestParameters.s3Prefix, sourceIPAddress

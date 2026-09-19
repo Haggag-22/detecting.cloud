@@ -1,0 +1,14 @@
+title: UpdateLoginProfile Followed by Console Login
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_update:
+    eventSource: iam.amazonaws.com
+    eventName: UpdateLoginProfile
+  selection_login:
+    eventSource: signin.amazonaws.com
+    eventName: ConsoleLogin
+  condition: selection_update
+level: critical
+# Full correlation requires exact target-user linkage and successful sign-in correlation.

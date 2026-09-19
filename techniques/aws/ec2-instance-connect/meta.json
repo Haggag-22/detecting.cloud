@@ -1,0 +1,26 @@
+{
+  "id": "tech-ec2-instance-connect",
+  "name": "EC2 Instance Connect",
+  "shortName": "Instance Connect",
+  "description": "EC2 Instance Connect allows pushing a temporary SSH public key to an instance for 60 seconds. An attacker with ec2-instance-connect:SendSSHPublicKey specifies their public key and the instance ID. The key is added to the ec2-user's authorized_keys. The attacker then SSHes into the instance using their private key. The instance must have the EC2 Instance Connect agent and allow SSH (port 22) from the attacker's IP. Required permission is ec2-instance-connect:SendSSHPublicKey.",
+  "services": [
+    "EC2"
+  ],
+  "permissions": [
+    "ec2-instance-connect:SendSSHPublicKey"
+  ],
+  "detectionIds": [
+    "det-088",
+    "det-089",
+    "det-090",
+    "det-091"
+  ],
+  "mitigations": [
+    "Restrict SendSSHPublicKey",
+    "Use SSM Session Manager",
+    "Audit instance connect usage"
+  ],
+  "category": "lateral-movement",
+  "cloudProvider": "aws",
+  "detectionStrategy": "EC2 Instance Connect is best detected at the moment the temporary key is pushed (SendSSHPublicKey), then correlated with suspicious host or cloud activity. The temporary key lasts about 60 seconds, so the push event is the key control-plane indicator."
+}

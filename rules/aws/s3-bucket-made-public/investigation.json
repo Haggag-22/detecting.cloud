@@ -1,0 +1,6 @@
+[
+  "Identify who removed the public access block.",
+  "Assess whether the bucket contains sensitive data.",
+  "Verify if static website hosting was intended.",
+  "Restore PublicAccessBlock if unauthorized."
+]

@@ -1,0 +1,20 @@
+{
+  "id": "tech-gcp-workspace-app-removed",
+  "name": "Google Workspace Application Removed",
+  "shortName": "Workspace App Delete",
+  "description": "Workspace applications are the tiles people use: Gmail, Drive, custom SAML apps. Removing one can be sabotage (nobody can open the app) or cleanup after the attacker used it. Users feel an outage. Security loses an audit surface. App removal outside a retirement plan is impact. Confirm with the app owner before restoring, in case the app itself was the backdoor.",
+  "services": [
+    "Google Workspace"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-010"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "gcp"
+}

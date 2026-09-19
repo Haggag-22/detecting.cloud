@@ -1,0 +1,5 @@
+[
+  "Identify the deleted bucket and verify whether any CloudFront distribution origin still references its S3 domain name.",
+  "Determine whether the bucket was intentionally decommissioned only after origin updates or whether the deletion created an orphaned origin path.",
+  "If an orphan exists, reserve or recreate the bucket name safely or update the distribution immediately."
+]

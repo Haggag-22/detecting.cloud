@@ -1,0 +1,11 @@
+title: Deletion of Sensitive Flow Logs
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName: DeleteFlowLogs
+  condition: selection
+level: critical
+# Enrich flowLogIds with VPC/subnet tags (prod, egress, security) in SIEM.

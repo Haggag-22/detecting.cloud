@@ -1,0 +1,127 @@
+{
+  "whyItMatters": "Outbound internet access from Lambda is common for SaaS integrations and webhooks, but it is also a practical channel for command-and-control, payload retrieval, and data exfiltration. This detection is only production-worthy when it can attribute the flow to a Lambda workload and distinguish approved business egress from unapproved or suspicious destinations.",
+  "threatContext": {
+    "attackerBehavior": "An attacker who gains code execution in Lambda, updates a function's code or layer, or repurposes an existing function can use outbound network access to reach attacker-controlled infrastructure. Common follow-on behavior includes beaconing to C2, downloading second-stage payloads, and sending secrets or records to external services.",
+    "realWorldUsage": "In serverless intrusions, outbound traffic is more often a post-compromise behavior than a standalone signal: malicious code in functions or layers commonly calls webhooks, paste sites, object stores, or transient cloud hosts. Defenders usually get better results from a combination of destination allowlisting, threat-intel enrichment, and first-seen or unusual-destination analytics rather than a simple any-external-IP rule.",
+    "whyItMatters": "CloudTrail records Lambda configuration changes and invokes, but it does not tell you which remote internet destinations the function contacted. If a compromised Lambda can reach arbitrary external infrastructure, it can quietly exfiltrate data or maintain remote control while blending into otherwise normal HTTPS traffic.",
+    "riskAndImpact": "If this behavior goes undetected, attackers can exfiltrate secrets, customer data, or application outputs from highly automated workflows and use Lambda as a durable outbound execution point that inherits trusted IAM permissions."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "Amazon VPC Flow Logs for the subnets or ENIs used by VPC-attached Lambda functions",
+      "Lambda function inventory/configuration from AWS Lambda APIs or AWS Config",
+      "EC2 network-interface inventory (DescribeNetworkInterfaces) or an equivalent ENI mapping cache"
+    ],
+    "requiredFields": [
+      "interfaceId",
+      "srcAddr",
+      "dstAddr",
+      "pktDstAddr",
+      "dstPort",
+      "protocol",
+      "bytes",
+      "action",
+      "flowDirection",
+      "trafficPath",
+      "pktDstAwsService",
+      "start",
+      "end"
+    ],
+    "loggingRequirements": [
+      "The function must be VPC-attached; non-VPC Lambda egress is not visible in VPC Flow Logs.",
+      "Enable VPC Flow Logs with a custom format so you capture interface-id, flow-direction, traffic-path, pkt-dstaddr, and pkt-dst-aws-service.",
+      "Use a 1-minute maximum aggregation interval if you want practical detection latency.",
+      "Maintain a current Lambda-to-subnet/security-group inventory and an ENI mapping cache so flow records can be attributed to Lambda-owned ENIs."
+    ],
+    "limitations": [
+      "This detection does not cover Lambda functions that are not attached to a customer VPC.",
+      "Hyperplane ENIs can be shared by multiple functions with the same subnet/security-group combination, so ENI-only attribution may be ambiguous.",
+      "VPC Flow Logs contain IPs and ports, not DNS names; hostname-aware allowlisting needs Resolver logs, a proxy, or function-level telemetry.",
+      "Legitimate SaaS/API traffic often uses the same ports and protocols as suspicious egress, especially TCP/443."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Function Context",
+      "description": "Adds business ownership, environment, execution role, runtime, deployment timestamp, and declared outbound dependencies for the Lambda function.",
+      "examples": [
+        "Function tags: service=payments, env=prod, owner=platform-payments",
+        "Execution role ARN and attached policies",
+        "LastModified timestamp for recent code or layer changes"
+      ],
+      "falsePositiveReduction": "Lets you distinguish a webhook processor that is expected to reach third-party APIs from a function that should only talk to AWS services or internal resources."
+    },
+    {
+      "dimension": "Destination Intelligence",
+      "description": "Classifies the remote endpoint using approved registries, AWS service ranges, ASN ownership, geolocation, domain age, and threat-intelligence verdicts.",
+      "examples": [
+        "Approved destination registry keyed by function or service",
+        "AWS ip-ranges or pkt-dst-aws-service enrichment for service endpoints",
+        "Threat intel hits for Tor or known malware infrastructure"
+      ],
+      "falsePositiveReduction": "Separates approved SaaS/API egress from unknown or high-risk infrastructure instead of treating all public IPs equally."
+    },
+    {
+      "dimension": "Egress Architecture",
+      "description": "Adds routing and control-plane context such as NAT gateway, gateway endpoints, subnet tags, and security-group intent.",
+      "examples": [
+        "traffic-path indicates internet gateway versus same-VPC routing",
+        "Subnet tags: private-egress, app, data",
+        "Security group intent: allow only Stripe and Snowflake egress"
+      ],
+      "falsePositiveReduction": "Prevents expected AWS-service or approved egress-path traffic from looking like generic internet access."
+    },
+    {
+      "dimension": "Behavioral Baselines",
+      "description": "Compares current destinations, ports, byte volume, and timing to normal behavior for the function, service, and environment.",
+      "examples": [
+        "First-seen destination for this function",
+        "New external ASN for this workload",
+        "Outbound volume 20x higher than normal"
+      ],
+      "falsePositiveReduction": "Makes rare or novel egress stand out while suppressing repetitive, known-good integrations."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should not page on every Lambda connection to a public IP. In production, it should start by attributing egress flow records to VPC-attached Lambda workloads, then classify the destination as approved, expected AWS service traffic, unknown, or suspicious. The alert should fire only when internet-bound traffic is unapproved for that function or has independent risk indicators such as threat-intel hits, first-seen destination, unusual port, or abnormal volume. Keep the broad any-external-egress query as a hunt or dashboard, and reserve alerting for unapproved or suspicious destinations with confident Lambda attribution.",
+    "conditions": [
+      "VPC Flow Log record has action = ACCEPT",
+      "VPC Flow Log record has flowDirection = egress",
+      "interfaceId maps to a Lambda-attributed ENI with medium or high confidence",
+      "Destination is external to approved private/internal ranges and is not suppressed as expected AWS service traffic",
+      "At least one risk condition is true: destination not in approved registry, destination has suspicious reputation, destination is first-seen for this function, destination port is unusual for the workload, or byte volume materially exceeds baseline"
+    ],
+    "tuningGuidance": "1. Build an approved destination registry per function, service, or environment. 2. Suppress expected AWS service traffic using VPC endpoints, AWS IP ranges, and pkt-dst-aws-service enrichment. 3. Improve attribution by segmenting sensitive functions into distinct subnet/security-group combinations. 4. Treat generic internet egress as informational unless there is destination risk, novelty, or strong policy violation.",
+    "whenToFire": "Fire as an analyst-worthy alert when a VPC-attached Lambda function reaches an external destination that is not approved for that workload or is independently suspicious. In mature environments this should be low to moderate volume; if alerts are dominated by common SaaS/API destinations, the allowlist registry is incomplete."
+  },
+  "simulationCommand": "aws lambda invoke --function-name vpc-egress-lab --payload '{\"url\":\"https://api.ipify.org\"}' /tmp/lambda-egress-output.json",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Medium without destination registry; Low to Medium once approved-destination and AWS-service suppression are in place",
+    "expectedVolume": "Org-dependent; low in tightly controlled environments, moderate in API-heavy serverless estates",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "CloudWatch Logs subscription on VPC Flow Logs -> Lambda/Kinesis analytics pipeline",
+      "Athena over centralized VPC Flow Logs in S3",
+      "Splunk",
+      "Panther",
+      "Datadog",
+      "Chronicle",
+      "Elastic"
+    ],
+    "scheduling": "Streaming preferred for detection; expect practical latency of 1-5 minutes with Flow Logs plus ingestion. Batch analytics every 5-15 minutes is acceptable for lower-sensitivity environments.",
+    "considerations": [
+      "Do not model this as native EventBridge-only detection; VPC Flow Logs are typically consumed from CloudWatch Logs, S3, Kinesis, or a SIEM pipeline.",
+      "Custom Flow Log format is mandatory if you want routing and AWS-service context.",
+      "This rule only works for VPC-attached Lambda functions; document that coverage gap explicitly.",
+      "Destination registry ownership is a process requirement, not just a query requirement."
+    ]
+  }
+}

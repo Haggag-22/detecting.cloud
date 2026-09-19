@@ -1,0 +1,19 @@
+{
+  "id": "tech-lambda-backdoor",
+  "name": "Lambda Resource Policy Backdoor",
+  "shortName": "Lambda Backdoor",
+  "description": "An attacker with lambda:AddPermission adds a resource-based policy statement to a Lambda function that allows an external principal (e.g., attacker account root or a specific user) to invoke the function. The Lambda may already have privileged code or the attacker may have updated it. The attacker can now invoke the function from their account at any time, creating a persistent backdoor. Required permission is lambda:AddPermission. The attacker specifies the principal and action (lambda:InvokeFunction).",
+  "services": [
+    "Lambda",
+    "IAM"
+  ],
+  "permissions": [
+    "lambda:AddPermission"
+  ],
+  "detectionIds": [
+    "det-202"
+  ],
+  "mitigations": [],
+  "category": "persistence",
+  "cloudProvider": "aws"
+}

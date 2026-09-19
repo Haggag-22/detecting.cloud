@@ -1,0 +1,4 @@
+fields @timestamp, eventSource, eventName, requestParameters.id
+| filter eventSource = "cloudfront.amazonaws.com"
+| filter eventName in ["GetDistribution", "ListDistributions"]
+| sort @timestamp desc

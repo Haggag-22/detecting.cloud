@@ -1,0 +1,24 @@
+{
+  "id": "det-124",
+  "title": "Burst or Broad Environment Enumeration",
+  "description": "Detects broad or burst Elastic Beanstalk environment enumeration. Attackers often inspect many applications or environments in a short window rather than reading a single known target.",
+  "awsService": "Elastic Beanstalk",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "Elastic Beanstalk",
+    "Credential Theft",
+    "Burst"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate multi-env admin",
+    "Deployment across envs"
+  ],
+  "relatedAttackSlugs": []
+}

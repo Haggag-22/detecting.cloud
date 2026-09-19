@@ -1,0 +1,25 @@
+{
+  "id": "az-009",
+  "title": "Measurable Increase Of Successful Authentications",
+  "description": "Detects when successful sign-ins increased by 10% or greater.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Low",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "initial-access",
+    "stealth",
+    "t1078"
+  ],
+  "logSources": [
+    "Azure Sign-in Logs"
+  ],
+  "falsePositives": [
+    "Increase of users in the environment"
+  ],
+  "relatedAttackSlugs": []
+}

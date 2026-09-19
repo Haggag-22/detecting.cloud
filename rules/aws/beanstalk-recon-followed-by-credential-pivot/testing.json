@@ -1,0 +1,5 @@
+[
+  "Call `DescribeConfigurationSettings` in a lab environment, then perform `AssumeRole`, `CreateAccessKey`, or a policy-attachment action within 30 minutes.",
+  "Verify both the reconnaissance and pivot events appear in CloudTrail.",
+  "Run the detector and confirm it requires ordered recon-to-pivot correlation rather than loose event grouping."
+]

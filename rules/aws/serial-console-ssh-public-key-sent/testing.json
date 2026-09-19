@@ -1,0 +1,5 @@
+[
+  "Use `SendSerialConsoleSSHPublicKey` against a test instance in an account where serial console is enabled.",
+  "Verify CloudTrail captures the event and target context.",
+  "Run the baseline rule and confirm it records the access without relying on actor heuristics."
+]

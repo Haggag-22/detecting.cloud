@@ -1,0 +1,5 @@
+[
+  "Inspect the exact override content, including buildspec commands and environment-variable changes.",
+  "Verify whether the actor is allowed to launch builds with overrides on the target project.",
+  "Check for follow-on secrets access, role assumption, decryption, or outbound access by the build role."
+]

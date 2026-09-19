@@ -1,0 +1,100 @@
+{
+  "whyItMatters": "EC2 Instance Connect is a direct interactive access path to Linux instances. Even though the key is short-lived, the control-plane event is an important signal that an operator intentionally opened SSH access to a specific host.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with the necessary permissions may push a temporary SSH key to a target instance to gain shell access without modifying long-term authorized keys.",
+    "realWorldUsage": "This technique is attractive because it uses a native AWS feature and produces a concise control-plane event before hands-on-keyboard access.",
+    "whyItMatters": "As with SSM, the control-plane access event is often the best high-fidelity precursor to later host or cloud abuse.",
+    "riskAndImpact": "If missed, defenders may lose the clearest evidence that a temporary interactive access path was established to a workload."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2 Instance Connect",
+      "EC2 inventory and instance tags"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.instanceId",
+      "sourceIPAddress",
+      "userAgent"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must ingest SendSSHPublicKey events.",
+      "The environment should resolve target instance ownership and sensitivity from EC2 inventory.",
+      "Actor identity should be normalized across direct IAM users and assumed roles."
+    ],
+    "limitations": [
+      "CloudTrail shows the key push but not whether SSH login succeeded.",
+      "The temporary key lifetime is short, so the event alone does not indicate persistence.",
+      "Baseline volumes vary depending on how heavily EC2 Instance Connect is used operationally."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Actor Authorization",
+      "description": "Determine whether the actor is expected to perform EC2 Instance Connect operations.",
+      "examples": [
+        "platform engineer",
+        "application role"
+      ],
+      "falsePositiveReduction": "Turns baseline visibility into stronger actor-based detections."
+    },
+    {
+      "dimension": "Target Instance Context",
+      "description": "Resolve the target instance to environment, owner, and sensitivity.",
+      "examples": [
+        "prod bastion",
+        "ephemeral dev host"
+      ],
+      "falsePositiveReduction": "Improves triage when access targets important systems."
+    },
+    {
+      "dimension": "Follow-On Access Signals",
+      "description": "Correlate the key push with later cloud or host-access activity.",
+      "examples": [
+        "Secrets Manager access",
+        "SSM session",
+        "sensitive API use"
+      ],
+      "falsePositiveReduction": "Helps determine whether the key push led to suspicious operator behavior."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain a broad visibility rule for every successful `SendSSHPublicKey` event. It establishes the interactive access baseline that higher-fidelity actor, target, and post-access detections depend on.",
+    "conditions": [
+      "eventSource equals ec2-instance-connect.amazonaws.com",
+      "eventName equals SendSSHPublicKey",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep this baseline broad. 2. Resolve actor and target context for triage. 3. Use separate detections for unauthorized actors, sensitive targets, and short-window post-access activity.",
+    "whenToFire": "Fire on every successful EC2 Instance Connect key push for visibility."
+  },
+  "simulationCommand": "aws ec2-instance-connect send-ssh-public-key --instance-id i-0abc123 --instance-os-user ec2-user --ssh-public-key file://id_rsa.pub --availability-zone us-east-1a",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium as a baseline visibility rule, low-medium with actor and target enrichment",
+    "expectedVolume": "Environment-dependent",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because interactive access is immediately actionable.",
+    "considerations": [
+      "This is the feeder rule for stronger EC2 Instance Connect detections.",
+      "Instance inventory is the primary enrichment dependency."
+    ]
+  }
+}

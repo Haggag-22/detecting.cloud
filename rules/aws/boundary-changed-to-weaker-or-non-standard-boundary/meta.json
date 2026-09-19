@@ -1,0 +1,22 @@
+{
+  "id": "det-045",
+  "title": "Boundary Changed to Weaker or Non-Standard Boundary",
+  "description": "Detects permissions-boundary changes where the new boundary falls outside the approved boundary catalog or materially weakens the prior control state. This should use exact boundary allowlists and semantic comparison, not risky-name matching.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "Permissions Boundary",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "New approved boundary added to allowlist",
+    "Legitimate boundary migration"
+  ],
+  "relatedAttackSlugs": []
+}

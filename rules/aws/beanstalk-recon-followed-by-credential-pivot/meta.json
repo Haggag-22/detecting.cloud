@@ -1,0 +1,24 @@
+{
+  "id": "det-119",
+  "title": "Beanstalk Recon Followed by Credential Pivot",
+  "description": "High-confidence Beanstalk recon-to-pivot detection. This should correlate configuration reads with later credential or privilege pivots using ordered sequence and stable actor identity, not simple same-user aggregation.",
+  "awsService": "Elastic Beanstalk",
+  "relatedServices": [
+    "IAM",
+    "STS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "Elastic Beanstalk",
+    "Credential Pivot",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate config read followed by IAM admin"
+  ],
+  "relatedAttackSlugs": []
+}

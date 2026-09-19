@@ -11,15 +11,17 @@ import { communityRules } from "@/data/communityRules";
 /** Matrix columns = Techniques Library categories only (same order as sidebar under Techniques Library). */
 export type MatrixTactic = TechniqueCategory;
 
-/** Exact sidebar order: Initial Access → … → Defense Evasion */
+/** Exact sidebar order including Discovery and Impact */
 export const MATRIX_TACTIC_ORDER: MatrixTactic[] = [
   "initial-access",
   "credential-access",
   "privilege-escalation",
   "persistence",
   "lateral-movement",
+  "discovery",
   "exfiltration",
   "defense-evasion",
+  "impact",
 ];
 
 export const matrixTacticLabels: Record<MatrixTactic, string> = {
@@ -28,8 +30,10 @@ export const matrixTacticLabels: Record<MatrixTactic, string> = {
   "privilege-escalation": techniqueCategories["privilege-escalation"].label,
   persistence: techniqueCategories.persistence.label,
   "lateral-movement": techniqueCategories["lateral-movement"].label,
+  discovery: techniqueCategories.discovery.label,
   exfiltration: techniqueCategories.exfiltration.label,
   "defense-evasion": techniqueCategories["defense-evasion"].label,
+  impact: techniqueCategories.impact.label,
 };
 
 export function getMatrixTacticForTechnique(t: Technique): MatrixTactic {

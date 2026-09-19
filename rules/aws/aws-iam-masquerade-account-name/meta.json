@@ -1,0 +1,21 @@
+{
+  "id": "det-159",
+  "title": "AWS IAM Masquerade Account Name",
+  "description": "Detects creation of IAM users with names that mimic AWS service or administrative accounts (Masquerade Account Name). Adversaries use convincing account names to blend into the environment.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "IAM",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate service account naming conventions in some organizations."
+  ],
+  "relatedAttackSlugs": []
+}

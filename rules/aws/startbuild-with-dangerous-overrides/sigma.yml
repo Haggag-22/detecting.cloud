@@ -1,0 +1,14 @@
+title: StartBuild with Dangerous Overrides
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: codebuild.amazonaws.com
+    eventName: StartBuild
+  filter_buildspec:
+    requestParameters.buildspecOverride|exists: true
+  filter_envvars:
+    requestParameters.environmentVariablesOverride|exists: true
+  condition: selection and (filter_buildspec or filter_envvars)
+level: high

@@ -1,0 +1,6 @@
+[
+  "Identify who retrieved secrets and how many distinct secrets were accessed.",
+  "Verify if bulk retrieval matches app startup, rotation, or deployment behavior.",
+  "Check for recent ListSecrets or discovery activity.",
+  "Review secret classes and whether multiple applications or environments were touched."
+]

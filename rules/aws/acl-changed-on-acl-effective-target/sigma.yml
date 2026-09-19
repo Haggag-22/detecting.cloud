@@ -1,0 +1,15 @@
+title: ACL Changed on ACL-Enabled Bucket
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: s3.amazonaws.com
+    eventName:
+      - PutBucketAcl
+      - PutObjectAcl
+  filter_error:
+    errorCode|exists: true
+  condition: selection and not filter_error
+level: high
+# Enrich: exclude buckets with ObjectOwnership=BucketOwnerEnforced if available.

@@ -1,0 +1,99 @@
+{
+  "whyItMatters": "Boundary assignment and replacement are IAM control-plane events that can either tighten controls or quietly weaken them. Broad visibility is necessary because the same API covers both benign governance and abuse.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may replace a boundary with a weaker one, assign a non-standard boundary, or rotate a target away from the organization's normal controls.",
+    "realWorldUsage": "Boundary changes are often overlooked because they look like governance work, but they can materially change the maximum permissions a principal can use.",
+    "whyItMatters": "This baseline rule is the feeder for stronger semantic boundary-change detections.",
+    "riskAndImpact": "If missed, a boundary change can reduce guardrails on production or privileged identities while appearing routine."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.roleName",
+      "requestParameters.userName",
+      "requestParameters.permissionsBoundary",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "Previous boundary state should be captured so before/after comparisons are possible.",
+      "Boundary policy inventory should be available for semantic analysis."
+    ],
+    "limitations": [
+      "The raw event does not state whether the new boundary is stronger or weaker than the previous one.",
+      "Without prior-state context this is a baseline audit signal.",
+      "Some environments rotate boundaries through normal automation."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Before/After Boundary Diff",
+      "description": "Compare the previous and new boundary ARNs and semantics.",
+      "examples": [
+        "prod boundary replaced with custom boundary",
+        "same restriction class but new version"
+      ],
+      "falsePositiveReduction": "Separates harmless rotation from meaningful weakening."
+    },
+    {
+      "dimension": "Target Principal Criticality",
+      "description": "Classify whether the affected identity is privileged, production, delegated-admin, or break-glass.",
+      "examples": [
+        "shared deploy role",
+        "break-glass user"
+      ],
+      "falsePositiveReduction": "Prioritizes the boundary changes that matter most."
+    },
+    {
+      "dimension": "Boundary Catalog",
+      "description": "Classify approved, standard, experimental, and custom boundaries.",
+      "examples": [
+        "approved delegated-admin boundary",
+        "custom one-off boundary"
+      ],
+      "falsePositiveReduction": "Makes it easier to triage normal governance from unusual control changes."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should stay broad and baseline-oriented. It captures any successful boundary assignment or replacement, then relies on previous-boundary state, boundary classification, and target sensitivity to decide whether the change is benign or risky.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals PutRolePermissionsBoundary or PutUserPermissionsBoundary",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep the event match broad. 2. Add before/after boundary comparison in enrichment. 3. Treat this as the baseline companion to stronger boundary-weakened detections.",
+    "whenToFire": "Fire on every successful boundary change for visibility, with escalation when the new boundary is weaker, non-standard, or assigned to a high-value principal."
+  },
+  "simulationCommand": "aws iam put-role-permissions-boundary --role-name TargetRole --permissions-boundary arn:aws:iam::123456789012:policy/ExampleBoundary",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium raw, low-medium with before/after and boundary-catalog enrichment",
+    "expectedVolume": "Low to moderate depending on IAM governance automation",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time or scheduled analytics both work because this is a direct management event.",
+    "considerations": [
+      "Keep this rule broad so it can feed stronger semantic boundary-change detections.",
+      "Maintain a boundary inventory so investigations can compare old and new state."
+    ]
+  }
+}

@@ -14,7 +14,7 @@ npm install
 
 ### 2. Add Your Community Rule
 
-> **Important**: Community rules go in `src/data/communityRules.ts` — NOT in `src/data/detections.ts` (which contains the core platform rules maintained by the project owner).
+> **Important**: Community rules go in `src/data/communityRules.ts` — NOT in `rules/` (core platform rules maintained by the project owner).
 
 Add a new entry to the `communityRules` array in `src/data/communityRules.ts`:
 
@@ -62,9 +62,11 @@ Navigate to the **Community Rules** page and verify your rule appears correctly.
 ## Project Structure (for reference)
 
 ```
+rules/
+└── aws/<rule-slug>/    ← Core detection rules (Sigma + research lifecycle)
 src/data/
-├── communityRules.ts   ← ADD YOUR RULES HERE
-├── detections.ts       ← Core rules (do NOT modify)
+├── communityRules.ts   ← ADD YOUR COMMUNITY RULES HERE
+├── detections.ts       ← Loads core rules from rules/ (do NOT paste rules here)
 ├── techniques.ts       ← Technique library (do NOT modify)
 ├── attackPaths.ts      ← Attack paths (do NOT modify)
 └── services.ts         ← AWS services (do NOT modify)

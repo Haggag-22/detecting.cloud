@@ -1,0 +1,23 @@
+{
+  "id": "tech-mfa-device-tampering",
+  "name": "IAM MFA Device Tampering",
+  "shortName": "MFA Tamper",
+  "description": "MFA is the second factor on an IAM user. If an attacker already has the password, they still cannot log in until they remove or replace the MFA device. Deactivating or deleting the virtual MFA device is how they finish the takeover. After that, password-only login works from anywhere. MFA changes on admin users, especially from a new IP, should page immediately.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:DeactivateMFADevice",
+    "iam:DeleteVirtualMFADevice"
+  ],
+  "detectionIds": [
+    "det-188"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

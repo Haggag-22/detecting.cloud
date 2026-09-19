@@ -1,0 +1,23 @@
+{
+  "id": "az-040",
+  "title": "Azure Application Gateway Modified or Deleted",
+  "description": "Identifies when a application gateway is modified or deleted.",
+  "awsService": "Azure Networking",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Azure Networking",
+    "impact"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Application gateway being modified or deleted may be performed by a system administrator.",
+    "Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Application gateway modified or deleted from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

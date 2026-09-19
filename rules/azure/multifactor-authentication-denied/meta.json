@@ -1,0 +1,26 @@
+{
+  "id": "az-093",
+  "title": "Multifactor Authentication Denied",
+  "description": "User has indicated they haven't instigated the MFA prompt and could indicate an attacker has the password for the account.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "initial-access",
+    "credential-access",
+    "stealth",
+    "t1078 004"
+  ],
+  "logSources": [
+    "Azure Sign-in Logs"
+  ],
+  "falsePositives": [
+    "Users actually login but miss-click into the Deny button when MFA prompt."
+  ],
+  "relatedAttackSlugs": []
+}

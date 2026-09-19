@@ -1,0 +1,23 @@
+{
+  "id": "az-035",
+  "title": "App Granted Privileged Delegated Or App Permissions",
+  "description": "Detects when administrator grants either application permissions (app roles) or highly privileged delegated permissions",
+  "awsService": "Entra ID Apps",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Apps",
+    "persistence",
+    "privilege-escalation",
+    "t1098 003"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "When the permission is legitimately needed for the app"
+  ],
+  "relatedAttackSlugs": []
+}

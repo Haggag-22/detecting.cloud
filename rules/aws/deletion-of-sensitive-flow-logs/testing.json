@@ -1,0 +1,5 @@
+[
+  "Delete a test flow log that is mapped to a sensitive VPC or egress segment in inventory.",
+  "Verify CloudTrail captures the flow log IDs.",
+  "Run the detector and confirm it keys on sensitive network classification rather than flow-log naming patterns."
+]

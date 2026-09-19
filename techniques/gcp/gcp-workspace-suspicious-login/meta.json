@@ -1,0 +1,21 @@
+{
+  "id": "tech-gcp-workspace-suspicious-login",
+  "name": "Workspace Suspicious / Government-Backed Login",
+  "shortName": "Workspace Login",
+  "description": "Google flags some Workspace logins as suspicious or as coming from government-backed attackers. That does not name the person, but it means the session does not look like the user's normal device and place. For admins and executives, treat it as a compromised session until they confirm they were traveling. Force sign-out, require a password change, and check forwarding rules on that mailbox.",
+  "services": [
+    "Google Workspace"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-011",
+    "gcp-017"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "initial-access",
+  "cloudProvider": "gcp"
+}

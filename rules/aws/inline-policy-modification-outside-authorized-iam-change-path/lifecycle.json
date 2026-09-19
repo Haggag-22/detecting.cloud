@@ -1,0 +1,118 @@
+{
+  "whyItMatters": "Inline policy changes made outside approved IAM administration workflows are strong indicators of privilege abuse, weak governance, or compromised identities operating beyond their intended scope.",
+  "threatContext": {
+    "attackerBehavior": "An attacker using a developer role, workload role, EC2 instance profile, or misused human identity may call PutRolePolicy or PutUserPolicy to grant access outside established IAM change processes.",
+    "realWorldUsage": "Unexpected-actor IAM changes are common in cloud post-compromise tradecraft because workload identities or delegated roles often already have enough access to mutate IAM if guardrails are weak.",
+    "whyItMatters": "The key decision is not whether the actor name contains admin, but whether the identity, session context, and workflow prove the caller is allowed to mutate IAM permissions for that target.",
+    "riskAndImpact": "If missed, a compromised or out-of-scope identity can expand permissions, create persistence, or alter sensitive roles without going through normal approval and change channels."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "errorCode",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.principalId",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "userIdentity.invokedBy",
+      "userIdentity.sessionContext.attributes.mfaAuthenticated",
+      "sourceIPAddress",
+      "userAgent",
+      "requestParameters.roleName",
+      "requestParameters.userName",
+      "requestParameters.policyDocument"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "Actor authorization decisions require an approved-actor registry keyed by ARN, principalId, or session issuer ARN.",
+      "Target ownership and approved automation provenance should be available as enrichment."
+    ],
+    "limitations": [
+      "Without an authorized-actor inventory this rule becomes noisy baseline visibility.",
+      "IaC and central automation can look unusual without change-provenance enrichment.",
+      "CloudTrail alone does not prove target ownership relationships."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized IAM Change Actors",
+      "description": "Exact inventory of identities allowed to manage IAM.",
+      "examples": [
+        "platform-security-admin",
+        "terraform-iam-runner",
+        "break-glass IAM admin"
+      ],
+      "falsePositiveReduction": "Replaces weak substring filtering with stable approved actor classification."
+    },
+    {
+      "dimension": "Approved Change Provenance",
+      "description": "Correlate userAgent, invokedBy, session tags, pipeline metadata, change ticket, and maintenance window.",
+      "examples": [
+        "CloudFormation execution role",
+        "approved CAB window",
+        "out-of-band console session"
+      ],
+      "falsePositiveReduction": "Separates sanctioned automation from suspicious manual or untracked changes."
+    },
+    {
+      "dimension": "Target Ownership",
+      "description": "Determine whether the actor is allowed to modify the target user or role.",
+      "examples": [
+        "actor owns target app role",
+        "cross-team target",
+        "self-modification"
+      ],
+      "falsePositiveReduction": "Makes actor-target scope violations much higher signal."
+    },
+    {
+      "dimension": "Behavioral Novelty",
+      "description": "Track first-time IAM changes by actor, first change against a target, off-hours manual use, or unusual source IP.",
+      "examples": [
+        "first IAM write by workload role",
+        "actor never modified this role before"
+      ],
+      "falsePositiveReduction": "Raises confidence for unusual IAM write patterns."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule detects inline policy changes made outside approved IAM administration workflows. The key decision is not whether the actor name contains admin, but whether the identity, session context, and workflow prove the caller is allowed to mutate IAM permissions for that target.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals PutRolePolicy or PutUserPolicy",
+      "actor is not in the approved IAM-change inventory or request lacks approved automation or change provenance, or actor is modifying a target outside its ownership boundary"
+    ],
+    "tuningGuidance": "1. Allowlist exact ARNs and principalIds, not substrings. 2. Down-rank events with clear IaC provenance and matching change records. 3. Up-rank first-time actor-target pairs, manual CLI or console sessions, and policy changes that materially expand privilege.",
+    "whenToFire": "Fire when an inline policy change is made outside authorized IAM change paths. Raise severity when dangerous policy content or high-value targets are involved."
+  },
+  "simulationCommand": "aws iam put-role-policy --role-name TargetRole --policy-name TestInlinePolicy --policy-document file://inline-policy.json --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with identity inventory; High without",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation",
+      "EventBridge + Lambda enrichment",
+      "Athena with lookup tables",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Best in real time or short scheduled windows because authorization context is lookup-driven.",
+    "considerations": [
+      "Keep Sigma broad and push authorization decisions into enrichment.",
+      "Actor-to-target ownership and approved workflow context matter more than actor naming.",
+      "Use this as the actor-centric companion to dangerous policy-content detections."
+    ]
+  }
+}

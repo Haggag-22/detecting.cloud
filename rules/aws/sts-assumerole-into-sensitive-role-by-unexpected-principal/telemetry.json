@@ -1,0 +1,15 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "sts.amazonaws.com",
+  "importantFields": [
+    "eventSource",
+    "eventName",
+    "userIdentity.type",
+    "userIdentity.arn",
+    "requestParameters.roleArn",
+    "requestParameters.roleSessionName",
+    "sourceIPAddress",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"sts.amazonaws.com\",\n  \"eventName\": \"AssumeRole\",\n  \"userIdentity\": {\n    \"type\": \"IAMUser\",\n    \"arn\": \"arn:aws:iam::123456789012:user/compromised-dev\"\n  },\n  \"requestParameters\": {\n    \"roleArn\": \"arn:aws:iam::987654321098:role/CrossAccountAdmin\",\n    \"roleSessionName\": \"attacker-session\"\n  },\n  \"sourceIPAddress\": \"203.0.113.50\",\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

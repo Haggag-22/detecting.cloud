@@ -1,0 +1,5 @@
+[
+  "Identify the configuration read and the exact privileged follow-on activity within the correlation window.",
+  "Determine whether the same normalized actor or a newly activated derived identity performed the later privileged action.",
+  "Assess whether the Beanstalk configuration could have exposed the credentials or trust path used in the follow-on activity."
+]

@@ -1,0 +1,5 @@
+[
+  "Reproduce User Added to an Administrator's Azure AD Role in a lab azure tenant.",
+  "Confirm the matching audit/sign-in event is logged.",
+  "Run the Sigma rule against the event and confirm an alert."
+]

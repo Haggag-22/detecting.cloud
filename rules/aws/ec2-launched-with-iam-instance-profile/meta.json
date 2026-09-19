@@ -1,0 +1,26 @@
+{
+  "id": "det-065",
+  "title": "EC2 Launched with IAM Instance Profile",
+  "description": "Baseline visibility for EC2 launches that attach an IAM instance profile. This is important feeder telemetry because compute-attached roles are a major privilege surface, even when the launch itself is routine.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EC2",
+    "RunInstances",
+    "PassRole",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate EC2 launches with instance profiles",
+    "Auto Scaling",
+    "Standard provisioning pipelines"
+  ],
+  "relatedAttackSlugs": []
+}

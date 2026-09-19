@@ -1,0 +1,25 @@
+{
+  "id": "det-095",
+  "title": "Serial Console Followed by Sensitive Recovery or Persistence Activity",
+  "description": "High-confidence post-access detection for serial console use. This should correlate low-level host access with later persistence, credential, or privilege-affecting cloud actions using ordered sequence and stable actor identity.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "IAM",
+    "SSM",
+    "Secrets Manager"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "EC2",
+    "Serial Console",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate recovery followed by expected remediation"
+  ],
+  "relatedAttackSlugs": []
+}

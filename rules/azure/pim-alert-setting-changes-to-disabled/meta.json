@@ -1,0 +1,25 @@
+{
+  "id": "az-105",
+  "title": "PIM Alert Setting Changes To Disabled",
+  "description": "Detects when PIM alerts are set to disabled.",
+  "awsService": "Entra ID PIM",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID PIM",
+    "initial-access",
+    "persistence",
+    "privilege-escalation",
+    "stealth",
+    "t1078"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Administrator disabling PIM alerts as an active choice."
+  ],
+  "relatedAttackSlugs": []
+}

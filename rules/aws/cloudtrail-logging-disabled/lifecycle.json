@@ -1,0 +1,127 @@
+{
+  "whyItMatters": "CloudTrail is the primary audit source for AWS management activity. Stopping it, deleting the trail, or weakening trail settings reduces visibility into subsequent IAM, STS, KMS, S3, and service control-plane actions.",
+  "threatContext": {
+    "attackerBehavior": "After obtaining credentials with CloudTrail permissions, an attacker can call StopLogging for immediate suppression, DeleteTrail to remove the trail configuration, or UpdateTrail to quietly weaken coverage. The most meaningful UpdateTrail abuse cases are converting a multi-Region trail to single-Region, disabling global service event logging, disabling log file validation, or downgrading an organization trail.",
+    "realWorldUsage": "This is a common post-compromise defense-evasion pattern in cloud intrusions and red-team tradecraft. Operators often reduce logging just before IAM changes, credential abuse, persistence, or exfiltration so the follow-on activity is harder to detect and investigate.",
+    "whyItMatters": "StopLogging and DeleteTrail are rare, high-signal administrative actions. UpdateTrail is common enough for normal operations that it must be scoped to security-relevant parameter changes or it becomes noisy.",
+    "riskAndImpact": "If this goes undetected, responders can lose regional, global-service, or organization-wide visibility, and log integrity guarantees may be broken. That creates blind spots for later malicious actions."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events)",
+      "Centralized ingestion for the trail home Region"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "awsRegion",
+      "readOnly",
+      "errorCode",
+      "recipientAccountId",
+      "userIdentity.arn",
+      "userIdentity.type",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "sourceIPAddress",
+      "userAgent",
+      "requestParameters.name",
+      "requestParameters.isMultiRegionTrail",
+      "requestParameters.includeGlobalServiceEvents",
+      "requestParameters.enableLogFileValidation",
+      "requestParameters.isOrganizationTrail",
+      "requestParameters.s3BucketName",
+      "requestParameters.cloudWatchLogsLogGroupArn"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled for cloudtrail.amazonaws.com.",
+      "Ingest the trail from its home Region; StopLogging, DeleteTrail, and UpdateTrail must be called there for multi-Region trails.",
+      "Prefer an org-level centralized pipeline or secondary immutable logging path so trail tampering does not fully suppress alerting."
+    ],
+    "limitations": [
+      "UpdateTrail only includes parameters supplied in the request; missing fields do not mean a setting was unchanged or false.",
+      "Broad UpdateTrail matching will generate admin-change noise in environments that manage trails with Terraform or control planes.",
+      "If the attacker also disrupts S3/KMS/CloudWatch Logs delivery, downstream SIEM visibility can degrade even though the API call itself is a CloudTrail event."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Identity Context",
+      "description": "Classify the actor as break-glass admin, Terraform/CI role, security platform role, human admin, or unexpected workload role.",
+      "examples": [
+        "IAM role tags or owner from IAM Identity Center/IdP",
+        "Session issuer ARN for assumed roles",
+        "MFA presence and console vs API caller profile"
+      ],
+      "falsePositiveReduction": "Known infrastructure automation accounts explain many benign UpdateTrail events but rarely justify StopLogging or DeleteTrail."
+    },
+    {
+      "dimension": "Trail Criticality",
+      "description": "Determine whether the target is the org trail, a multi-Region security trail, or a lower-value account-local trail.",
+      "examples": [
+        "DescribeTrails output",
+        "Trail tags such as security or prod",
+        "IsOrganizationTrail metadata"
+      ],
+      "falsePositiveReduction": "Escalate only when the modified trail is the authoritative security trail for the account or organization."
+    },
+    {
+      "dimension": "Destination Integrity",
+      "description": "Validate whether the trail still writes to approved S3 buckets, KMS keys, SNS topics, and CloudWatch Logs groups.",
+      "examples": [
+        "Approved S3 bucket/account allowlist",
+        "Expected CloudWatch Logs group ARN",
+        "Expected KMS key ARN for audit logs"
+      ],
+      "falsePositiveReduction": "Legitimate reconfiguration usually stays within approved destinations; unexpected destination changes are much higher risk."
+    },
+    {
+      "dimension": "Behavioral Baseline",
+      "description": "Compare this actor and trail against historical change frequency, change windows, and IaC deployment records.",
+      "examples": [
+        "First-ever StopLogging by this role",
+        "Terraform apply window correlation",
+        "Change ticket or deployment ID"
+      ],
+      "falsePositiveReduction": "Out-of-band changes by identities that do not normally manage CloudTrail should be prioritized."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should not treat all CloudTrail trail updates equally. Successful StopLogging and DeleteTrail calls are high-confidence defense-evasion events and should alert immediately. Successful UpdateTrail calls should alert only when the submitted parameters weaken audit coverage or integrity, such as changing a multi-Region trail to single-Region, disabling global service events, disabling log file validation, or downgrading an organization trail.",
+    "conditions": [
+      "eventSource equals cloudtrail.amazonaws.com",
+      "readOnly equals false",
+      "errorCode is absent",
+      "Branch A: eventName equals StopLogging",
+      "Branch B: eventName equals DeleteTrail",
+      "Branch C: eventName equals UpdateTrail AND at least one security-relevant trail setting is explicitly set to false"
+    ],
+    "tuningGuidance": "1. Keep StopLogging and DeleteTrail unsuppressed except for tightly controlled break-glass or account-bootstrap workflows. 2. For UpdateTrail, exclude approved CI/CD or platform roles only when the change matches an expected ticket, IaC deployment, or maintenance window. 3. Treat destination-only changes as a separate suspicious reconfiguration rule and compare against an allowlist of approved audit destinations.",
+    "whenToFire": "Fire immediately on successful StopLogging and DeleteTrail. Fire on UpdateTrail only when the change materially reduces logging scope or integrity; otherwise log or hunt but do not page."
+  },
+  "simulationCommand": "aws cloudtrail stop-logging --name org-security-trail --region us-east-1",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low for StopLogging/DeleteTrail; Medium for scoped UpdateTrail; High if all UpdateTrail events are included",
+    "expectedVolume": "0-5 alerts/month in most mature environments; org-dependent",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "CloudWatch Logs Insights",
+      "Athena / CloudTrail Lake scheduled query",
+      "Splunk / SIEM streaming pipeline"
+    ],
+    "scheduling": "Real-time for StopLogging and DeleteTrail via EventBridge or SIEM streaming; 5-15 minute scheduled analytics for scoped UpdateTrail hunting and correlation.",
+    "considerations": [
+      "Evaluate events in the trail home Region.",
+      "Pair this with a second immutable logging path or org-level aggregation so a single trail change does not blind detection.",
+      "Correlate with follow-on IAM, STS, KMS, S3, GuardDuty, or Security Hub suppression activity in the next 15-60 minutes."
+    ]
+  }
+}

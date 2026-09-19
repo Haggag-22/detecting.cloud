@@ -1,0 +1,5 @@
+[
+  "Detach a policy with Deny or Restrict in the name.",
+  "Verify CloudTrail captures the event.",
+  "Run the detection to confirm the alert triggers."
+]

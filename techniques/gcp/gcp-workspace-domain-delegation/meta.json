@@ -1,0 +1,20 @@
+{
+  "id": "tech-gcp-workspace-domain-delegation",
+  "name": "Workspace Domain-Wide API Delegation",
+  "shortName": "Domain Delegation",
+  "description": "Domain-wide delegation lets a Google Cloud service account act as any user in Workspace \u2014 read mail, change calendars, drive files. It is meant for migration tools. In an attacker's hands it is a master key that does not need each user's password. New delegations, especially to a project the identity team does not know, are persistence at tenant scope. Review delegated scopes the same way you review Global Admin.",
+  "services": [
+    "Google Workspace"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-012"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "gcp"
+}

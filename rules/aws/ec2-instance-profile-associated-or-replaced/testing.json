@@ -1,0 +1,5 @@
+[
+  "Call AssociateIamInstanceProfile or ReplaceIamInstanceProfileAssociation on a test instance.",
+  "Verify CloudTrail records the instance and profile details.",
+  "Run the detection and confirm the baseline event appears before privilege-delta enrichment."
+]

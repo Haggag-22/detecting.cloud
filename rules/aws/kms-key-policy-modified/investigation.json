@@ -1,0 +1,6 @@
+[
+  "Identify who modified the key policy.",
+  "Inspect the new policy for unauthorized principals.",
+  "Verify if this was routine key management.",
+  "Review key usage for anomalies."
+]

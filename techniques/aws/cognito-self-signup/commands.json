@@ -1,0 +1,3 @@
+[
+  "aws cognito-idp sign-up --client-id xxx --username attacker@email.com --password 'P@ssw0rd!'"
+]

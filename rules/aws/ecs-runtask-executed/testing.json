@@ -1,0 +1,5 @@
+[
+  "Call ECS RunTask for a test task definition.",
+  "Verify CloudTrail captures the cluster, task definition, and overrides.",
+  "Run the detection and confirm the baseline event is emitted before role-specific enrichment."
+]

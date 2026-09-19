@@ -1,0 +1,10 @@
+title: EKS Access Entry Created
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: eks.amazonaws.com
+    eventName: CreateAccessEntry
+  condition: selection
+level: medium

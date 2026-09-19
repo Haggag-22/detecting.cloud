@@ -1,0 +1,5 @@
+[
+  "Resolve the target instance to its environment, owner, and sensitivity classification.",
+  "Verify whether the actor was approved to use serial console on that target class.",
+  "Review whether later recovery or privilege-affecting activity followed the access on the sensitive system."
+]

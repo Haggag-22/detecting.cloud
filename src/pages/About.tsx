@@ -6,7 +6,7 @@ import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 const AboutPage = () => {
   return (
     <Layout>
-      <div className="container py-12 max-w-2xl">
+      <div className="container max-w-2xl">
         <PageTitleWithIcon team="neutral" icon={Info} className="mb-6">
           About Detecting.Cloud
         </PageTitleWithIcon>
@@ -28,11 +28,11 @@ const AboutPage = () => {
           <p>
             Explore{" "}
             <Link to="/attack-paths" className="text-primary hover:underline font-medium">
-              attack paths
+              attack chains
             </Link>
-            , the{" "}
+            ,{" "}
             <Link to="/techniques" className="text-primary hover:underline font-medium">
-              techniques library
+              attack techniques
             </Link>
             , and{" "}
             <Link to="/detection-engineering" className="text-primary hover:underline font-medium">
@@ -59,7 +59,7 @@ const AboutPage = () => {
           </p>
           <ol className="space-y-2 ml-4 list-decimal">
             <li><strong>Fork & clone</strong> the <a href="https://github.com/Haggag-22/detecting.cloud" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">repo</a></li>
-            <li><strong>Add your rule</strong> to <code className="bg-muted px-1.5 py-0.5 rounded text-sm">src/data/communityRules.ts</code> (community rules only — core rules in <code className="bg-muted px-1.5 py-0.5 rounded text-sm">detections.ts</code> are maintained by the project)</li>
+            <li><strong>Add your rule</strong> to <code className="bg-muted px-1.5 py-0.5 rounded text-sm">src/data/communityRules.ts</code> (community rules only — core rules live under <code className="bg-muted px-1.5 py-0.5 rounded text-sm">rules/&lt;provider&gt;/&lt;rule-slug&gt;/</code>)</li>
             <li><strong>Test locally</strong> with <code className="bg-muted px-1.5 py-0.5 rounded text-sm">npm run dev</code> and verify on the Community Rules page</li>
             <li><strong>Open a Pull Request</strong> against <code className="bg-muted px-1.5 py-0.5 rounded text-sm">main</code> with a brief description of what the rule detects</li>
           </ol>

@@ -1,0 +1,11 @@
+title: Orphaned CloudFront S3 Origin
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: cloudfront.amazonaws.com
+    eventName: GetDistribution
+  condition: selection
+level: critical
+# Posture hunt: List distributions, for each S3 origin (bucket.s3.amazonaws.com) check if bucket exists via s3:HeadBucket. Flag if missing.

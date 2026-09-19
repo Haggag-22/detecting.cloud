@@ -1,0 +1,26 @@
+{
+  "id": "tech-ec2-serial-console",
+  "name": "EC2 Serial Console Access",
+  "shortName": "Serial Console",
+  "description": "EC2 Serial Console provides direct serial port access to instances, bypassing network and SSH. An attacker with ec2-instance-connect:SendSerialConsoleSSHPublicKey can add their SSH key for serial console access. They connect via the EC2 Serial Console endpoint. This bypasses security groups, NACLs, and SSH configuration. Useful when the instance is otherwise unreachable. Serial console must be enabled at the account level. Required permission is ec2-instance-connect:SendSerialConsoleSSHPublicKey.",
+  "services": [
+    "EC2"
+  ],
+  "permissions": [
+    "ec2-instance-connect:SendSerialConsoleSSHPublicKey"
+  ],
+  "detectionIds": [
+    "det-092",
+    "det-093",
+    "det-094",
+    "det-095"
+  ],
+  "mitigations": [
+    "Restrict serial console",
+    "Audit serial console access",
+    "Use account-level serial console settings"
+  ],
+  "category": "lateral-movement",
+  "cloudProvider": "aws",
+  "detectionStrategy": "Serial console access is highly sensitive because it operates outside the normal VPC path and bypasses security-group/NACL authorization. Since it is usually rare and requires account-level enablement, detections should treat it as high-signal and correlate with follow-on persistence or credential-access activity."
+}

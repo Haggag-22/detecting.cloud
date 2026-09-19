@@ -1,0 +1,5 @@
+[
+  "Run: aws lambda update-function-code --function-name TargetFunction --zip-file fileb://malicious.zip",
+  "Confirm CloudTrail captured the event.",
+  "Run the Sigma rule against the event."
+]

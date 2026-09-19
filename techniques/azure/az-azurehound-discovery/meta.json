@@ -1,0 +1,20 @@
+{
+  "id": "tech-az-azurehound-discovery",
+  "name": "AzureHound Directory Discovery",
+  "shortName": "AzureHound",
+  "description": "AzureHound is a tool that walks Entra ID the way BloodHound walks Active Directory: users, groups, roles, and who can take over whom. The traffic is mostly read APIs, but the user agent often says AzureHound. Red teams use it with permission. Attackers use it to find the shortest path to Global Admin. An AzureHound user agent from an identity that is not on the red-team roster is directory recon.",
+  "services": [
+    "Entra ID"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-012"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "discovery",
+  "cloudProvider": "azure"
+}

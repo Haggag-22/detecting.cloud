@@ -1,0 +1,12 @@
+title: Suspicious EC2 Launch with IAM Profile by Unexpected Actor
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName: RunInstances
+  filter_profile:
+    requestParameters.iamInstanceProfile|exists: true
+  condition: selection and filter_profile
+level: high

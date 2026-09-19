@@ -1,0 +1,96 @@
+{
+  "whyItMatters": "This rule captures the actual takeover condition: a distribution still points to an S3 origin bucket that does not exist. Once this state exists, name reuse can turn it into content takeover.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may monitor for orphaned origin names and claim them when the bucket name becomes available.",
+    "realWorldUsage": "This class of exposure usually results from stale infrastructure references rather than an attacker API action, which is why posture analytics are essential.",
+    "whyItMatters": "Unlike precursor detections, this rule identifies the directly exploitable misconfiguration state itself.",
+    "riskAndImpact": "If missed, trusted CloudFront distributions may serve content from a bucket later controlled by a different party."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "CloudFront distribution inventory APIs",
+      "S3 bucket existence validation or bucket inventory",
+      "Optional CloudTrail for origin configuration changes"
+    ],
+    "requiredFields": [
+      "distribution id",
+      "origin domainName",
+      "alias set",
+      "bucket existence status",
+      "origin type"
+    ],
+    "loggingRequirements": [
+      "The posture job must enumerate CloudFront distributions regularly.",
+      "The platform must correctly identify which origins correspond to S3 buckets.",
+      "Bucket-existence checks such as `HeadBucket` must run in a controlled and reliable way."
+    ],
+    "limitations": [
+      "This is a posture control, not a pure event-driven rule.",
+      "Not every origin-looking hostname is an S3 bucket that can be reclaimed the same way.",
+      "Cross-account ownership checks may require additional validation beyond simple existence testing."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Bucket Existence and Control",
+      "description": "Determine whether the origin bucket exists and whether it is controlled by the expected owner.",
+      "examples": [
+        "missing bucket",
+        "existing but wrong owner"
+      ],
+      "falsePositiveReduction": "Distinguishes exploitable state from normal operation."
+    },
+    {
+      "dimension": "Distribution Exposure",
+      "description": "Classify whether the affected distribution is public, customer-facing, or internal.",
+      "examples": [
+        "www.example.com",
+        "internal asset CDN"
+      ],
+      "falsePositiveReduction": "Prioritizes the most dangerous orphaned origins."
+    },
+    {
+      "dimension": "Origin Type Validation",
+      "description": "Confirm that the origin truly maps to an S3 bucket path susceptible to this failure mode.",
+      "examples": [
+        "bucket.s3.amazonaws.com",
+        "non-S3 custom origin"
+      ],
+      "falsePositiveReduction": "Prevents false positives on unrelated origins."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should run as scheduled posture analytics: enumerate CloudFront distributions, extract S3-backed origin bucket names, and flag any distribution whose referenced bucket no longer exists or is no longer controlled as expected.",
+    "conditions": [
+      "distribution inventory contains an S3-backed origin",
+      "referenced bucket name does not currently exist or fails expected ownership validation"
+    ],
+    "tuningGuidance": "1. Normalize S3 origin hostnames carefully. 2. Re-run the posture job on a regular cadence. 3. Prioritize distributions with public aliases or business-critical traffic.",
+    "whenToFire": "Fire when a CloudFront distribution references an S3 origin bucket that is missing or otherwise orphaned."
+  },
+  "simulationCommand": "aws cloudfront list-distributions",
+  "quality": {
+    "signalQuality": 10,
+    "falsePositiveRate": "Low with accurate origin parsing and bucket validation",
+    "expectedVolume": "Extremely low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Scheduled posture jobs",
+      "Athena with inventory snapshots",
+      "Lambda or Step Functions inventory checks",
+      "Security data lake workflows"
+    ],
+    "scheduling": "Run on a regular schedule and after distribution or bucket lifecycle changes.",
+    "considerations": [
+      "This is the core posture detector for the orphaned-origin family.",
+      "Reliable origin parsing and bucket validation are the main dependencies."
+    ]
+  }
+}

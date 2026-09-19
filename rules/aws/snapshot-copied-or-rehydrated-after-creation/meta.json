@@ -1,0 +1,24 @@
+{
+  "id": "det-082",
+  "title": "Snapshot Copied or Rehydrated After Creation",
+  "description": "Detects likely snapshot abuse when a newly created snapshot is copied, restored into a volume, or progressed toward attachment soon after creation. This should be modeled with snapshot and volume lineage, not actor-only time-window correlation.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "EBS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EC2",
+    "EBS",
+    "Snapshot",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate DR or migration workflows"
+  ],
+  "relatedAttackSlugs": []
+}

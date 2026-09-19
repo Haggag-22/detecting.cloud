@@ -1,0 +1,19 @@
+{
+  "slug": "bedrock-agent-hijacking",
+  "title": "Bedrock Agent Hijacking",
+  "description": "Bedrock agents use Lambda functions to execute custom logic. An attacker with bedrock:UpdateAgent and lambda:UpdateFunctionCode can modify the agent's Lambda to run attacker-controlled code. When the agent is invoked (e.g., via the Bedrock API or an application using the agent), the malicious Lambda executes with the agent's IAM role permissions. This hijacks the agent's behavior for privilege escalation or data exfiltration while appearing to be legitimate agent usage.",
+  "severity": "High",
+  "objective": "privilege-escalation",
+  "tags": [
+    "Bedrock",
+    "Lambda",
+    "Agent Hijacking"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-bedrock-agent-hijacking",
+      "context": "Update agent Lambda to execute attacker code"
+    }
+  ],
+  "cloudProvider": "aws"
+}

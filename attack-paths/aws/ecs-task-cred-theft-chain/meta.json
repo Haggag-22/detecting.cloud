@@ -1,0 +1,23 @@
+{
+  "slug": "ecs-task-cred-theft-chain",
+  "title": "ECS Task Credential Theft Chain",
+  "description": "ECS tasks receive IAM credentials via the task role, which are available inside the container through the metadata endpoint or environment variables. An attacker with code execution in a container (e.g., via a vulnerable application) can retrieve these credentials. If the task role has sts:AssumeRole or iam:CreateAccessKey, the attacker uses the stolen credentials to assume higher-privilege roles or create persistent access keys, escalating from the task's permissions to broader account access.",
+  "severity": "High",
+  "objective": "credential-access",
+  "tags": [
+    "ECS",
+    "IAM",
+    "Credential Theft"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-ecs-task-credential-theft",
+      "context": "Extract task role credentials from container"
+    },
+    {
+      "techniqueId": "tech-assumerole-abuse",
+      "context": "Assume higher-privilege roles with stolen creds"
+    }
+  ],
+  "cloudProvider": "aws"
+}

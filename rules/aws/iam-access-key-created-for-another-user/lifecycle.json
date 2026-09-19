@@ -1,0 +1,125 @@
+{
+  "whyItMatters": "Creating an access key for another IAM user can establish durable, API-usable credentials without changing trust policies or role assumptions. It is a strong persistence and credential-abuse signal when it is clearly distinguished from a user legitimately creating a key for themselves.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with iam:CreateAccessKey can generate a new long-lived credential for an existing IAM user, often choosing a dormant, service, or higher-privilege account to avoid immediate detection. This gives the attacker a reusable access path that survives browser sessions and can be used from external tooling, automation, or remote infrastructure.",
+    "realWorldUsage": "Long-lived access key creation is a common persistence pattern in AWS intrusion and red-team scenarios because it turns a transient foothold into reusable credentials. Cross-user key creation is particularly sensitive because it indicates the caller is provisioning credentials for a different identity.",
+    "whyItMatters": "The important engineering distinction is not every CreateAccessKey event, but whether the request explicitly targets another user. AWS allows callers to create a key for themselves without specifying UserName, so a production rule must separate self-key creation from cross-user creation.",
+    "riskAndImpact": "If this behavior goes undetected, an attacker can create durable credentials for a privileged or forgotten account, bypass short-lived session controls, establish persistence, and enable later exfiltration, privilege escalation, or security-control tampering from infrastructure outside AWS."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.userName",
+      "userIdentity.principalId",
+      "userIdentity.sessionContext.sessionIssuer.userName",
+      "requestParameters.userName",
+      "responseElements.accessKey.accessKeyId",
+      "sourceIPAddress",
+      "eventTime",
+      "recipientAccountId"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled for IAM API activity.",
+      "The pipeline must preserve requestParameters.userName exactly as emitted, including the case where it is absent.",
+      "Detections must treat missing requestParameters.userName as a different case from explicit cross-user key creation.",
+      "For IAMUser callers, the rule should compare requestParameters.userName to userIdentity.userName, not to userIdentity.arn."
+    ],
+    "limitations": [
+      "Self-service CreateAccessKey requests may omit requestParameters.userName entirely, so a naive inequality test can create false positives or null-handling bugs.",
+      "userIdentity.userName is reliably present for IAMUser callers, but non-IAMUser callers such as AssumedRole require different handling because their top-level identity is not an IAM user friendly name.",
+      "Comparing requestParameters.userName to userIdentity.arn is incorrect because ARNs include service prefix, account ID, resource type, and may include IAM paths."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Caller Identity Context",
+      "description": "Identify whether the caller is an IAM user, assumed role, break-glass role, automation pipeline, or root.",
+      "examples": [
+        "IAMUser attacker",
+        "Assumed role identity-admin-prod",
+        "Break-glass admin role",
+        "Terraform provisioning role"
+      ],
+      "falsePositiveReduction": "Separates suspicious cross-user provisioning from approved administrative flows and prevents bad comparisons across identity types."
+    },
+    {
+      "dimension": "Target User Metadata",
+      "description": "Enrich the user receiving the new key with privilege level, owner, last login, MFA status, path, and whether the account is human, service, dormant, or deprecated.",
+      "examples": [
+        "Dormant finance-admin IAM user",
+        "Legacy CI service user",
+        "Break-glass responder account"
+      ],
+      "falsePositiveReduction": "Improves prioritization and reduces noise from expected service-account provisioning."
+    },
+    {
+      "dimension": "Access Key Hygiene and Baseline",
+      "description": "Track whether the target user already has existing keys, whether the new key exceeds normal rotation patterns, and whether the target user historically creates their own keys or never has.",
+      "examples": [
+        "User had zero prior access keys",
+        "Second active key created outside rotation window",
+        "Target user never previously used API credentials"
+      ],
+      "falsePositiveReduction": "Distinguishes expected rotation from unusual creation patterns that suggest persistence."
+    },
+    {
+      "dimension": "Approval and Automation Context",
+      "description": "Correlate with change windows, ticket IDs, provisioning pipelines, and known onboarding workflows.",
+      "examples": [
+        "Onboarding job ID",
+        "Identity governance ticket",
+        "CI pipeline run metadata"
+      ],
+      "falsePositiveReduction": "Allows known key-provisioning workflows to be suppressed without weakening the core cross-user detection."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should focus on explicit cross-user key creation, not all CreateAccessKey events. AWS allows a caller to create a key for themselves without specifying UserName, so the rule should first check whether requestParameters.userName is actually present. When the caller is an IAM user, compare requestParameters.userName to userIdentity.userName, because both are friendly names in the same namespace; do not compare requestParameters.userName to userIdentity.arn, which is a different identifier format. For non-IAMUser callers such as assumed roles, an explicit target userName usually means the caller is provisioning a key for another user and should be evaluated against an allowlist of approved admin and automation identities.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals CreateAccessKey",
+      "requestParameters.userName exists and is not empty",
+      "either userIdentity.type equals IAMUser and userIdentity.userName does not equal requestParameters.userName",
+      "or userIdentity.type is not IAMUser and the explicit requestParameters.userName indicates a key is being created for a named IAM user",
+      "actor is not in an approved key-provisioning allowlist"
+    ],
+    "tuningGuidance": "1. Add an explicit existence check for requestParameters.userName before any comparison. 2. For IAMUser callers, compare requestParameters.userName to userIdentity.userName, not userIdentity.arn. 3. For AssumedRole or other non-IAMUser callers, treat explicit target userName as cross-user provisioning and allowlist only tightly controlled admin workflows. 4. Prioritize alerts where the target user is privileged, dormant, or normally has no access keys.",
+    "whenToFire": "Fire whenever CreateAccessKey explicitly names a target IAM user that is different from the calling IAM user, or when any non-IAMUser principal creates a key for a named user outside approved provisioning workflows. In mature environments this should be a very low-volume, high-value alert."
+  },
+  "simulationCommand": "aws iam create-access-key --user-name victim-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium-Low (mostly central admin or onboarding workflows after explicit actor allowlisting)",
+    "expectedVolume": "Very low in mature environments; generally sporadic",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query)",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "CloudWatch Logs Insights",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Batch: every 5-15 minutes in Athena or SIEM; Real-time: EventBridge on CreateAccessKey with lightweight identity-context enrichment.",
+    "considerations": [
+      "Do not implement the rule as userIdentity.arn != requestParameters.userName.",
+      "Guard for missing requestParameters.userName before comparing values.",
+      "Handle IAMUser and AssumedRole callers separately because their identity fields differ.",
+      "Pair with detections for DeleteAccessKey, UpdateAccessKey, and anomalous subsequent API use by the new key for stronger investigation context."
+    ]
+  }
+}

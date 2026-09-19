@@ -1,0 +1,26 @@
+{
+  "id": "det-081",
+  "title": "Snapshot Shared to External Account",
+  "description": "Detects the owner-side control point where a private snapshot is shared to one or more external AWS accounts. This is a high-confidence storage-exposure event and should be evaluated using permission delta and recipient-account allowlists, not collapsed together with public sharing.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "EBS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "EC2",
+    "EBS",
+    "Snapshot",
+    "Exfiltration"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate cross-account sharing for DR",
+    "Approved migration",
+    "Planned data transfer between owned accounts"
+  ],
+  "relatedAttackSlugs": []
+}

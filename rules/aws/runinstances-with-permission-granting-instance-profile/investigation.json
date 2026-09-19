@@ -1,0 +1,5 @@
+[
+  "Resolve the instance profile to the actual role and inspect its policies.",
+  "Determine whether the backing role grants admin-equivalent, pass-role, role-chaining, or secrets-access capability.",
+  "Verify whether the launch path and target account were expected."
+]

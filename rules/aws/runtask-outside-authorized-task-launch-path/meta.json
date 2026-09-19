@@ -1,0 +1,25 @@
+{
+  "id": "det-073",
+  "title": "RunTask Outside Authorized Task Launch Path",
+  "description": "Detects ECS task launches performed by actors outside approved cluster, task-family, or workload-launch workflows. This should rely on exact principal inventories, workflow provenance, and actor-to-task authorization scope rather than negative keyword filters.",
+  "awsService": "ECS",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "ECS",
+    "RunTask",
+    "PassRole",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate CI/CD or platform automation",
+    "ECS console operations"
+  ],
+  "relatedAttackSlugs": []
+}

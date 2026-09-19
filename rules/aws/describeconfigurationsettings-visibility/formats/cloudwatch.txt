@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.applicationName, requestParameters.environmentName, sourceIPAddress
+| filter eventSource = "elasticbeanstalk.amazonaws.com"
+| filter eventName = "DescribeConfigurationSettings"
+| sort @timestamp desc

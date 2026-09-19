@@ -1,0 +1,5 @@
+[
+  "Identify the user whose password was updated.",
+  "Review ConsoleLogin events for that user within 1 hour.",
+  "Check if the login was from an unusual IP or without MFA."
+]

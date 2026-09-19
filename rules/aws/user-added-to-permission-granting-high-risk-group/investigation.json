@@ -1,0 +1,5 @@
+[
+  "Identify the group and its attached policies.",
+  "Verify if the user addition was authorized.",
+  "Check for self-addition (actor = added user)."
+]

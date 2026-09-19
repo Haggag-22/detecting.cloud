@@ -1,0 +1,10 @@
+title: StartSession to Sensitive or Unusual Target
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ssm.amazonaws.com
+    eventName: StartSession
+  condition: selection
+level: high

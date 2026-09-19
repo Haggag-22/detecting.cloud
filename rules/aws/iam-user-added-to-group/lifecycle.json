@@ -1,0 +1,100 @@
+{
+  "whyItMatters": "Group membership changes are foundational IAM entitlement events. Even when legitimate, they can materially alter what a user can do if the destination group carries strong policies.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with IAM write access may add a user to a group to expand permissions, create persistence, or prepare later credential use.",
+    "realWorldUsage": "Group-based escalation is common in older IAM-user-heavy environments because it is simple, durable, and can be hidden among legitimate identity administration.",
+    "whyItMatters": "This baseline rule is the feeder for stronger detections about privileged groups, self-granted entitlements, and membership changes followed by immediate use.",
+    "riskAndImpact": "If missed, a user may quietly inherit strong permissions and later use them through API keys, console access, or role assumption."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.groupName",
+      "requestParameters.userName",
+      "sourceIPAddress",
+      "userAgent",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must include IAM activity.",
+      "The platform should maintain group-to-effective-permission inventory.",
+      "User inventory should classify whether the target user is human, service, dormant, or sensitive."
+    ],
+    "limitations": [
+      "The event alone does not reveal the effective permissions of the destination group.",
+      "Onboarding and routine identity management can generate true events.",
+      "Some environments use groups sparingly while others use them heavily, which changes baseline volume."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Group Effective Permissions",
+      "description": "Resolve managed and inline policies attached to the destination group.",
+      "examples": [
+        "admin-equivalent group",
+        "read-only group"
+      ],
+      "falsePositiveReduction": "Separates harmless membership changes from meaningful privilege increase."
+    },
+    {
+      "dimension": "Target User Type",
+      "description": "Classify whether the target user is human, service, dormant, or recently created.",
+      "examples": [
+        "new employee user",
+        "API-only automation user"
+      ],
+      "falsePositiveReduction": "Improves prioritization when the user type makes the addition unusual."
+    },
+    {
+      "dimension": "Authorized Actor Context",
+      "description": "Correlate the actor with approved onboarding, helpdesk, and IAM admin workflows.",
+      "examples": [
+        "identity provisioning automation",
+        "manual cross-team grant"
+      ],
+      "falsePositiveReduction": "Reduces noise from expected identity lifecycle operations."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain a broad entitlement-change baseline. It alerts on every successful AddUserToGroup, then uses group privilege, target-user type, and actor context to determine whether the change is routine or suspicious.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals AddUserToGroup",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep the event match broad. 2. Maintain a group privilege inventory. 3. Escalate only when the group meaningfully expands access or the target user is unusual.",
+    "whenToFire": "Fire on every successful group addition for visibility, with higher priority when the group is high-risk or the target user is unexpected."
+  },
+  "simulationCommand": "aws iam add-user-to-group --group-name AdminGroup --user-name compromised-user",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium as raw entitlement visibility, low-medium with group privilege enrichment",
+    "expectedVolume": "Environment-dependent",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time or scheduled analytics both work because this is direct IAM management telemetry.",
+    "considerations": [
+      "Use this as the feeder rule for higher-confidence entitlement abuse detections.",
+      "Group privilege inventory is the main dependency."
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "id": "det-172",
+  "title": "AWS SageMaker Notebook Lifecycle Configuration Change",
+  "description": "Detects creation or update of SageMaker notebook lifecycle configurations that can execute code at notebook startup.",
+  "awsService": "SageMaker",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "SageMaker",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate administration, automation, or platform engineering activity."
+  ],
+  "relatedAttackSlugs": []
+}

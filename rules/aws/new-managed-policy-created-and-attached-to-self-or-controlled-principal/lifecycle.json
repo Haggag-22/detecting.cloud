@@ -1,0 +1,112 @@
+{
+  "whyItMatters": "Creating a new managed policy and attaching it immediately is a compact way to introduce new permissions without modifying existing policies. When the target is the actor's own identity or a principal they control, it is a strong signal of deliberate privilege expansion or persistence.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with iam:CreatePolicy plus attachment permissions can create a custom policy tailored to the permissions they want, then attach it to themselves or to a principal they can already use.",
+    "realWorldUsage": "This chain matches common AWS privilege-escalation tradecraft because it combines policy authoring and attachment into a short, low-noise workflow.",
+    "whyItMatters": "The combination is far more meaningful than either API alone. CreatePolicy by itself is often normal, and attachment by itself may be legitimate, but creating a policy and then attaching that same new ARN to a self-controlled target is strong intent evidence.",
+    "riskAndImpact": "If undetected, an attacker can introduce a custom backdoor policy, grant themselves access to sensitive services, or persist on a principal that looks operationally normal."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.userName",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "responseElements.policy.arn",
+      "requestParameters.policyDocument",
+      "requestParameters.policyArn",
+      "requestParameters.userName",
+      "requestParameters.roleName",
+      "requestParameters.groupName",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must capture both CreatePolicy and AttachUserPolicy/AttachRolePolicy/AttachGroupPolicy.",
+      "The pipeline must preserve responseElements.policy.arn from CreatePolicy so it can be joined to later attachment events.",
+      "Identity inventory or enrichment is needed to decide whether the attachment target is self-controlled."
+    ],
+    "limitations": [
+      "Self or controlled-principal resolution is not possible from CloudTrail alone in every case.",
+      "AttachGroupPolicy is only high-confidence if group-membership enrichment proves the actor benefits from that group.",
+      "Automation that creates and attaches app-specific policies may require allowlisting."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Self or Controlled-Principal Resolution",
+      "description": "Decide whether the attachment target is the actor's own IAM user, the actor's session-issuer role, a group the actor belongs to, or another principal they control.",
+      "examples": [
+        "IAM user creates policy then AttachUserPolicy to self",
+        "assumed-role session attaches policy to its own role"
+      ],
+      "falsePositiveReduction": "Turns a generic policy workflow into a concrete self-escalation or persistence pattern."
+    },
+    {
+      "dimension": "Created Policy Risk",
+      "description": "Parse the newly created policy and classify wildcard admin, pass-role, assume-role, secrets, KMS, and persistence-enabling permissions.",
+      "examples": [
+        "iam:PassRole + ec2:RunInstances",
+        "sts:AssumeRole",
+        "Action:*"
+      ],
+      "falsePositiveReduction": "Reduces noise from benign app policies while prioritizing materially dangerous attachments."
+    },
+    {
+      "dimension": "Attachment Blast Radius",
+      "description": "Determine what the target principal can already access and whether the attachment affects a human admin, workload role, group, or break-glass identity.",
+      "examples": [
+        "production CI role",
+        "developer IAM user",
+        "shared admin group"
+      ],
+      "falsePositiveReduction": "Separates low-risk dev changes from account-wide escalation opportunities."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a specific attack chain rather than generic follow-on API use. Alert when the same actor creates a new customer-managed policy and then attaches that same policy ARN to a target they control within a short window.",
+    "conditions": [
+      "first eventName equals CreatePolicy",
+      "second eventName equals AttachUserPolicy, AttachRolePolicy, or AttachGroupPolicy",
+      "second event requestParameters.policyArn equals first event responseElements.policy.arn",
+      "same actor performs both events",
+      "second event occurs within 10-15 minutes of the first",
+      "attachment target resolves to self or a controlled principal"
+    ],
+    "tuningGuidance": "1. Treat self-attachment as the primary high-confidence branch. 2. Only include AttachGroupPolicy when group-membership enrichment proves the actor benefits from that group. 3. Score policy-document risk separately so narrow but dangerous custom policies are not missed.",
+    "whenToFire": "Fire when a newly created managed policy is attached within a short window to the actor's own identity or a principal they control. In mature environments this should be very low volume and high confidence."
+  },
+  "simulationCommand": "aws iam create-policy --policy-name BackdoorPolicy --policy-document file://policy.json && aws iam attach-user-policy --user-name alice --policy-arn arn:aws:iam::123456789012:policy/BackdoorPolicy",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low after allowlisting IAM automation and resolving target control relationships",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "SIEM correlation engines"
+    ],
+    "scheduling": "Best in near-real-time or short batch windows because correlation depends on a 10-15 minute sequence.",
+    "considerations": [
+      "Use responseElements.policy.arn from CreatePolicy as the join key.",
+      "Identity-resolution enrichment is mandatory for the self-or-controlled-principal predicate.",
+      "This is materially stronger than generic sensitive API follow-on logic."
+    ]
+  }
+}

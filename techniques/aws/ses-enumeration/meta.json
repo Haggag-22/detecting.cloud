@@ -1,0 +1,28 @@
+{
+  "id": "tech-ses-enumeration",
+  "name": "SES Identity Enumeration",
+  "shortName": "SES Enum",
+  "description": "An attacker with ses:ListIdentities and ses:GetIdentityVerificationAttributes enumerates verified email addresses and domains in the account. This reconnaissance supports phishing campaigns (targeting known identities) or credential theft (identifying high-value targets). The attacker may also use ses:ListIdentities to find identities used in other attacks. Required permissions are ses:ListIdentities and ses:GetIdentityVerificationAttributes.",
+  "services": [
+    "SES"
+  ],
+  "permissions": [
+    "ses:ListIdentities",
+    "ses:GetIdentityVerificationAttributes"
+  ],
+  "detectionIds": [
+    "det-106",
+    "det-107",
+    "det-108",
+    "det-109",
+    "det-177"
+  ],
+  "mitigations": [
+    "Restrict SES enumeration",
+    "Audit ListIdentities usage",
+    "Use least-privilege"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "aws",
+  "detectionStrategy": "SES identity enumeration is a reconnaissance technique. The best detections focus on rare or bursty enumeration, unexpected actors, and correlation with subsequent SES abuse, phishing preparation, or identity-related actions."
+}

@@ -1,0 +1,100 @@
+{
+  "whyItMatters": "Interactive host access becomes significantly more suspicious when it is followed immediately by sensitive cloud control-plane activity. This sequence is often the clearest sign that EC2 Instance Connect was used operationally rather than for routine troubleshooting.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may open shell access to a workload through EC2 Instance Connect and then pivot into secrets retrieval, credential creation, IAM changes, or other sensitive cloud actions.",
+    "realWorldUsage": "This pattern is practical because EC2 Instance Connect provides fast host access while the subsequent cloud actions expose what the operator actually did after gaining a foothold.",
+    "whyItMatters": "The strongest signal is an ordered post-access sequence, not just the presence of one access event and one sensitive API somewhere nearby.",
+    "riskAndImpact": "If missed, defenders may view the access event and later cloud abuse as unrelated activity rather than one intrusion chain."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2 Instance Connect",
+      "AWS CloudTrail management events for Secrets Manager, STS, IAM, SSM, and other sensitive services"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.instanceId",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "EC2 Instance Connect and follow-on management events must be ingested into the same analytics environment.",
+      "Actor identity should be normalized across direct and assumed-role sessions.",
+      "The detection engine must support ordered short-window correlation."
+    ],
+    "limitations": [
+      "CloudTrail cannot confirm what commands ran inside the SSH session.",
+      "Simple actor-only aggregation can be noisy in shared admin contexts.",
+      "Some legitimate operations may legitimately involve post-access sensitive APIs, especially on administration hosts."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Stable Actor Identity",
+      "description": "Normalize direct and assumed-role identities so the access actor can be matched to later cloud operations.",
+      "examples": [
+        "IAM user",
+        "assumed ops role"
+      ],
+      "falsePositiveReduction": "Improves correlation fidelity across role hops."
+    },
+    {
+      "dimension": "Target Host Context",
+      "description": "Resolve what kind of host received the key push and what privileges or credentials it is likely to expose.",
+      "examples": [
+        "prod bastion",
+        "application host",
+        "ephemeral build worker"
+      ],
+      "falsePositiveReduction": "Helps explain why post-access cloud actions are significant."
+    },
+    {
+      "dimension": "Follow-On Activity Class",
+      "description": "Group later actions into secrets access, role chaining, IAM mutation, or other abuse classes.",
+      "examples": [
+        "GetSecretValue",
+        "AssumeRole",
+        "CreateAccessKey"
+      ],
+      "falsePositiveReduction": "Makes the post-access sequence easier to triage and prioritize."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a short-window post-access sequence: an operator uses EC2 Instance Connect and then performs sensitive cloud actions soon afterward. It should require ordered correlation and stable identity, not merely two suspicious events from the same broad user namespace.",
+    "conditions": [
+      "first eventSource equals ec2-instance-connect.amazonaws.com and eventName equals SendSSHPublicKey",
+      "second event is a sensitive cloud API by the same normalized actor identity",
+      "follow-on activity occurs within 15 minutes"
+    ],
+    "tuningGuidance": "1. Require event order. 2. Normalize actor identity across direct and assumed-role use. 3. Escalate further when the access target is sensitive or the actor was not approved for EC2 Instance Connect in the first place.",
+    "whenToFire": "Fire when EC2 Instance Connect is followed quickly by sensitive cloud activity from the same operator identity."
+  },
+  "simulationCommand": "aws ec2-instance-connect send-ssh-public-key --instance-id i-0abc123 --instance-os-user ec2-user --ssh-public-key file://id_rsa.pub --availability-zone us-east-1a && aws secretsmanager get-secret-value --secret-id ExampleSecret",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium depending on admin workflows and actor-target context",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with ordered event windows",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is preferred because the window between access and abuse is short.",
+    "considerations": [
+      "This is one of the strongest EC2 Instance Connect detections in the set.",
+      "Ordered correlation and stable identity normalization are critical."
+    ]
+  }
+}

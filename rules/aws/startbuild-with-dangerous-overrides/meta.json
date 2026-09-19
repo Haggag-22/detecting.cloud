@@ -1,0 +1,24 @@
+{
+  "id": "det-127",
+  "title": "StartBuild with Dangerous Overrides",
+  "description": "Detects high-risk CodeBuild launch modifications using `buildspecOverride` or `environmentVariablesOverride`. These parameters can materially change what the build executes or how secrets are exposed during runtime.",
+  "awsService": "CodeBuild",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "CodeBuild",
+    "Credential Theft",
+    "Build Override"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate build override for testing",
+    "Dynamic buildspec"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,22 @@
+{
+  "id": "det-056",
+  "title": "IAM User Added to Group",
+  "description": "Baseline visibility whenever a user is added to an IAM group. This is foundational entitlement-change telemetry that should be enriched with group privilege level, target-user type, and actor context before it is treated as suspicious.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "IAM",
+    "AddUserToGroup",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate onboarding",
+    "Admin group membership management"
+  ],
+  "relatedAttackSlugs": []
+}

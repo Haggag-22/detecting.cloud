@@ -1,0 +1,21 @@
+{
+  "id": "tech-cloudtrail-bucket-lifecycle",
+  "name": "CloudTrail Bucket Lifecycle Modification",
+  "shortName": "Lifecycle Mod",
+  "description": "An attacker with s3:PutBucketLifecycleConfiguration on the CloudTrail log bucket adds or modifies lifecycle rules to delete objects quickly (e.g., after 1 day) or transition them to Glacier. This reduces the retention of existing logs and limits forensic analysis. The attacker targets the bucket specified in the CloudTrail trail configuration. Required permission is s3:PutBucketLifecycleConfiguration on the CloudTrail bucket.",
+  "services": [
+    "CloudTrail",
+    "S3"
+  ],
+  "permissions": [
+    "s3:PutBucketLifecycleConfiguration"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict bucket lifecycle",
+    "Use dedicated logging account",
+    "Enable object lock"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

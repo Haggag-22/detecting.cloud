@@ -1,0 +1,103 @@
+{
+  "whyItMatters": "Console-password creation by the wrong identity is a strong governance and abuse signal because only a narrow set of helpdesk, IAM admin, or automation roles should perform it.",
+  "threatContext": {
+    "attackerBehavior": "A compromised workload role, developer role, or unapproved human identity may create a login profile to establish interactive persistence.",
+    "realWorldUsage": "Unexpected-actor IAM credential creation is a common post-compromise pattern because attackers abuse whatever IAM write access is already available.",
+    "whyItMatters": "The decision is about authorization and workflow context, not whether the actor's ARN text looks like admin.",
+    "riskAndImpact": "If missed, an attacker can create console access for a backdoor user without using an obviously privileged identity."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.principalId",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "userIdentity.invokedBy",
+      "sourceIPAddress",
+      "userAgent",
+      "requestParameters.userName",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "The environment should maintain an authorized login-profile manager inventory.",
+      "Actor-to-target scope or delegated-admin boundaries should be available as enrichment."
+    ],
+    "limitations": [
+      "Without actor inventory this becomes noisy.",
+      "Helpdesk or onboarding automation can look suspicious without workflow provenance.",
+      "CloudTrail alone does not prove whether the actor was in an approved support path."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized IAM Change Actors",
+      "description": "Exact inventory of principals allowed to create console passwords.",
+      "examples": [
+        "IAM admin role",
+        "approved helpdesk role",
+        "onboarding automation"
+      ],
+      "falsePositiveReduction": "Replaces brittle name heuristics with stable authorization context."
+    },
+    {
+      "dimension": "Workflow Provenance",
+      "description": "Correlate userAgent, invokedBy, session tags, ticket IDs, and maintenance windows.",
+      "examples": [
+        "identity onboarding workflow",
+        "manual out-of-band CLI"
+      ],
+      "falsePositiveReduction": "Separates sanctioned support work from suspicious manual activity."
+    },
+    {
+      "dimension": "Actor-to-Target Scope",
+      "description": "Determine whether the actor is allowed to administer the target user.",
+      "examples": [
+        "same business unit helpdesk",
+        "cross-team application role"
+      ],
+      "falsePositiveReduction": "Makes scope violations substantially higher signal."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should alert when CreateLoginProfile occurs outside approved IAM or helpdesk workflows. The strongest signal comes from exact actor inventory, workflow provenance, and target-admin scope checks.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals CreateLoginProfile",
+      "actor is not in the approved login-profile manager inventory or request lacks approved workflow provenance, or actor is outside target-admin scope"
+    ],
+    "tuningGuidance": "1. Use exact ARNs and principalIds, not text matching. 2. Distinguish helpdesk, onboarding, and break-glass workflows. 3. Escalate when the target user is dormant, non-human, or quickly logs in afterward.",
+    "whenToFire": "Fire when a login profile is created outside authorized IAM change paths, especially when the target user is unusual or the actor is a workload identity."
+  },
+  "simulationCommand": "aws iam create-login-profile --user-name backdoor-user --password 'ExampleTempPassword123!' --password-reset-required --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium without actor inventory, low-medium with workflow and scope enrichment",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with lookup tables",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because credential creation often precedes immediate use.",
+    "considerations": [
+      "This is the actor-centric companion to the baseline login-profile creation rule.",
+      "Use target scope and workflow provenance to control noise."
+    ]
+  }
+}

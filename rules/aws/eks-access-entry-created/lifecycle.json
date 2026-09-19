@@ -1,0 +1,100 @@
+{
+  "whyItMatters": "An access entry is the first-class control-plane object that grants an IAM principal a path into EKS cluster authorization. Even before broad policy association, it is a meaningful identity-to-cluster access event.",
+  "threatContext": {
+    "attackerBehavior": "An attacker or unauthorized operator may create a new access entry to establish Kubernetes access for a chosen IAM principal.",
+    "realWorldUsage": "This is attractive because it uses native EKS access management rather than lower-level Kubernetes credential manipulation.",
+    "whyItMatters": "This baseline event feeds stronger detections about broad policy association, suspicious principals, and unauthorized actors.",
+    "riskAndImpact": "If missed, defenders may overlook the first stage in a cluster-access escalation chain."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EKS",
+      "Cluster inventory and approved-access models"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.clusterName",
+      "requestParameters.principalArn",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CreateAccessEntry events must be ingested.",
+      "The environment should maintain expected principal-to-cluster authorization models.",
+      "Follow-on AssociateAccessPolicy events should be available for correlation."
+    ],
+    "limitations": [
+      "Access entry creation alone does not always indicate broad effective permissions.",
+      "Legitimate platform administration and bootstrap workflows may create access entries.",
+      "The rule needs cluster and principal context to prioritize effectively."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Principal Type and Ownership",
+      "description": "Resolve whether the principal is a human user, automation role, node role, or other workload identity.",
+      "examples": [
+        "platform role",
+        "IAM user",
+        "workload role"
+      ],
+      "falsePositiveReduction": "Improves triage and helps identify unusual access subjects."
+    },
+    {
+      "dimension": "Cluster Criticality",
+      "description": "Classify the target cluster by environment, business role, and privilege sensitivity.",
+      "examples": [
+        "production cluster",
+        "shared dev cluster"
+      ],
+      "falsePositiveReduction": "Raises urgency for new access on critical clusters."
+    },
+    {
+      "dimension": "Expected Access Model",
+      "description": "Determine whether the principal is expected to receive an access entry on this cluster.",
+      "examples": [
+        "approved platform admin",
+        "unexpected app role"
+      ],
+      "falsePositiveReduction": "Separates legitimate onboarding from suspicious authorization changes."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain a broad visibility rule for every successful `CreateAccessEntry` event. It establishes the EKS authorization baseline that stronger broad-access, suspicious-principal, and unauthorized-actor detections build upon.",
+    "conditions": [
+      "eventSource equals eks.amazonaws.com",
+      "eventName equals CreateAccessEntry",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep this baseline broad. 2. Resolve cluster criticality and principal type for triage. 3. Correlate immediately with any later policy association on the same principal and cluster.",
+    "whenToFire": "Fire on every successful access-entry creation for visibility."
+  },
+  "simulationCommand": "aws eks create-access-entry --cluster-name prod --principal-arn arn:aws:iam::123456789012:user/demo-user",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium as a baseline visibility rule, low-medium with cluster and principal enrichment",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because access-entry creation can quickly be followed by broad policy association.",
+    "considerations": [
+      "This is the feeder rule for the stronger EKS access-management detections.",
+      "Cluster inventory and access models are useful enrichments."
+    ]
+  }
+}

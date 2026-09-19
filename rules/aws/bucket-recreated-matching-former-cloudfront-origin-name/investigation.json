@@ -1,0 +1,5 @@
+[
+  "Identify the recreated bucket name and check whether it matches a bucket previously deleted while still referenced by CloudFront.",
+  "Determine whether the bucket was recreated by the expected owner or by a different account or unexpected principal.",
+  "Immediately validate whether any CloudFront distribution still points at that bucket name and whether hostile content may now be reachable."
+]

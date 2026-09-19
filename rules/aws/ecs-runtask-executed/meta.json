@@ -1,0 +1,26 @@
+{
+  "id": "det-070",
+  "title": "ECS RunTask Executed",
+  "description": "Baseline visibility for ad hoc ECS task execution. RunTask can be legitimate, but it is sensitive because it can activate task roles, execution roles, and runtime overrides that materially change what the workload can do.",
+  "awsService": "ECS",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "ECS",
+    "RunTask",
+    "PassRole",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate ECS task execution",
+    "Scheduled tasks",
+    "CI/CD"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,22 @@
+{
+  "id": "gcp-004",
+  "title": "Google Cloud Storage Buckets Modified or Deleted",
+  "description": "Detects when storage bucket is modified or deleted in Google Cloud.",
+  "awsService": "Cloud Storage",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "Cloud Storage",
+    "impact"
+  ],
+  "logSources": [
+    "GCP Audit Logs"
+  ],
+  "falsePositives": [
+    "Storage Buckets being modified or deleted may be performed by a system administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Storage Buckets modified or deleted from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

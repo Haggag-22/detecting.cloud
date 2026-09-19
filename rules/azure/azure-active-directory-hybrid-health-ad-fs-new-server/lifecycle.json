@@ -1,0 +1,54 @@
+{
+  "whyItMatters": "This detection uses azureactivity logs (Administrative category) to identify the creation or update of a server instance in an Azure AD Hybrid health AD FS service. A threat actor can create a new AD Health ADFS service and create a fake server instance to spoof AD FS signing logs. There is no need to compromise an on-prem AD FS server. This can be done programmatically via HTTP requests to Azure.",
+  "threatContext": {
+    "attackerBehavior": "This detection uses azureactivity logs (Administrative category) to identify the creation or update of a server instance in an Azure AD Hybrid health AD FS service. A threat actor can create a new AD Health ADFS service and create a fake server instance to spoof AD FS signing logs. There is no need to compromise an on-prem AD FS server. This can be done programmatically via HTTP requests to Azure.",
+    "whyItMatters": "Azure Active Directory Hybrid Health AD FS New Server is a Azure Activity control-plane or identity signal that defenders should investigate when it is unexpected.",
+    "riskAndImpact": "Unauthorized azure active directory hybrid health ad fs new server can enable persistence, privilege escalation, credential theft, or impact depending on the resource."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "Azure Activity Logs"
+    ],
+    "requiredFields": [
+      "eventTime",
+      "operationName",
+      "caller",
+      "status"
+    ],
+    "loggingRequirements": [
+      "Azure Activity Logs must be enabled for the tenant or project.",
+      "Retain raw request properties so the detection can be tuned to approved actors."
+    ],
+    "limitations": [
+      "Generated lifecycle — review threat research, enrichment, and testing before production.",
+      "Bare Sigma selections may fire on every matching event until customer inventory is supplied."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Approved actor",
+      "description": "Compare the caller to change-management and privileged-identity inventories.",
+      "examples": [
+        "break-glass admin",
+        "CI/CD service principal"
+      ],
+      "falsePositiveReduction": "Suppress known automation identities after review."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "Alert when telemetry matches the Sigma selection for Azure Active Directory Hybrid Health AD FS New Server.",
+    "conditions": [
+      "This detection uses azureactivity logs (Administrative category) to identify the creation or update of a server instance in an Azure AD Hybrid health AD FS service. A threat actor can create a new AD Health ADFS service and create a fake server instance to spoof AD FS signing logs. There is no need to compromise an on-prem AD FS server. This can be done programmatically via HTTP requests to Azure."
+    ],
+    "whenToFire": "On each matching successful (or explicitly failed) control-plane event.",
+    "tuningGuidance": "Add approved-actor allowlists and sensitive-target inventories before production."
+  },
+  "simulationCommand": "Review the Sigma rule for az-004 and replay a matching azure audit event in a lab tenant.",
+  "quality": {
+    "signalQuality": 5,
+    "falsePositiveRate": "unknown until tuned",
+    "expectedVolume": "varies by tenant",
+    "productionReadiness": "experimental"
+  },
+  "generatedFromTemplate": true
+}

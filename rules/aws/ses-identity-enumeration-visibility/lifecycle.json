@@ -1,0 +1,97 @@
+{
+  "whyItMatters": "SES identity enumeration is often the first step in understanding how SES is configured and which email identities are available for later abuse. Even a benign read can become meaningful when SES usage is rare or tightly controlled.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may enumerate verified SES identities and their verification state to identify targets for phishing, identity policy abuse, or SES infrastructure misuse.",
+    "realWorldUsage": "These APIs are attractive because they provide low-noise reconnaissance about the email-sending surface available in the account.",
+    "whyItMatters": "This baseline event feeds stronger detections about burst reconnaissance, unauthorized actors, and recon-to-action transitions.",
+    "riskAndImpact": "If missed, defenders may overlook early SES reconnaissance that precedes policy abuse, credential theft, or outbound messaging misuse."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for SES"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.identityType",
+      "requestParameters.identities",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must ingest SES management events.",
+      "The environment should retain actor and enumeration-scope context.",
+      "Follow-on SES write APIs should be available for downstream correlation."
+    ],
+    "limitations": [
+      "A single read event does not prove malicious intent.",
+      "Legitimate email administrators and automation may call these APIs routinely.",
+      "Identity enumeration may be low-volume and easy to miss without baseline visibility."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "SES Usage Context",
+      "description": "Determine whether SES is actively used and by which teams or automations.",
+      "examples": [
+        "marketing email service",
+        "SES unused in this account"
+      ],
+      "falsePositiveReduction": "Makes enumeration more suspicious when SES is rare or dormant."
+    },
+    {
+      "dimension": "Actor Authorization",
+      "description": "Understand whether the actor normally manages SES identities or email infrastructure.",
+      "examples": [
+        "email admin",
+        "unexpected app role"
+      ],
+      "falsePositiveReduction": "Turns baseline visibility into stronger actor-based detections."
+    },
+    {
+      "dimension": "Enumeration Scope",
+      "description": "Assess whether the request was narrow and expected or broad and exploratory.",
+      "examples": [
+        "single domain check",
+        "large identity sweep"
+      ],
+      "falsePositiveReduction": "Improves triage for likely reconnaissance."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain a broad visibility rule for successful SES identity-enumeration reads. It records who inspected SES identities or verification state so stronger burst, actor, and recon-to-action detections have a clean baseline.",
+    "conditions": [
+      "eventSource equals ses.amazonaws.com",
+      "eventName equals ListIdentities or GetIdentityVerificationAttributes",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep this baseline broad. 2. Resolve whether SES is commonly used in the environment. 3. Correlate with burst behavior, unauthorized actors, or later SES write activity for higher-confidence detections.",
+    "whenToFire": "Fire on every successful SES identity-enumeration event for visibility."
+  },
+  "simulationCommand": "aws ses list-identities --identity-type EmailAddress",
+  "quality": {
+    "signalQuality": 5,
+    "falsePositiveRate": "Medium as a baseline visibility rule, low-medium when SES is rare or actor context is strong",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful for chaining into follow-on SES abuse detections, but scheduled analysis is also acceptable.",
+    "considerations": [
+      "This is the feeder rule for the SES reconnaissance family.",
+      "SES usage patterns are the main enrichment dependency."
+    ]
+  }
+}

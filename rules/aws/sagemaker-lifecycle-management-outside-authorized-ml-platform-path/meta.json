@@ -1,0 +1,22 @@
+{
+  "id": "det-103",
+  "title": "SageMaker Lifecycle Management Outside Authorized ML Platform Path",
+  "description": "Detects lifecycle-config creation, update, or notebook association by identities outside approved SageMaker administration workflows. This should rely on explicit actor authorization and automation provenance rather than role-name substring allowlists.",
+  "awsService": "SageMaker",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "SageMaker",
+    "Lifecycle Config",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Approved ML platform automation",
+    "Provisioning roles"
+  ],
+  "relatedAttackSlugs": []
+}

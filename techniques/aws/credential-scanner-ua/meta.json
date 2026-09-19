@@ -1,0 +1,22 @@
+{
+  "id": "tech-credential-scanner-ua",
+  "name": "Stolen-Key Validation via Credential Scanner",
+  "shortName": "TruffleHog UA",
+  "description": "When a secret access key leaks in a Git repo or a paste site, scanners such as TruffleHog immediately try it against AWS to see if it still works. That check usually shows up as GetCallerIdentity \u2014 a harmless-looking 'who am I?' call \u2014 with a distinctive tool name in the user agent. The person running the scanner may be a researcher, or it may be the attacker confirming they have a live key before they do anything louder. Either way, the account should treat a scanner user agent as 'this key is in the wild' and rotate it.",
+  "services": [
+    "IAM",
+    "CloudTrail"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-185",
+    "det-198"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "discovery",
+  "cloudProvider": "aws"
+}

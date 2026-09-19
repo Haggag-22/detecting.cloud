@@ -1,0 +1,3 @@
+[
+  "aws cloudformation create-stack --stack-name backdoor-stack --template-body file://malicious-template.yaml --capabilities CAPABILITY_NAMED_IAM"
+]

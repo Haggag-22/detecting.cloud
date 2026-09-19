@@ -1,0 +1,23 @@
+title: Boundary Removal Followed by Sensitive Activity
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_boundary:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - DeleteRolePermissionsBoundary
+      - DeleteUserPermissionsBoundary
+  selection_sensitive:
+    eventName:
+      - AssumeRole
+      - CreateAccessKey
+      - AttachUserPolicy
+      - AttachRolePolicy
+      - PutUserPolicy
+      - PutRolePolicy
+      - GetSecretValue
+      - Decrypt
+  condition: selection_boundary
+level: critical
+# Full correlation requires target principal and session lineage.

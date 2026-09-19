@@ -1,0 +1,23 @@
+{
+  "id": "az-054",
+  "title": "Granting Of Permissions To An Account",
+  "description": "Identifies IPs from which users grant access to other users on azure resources and alerts when a previously unseen source IP address is used.",
+  "awsService": "Azure Activity",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Azure Activity",
+    "privilege-escalation",
+    "persistence",
+    "t1098 003"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Valid change"
+  ],
+  "relatedAttackSlugs": []
+}

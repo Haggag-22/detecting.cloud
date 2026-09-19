@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.policyArn, responseElements.policy.arn
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName in ["CreatePolicy", "AttachUserPolicy", "AttachRolePolicy", "AttachGroupPolicy"]
+| sort @timestamp desc

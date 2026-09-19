@@ -1,0 +1,5 @@
+[
+  "Create a lab bucket using the name of a previously deleted CloudFront-origin bucket tracked in your baseline.",
+  "Verify CloudTrail records `CreateBucket` and the enrichment matches the name against the orphaned-origin baseline.",
+  "Run the detector and confirm it only fires for tracked high-risk reused names."
+]

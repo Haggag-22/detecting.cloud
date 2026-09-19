@@ -1,0 +1,5 @@
+[
+  "As an identity outside the approved Beanstalk-reader set, call `DescribeConfigurationSettings` against a monitored environment.",
+  "Verify CloudTrail records the actor and environment context.",
+  "Run the detector and confirm it relies on explicit authorization rather than role-name text matching."
+]

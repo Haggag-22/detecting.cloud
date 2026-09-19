@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventName=ScheduleKeyDeletion
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.keyId, requestParameters.pendingWindowInDays, sourceIPAddress

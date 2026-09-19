@@ -1,0 +1,5 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.encrypted, responseElements.encrypted, responseElements.volumeId, sourceIPAddress
+| filter eventSource = "ec2.amazonaws.com"
+| filter eventName = "CreateVolume"
+| filter requestParameters.encrypted = false or responseElements.encrypted = false
+| sort @timestamp desc

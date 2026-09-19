@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.accountId, recipientAccountId, errorCode, errorMessage, sourceIPAddress
+| filter eventSource = "organizations.amazonaws.com"
+| filter eventName = "LeaveOrganization"
+| sort @timestamp desc

@@ -1,0 +1,25 @@
+{
+  "id": "az-074",
+  "title": "Suspicious Browser Activity",
+  "description": "Indicates anomalous behavior based on suspicious sign-in activity across multiple tenants from different countries in the same browser",
+  "awsService": "Entra ID Protection",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Protection",
+    "stealth",
+    "t1078",
+    "persistence",
+    "privilege-escalation",
+    "initial-access"
+  ],
+  "logSources": [
+    "Azure riskdetection"
+  ],
+  "falsePositives": [
+    "We recommend investigating the sessions flagged by this detection in the context of other sign-ins from the user."
+  ],
+  "relatedAttackSlugs": []
+}

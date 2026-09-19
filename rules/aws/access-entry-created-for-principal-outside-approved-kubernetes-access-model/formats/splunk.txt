@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventSource=eks.amazonaws.com eventName=CreateAccessEntry
+| where like(requestParameters.principalArn, "%:user/%") OR like(requestParameters.principalArn, "%breakglass%") OR like(requestParameters.principalArn, "%BreakGlass%") OR like(requestParameters.principalArn, "%emergency%") OR like(requestParameters.principalArn, "%/role/App%") OR like(requestParameters.principalArn, "%/role/Workload%") OR like(requestParameters.principalArn, "%/role/Service%")
+| table _time, userIdentity.arn, requestParameters.clusterName, requestParameters.principalArn, sourceIPAddress

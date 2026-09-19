@@ -1,0 +1,24 @@
+{
+  "id": "tech-az-aks-rbac-persistence",
+  "name": "AKS Admission and RBAC Persistence",
+  "shortName": "AKS RBAC",
+  "description": "Once an attacker can change Kubernetes configuration on AKS, they add things that keep running after they log out: a webhook that injects a sidecar, a CronJob that reconnects, a ClusterRoleBinding that grants them admin, or a service account with a long-lived token. None of that needs a new Azure portal user. The cluster itself becomes the backdoor. Admission webhooks, CronJobs, and role bindings created outside GitOps are the objects to audit.",
+  "services": [
+    "AKS"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-081",
+    "az-083",
+    "az-087",
+    "az-088",
+    "az-090"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "azure"
+}

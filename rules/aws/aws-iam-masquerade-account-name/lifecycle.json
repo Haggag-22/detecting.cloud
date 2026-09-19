@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects creation of IAM users with names that mimic AWS service or administrative accounts (Masquerade Account Name). Adversaries use convincing account names to blend into the environment.",
+  "threatContext": {
+    "attackerBehavior": "Detects creation of IAM users with names that mimic AWS service or administrative accounts (Masquerade Account Name). Adversaries use convincing account names to blend into the environment.",
+    "whyItMatters": "Detects creation of IAM users with names that mimic AWS service or administrative accounts (Masquerade Account Name). Adversaries use convincing account names to blend into the environment.",
+    "riskAndImpact": "Abuse related to IAM can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects creation of IAM users with names that mimic AWS service or administrative accounts (Masquerade Account Name). Adversaries use convincing account names to blend into the environment.",
+    "whenToFire": "When CloudTrail shows activity matching this AWS IAM Masquerade Account Name detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects addition or reactivation of non-access-key IAM credentials (UploadSSHPublicKey, CreateServiceSpecificCredential, ResetServiceSpecificCredential, UpdateAccessKey activation). Adds Additional Cloud Credentials (T1098.001) coverage for credential types beyond the existing SigmaHQ CreateAccessKey backdoor rule and the S3Browser login-profile rule.",
+  "threatContext": {
+    "attackerBehavior": "Detects addition or reactivation of non-access-key IAM credentials (UploadSSHPublicKey, CreateServiceSpecificCredential, ResetServiceSpecificCredential, UpdateAccessKey activation). Adds Additional Cloud Credentials (T1098.001) coverage for credential types beyond the existing SigmaHQ CreateAccessKey backdoor rule and the S3Browser login-profile rule.",
+    "whyItMatters": "Detects addition or reactivation of non-access-key IAM credentials (UploadSSHPublicKey, CreateServiceSpecificCredential, ResetServiceSpecificCredential, UpdateAccessKey activation). Adds Additional Cloud Credentials (T1098.001) coverage for credential types beyond the existing SigmaHQ CreateAccessKey backdoor rule and the S3Browser login-profile rule.",
+    "riskAndImpact": "Abuse related to IAM can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects addition or reactivation of non-access-key IAM credentials (UploadSSHPublicKey, CreateServiceSpecificCredential, ResetServiceSpecificCredential, UpdateAccessKey activation). Adds Additional Cloud Credentials (T1098.001) coverage for credential types beyond the existing SigmaHQ CreateAccessKey backdoor rule and the S3Browser login-profile rule.",
+    "whenToFire": "When CloudTrail shows activity matching this AWS IAM Additional Credentials Added detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

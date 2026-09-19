@@ -1,0 +1,5 @@
+[
+  "Identify the leave attempt and the exact ordered follow-on guardrail-sensitive actions in the same account.",
+  "Determine whether the same normalized actor or account context later performed IAM policy changes, key-policy changes, logging reduction, or credential creation.",
+  "Assess whether the sequence represents immediate post-escape hardening bypass or persistence establishment."
+]

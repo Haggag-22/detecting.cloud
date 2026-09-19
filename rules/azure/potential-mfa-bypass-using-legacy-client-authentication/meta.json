@@ -1,0 +1,26 @@
+{
+  "id": "az-024",
+  "title": "Potential MFA Bypass Using Legacy Client Authentication",
+  "description": "Detects successful authentication from potential clients using legacy authentication via user agent strings. This could be a sign of MFA bypass using a password spray attack.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "initial-access",
+    "credential-access",
+    "stealth",
+    "t1078 004"
+  ],
+  "logSources": [
+    "Azure Sign-in Logs"
+  ],
+  "falsePositives": [
+    "Known Legacy Accounts"
+  ],
+  "relatedAttackSlugs": []
+}

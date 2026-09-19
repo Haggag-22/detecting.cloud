@@ -1,0 +1,5 @@
+[
+  "Create or update an EKS cluster with public endpoint (0.0.0.0/0).",
+  "Verify CloudTrail captures CreateCluster or UpdateClusterConfig.",
+  "Run the detection to confirm the alert triggers."
+]

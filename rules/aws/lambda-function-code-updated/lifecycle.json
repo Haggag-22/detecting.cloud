@@ -1,0 +1,52 @@
+{
+  "whyItMatters": "Detects lambda:UpdateFunctionCode, which replaces function code that then runs with the function's IAM role.",
+  "threatContext": {
+    "attackerBehavior": "Detects lambda:UpdateFunctionCode, which replaces function code that then runs with the function's IAM role.",
+    "whyItMatters": "Lambda Function Code Updated is a high-signal control-plane action with no prior Sigma coverage in this catalog.",
+    "riskAndImpact": "If missed, the technique node stays dark and the attacker action is invisible."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.arn",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must log lambda.amazonaws.com UpdateFunctionCode20150331v2."
+    ],
+    "limitations": [
+      "Management events only; data-plane follow-on is out of scope for this rule."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Approved actor",
+      "description": "Compare the caller to identity and platform-admin inventories.",
+      "examples": [
+        "identity platform pipeline",
+        "break-glass admin"
+      ],
+      "falsePositiveReduction": "Suppress known IdP or CI roles after review."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "Fire on successful UpdateFunctionCode20150331v2 from lambda.amazonaws.com.",
+    "conditions": [
+      "eventSource = lambda.amazonaws.com",
+      "eventName = UpdateFunctionCode20150331v2"
+    ],
+    "whenToFire": "On each matching successful CloudTrail event."
+  },
+  "simulationCommand": "aws lambda update-function-code --function-name TargetFunction --zip-file fileb://malicious.zip",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "low-to-medium depending on platform automation",
+    "expectedVolume": "low",
+    "productionReadiness": "experimental"
+  }
+}

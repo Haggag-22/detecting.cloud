@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ecs.amazonaws.com eventName=RunTask
+| table _time, userIdentity.arn, eventName, requestParameters.cluster, requestParameters.taskDefinition, requestParameters.overrides, sourceIPAddress

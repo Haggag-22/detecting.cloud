@@ -1,0 +1,3 @@
+[
+  "aws ec2 modify-instance-attribute --instance-id i-0abc123 --user-data fileb://malicious-script.sh"
+]

@@ -1,0 +1,5 @@
+[
+  "Identify who removed the boundary.",
+  "Verify target principal's attached policies and whether boundary removal expands permissions.",
+  "Check if the change was authorized."
+]

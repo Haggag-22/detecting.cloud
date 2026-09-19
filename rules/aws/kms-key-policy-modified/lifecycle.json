@@ -1,0 +1,124 @@
+{
+  "whyItMatters": "A KMS key policy is the primary authorization boundary for a customer managed key. When an attacker broadens principals, grants risky cryptographic or grant-management actions, or enables cross-account use, they can turn one policy change into durable data access, privilege expansion, or key-administration persistence.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with kms:PutKeyPolicy can rewrite the key policy to add wildcard principals, external AWS accounts, overly broad actions such as kms:Decrypt or kms:GenerateDataKey*, or administrative actions such as kms:PutKeyPolicy, kms:CreateGrant, kms:ScheduleKeyDeletion, and kms:DisableKey.",
+    "realWorldUsage": "KMS policy abuse appears in cloud intrusion tradecraft as part of post-compromise privilege expansion, persistence, and data-access enablement. It is especially relevant where the same customer managed keys protect Secrets Manager secrets, EBS snapshots, S3 objects, or shared application encryption paths.",
+    "whyItMatters": "Not every PutKeyPolicy is malicious, but the dangerous subset is high signal: broad principals, root principals from other accounts, wildcard access, permissive grant creation, and cross-account use permissions materially change who can use or control the key.",
+    "riskAndImpact": "If this goes undetected, attackers can enable decryption of protected data, allow external-account use of the key, create grants for downstream AWS service abuse, retain long-term control over a sensitive key, or make the key effectively unmanageable."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events)",
+      "GetKeyPolicy or Config history for policy diffing"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "readOnly",
+      "errorCode",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.keyId",
+      "requestParameters.policyName",
+      "requestParameters.policy",
+      "requestParameters.bypassPolicyLockoutSafetyCheck",
+      "awsRegion",
+      "recipientAccountId",
+      "sourceIPAddress",
+      "eventTime"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must include KMS API activity in all relevant Regions.",
+      "The pipeline must preserve the full requestParameters.policy string.",
+      "Normalize escaped JSON consistently so wildcard principals, external account ARNs, root principals, and broad action lists can be parsed reliably."
+    ],
+    "limitations": [
+      "A raw PutKeyPolicy event by itself is too broad for paging in many environments; high-fidelity alerting requires parsing the submitted policy document.",
+      "Formatting, escaping, or parser differences can make naive string matching brittle unless the policy is decoded into structured JSON.",
+      "Cross-account use of a KMS key requires both the local key policy and IAM permission in the external account."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Principal Exposure Analysis",
+      "description": "Parse the new key policy to identify who now has access or administrative control over the key.",
+      "examples": [
+        "Principal = * without restrictive conditions",
+        "Principal includes arn:aws:iam::444455556666:root",
+        "Principal includes unfamiliar external roles"
+      ],
+      "falsePositiveReduction": "Separates approved KMS admins and known service integrations from risky wildcard, root, or external principals."
+    },
+    {
+      "dimension": "Permission Breadth and Abuse Path",
+      "description": "Classify the actions granted so responders can distinguish narrow maintenance changes from access-expanding or destructive changes.",
+      "examples": [
+        "kms:*",
+        "kms:Decrypt",
+        "kms:GenerateDataKey*",
+        "kms:CreateGrant",
+        "kms:ScheduleKeyDeletion"
+      ],
+      "falsePositiveReduction": "Reduces noise by focusing alerts on policy changes that materially increase data access, persistence, or destructive capability."
+    },
+    {
+      "dimension": "Cross-Account and Organizational Trust Context",
+      "description": "Validate whether newly granted external principals are expected and constrained by organizational design.",
+      "examples": [
+        "Approved DR account versus unknown third-party account",
+        "Organization ID allowlist",
+        "External role added without expected conditions"
+      ],
+      "falsePositiveReduction": "Prevents expected shared-services patterns from paging while highlighting unapproved external exposure."
+    },
+    {
+      "dimension": "Key and Data Sensitivity",
+      "description": "Measure the blast radius of the policy change based on what the key protects.",
+      "examples": [
+        "Alias indicates prod secrets or RDS",
+        "Key used by Secrets Manager or S3 SSE-KMS",
+        "Shared platform key"
+      ],
+      "falsePositiveReduction": "Keeps routine low-risk maintenance on isolated keys from looking equivalent to policy changes on highly sensitive shared keys."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should not page on every successful PutKeyPolicy call because some KMS administration is legitimate. The production-grade version should parse the submitted key policy and alert only when the change introduces risky principals, broad permissions, cross-account exposure, or lockout-bypass behavior.",
+    "conditions": [
+      "eventSource equals kms.amazonaws.com",
+      "eventName equals PutKeyPolicy",
+      "readOnly equals false",
+      "errorCode is absent",
+      "requestParameters.policy is present and parseable",
+      "alert if policy Principal contains wildcard or unapproved external principals, or if policy Action includes broad cryptographic or administrative permissions, or if bypassPolicyLockoutSafetyCheck equals true"
+    ],
+    "tuningGuidance": "1. Decode and parse requestParameters.policy into structured JSON before matching. 2. Maintain allowlists for approved external accounts, service principals, and IaC roles. 3. Score risk by both permission breadth and key sensitivity.",
+    "whenToFire": "Fire immediately when the policy introduces wildcard principals, unapproved external principals, broad cryptographic access, broad admin actions, or lockout-bypass behavior."
+  },
+  "simulationCommand": "KEY_ARN='arn:aws:kms:us-east-1:111122223333:key/1234abcd-12ab-34cd-56ef-1234567890ab'; cat > /tmp/kms-policy-risky.json <<'EOF'\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [{\"Sid\":\"EnableIAMUserPermissions\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::111122223333:root\"},\"Action\":\"kms:*\",\"Resource\":\"*\"},{\"Sid\":\"AllowExternalDecrypt\",\"Effect\":\"Allow\",\"Principal\":{\"AWS\":\"arn:aws:iam::444455556666:root\"},\"Action\":[\"kms:Decrypt\",\"kms:GenerateDataKey*\",\"kms:DescribeKey\"],\"Resource\":\"*\"}]\n}\nEOF\naws kms put-key-policy --key-id \"$KEY_ARN\" --policy-name default --policy file:///tmp/kms-policy-risky.json",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium when scoped to risky principals, broad access, cross-account exposure, or lockout bypass; High if every PutKeyPolicy event is alerted",
+    "expectedVolume": "0-5 alerts/month per account in mature environments; org-dependent and higher in KMS-heavy platforms",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "CloudWatch Logs Insights",
+      "Athena / CloudTrail Lake scheduled query",
+      "Splunk or SIEM pipeline with JSON parsing"
+    ],
+    "scheduling": "Prefer real-time streaming for high-risk policy changes, because new principals may be able to use the key immediately. If the analytics platform cannot parse the policy in-stream, run a short scheduled parser every 5-15 minutes.",
+    "considerations": [
+      "Store or reconstruct the previous policy so responders can diff old versus new principals, actions, and conditions.",
+      "Keep explicit inventories of approved external accounts, service-integrated use cases, and expected KMS admins.",
+      "Correlate with subsequent CreateGrant, Decrypt, GenerateDataKey, DisableKey, or ScheduleKeyDeletion activity for higher confidence."
+    ]
+  }
+}

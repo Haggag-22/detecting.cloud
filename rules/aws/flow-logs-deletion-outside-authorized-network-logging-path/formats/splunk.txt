@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com eventName=DeleteFlowLogs
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.principalId, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.flowLogIds, sourceIPAddress

@@ -1,0 +1,25 @@
+{
+  "id": "tech-az-account-lifecycle",
+  "name": "Entra Account Lifecycle Abuse",
+  "shortName": "Account Lifecycle",
+  "description": "Entra ID (Azure AD) accounts can be created, disabled, reset, and deleted. Attackers often create a user, use it, then delete it within hours so it never shows up in a weekly review. They also try passwords against disabled accounts, reset passwords they should not control, or sign into other companies' tenants with a compromised identity. The story is always the same: get a mailbox or a role, do the damage, erase the account. Creations followed quickly by deletions, and sign-ins to disabled users, are the practical tells.",
+  "services": [
+    "Entra ID"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-007",
+    "az-043",
+    "az-092",
+    "az-127",
+    "az-128",
+    "az-009"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "initial-access",
+  "cloudProvider": "azure"
+}

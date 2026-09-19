@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventSource=sagemaker.amazonaws.com (eventName=CreateNotebookInstanceLifecycleConfig OR eventName=UpdateNotebookInstanceLifecycleConfig)
+| table _time, userIdentity.arn, eventName, requestParameters.notebookInstanceLifecycleConfigName, sourceIPAddress

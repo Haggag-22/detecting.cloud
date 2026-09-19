@@ -1,0 +1,30 @@
+title: AWS IAM MFA Device Deactivation Or Deletion
+id: e25b3c14-d36b-47b1-bf20-dea756898cc4
+status: experimental
+description: |
+    Detects deactivation or deletion of IAM MFA devices (DeactivateMFADevice, DeleteVirtualMFADevice). Adds Multi-Factor Authentication modification (T1556.006) coverage beyond the existing SigmaHQ SSO external-IdP change rule.
+references:
+    - https://attack.mitre.org/techniques/T1556/006/
+    - https://attack.mitre.org/detectionstrategies/DET0104/
+    - https://attack.mitre.org/detectionstrategies/DET0190/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.credential-access
+    - attack.defense-impairment
+    - attack.persistence
+    - attack.t1556
+    - attack.t1556.006
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: iam.amazonaws.com
+        eventName:
+            - DeactivateMFADevice
+            - DeleteVirtualMFADevice
+    condition: selection
+falsepositives:
+    - Legitimate MFA device rotation or lost-device recovery by administrators.
+level: high

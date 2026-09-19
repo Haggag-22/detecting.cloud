@@ -1,0 +1,5 @@
+[
+  "Create a lab bucket using a tracked orphaned-origin name and then upload content with `PutObject` within one hour.",
+  "Verify both the bucket creation and later object activity appear in CloudTrail with the same bucket lineage.",
+  "Run the detector and confirm it requires both risky name reuse and later content activity."
+]

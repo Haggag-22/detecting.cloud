@@ -1,0 +1,25 @@
+{
+  "id": "tech-az-federation-cba-saml",
+  "name": "Federation, CBA, TAP, and SAML Issuer Abuse",
+  "shortName": "Federation Abuse",
+  "description": "Companies can let people sign in with certificates, a federated AD FS server, a temporary access pass, or SAML. An attacker who enables certificate-based login, adds their own root certificate, changes federation, plants a temporary pass, or forges a SAML issuer can mint logins that Entra will trust. Those logins look like employees. They are not. Federation and certificate-authority changes are break-glass identity events.",
+  "services": [
+    "Entra ID",
+    "Entra ID Protection"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-014",
+    "az-019",
+    "az-051",
+    "az-076",
+    "az-122"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "azure"
+}

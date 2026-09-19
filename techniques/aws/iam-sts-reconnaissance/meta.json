@@ -1,0 +1,26 @@
+{
+  "id": "tech-iam-sts-reconnaissance",
+  "name": "IAM / STS Reconnaissance",
+  "shortName": "IAM Recon",
+  "description": "Before privilege escalation, attackers list who exists in the account: users, roles, groups, and the password policy. That tells them which accounts have weak passwords, which roles are over-privileged, and whether spraying passwords is worth trying. None of these calls change anything; they only read. In a quiet account they stand out because developers rarely list every user. Burst listing from a new identity is recon, not administration.",
+  "services": [
+    "IAM",
+    "STS"
+  ],
+  "permissions": [
+    "iam:ListUsers",
+    "iam:GetAccountPasswordPolicy"
+  ],
+  "detectionIds": [
+    "det-141",
+    "det-156",
+    "det-158"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "discovery",
+  "cloudProvider": "aws"
+}

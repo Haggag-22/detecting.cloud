@@ -1,0 +1,29 @@
+title: AWS EC2 Instance Revert Via Root Volume Replacement
+id: 958cc6f5-4844-4e02-be51-38cdb65999d7
+status: experimental
+description: |
+    Detects reverting an EC2 instance to a prior state via root volume replacement or snapshot restore (CreateReplaceRootVolumeTask, RestoreSnapshotFromRecycleBin, RestoreSnapshotTier). Adversaries revert instances to undo defensive changes or hide activity (Revert Cloud Instance).
+references:
+    - https://attack.mitre.org/techniques/T1578/004/
+    - https://attack.mitre.org/detectionstrategies/DET0308/
+    - https://attack.mitre.org/detectionstrategies/DET0337/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.defense-impairment
+    - attack.t1578
+    - attack.t1578.004
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: ec2.amazonaws.com
+        eventName:
+            - CreateReplaceRootVolumeTask
+            - RestoreSnapshotFromRecycleBin
+            - RestoreSnapshotTier
+    condition: selection
+falsepositives:
+    - Legitimate rollback and recovery operations.
+level: medium

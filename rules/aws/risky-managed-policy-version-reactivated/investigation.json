@@ -1,0 +1,6 @@
+[
+  "Identify who reactivated the policy version.",
+  "Compare the selected version with the previous default and determine whether it is known risky or materially broader.",
+  "Assess attachment blast radius for the policy.",
+  "Check whether the actor is authorized for policy version management."
+]

@@ -1,0 +1,5 @@
+[
+  "Invoke `GetIdentityVerificationAttributes` or `ListIdentities` repeatedly more than five times within five minutes.",
+  "Verify CloudTrail records the burst of requests.",
+  "Run the threshold detector and confirm it keys on short-window volume rather than a single event."
+]

@@ -1,0 +1,5 @@
+[
+  "Determine whether the run used a runtime taskRoleArn override or another override that changed effective workload privilege.",
+  "Compare the default task role from the task definition to the final runtime role.",
+  "Verify whether the override was approved for that actor, cluster, and task family."
+]

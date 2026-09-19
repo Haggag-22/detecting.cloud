@@ -1,0 +1,12 @@
+{
+  "primaryLogSource": "VPC Flow Logs",
+  "generatingService": "vpcflowlogs.amazonaws.com",
+  "importantFields": [
+    "srcAddr",
+    "dstAddr",
+    "dstPort",
+    "protocol",
+    "bytes"
+  ],
+  "exampleEvent": "{\n  \"version\": \"2\",\n  \"accountId\": \"123456789012\",\n  \"interfaceId\": \"eni-xxx\",\n  \"srcAddr\": \"10.0.1.50\",\n  \"dstAddr\": \"93.184.216.34\",\n  \"dstPort\": 443,\n  \"protocol\": 6,\n  \"packets\": 1,\n  \"bytes\": 150\n}"
+}

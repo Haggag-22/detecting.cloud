@@ -1,0 +1,23 @@
+{
+  "id": "det-106",
+  "title": "SES Identity Enumeration Visibility",
+  "description": "Baseline visibility for SES identity-listing and verification-attribute retrieval. These are reconnaissance-style read APIs that can reveal which email identities and domains are available for later abuse or policy manipulation.",
+  "awsService": "SES",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "SES",
+    "Reconnaissance",
+    "Identity Enumeration"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate email admin",
+    "SES automation",
+    "Monitoring"
+  ],
+  "relatedAttackSlugs": []
+}

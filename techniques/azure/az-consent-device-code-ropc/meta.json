@@ -1,0 +1,23 @@
+{
+  "id": "tech-az-consent-device-code-ropc",
+  "name": "Consent, Device-Code, and ROPC Abuse",
+  "shortName": "OAuth Abuse",
+  "description": "Some Microsoft login flows are easy to abuse. Device-code login shows a short code that users can be tricked into entering on a phishing page. Consent prompts can grant an app permission to mail and files. Resource Owner Password Credentials (ROPC) lets an app see the user's actual password. Attackers prefer these because they look like normal Microsoft pages. Blocked or risky consent, device-code from a new app, and ROPC on a privileged user are the practical detections. Users should almost never complete a device-code prompt they did not start themselves.",
+  "services": [
+    "Entra ID Apps"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-030",
+    "az-031",
+    "az-032",
+    "az-037"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "initial-access",
+  "cloudProvider": "azure"
+}

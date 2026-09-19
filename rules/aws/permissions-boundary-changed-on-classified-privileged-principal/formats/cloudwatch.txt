@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName, requestParameters.permissionsBoundary
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName in ["PutRolePermissionsBoundary", "PutUserPermissionsBoundary"]
+| sort @timestamp desc

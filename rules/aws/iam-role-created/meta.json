@@ -1,0 +1,22 @@
+{
+  "id": "det-060",
+  "title": "IAM Role Created",
+  "description": "Baseline visibility for new IAM role creation. Role creation is often legitimate, but it is still high-sensitivity telemetry because the trust policy and immediate follow-on actions determine whether the new role becomes persistence or escalation infrastructure.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "IAM",
+    "CreateRole",
+    "Persistence"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate role creation",
+    "Terraform/CloudFormation"
+  ],
+  "relatedAttackSlugs": []
+}

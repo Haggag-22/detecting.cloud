@@ -1,0 +1,5 @@
+[
+  "Identify the actor, target instance, and exact time of the serial-console access event.",
+  "Review ordered follow-on activity such as login-profile changes, access-key creation, secrets access, or IAM mutation within 15 minutes.",
+  "Determine whether the same normalized operator identity performed the later actions and whether the serial-console target explains the sequence."
+]

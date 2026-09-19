@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.bucketName
+| filter eventSource = "s3.amazonaws.com"
+| filter eventName in ["CreateBucket", "PutObject"]
+| stats count(*) as cnt, collect_list(eventName) as events by requestParameters.bucketName
+| filter cnt >= 2
+| sort cnt desc

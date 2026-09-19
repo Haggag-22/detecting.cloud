@@ -1,0 +1,5 @@
+[
+  "As a non-approved identity, call `SendSSHPublicKey` against a monitored test instance.",
+  "Verify CloudTrail captures the actor and session-issuer fields required for authorization checks.",
+  "Run the detection and confirm it relies on explicit principal inventories rather than name-based allowlists."
+]

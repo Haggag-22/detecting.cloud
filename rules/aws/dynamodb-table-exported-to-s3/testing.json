@@ -1,0 +1,5 @@
+[
+  "Export a DynamoDB table to S3.",
+  "Verify CloudTrail captures ExportTableToPointInTime.",
+  "Run the detection to confirm the alert triggers."
+]

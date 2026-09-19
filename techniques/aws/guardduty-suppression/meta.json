@@ -1,0 +1,21 @@
+{
+  "id": "tech-guardduty-suppression",
+  "name": "GuardDuty Filter Suppression",
+  "shortName": "Filter Suppression",
+  "description": "GuardDuty filters allow suppressing or archiving findings that match certain criteria. An attacker with guardduty:CreateFilter or guardduty:UpdateFilter creates or modifies a filter that matches their activity (e.g., by finding type, severity, or resource). Matching findings are suppressed or archived, reducing visibility. Required permissions are guardduty:CreateFilter and guardduty:UpdateFilter. The filter must be activated.",
+  "services": [
+    "GuardDuty"
+  ],
+  "permissions": [
+    "guardduty:CreateFilter",
+    "guardduty:UpdateFilter"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict filter management",
+    "Audit filter changes",
+    "Use delegated admin"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

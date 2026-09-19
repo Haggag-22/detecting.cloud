@@ -1,0 +1,6 @@
+[
+  "Identify who granted the EKS access policy.",
+  "Inspect the target principal receiving cluster access.",
+  "Verify whether the policy and scope were approved.",
+  "Review recent CreateAccessEntry or AccessKubernetesApi activity for the same principal."
+]

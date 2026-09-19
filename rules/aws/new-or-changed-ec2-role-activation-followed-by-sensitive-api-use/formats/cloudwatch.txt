@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.arn, eventName, eventSource, requestParameters.iamInstanceProfile
+| filter (eventSource = "ec2.amazonaws.com" and eventName = "RunInstances" and ispresent(requestParameters.iamInstanceProfile))
+  or eventName in ["AssumeRole", "GetSecretValue", "CreateSnapshot", "AttachRolePolicy", "PutRolePolicy"]
+| stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
+| filter cnt > 1
+| sort cnt desc

@@ -1,0 +1,26 @@
+{
+  "id": "det-072",
+  "title": "RunTask with Runtime Role Override or Privilege Delta",
+  "description": "Detects ECS task launches where a runtime override changes the effective task role or meaningfully increases task privilege compared with the default task definition. Presence of an override alone is not enough; the important signal is the security delta and actor context.",
+  "awsService": "ECS",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "ECS",
+    "RunTask",
+    "PassRole",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate task role override for testing",
+    "Operational break-glass runs",
+    "Approved multi-role orchestration"
+  ],
+  "relatedAttackSlugs": []
+}

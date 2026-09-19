@@ -1,0 +1,3 @@
+fields @timestamp, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.userName, requestParameters.roleArn
+| filter (eventSource = "iam.amazonaws.com" and eventName = "CreateAccessKey") or (eventSource = "sts.amazonaws.com" and eventName = "AssumeRole")
+| sort @timestamp desc

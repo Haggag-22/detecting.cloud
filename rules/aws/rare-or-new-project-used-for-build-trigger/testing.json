@@ -1,0 +1,5 @@
+[
+  "Start a build on a project the actor has not used in the baseline window.",
+  "Verify the baseline lookup or first-seen model flags the actor-to-project pair as new or rare.",
+  "Run the detector and confirm it depends on historical rarity rather than the event alone."
+]

@@ -1,0 +1,3 @@
+[
+  "aws iam create-access-key --user-name TargetUser (using stolen credentials)"
+]

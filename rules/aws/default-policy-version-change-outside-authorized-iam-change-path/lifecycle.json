@@ -1,0 +1,103 @@
+{
+  "whyItMatters": "A default-version flip can restore previously removed permissions with one API call. The highest-signal cases are unauthorized actors or approved actors performing out-of-band rollbacks to a broader historical version.",
+  "threatContext": {
+    "attackerBehavior": "An attacker using a developer role, workload identity, or misused automation principal may call SetDefaultPolicyVersion to reactivate a more permissive policy version outside approved IAM change paths.",
+    "realWorldUsage": "Unexpected-actor IAM version changes are a strong post-compromise signal because policy version management is typically limited to a small set of trusted identities and workflows.",
+    "whyItMatters": "The key decision is not whether the actor name contains admin, but whether the identity, session context, and workflow prove the caller is allowed to manage policy versions for that policy.",
+    "riskAndImpact": "If missed, a compromised or out-of-scope identity can reactivate broader permissions on sensitive managed policies without creating new policy documents."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "errorCode",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.principalId",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "sourceIPAddress",
+      "userAgent",
+      "requestParameters.policyArn",
+      "requestParameters.versionId"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "Actor authorization decisions require an approved policy-version-manager registry.",
+      "Policy version inventory and prior-default state should be available as enrichment."
+    ],
+    "limitations": [
+      "Without an authorized-actor inventory this rule becomes noisy baseline visibility.",
+      "Expected break-glass or release workflows can look suspicious without workflow provenance.",
+      "CloudTrail alone does not determine whether the selected version is broader."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized IAM Change Actors",
+      "description": "Exact inventory of identities allowed to manage IAM policy versions.",
+      "examples": [
+        "platform-security-admin",
+        "terraform-iam-runner"
+      ],
+      "falsePositiveReduction": "Replaces weak substring filtering with stable approved actor classification."
+    },
+    {
+      "dimension": "Approved Change Provenance",
+      "description": "Correlate userAgent, invokedBy, session tags, pipeline metadata, change ticket, and maintenance window.",
+      "examples": [
+        "CloudFormation execution role",
+        "approved CAB window",
+        "out-of-band console session"
+      ],
+      "falsePositiveReduction": "Separates sanctioned automation from suspicious manual or untracked changes."
+    },
+    {
+      "dimension": "Policy Sensitivity",
+      "description": "Classify whether the affected policy is attached to privileged, production, or shared identities.",
+      "examples": [
+        "policy attached to admin group",
+        "policy attached to prod deploy role"
+      ],
+      "falsePositiveReduction": "Raises urgency for high-impact policies and lowers noise for low-risk ones."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This is the actor-centric companion to policy-version risk detections. The rule should ask whether the caller should ever be managing policy versions for that policy in that workflow context, not whether its ARN happens to contain admin.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals SetDefaultPolicyVersion",
+      "actor is not in the approved IAM-change inventory or request lacks approved workflow provenance"
+    ],
+    "tuningGuidance": "1. Allowlist exact ARNs and principalIds, not substrings. 2. Down-rank events with clear IaC provenance and matching change records. 3. Escalate when the policy is sensitive or the selected version is broader than the prior default.",
+    "whenToFire": "Fire when SetDefaultPolicyVersion occurs outside authorized IAM change paths. Raise severity when the affected policy is sensitive or the selected version is riskier than before."
+  },
+  "simulationCommand": "aws iam set-default-policy-version --policy-arn arn:aws:iam::123456789012:policy/TargetPolicy --version-id v1 --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium without context, low with actor inventory and workflow provenance",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "SIEM correlation",
+      "Athena with lookup tables",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Best in real time or short scheduled windows because authorization context and version risk are lookup-driven.",
+    "considerations": [
+      "Keep Sigma broad and push authorization decisions into enrichment.",
+      "Use this as the actor-centric companion to `det-035` and `det-036`."
+    ]
+  }
+}

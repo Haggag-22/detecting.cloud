@@ -1,0 +1,120 @@
+{
+  "whyItMatters": "Bulk secret access is rarely well-modeled by a flat threshold because many legitimate workloads repeatedly fetch the same few secrets while compromised identities tend to broaden into many distinct secrets.",
+  "threatContext": {
+    "attackerBehavior": "After obtaining an AWS principal with secretsmanager:GetSecretValue, an attacker retrieves secrets in bulk to steal database credentials, API keys, tokens, and other high-value plaintext.",
+    "realWorldUsage": "Secrets retrieval is common post-compromise cloud tradecraft because Secrets Manager often concentrates privileged application credentials in one service.",
+    "whyItMatters": "The strongest suspicious pattern is usually breadth and novelty: a human user, newly active role, or compromised workload suddenly touching many different secrets outside its normal access pattern.",
+    "riskAndImpact": "If undetected, the attacker can exfiltrate a concentrated set of credentials that enables database access, lateral movement, and durable persistence."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for AWS Secrets Manager",
+      "Secret inventory and metadata from Secrets Manager APIs or AWS Config",
+      "Optional IAM inventory for principal classification"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "sourceIPAddress",
+      "userAgent",
+      "requestParameters.secretId",
+      "requestParameters.secretIdList[]",
+      "requestParameters.filters[]",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be retained centrally for Secrets Manager.",
+      "Normalize secret identifiers because CloudTrail requests may use friendly names, partial ARNs, or full ARNs for the same secret.",
+      "Maintain at least 30 days of historical access data if you want actor-specific baselines to be meaningful."
+    ],
+    "limitations": [
+      "CloudTrail shows that a secret was requested, but it does not log the plaintext secret value.",
+      "A naive raw event count is unstable because repeated reads of the same secret can be legitimate.",
+      "Legitimate startup, rotation, deployment, and break-glass workflows can touch many secrets quickly unless principals are classified separately."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Behavioral Baseline",
+      "description": "Maintain baselines for each actor covering normal distinct secret count, normal secret families, and normal access windows.",
+      "examples": [
+        "role usually reads 2-3 secrets tied to one application",
+        "actor's 15-minute distinct-secret count is 6x its 30-day median"
+      ],
+      "falsePositiveReduction": "Converts noisy raw access volume into an anomaly anchored in how the principal normally behaves."
+    },
+    {
+      "dimension": "Secret Sensitivity and Ownership",
+      "description": "Classify each secret by business criticality, application ownership, environment, and secret type.",
+      "examples": [
+        "prod/payments/db-master",
+        "breakglass/admin/api-token",
+        "sandbox/test-secret"
+      ],
+      "falsePositiveReduction": "Prevents routine access to low-risk app secrets from looking equivalent to sudden reads across production or admin credentials."
+    },
+    {
+      "dimension": "Identity and Execution Context",
+      "description": "Enrich the actor with principal class, owning team, runtime location, and whether the access path is expected.",
+      "examples": [
+        "human IAM user using aws-cli from VPN",
+        "Lambda execution role in prod",
+        "break-glass role assumed outside maintenance window"
+      ],
+      "falsePositiveReduction": "Separates expected application secret reads from suspicious human or misused workload access paths."
+    },
+    {
+      "dimension": "Session and Access Novelty",
+      "description": "Add source IP, user agent, recent ListSecrets activity, and batch-retrieval usage so alerting can emphasize novel or exploratory access.",
+      "examples": [
+        "ListSecrets followed by first-time access to many secrets",
+        "CLI usage where role normally uses SDK from ECS"
+      ],
+      "falsePositiveReduction": "Raises confidence when many secrets are retrieved from an unexpected session, discovery pattern, or toolchain."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should not fire on a fixed raw count such as 10 GetSecretValue events in 5 minutes. The stronger production pattern is to canonicalize secret identifiers, count distinct secrets per actor within a bounded window, compare that breadth to the actor's historical baseline, and then require either a meaningful absolute floor or a supporting risk amplifier.",
+    "conditions": [
+      "eventSource equals secretsmanager.amazonaws.com",
+      "event action is GetSecretValue or a BatchGetSecretValue-derived secret access",
+      "secret identifiers are normalized before aggregation",
+      "within a 15-minute or 1-hour window, the actor accesses an unusually high number of distinct canonical secrets relative to its own baseline"
+    ],
+    "tuningGuidance": "1. Keep separate baselines for humans, workload roles, CI/CD roles, rotation Lambdas, and break-glass identities. 2. Canonicalize secret IDs before counting. 3. Prefer distinct-secret count and secret-family diversity over raw request count.",
+    "whenToFire": "Fire when a principal reads an unusually large or novel set of distinct secrets for its role and the access meaningfully exceeds its own normal breadth."
+  },
+  "simulationCommand": "aws secretsmanager batch-get-secret-value --secret-id-list prod/payments/db prod/payments/api prod/payments/jwt prod/payments/stripe prod/shared/slack-webhook",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "High with a naive static threshold; Low-Medium once distinct-secret modeling, actor baselines, and automation classification are in place",
+    "expectedVolume": "Low in mature environments; moderate in secret-heavy platform accounts before principal baselines and ownership metadata are tuned",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena over CloudTrail logs",
+      "CloudTrail Lake",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Elastic",
+      "Datadog",
+      "EventBridge + Lambda + state store"
+    ],
+    "scheduling": "Batch analytics every 5-15 minutes works well in Athena and SIEMs. Near-real-time alerting is practical only if the detector keeps state for distinct-secret windows and historical baselines.",
+    "considerations": [
+      "Do not ship this as a pure static threshold rule if the goal is production-grade secret-theft detection.",
+      "Canonical secret identity and BatchGetSecretValue deduplication are mandatory.",
+      "Correlate with ListSecrets, DescribeSecret, recent credential changes, or unusual source sessions for higher-confidence findings."
+    ]
+  }
+}

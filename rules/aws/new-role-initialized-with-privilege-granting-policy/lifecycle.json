@@ -1,0 +1,100 @@
+{
+  "whyItMatters": "A newly created role becomes much more suspicious when it is immediately initialized with strong permissions. This sequence often reflects deliberate setup of usable role infrastructure rather than ordinary scaffolding.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may create a role and quickly attach an admin-equivalent managed policy or inline policy that enables role chaining, pass-role abuse, secrets access, or broad control-plane actions.",
+    "realWorldUsage": "Rapid role initialization is a common persistence and escalation pattern because attackers want the role to become operational immediately.",
+    "whyItMatters": "The dangerous moment is not just role creation, but role creation followed by permissions that materially expand its capability.",
+    "riskAndImpact": "If missed, a new role can go from inert object to high-privilege backdoor within minutes."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.roleName",
+      "requestParameters.policyArn",
+      "requestParameters.policyDocument",
+      "sourceIPAddress",
+      "errorCode",
+      "recipientAccountId"
+    ],
+    "loggingRequirements": [
+      "CreateRole, AttachRolePolicy, and PutRolePolicy events must all be ingested.",
+      "The environment should classify attached managed policies and parsed inline policies by semantic risk.",
+      "Correlations should use exact role identity, not role name alone when account context matters."
+    ],
+    "limitations": [
+      "Role-name-only joins can false-correlate across accounts or reused names.",
+      "Inline policy parsing is required for full fidelity.",
+      "Some legitimate infrastructure roles are created and initialized quickly by automation."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Permission Semantics",
+      "description": "Classify policies as admin-equivalent, pass-role heavy, role-chaining, secrets access, KMS decrypt, or lower risk.",
+      "examples": [
+        "AdministratorAccess",
+        "iam:PassRole + sts:AssumeRole"
+      ],
+      "falsePositiveReduction": "Captures true capability rather than wildcards alone."
+    },
+    {
+      "dimension": "Role Initialization Timeline",
+      "description": "Measure how quickly policies were attached after role creation.",
+      "examples": [
+        "AdministratorAccess attached within 2 minutes"
+      ],
+      "falsePositiveReduction": "Short initialization windows are stronger signals of deliberate role activation."
+    },
+    {
+      "dimension": "Creator Context",
+      "description": "Determine whether the role was created by approved IaC or an unexpected operator path.",
+      "examples": [
+        "terraform-runner",
+        "manual user session"
+      ],
+      "falsePositiveReduction": "Separates platform automation from suspicious manual provisioning."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should be the role-initialization detector. First observe CreateRole, then correlate a short-window AttachRolePolicy or PutRolePolicy on that same role, and finally classify the resulting permission set semantically to decide whether the role became dangerous.",
+    "conditions": [
+      "first eventName equals CreateRole",
+      "second eventName equals AttachRolePolicy or PutRolePolicy on the same role",
+      "follow-on permission grant occurs within 15 minutes",
+      "attached or inline policy is admin-equivalent, pass-role heavy, role-chaining, secrets-accessing, or otherwise high-risk"
+    ],
+    "tuningGuidance": "1. Correlate on exact role identity where possible. 2. Parse inline policies semantically. 3. Escalate further when the new role is assumed or attached to compute shortly after initialization.",
+    "whenToFire": "Fire when a newly created role is rapidly initialized with privilege-granting permissions that make it operationally dangerous."
+  },
+  "simulationCommand": "aws iam create-role --role-name BackdoorRole --assume-role-policy-document file://trust-policy.json && aws iam attach-role-policy --role-name BackdoorRole --policy-arn arn:aws:iam::aws:policy/AdministratorAccess",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with semantic policy classification and creator context",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with policy classification tables",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with short-lived state"
+    ],
+    "scheduling": "Best in near-real-time because the role may be used immediately after initialization.",
+    "considerations": [
+      "This is one of the strongest role-creation abuse detections in the family.",
+      "Policy parsing quality directly affects fidelity."
+    ]
+  }
+}

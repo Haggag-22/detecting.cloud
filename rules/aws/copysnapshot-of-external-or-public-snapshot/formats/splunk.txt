@@ -1,0 +1,4 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com eventName=CopySnapshot
+| where isnotnull(requestParameters.sourceRegion) AND isnotnull(requestParameters.sourceSnapshotId)
+| eval source_region=requestParameters.sourceRegion
+| table _time, userIdentity.arn, requestParameters.sourceSnapshotId, requestParameters.sourceRegion, requestParameters.destinationRegion, recipientAccountId, sourceIPAddress

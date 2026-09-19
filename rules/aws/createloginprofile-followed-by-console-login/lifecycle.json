@@ -1,0 +1,103 @@
+{
+  "whyItMatters": "Creating console access becomes far more meaningful when the target user actually uses it. This sequence is one of the clearest signs that newly created interactive access was not just configured, but exercised.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may create a login profile for an IAM user and then use that new password to log into the AWS console soon afterward.",
+    "realWorldUsage": "This is a classic persistence and account-takeover sequence in IAM-user-based environments because it turns a control-plane change into immediate operational access.",
+    "whyItMatters": "The create event alone can still be onboarding or admin work; the later successful ConsoleLogin is what turns it into a much stronger signal.",
+    "riskAndImpact": "If missed, attackers can establish durable console access and begin operating interactively from a user that previously had no such path."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for IAM",
+      "CloudTrail sign-in events from signin.amazonaws.com"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "requestParameters.userName",
+      "userIdentity.arn",
+      "responseElements.ConsoleLogin",
+      "additionalEventData.MFAUsed",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "IAM CreateLoginProfile events and sign-in telemetry must both be ingested.",
+      "Sign-in telemetry must preserve successful ConsoleLogin outcomes.",
+      "The environment should be able to map login events back to the target IAM user reliably."
+    ],
+    "limitations": [
+      "Simple ARN parsing from sign-in events can be brittle across identity types and log formats.",
+      "Legitimate onboarding can generate this pattern.",
+      "MFA and device context are sometimes incomplete depending on the pipeline."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Target User Eligibility",
+      "description": "Classify whether the target user should have console access at all.",
+      "examples": [
+        "human employee",
+        "API-only service user",
+        "dormant legacy user"
+      ],
+      "falsePositiveReduction": "Separates expected onboarding from suspicious persistence."
+    },
+    {
+      "dimension": "Creator-to-Target Relationship",
+      "description": "Determine whether the actor normally administers the target user.",
+      "examples": [
+        "helpdesk to employee account",
+        "workload role to unrelated IAM user"
+      ],
+      "falsePositiveReduction": "Raises confidence when the create-and-use sequence came from an unexpected operator path."
+    },
+    {
+      "dimension": "Console Login Risk Context",
+      "description": "Evaluate MFA use, source IP novelty, geo, device fingerprint, and time-to-first-login.",
+      "examples": [
+        "login within minutes",
+        "no MFA",
+        "new country"
+      ],
+      "falsePositiveReduction": "Distinguishes benign onboarding from suspicious access activation."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a state transition: console access was created, then the target user actually authenticated successfully. The strongest implementation links the target IAM user from CreateLoginProfile to the successful ConsoleLogin event and enriches the login with MFA and access-path context.",
+    "conditions": [
+      "first eventName equals CreateLoginProfile",
+      "second eventSource equals signin.amazonaws.com and eventName equals ConsoleLogin",
+      "responseElements.ConsoleLogin equals Success",
+      "the login user matches the target user from the create event",
+      "login occurs within 24 hours"
+    ],
+    "tuningGuidance": "1. Do not alert on either event alone. 2. Use exact target-user mapping rather than brittle regex where possible. 3. Escalate for no MFA, unusual source IP, and non-human or dormant target users.",
+    "whenToFire": "Fire when a newly created login profile is followed by a successful console login by that same target user, especially when the access path or target user is unusual."
+  },
+  "simulationCommand": "aws iam create-login-profile --user-name backdoor-user --password 'ExampleTempPassword123!' --password-reset-required",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium depending on IAM-user onboarding frequency and target-user eligibility context",
+    "expectedVolume": "Very low in mature environments",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with sign-in telemetry",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with short-lived state"
+    ],
+    "scheduling": "Best in near-real-time because the value comes from seeing access become active quickly.",
+    "considerations": [
+      "Treat this as the high-confidence branch above baseline login-profile creation.",
+      "Reliable sign-in ingestion is mandatory."
+    ]
+  }
+}

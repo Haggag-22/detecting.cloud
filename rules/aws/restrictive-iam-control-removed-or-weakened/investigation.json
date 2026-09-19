@@ -1,0 +1,6 @@
+[
+  "Identify who removed the restrictive policy.",
+  "Verify if the policy was a deny policy or permission boundary.",
+  "Assess the impact on the principal's effective permissions.",
+  "Check whether the removal was authorized."
+]

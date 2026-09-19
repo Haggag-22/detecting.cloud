@@ -1,0 +1,7 @@
+[
+  "Identify the IAM user that attached the policy.",
+  "Verify whether the policy attachment was authorized (e.g., onboarding).",
+  "Check if userIdentity.principalId excludes Terraform/CloudFormation.",
+  "Review the attached policy's permissions.",
+  "Correlate with other IAM changes from the same identity."
+]

@@ -1,0 +1,5 @@
+[
+  "Trace the source snapshot through CopySnapshot into any created volume and later attachment.",
+  "Verify whether the source snapshot was public or externally shared and whether the restore path was approved.",
+  "Check which instance received the attached volume and whether it functions as an analysis or staging host."
+]

@@ -1,0 +1,23 @@
+{
+  "slug": "codebuild-env-to-privesc",
+  "title": "CodeBuild Environment to Privilege Escalation",
+  "description": "CodeBuild projects can have environment variables that contain credentials or reference Parameter Store secrets. An attacker who can trigger a build (or modify the build spec) injects code that exfiltrates these credentials during the build. The build runs with the CodeBuild service role, which may have iam:CreateAccessKey or other privileged permissions. The attacker uses the stolen credentials to create access keys or assume higher-privilege roles, completing the escalation.",
+  "severity": "High",
+  "objective": "privilege-escalation",
+  "tags": [
+    "CodeBuild",
+    "Credential Theft",
+    "Privilege Escalation"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-codebuild-env-theft",
+      "context": "Extract credentials from build environment"
+    },
+    {
+      "techniqueId": "tech-access-key-creation",
+      "context": "Create access keys with stolen permissions"
+    }
+  ],
+  "cloudProvider": "aws"
+}

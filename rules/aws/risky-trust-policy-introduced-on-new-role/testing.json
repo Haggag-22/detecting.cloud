@@ -1,0 +1,5 @@
+[
+  "Create a role with an external-account root principal in the trust policy.",
+  "Verify CloudTrail captures the full assumeRolePolicyDocument.",
+  "Run the detection and confirm the role is escalated based on parsed trust semantics rather than string matching."
+]

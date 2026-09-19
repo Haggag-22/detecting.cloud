@@ -1,0 +1,5 @@
+[
+  "Identify the source snapshot, source region, and source ownership context.",
+  "Verify whether the source snapshot was public, externally shared, or part of an approved DR or migration workflow.",
+  "Check whether the copied snapshot is later restored or attached within the consumer account."
+]

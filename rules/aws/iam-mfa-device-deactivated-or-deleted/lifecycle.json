@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects deactivation or deletion of IAM MFA devices (DeactivateMFADevice, DeleteVirtualMFADevice). Adds Multi-Factor Authentication modification (T1556.006) coverage beyond the existing SigmaHQ SSO external-IdP change rule.",
+  "threatContext": {
+    "attackerBehavior": "Detects deactivation or deletion of IAM MFA devices (DeactivateMFADevice, DeleteVirtualMFADevice). Adds Multi-Factor Authentication modification (T1556.006) coverage beyond the existing SigmaHQ SSO external-IdP change rule.",
+    "whyItMatters": "Detects deactivation or deletion of IAM MFA devices (DeactivateMFADevice, DeleteVirtualMFADevice). Adds Multi-Factor Authentication modification (T1556.006) coverage beyond the existing SigmaHQ SSO external-IdP change rule.",
+    "riskAndImpact": "Abuse related to IAM can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects deactivation or deletion of IAM MFA devices (DeactivateMFADevice, DeleteVirtualMFADevice). Adds Multi-Factor Authentication modification (T1556.006) coverage beyond the existing SigmaHQ SSO external-IdP change rule.",
+    "whenToFire": "When CloudTrail shows activity matching this IAM MFA Device Deactivated Or Deleted detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

@@ -1,0 +1,4 @@
+[
+  "aws s3api put-bucket-policy --bucket target-bucket --policy file://malicious-policy.json",
+  "aws s3api delete-bucket-policy --bucket target-bucket"
+]

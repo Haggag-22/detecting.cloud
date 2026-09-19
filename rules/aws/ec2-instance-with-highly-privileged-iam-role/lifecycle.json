@@ -1,0 +1,122 @@
+{
+  "whyItMatters": "Launching EC2 with a sensitive instance profile is a practical AWS privilege-escalation path because the attacker does not need to assume the role directly. They can create compute they control and retrieve the attached role credentials from IMDS.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with ec2:RunInstances and the ability to pass or select an IAM instance profile launches a new EC2 instance using a role that is more privileged than the caller. After the instance starts, the attacker can access the host through SSM, SSH, user data, or a startup script and query IMDS to obtain temporary credentials for the attached role.",
+    "realWorldUsage": "This is a well-established AWS privilege-escalation pattern in cloud red-team tradecraft, IAM escalation research, and incident-response guidance. It commonly appears when developer, CI/CD, or platform identities can launch instances and attach roles that have broad admin, secrets, KMS, or data-plane access.",
+    "whyItMatters": "CloudTrail does not emit a standalone iam:PassRole event for this path, so the escalation has to be detected from the EC2 API request itself.",
+    "riskAndImpact": "If this goes undetected, an attacker can gain administrative control, access secrets and data stores, move laterally with the instance role, establish persistence through SSM or bootstrapped code, and continue operating even after the original user session is revoked."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for EC2)",
+      "IAM role / instance profile inventory for enrichment"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.iamInstanceProfile.arn",
+      "requestParameters.iamInstanceProfile.name",
+      "requestParameters.imageId",
+      "requestParameters.instanceType",
+      "requestParameters.subnetId",
+      "requestParameters.metadataOptions.httpTokens",
+      "responseElements.instancesSet.items{}.instanceId",
+      "sourceIPAddress",
+      "eventTime",
+      "recipientAccountId",
+      "awsRegion"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled for EC2 API activity.",
+      "The log pipeline must preserve the full requestParameters object because the instance profile reference is embedded there.",
+      "A separate enrichment source must resolve instance profile ARN/name to the underlying IAM role and attached policies."
+    ],
+    "limitations": [
+      "The CloudTrail event shows that a profile was attached, not whether the attacker successfully retrieved credentials from IMDS.",
+      "String matching on profile names is weak; true signal quality depends on authoritative role sensitivity classification.",
+      "Legitimate platform automation and management hosts can generate real but expected events."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Instance Profile Sensitivity",
+      "description": "Resolve the instance profile to its backing role and classify that role by effective permissions, not by name alone.",
+      "examples": [
+        "Role has AdministratorAccess or equivalent wildcard actions",
+        "Role can call iam:* or organizations:*",
+        "Role can access secretsmanager:GetSecretValue"
+      ],
+      "falsePositiveReduction": "Turns a weak name-based match into a permission-sensitive signal and suppresses launches that use ordinary workload roles."
+    },
+    {
+      "dimension": "Privilege Delta",
+      "description": "Compare the caller's effective permissions with the instance profile's effective permissions.",
+      "examples": [
+        "Developer role launches instance with org-admin profile",
+        "CI role launches instance with security tooling role"
+      ],
+      "falsePositiveReduction": "Legitimate platform teams often launch privileged instances; the risky cases are unexpected callers or a large privilege jump."
+    },
+    {
+      "dimension": "Launch and Access Context",
+      "description": "Add context about how reachable and controllable the launched instance is, including subnet type, public IP assignment, user data, SSM manageability, and IMDS settings.",
+      "examples": [
+        "Public subnet with auto-assigned public IP",
+        "SSM-enabled instance",
+        "IMDS httpTokens optional"
+      ],
+      "falsePositiveReduction": "A privileged role on an unreachable, tightly controlled instance is lower urgency than one that is easy for an attacker to access."
+    },
+    {
+      "dimension": "Workload and Business Context",
+      "description": "Map the instance to owner, environment, workload type, and expected role catalog.",
+      "examples": [
+        "Known patching host",
+        "Prod database maintenance instance",
+        "Unowned instance in dev account"
+      ],
+      "falsePositiveReduction": "Expected management or automation launches can be allowlisted, while unowned or novel privileged instances stay high priority."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should identify RunInstances events where the attached IAM instance profile is classified as sensitive based on its effective permissions, not just its name. The engineering rationale is the same as other PassRole detections: the privilege transfer is visible only inside the downstream service API request, so EC2 launch telemetry is the correct detection point.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals RunInstances",
+      "requestParameters.iamInstanceProfile.arn or name is present",
+      "resolved instance profile is classified as high risk based on attached permissions, role path, tags, or access to admin, security, secrets, or data-plane capabilities"
+    ],
+    "tuningGuidance": "1. Maintain an inventory of approved privileged instance profiles and the automation identities allowed to use them. 2. Score severity based on privilege delta. 3. Escalate when the instance is internet-reachable, SSM-manageable by broad principals, or launched with permissive IMDS settings.",
+    "whenToFire": "Fire whenever a new EC2 instance is launched with an instance profile classified as sensitive, especially when the actor is unexpected, the instance is reachable, or the role grants admin, secrets, or org-management access."
+  },
+  "simulationCommand": "aws ec2 run-instances --image-id ami-1234567890abcdef0 --instance-type t3.micro --iam-instance-profile Name=AdminInstanceProfile --subnet-id subnet-0abc123456789def0 --metadata-options \"HttpTokens=required,HttpEndpoint=enabled\"",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium (approved management hosts and platform automation can trigger until profile sensitivity and actor allowlists are in place)",
+    "expectedVolume": "Low in mature environments; moderate in infrastructure-heavy accounts during provisioning windows",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query)",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Batch: every 5-15 minutes for CloudTrail analytics; Real-time: EventBridge on RunInstances with Lambda enrichment against IAM and EC2 inventories.",
+    "considerations": [
+      "Authoritative role sensitivity classification is the key dependency.",
+      "Pair with adjacent coverage for AssociateIamInstanceProfile and ReplaceIamInstanceProfileAssociation.",
+      "Correlate with IMDS exposure, SSM session starts, and unusual API use by the attached role."
+    ]
+  }
+}

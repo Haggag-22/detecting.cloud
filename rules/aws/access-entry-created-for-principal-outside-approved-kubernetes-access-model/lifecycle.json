@@ -1,0 +1,100 @@
+{
+  "whyItMatters": "Not every IAM principal should become a Kubernetes subject. Access-entry creation for the wrong type of principal is a strong signal of privilege escalation or control-plane misuse.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may grant cluster access to an IAM user, workload role, or other identity that is not normally part of the approved Kubernetes access model.",
+    "realWorldUsage": "This technique is practical because it lets the attacker choose a durable AWS identity and convert it into cluster access through native EKS controls.",
+    "whyItMatters": "The key question is whether the principal belongs in the cluster access model, not whether its ARN contains suspicious words.",
+    "riskAndImpact": "If missed, unexpected principals can gain Kubernetes access paths that lead to secrets exposure, workload manipulation, or broader environment takeover."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EKS",
+      "Principal ownership inventory",
+      "Cluster-specific approved access models"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.clusterName",
+      "requestParameters.principalArn",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CreateAccessEntry events must be ingested with cluster and principal context.",
+      "The environment should know which principal categories are valid for each cluster.",
+      "Policy-association events should be available for follow-on correlation."
+    ],
+    "limitations": [
+      "Without cluster access models the rule degenerates into weak anomaly logic.",
+      "Some temporary or break-glass principals may be valid when explicitly approved.",
+      "Principal type alone is not enough without environment context."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Principal Classification",
+      "description": "Resolve whether the target principal is a human identity, platform role, node role, workload role, or automation account.",
+      "examples": [
+        "platform role",
+        "application role",
+        "IAM user"
+      ],
+      "falsePositiveReduction": "Lets the rule reason about whether the principal belongs in Kubernetes access management."
+    },
+    {
+      "dimension": "Cluster Access Model",
+      "description": "Determine which principal classes are approved for the target cluster.",
+      "examples": [
+        "platform team only",
+        "shared engineering access"
+      ],
+      "falsePositiveReduction": "Replaces brittle principal-name matching with actual access policy."
+    },
+    {
+      "dimension": "Cluster Criticality",
+      "description": "Classify the cluster by sensitivity and privilege impact.",
+      "examples": [
+        "prod cluster",
+        "sandbox cluster"
+      ],
+      "falsePositiveReduction": "Raises urgency when unexpected principals receive access to critical clusters."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect when `CreateAccessEntry` grants Kubernetes access to a principal that is outside the approved access model for the target cluster. It should classify the principal, compare it to expected cluster access patterns, and alert when the subject is out of policy.",
+    "conditions": [
+      "eventSource equals eks.amazonaws.com",
+      "eventName equals CreateAccessEntry",
+      "target principal is outside the approved principal classes or ownership model for the cluster"
+    ],
+    "tuningGuidance": "1. Model cluster-specific access rules. 2. Classify principals by ownership and purpose. 3. Escalate further when the principal is a human user or workload role on a sensitive cluster.",
+    "whenToFire": "Fire when an access entry is created for a principal that does not belong in the target cluster's access model."
+  },
+  "simulationCommand": "aws eks create-access-entry --cluster-name prod --principal-arn arn:aws:iam::123456789012:role/AppRole",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with principal classification and cluster access models; high with ARN substring heuristics",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with cluster and identity inventories",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because suspicious access entries may be followed quickly by policy association.",
+    "considerations": [
+      "This is the principal-centric EKS access-entry detector.",
+      "Cluster access-model data is the main dependency."
+    ]
+  }
+}

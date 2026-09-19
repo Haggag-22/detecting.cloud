@@ -1,0 +1,101 @@
+{
+  "whyItMatters": "AssociateAccessPolicy is where EKS authorization often becomes materially powerful. Broad or cluster-wide policy association can convert a mere access entry into an effective administrative foothold.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may associate a high-impact EKS access policy to a principal in order to obtain wide Kubernetes control over a cluster.",
+    "realWorldUsage": "This technique is attractive because it uses native managed access semantics instead of directly altering Kubernetes RBAC objects.",
+    "whyItMatters": "The important signal is the effective privilege and access scope granted, not just a policy ARN string.",
+    "riskAndImpact": "If missed, a principal may receive cluster-wide administrative or near-administrative power without defenders recognizing the privilege change."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EKS",
+      "Policy semantic inventory or allowlist",
+      "Cluster access governance data"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.clusterName",
+      "requestParameters.principalArn",
+      "requestParameters.policyArn",
+      "requestParameters.accessScope",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "AssociateAccessPolicy events must be ingested with cluster, principal, policy, and scope context.",
+      "The environment should know which policies are considered broad or admin-equivalent.",
+      "Policy scope must be parsed to distinguish cluster-wide from narrower namespace access."
+    ],
+    "limitations": [
+      "Policy name matching alone can miss or misclassify effective privilege.",
+      "Some legitimate administrative workflows will intentionally assign broad policies.",
+      "The rule is strongest when paired with approved principal and cluster governance context."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Policy Semantics",
+      "description": "Classify whether the associated policy is admin-equivalent, highly privileged, or otherwise broad in impact.",
+      "examples": [
+        "cluster admin policy",
+        "wide read/write policy"
+      ],
+      "falsePositiveReduction": "Turns raw policy names into meaningful privilege context."
+    },
+    {
+      "dimension": "Effective Scope",
+      "description": "Determine whether access applies cluster-wide or only to approved namespaces or resources.",
+      "examples": [
+        "cluster scope",
+        "limited namespace scope"
+      ],
+      "falsePositiveReduction": "Improves prioritization of high-impact associations."
+    },
+    {
+      "dimension": "Principal Legitimacy",
+      "description": "Determine whether the receiving principal should hold this level of cluster access.",
+      "examples": [
+        "platform admin role",
+        "unexpected app role"
+      ],
+      "falsePositiveReduction": "Separates legitimate admin assignment from privilege escalation."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect policy associations that grant broad effective access in EKS. It should evaluate both the semantics of the associated policy and the resulting access scope, then alert when the principal receives cluster-wide or otherwise high-impact access.",
+    "conditions": [
+      "eventSource equals eks.amazonaws.com",
+      "eventName equals AssociateAccessPolicy",
+      "associated policy is broad or admin-equivalent or access scope is cluster-wide or otherwise exceeds approved scope"
+    ],
+    "tuningGuidance": "1. Model policy semantics instead of only matching policy names. 2. Parse scope carefully. 3. Escalate further when the receiving principal is outside approved access models or the cluster is sensitive.",
+    "whenToFire": "Fire when a policy association grants broad or cluster-wide access beyond approved privilege models."
+  },
+  "simulationCommand": "aws eks associate-access-policy --cluster-name prod --principal-arn arn:aws:iam::123456789012:user/demo-user --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy --access-scope type=cluster",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with policy semantics and approved-governance context; medium with simple policy-name checks",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with policy and governance lookups",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because broad access grants are immediately actionable.",
+    "considerations": [
+      "This is the privilege-impact rule for EKS access management.",
+      "Policy semantics and scope parsing are the main dependencies."
+    ]
+  }
+}

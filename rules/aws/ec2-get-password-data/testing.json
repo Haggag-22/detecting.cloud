@@ -1,0 +1,5 @@
+[
+  "Run: aws ec2 get-password-data --instance-id i-0abc123",
+  "Confirm CloudTrail captured the event.",
+  "Run the Sigma rule against the event."
+]

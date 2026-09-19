@@ -1,0 +1,22 @@
+{
+  "id": "az-125",
+  "title": "Multi Factor Authentication Disabled For User Account",
+  "description": "Detects changes to the \"StrongAuthenticationRequirement\" value, where the state is set to \"0\" or \"Disabled\". Threat actors were seen disabling multi factor authentication for users in order to maintain or achieve access to the account. Also see in SIM Swap attacks.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "credential-access",
+    "persistence"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Legitimate authorized activity."
+  ],
+  "relatedAttackSlugs": []
+}

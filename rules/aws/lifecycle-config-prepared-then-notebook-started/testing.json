@@ -1,0 +1,5 @@
+[
+  "Create or update a lifecycle config, attach it to a notebook, and then start the notebook within 30 minutes.",
+  "Verify CloudTrail preserves enough notebook and config context to connect the steps.",
+  "Run the detector and confirm it requires ordered execution-path correlation rather than simple actor-only grouping."
+]

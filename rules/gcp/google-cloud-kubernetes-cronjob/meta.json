@@ -1,0 +1,24 @@
+{
+  "id": "gcp-020",
+  "title": "Google Cloud Kubernetes CronJob",
+  "description": "Identifies when a Google Cloud Kubernetes CronJob is created or run in GKE. An adversary may use a CronJob to schedule malicious containers in the cluster.",
+  "awsService": "GKE",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "GKE",
+    "persistence",
+    "privilege-escalation",
+    "execution"
+  ],
+  "logSources": [
+    "GCP Audit Logs"
+  ],
+  "falsePositives": [
+    "Google Cloud Kubernetes CronJob/Job may be done by a system administrator.",
+    "If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

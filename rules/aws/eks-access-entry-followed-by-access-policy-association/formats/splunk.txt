@@ -1,0 +1,9 @@
+index=aws sourcetype=aws:cloudtrail eventSource=eks.amazonaws.com (eventName=CreateAccessEntry OR eventName=AssociateAccessPolicy)
+| eval principal=requestParameters.principalArn
+| eval cluster=requestParameters.clusterName
+| eval key=principal."##".cluster
+| eval is_create=if(eventName="CreateAccessEntry", 1, 0)
+| eval is_associate=if(eventName="AssociateAccessPolicy", 1, 0)
+| transaction key maxspan=15m
+| where mvcount(mvfilter(is_create=1))>0 AND mvcount(mvfilter(is_associate=1))>0
+| table _time, key, principal, cluster, eventName

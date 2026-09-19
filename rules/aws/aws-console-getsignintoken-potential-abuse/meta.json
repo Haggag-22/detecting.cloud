@@ -1,0 +1,23 @@
+{
+  "id": "det-144",
+  "title": "AWS Console GetSigninToken Potential Abuse",
+  "description": "Detects potentially suspicious events involving \"GetSigninToken\". An adversary using the \"aws_consoler\" tool can leverage this console API to create temporary federated credential that help obfuscate which AWS credential is compromised (the original access key) and enables the adversary to pivot from the AWS CLI to console sessions without the need for MFA using the new access key issued in this request.",
+  "awsService": "IAM",
+  "relatedServices": [
+    "STS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "STS",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "GetSigninToken events will occur when using AWS SSO portal to login and will generate false positives if you do not filter for the expected user agent(s), see filter. Non-SSO configured roles would be abnormal and should be investigated."
+  ],
+  "relatedAttackSlugs": []
+}

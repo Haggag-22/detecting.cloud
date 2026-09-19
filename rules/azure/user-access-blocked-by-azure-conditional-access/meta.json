@@ -1,0 +1,26 @@
+{
+  "id": "az-126",
+  "title": "User Access Blocked by Azure Conditional Access",
+  "description": "Detect access has been blocked by Conditional Access policies. The access policy does not allow token issuance which might be sights≈ of unauthorizeed login to valid accounts.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "credential-access",
+    "initial-access",
+    "stealth",
+    "t1110"
+  ],
+  "logSources": [
+    "Azure Sign-in Logs"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,4 @@
+[
+  "aws s3 ls s3://target-bucket/",
+  "aws s3 cp s3://target-bucket/sensitive-file.csv . --recursive"
+]

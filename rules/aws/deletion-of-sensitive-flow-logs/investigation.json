@@ -1,0 +1,5 @@
+[
+  "Resolve each deleted flow log to its VPC, subnet, ENI, and network role.",
+  "Verify whether the deleted telemetry covered sensitive environments such as production, egress, identity, or security tooling segments.",
+  "Determine whether the actor was approved to remove telemetry from those sensitive network scopes."
+]

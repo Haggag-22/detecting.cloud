@@ -1,0 +1,21 @@
+{
+  "id": "tech-guardduty-publishing-evasion",
+  "name": "GuardDuty Publishing Destination Deletion",
+  "shortName": "Publishing Evasion",
+  "description": "GuardDuty can publish findings to S3 or EventBridge. An attacker with guardduty:DeletePublishingDestination removes the publishing destination, stopping findings from reaching the SIEM or S3 bucket. guardduty:UpdatePublishingDestination can modify the destination to point elsewhere or disable it. Required permissions are guardduty:DeletePublishingDestination or guardduty:UpdatePublishingDestination. This blinds the security team to GuardDuty findings.",
+  "services": [
+    "GuardDuty"
+  ],
+  "permissions": [
+    "guardduty:DeletePublishingDestination",
+    "guardduty:UpdatePublishingDestination"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict publishing destination management",
+    "Use delegated admin",
+    "Alert on destination changes"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

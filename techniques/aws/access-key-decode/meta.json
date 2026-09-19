@@ -1,0 +1,17 @@
+{
+  "id": "tech-access-key-decode",
+  "name": "Access Key Account ID Decode",
+  "shortName": "Key Decode",
+  "description": "AWS access key IDs (e.g., AKIA...) encode the account ID in a predictable format. By decoding the key ID, an attacker can determine which AWS account the key belongs to. This is useful for reconnaissance when the attacker has found a key (e.g., in a leak, log, or config) and wants to target the correct account. No AWS API permissions are required; decoding uses public algorithms. The key format has been documented in AWS security bulletins.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [],
+  "detectionIds": [],
+  "mitigations": [
+    "N/A - public metadata",
+    "Use access key format awareness in detection"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "aws"
+}

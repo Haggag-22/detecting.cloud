@@ -1,0 +1,5 @@
+[
+  "As an identity outside the approved ML platform set, create or update a lifecycle config or attach one to a notebook.",
+  "Verify CloudTrail records the actor and SageMaker object context.",
+  "Run the detector and confirm it uses explicit actor authorization instead of ML role-name text matches."
+]

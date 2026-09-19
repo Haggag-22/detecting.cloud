@@ -1,0 +1,24 @@
+{
+  "id": "det-199",
+  "title": "User Activity From Multiple Source IPs",
+  "description": "Detects when the same AWS IAM user ARN performs actions from more than one distinct source IP within a 1-hour window. Indicative of session hijacking, credential sharing, or AiTM compromise where the attacker egress IP differs from the victim's IP. AssumedRole is excluded by default due to high noise from automation — add back with tuned ARN exclusions if needed.",
+  "awsService": "CloudTrail",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "CloudTrail",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Users switching networks within the window (VPN connect/disconnect, WiFi to hotspot).",
+    "Legitimate use of rotating VPN egress nodes.",
+    "Federated users where the IdP and the user originate from different IPs.",
+    "Consider excluding specific user ARNs or known trusted CIDR ranges via additional filter blocks."
+  ],
+  "relatedAttackSlugs": []
+}

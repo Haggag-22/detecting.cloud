@@ -1,0 +1,22 @@
+{
+  "id": "det-190",
+  "title": "Load Balancer Security Group Modified",
+  "description": "Detects changes to the security groups associated with an Elastic Load Balancer (ELB) or Application Load Balancer (ALB). This can indicate that a misconfiguration allowing more traffic into the system than required, or could indicate that an attacker is attempting to enable new connections into a VPC or subnet controlled by the account.",
+  "awsService": "ELB",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "ELB",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Repurposing of an ELB or ALB to serve a different or additional application",
+    "Changes to security groups to allow for new services to be deployed"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,10 @@
+title: ECS RunTask Executed
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ecs.amazonaws.com
+    eventName: RunTask
+  condition: selection
+level: medium

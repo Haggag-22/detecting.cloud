@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects changes to the EC2 instance startup script (user data) via ModifyInstanceAttribute where requestParameters.attribute is userData. The startup script is executed as root/SYSTEM each time the instance boots, allowing adversaries to establish persistence and execute arbitrary commands. Companion to the EC2 compute configuration modification rule, which deliberately excludes userData changes.",
+  "threatContext": {
+    "attackerBehavior": "Detects changes to the EC2 instance startup script (user data) via ModifyInstanceAttribute where requestParameters.attribute is userData. The startup script is executed as root/SYSTEM each time the instance boots, allowing adversaries to establish persistence and execute arbitrary commands. Companion to the EC2 compute configuration modification rule, which deliberately excludes userData changes.",
+    "whyItMatters": "Detects changes to the EC2 instance startup script (user data) via ModifyInstanceAttribute where requestParameters.attribute is userData. The startup script is executed as root/SYSTEM each time the instance boots, allowing adversaries to establish persistence and execute arbitrary commands. Companion to the EC2 compute configuration modification rule, which deliberately excludes userData changes.",
+    "riskAndImpact": "Abuse related to EC2 can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects changes to the EC2 instance startup script (user data) via ModifyInstanceAttribute where requestParameters.attribute is userData. The startup script is executed as root/SYSTEM each time the instance boots, allowing adversaries to establish persistence and execute arbitrary commands. Companion to the EC2 compute configuration modification rule, which deliberately excludes userData changes.",
+    "whenToFire": "When CloudTrail shows activity matching this AWS EC2 Startup Shell Script Modification detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

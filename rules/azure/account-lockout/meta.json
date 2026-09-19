@@ -1,0 +1,22 @@
+{
+  "id": "az-006",
+  "title": "Account Lockout",
+  "description": "Identifies user account which has been locked because the user tried to sign in too many times with an incorrect user ID or password.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "credential-access",
+    "t1110"
+  ],
+  "logSources": [
+    "Azure Sign-in Logs"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

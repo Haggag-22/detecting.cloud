@@ -1,0 +1,102 @@
+{
+  "whyItMatters": "Boundary changes become much more convincing as abuse when the target principal or actor immediately performs actions that were previously blocked or out of profile.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may weaken a boundary and then quickly use the newly enabled permissions to assume roles, access secrets, or mutate IAM state.",
+    "realWorldUsage": "This is the strongest boundary-abuse branch because it shows both the control change and its operational use.",
+    "whyItMatters": "A real detector must tie the weakened boundary to the actor, target principal, and follow-on action rather than simply matching two unrelated events close together.",
+    "riskAndImpact": "If missed, a seemingly small governance change can immediately turn into active credential theft, persistence, or privilege escalation."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (IAM, STS, Secrets Manager, KMS, and related services)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.roleName",
+      "requestParameters.userName",
+      "requestParameters.permissionsBoundary",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "Boundary-change telemetry must be correlated with follow-on IAM, STS, Secrets Manager, and KMS activity.",
+      "Previous and new boundary state must be compared to confirm weakening.",
+      "Principal inventory and session lineage are required to connect the change to later activity."
+    ],
+    "limitations": [
+      "Same-actor-only joins miss target-principal abuse patterns.",
+      "Not every privileged action after a boundary change was enabled by it.",
+      "The raw Put*Boundary event does not reveal whether the new boundary is weaker."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Boundary Weakening Diff",
+      "description": "Confirm the new boundary is weaker or non-standard before doing follow-on correlation.",
+      "examples": [
+        "removed restrictive conditions",
+        "custom boundary replacing standard boundary"
+      ],
+      "falsePositiveReduction": "Prevents benign boundary rotation from entering the high-confidence branch."
+    },
+    {
+      "dimension": "Target Principal and Session Lineage",
+      "description": "Track whether the actor, the affected principal, or a new session from that principal performed the follow-on action.",
+      "examples": [
+        "target role assumes another role",
+        "affected user creates access key"
+      ],
+      "falsePositiveReduction": "Makes the correlation technically defensible."
+    },
+    {
+      "dimension": "Follow-on Action Risk",
+      "description": "Score follow-on actions by how directly they indicate newly enabled privilege use.",
+      "examples": [
+        "AssumeRole",
+        "PassRole",
+        "GetSecretValue",
+        "SetDefaultPolicyVersion"
+      ],
+      "falsePositiveReduction": "Prevents low-risk administration from looking like immediate exploitation."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should be the strongest boundary-change abuse rule. First confirm the boundary was weakened or replaced with a non-standard version, then correlate the actor or affected principal with high-risk follow-on activity in a short window.",
+    "conditions": [
+      "first eventName equals PutRolePermissionsBoundary or PutUserPermissionsBoundary",
+      "before/after comparison shows the new boundary is weaker or non-standard",
+      "follow-on event occurs within 5-15 minutes",
+      "follow-on action is high risk and linked to the actor or affected principal"
+    ],
+    "tuningGuidance": "1. Do not use raw API sequencing alone. 2. Confirm weakening first. 3. Correlate on target principal and session lineage, not only actor ARN.",
+    "whenToFire": "Fire when a weaker boundary is applied and the actor or affected principal quickly uses newly enabled privileges."
+  },
+  "simulationCommand": "aws iam put-role-permissions-boundary --role-name TargetRole --permissions-boundary arn:aws:iam::123456789012:policy/CustomWeakBoundary && aws secretsmanager get-secret-value --secret-id demo-secret",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with weakening confirmation and lineage-aware correlation",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with enrichment tables",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Best in near-real-time because short-window follow-on activity is the key signal.",
+    "considerations": [
+      "Use this as the high-confidence branch after `det-044` and `det-045`.",
+      "Implement the real join logic outside Sigma."
+    ]
+  }
+}

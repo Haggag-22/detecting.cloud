@@ -1,0 +1,21 @@
+{
+  "id": "det-016",
+  "title": "EC2 Security Group Opened to 0.0.0.0/0",
+  "description": "Detects when an EC2 security group is modified to allow inbound traffic from any IP address.",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EC2",
+    "Security Group",
+    "Network"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Public-facing web servers with intentional open access"
+  ],
+  "relatedAttackSlugs": []
+}

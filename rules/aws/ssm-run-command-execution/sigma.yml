@@ -1,0 +1,16 @@
+title: SSM Run Command Execution
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ssm.amazonaws.com
+    eventName:
+      - SendCommand
+      - StartSession
+  risky_document:
+    requestParameters.documentName:
+      - AWS-RunShellScript
+      - AWS-RunPowerShellScript
+  condition: selection and risky_document
+level: high

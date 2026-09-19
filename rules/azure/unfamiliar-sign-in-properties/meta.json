@@ -1,0 +1,25 @@
+{
+  "id": "az-077",
+  "title": "Unfamiliar Sign-In Properties",
+  "description": "Detects sign-in with properties that are unfamiliar to the user. The detection considers past sign-in history to look for anomalous sign-ins.",
+  "awsService": "Entra ID Protection",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Protection",
+    "stealth",
+    "t1078",
+    "persistence",
+    "privilege-escalation",
+    "initial-access"
+  ],
+  "logSources": [
+    "Azure riskdetection"
+  ],
+  "falsePositives": [
+    "User changing to a new device, location, browser, etc."
+  ],
+  "relatedAttackSlugs": []
+}

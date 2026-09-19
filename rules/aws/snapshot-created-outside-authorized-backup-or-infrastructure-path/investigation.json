@@ -1,0 +1,5 @@
+[
+  "Identify the actor type, ARN, principalId, and the source volume or workload.",
+  "Verify whether this identity is approved to create snapshots for that volume class or environment.",
+  "Check whether the volume backs a sensitive workload and whether the snapshot was part of a known backup or maintenance workflow."
+]

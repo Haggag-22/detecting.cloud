@@ -1,0 +1,19 @@
+{
+  "id": "tech-glue-dev-endpoint-update",
+  "name": "Glue Dev Endpoint SSH Key Update",
+  "shortName": "Glue SSH Key",
+  "description": "A Glue dev endpoint is an EC2 instance with an IAM role. An attacker with glue:UpdateDevEndpoint can add their SSH public key to the endpoint's authorized keys. They then SSH into the endpoint (using the Glue-provided connection details) and query the Instance Metadata Service to retrieve the endpoint's IAM role credentials. This works even if the attacker did not create the endpoint. Required permission is glue:UpdateDevEndpoint. The endpoint must be in a running state.",
+  "services": [
+    "Glue",
+    "IAM"
+  ],
+  "permissions": [
+    "glue:UpdateDevEndpoint"
+  ],
+  "detectionIds": [
+    "det-154"
+  ],
+  "mitigations": [],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,4 @@
+[
+  "aws ses list-identities --identity-type EmailAddress",
+  "aws ses get-identity-verification-attributes --identities user@domain.com"
+]

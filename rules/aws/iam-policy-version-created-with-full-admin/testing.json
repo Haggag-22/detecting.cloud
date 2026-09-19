@@ -1,0 +1,5 @@
+[
+  "Attach a policy to your user, then create a new version with admin permissions.",
+  "Set it as default.",
+  "Run the detection query to confirm the alert triggers."
+]

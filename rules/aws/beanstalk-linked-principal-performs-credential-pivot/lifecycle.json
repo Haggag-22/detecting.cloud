@@ -1,0 +1,98 @@
+{
+  "whyItMatters": "A Beanstalk-linked principal moving into stronger credential paths can indicate that environment-derived access is being operationalized for persistence or lateral movement. The baseline event is valuable because it marks a possible pivot out of application infrastructure into broader cloud control.",
+  "threatContext": {
+    "attackerBehavior": "An attacker who gains access to a Beanstalk-linked principal may create long-lived credentials or assume additional roles to move beyond the original environment's privileges.",
+    "realWorldUsage": "This is attractive because application environments often hold credentials or trust paths that can be turned into more durable or expansive access.",
+    "whyItMatters": "The key signal is that the pivot originated from a Beanstalk-linked identity or execution path, not whether the principal name contains Beanstalk-like strings.",
+    "riskAndImpact": "If missed, defenders may overlook the moment a compromise moves from environment-level access into durable IAM or STS pivots."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for IAM and STS",
+      "Elastic Beanstalk environment-to-role linkage inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.userName",
+      "requestParameters.roleArn",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CreateAccessKey and AssumeRole events must be ingested.",
+      "The environment should resolve whether the acting principal is linked to a Beanstalk environment or instance profile path.",
+      "Beanstalk recon events should be available for downstream correlation."
+    ],
+    "limitations": [
+      "CloudTrail alone does not prove the principal is Beanstalk-linked without enrichment.",
+      "Some legitimate CI/CD or platform workflows may use Beanstalk-linked roles for expected pivots.",
+      "The baseline event does not alone prove malicious intent."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Beanstalk Principal Linkage",
+      "description": "Resolve whether the acting principal is actually tied to a Beanstalk environment, instance profile, or deployment path.",
+      "examples": [
+        "environment instance profile",
+        "Beanstalk service role"
+      ],
+      "falsePositiveReduction": "Replaces brittle ARN substring matching."
+    },
+    {
+      "dimension": "Pivot Legitimacy",
+      "description": "Determine whether the principal is expected to create IAM credentials or assume the target role.",
+      "examples": [
+        "approved deployment role chain",
+        "unexpected app-role pivot"
+      ],
+      "falsePositiveReduction": "Separates expected automation from suspicious credential use."
+    },
+    {
+      "dimension": "Environment Sensitivity",
+      "description": "Classify the Beanstalk environment by business criticality and privilege impact.",
+      "examples": [
+        "prod application environment",
+        "test environment"
+      ],
+      "falsePositiveReduction": "Improves prioritization when privileged pivots originate from important environments."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain a baseline pivot rule for CreateAccessKey or AssumeRole activity that originates from a principal linked to Elastic Beanstalk. The detector should first establish Beanstalk linkage through environment or role metadata, then surface the credential pivot for triage.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com and eventName equals CreateAccessKey, or eventSource equals sts.amazonaws.com and eventName equals AssumeRole",
+      "acting principal is linked to an Elastic Beanstalk environment or execution path"
+    ],
+    "tuningGuidance": "1. Resolve Beanstalk linkage explicitly. 2. Separate expected CI/CD or platform pivots from suspicious ones. 3. Correlate with prior environment reconnaissance or later privilege-affecting actions for stronger confidence.",
+    "whenToFire": "Fire when a Beanstalk-linked principal performs CreateAccessKey or AssumeRole."
+  },
+  "simulationCommand": "aws sts assume-role --role-arn arn:aws:iam::123456789012:role/TargetRole --role-session-name test",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Low-Medium with Beanstalk linkage and workflow context; medium-high with raw name heuristics",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with Beanstalk linkage inventories",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because credential pivots can immediately expand attacker access.",
+    "considerations": [
+      "This is the baseline Beanstalk credential-pivot detector.",
+      "Beanstalk linkage enrichment is the main dependency."
+    ]
+  }
+}

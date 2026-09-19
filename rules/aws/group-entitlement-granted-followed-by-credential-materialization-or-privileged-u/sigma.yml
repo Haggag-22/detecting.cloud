@@ -1,0 +1,18 @@
+title: AddUserToGroup Followed by Privileged Use
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_add:
+    eventSource: iam.amazonaws.com
+    eventName: AddUserToGroup
+  selection_sensitive:
+    eventName:
+      - CreateAccessKey
+      - AssumeRole
+      - GetSecretValue
+      - AttachUserPolicy
+      - PutUserPolicy
+  condition: selection_add
+level: critical
+# Full correlation requires target-user linkage, group privilege context, and follow-on access modeling.

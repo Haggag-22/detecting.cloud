@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.userName
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName = "CreateLoginProfile"
+| sort @timestamp desc

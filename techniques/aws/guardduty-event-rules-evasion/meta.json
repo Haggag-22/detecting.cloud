@@ -1,0 +1,23 @@
+{
+  "id": "tech-guardduty-event-rules-evasion",
+  "name": "GuardDuty EventBridge Rule Evasion",
+  "shortName": "EventBridge Rules",
+  "description": "GuardDuty findings are often forwarded to SIEM or SNS via EventBridge rules. An attacker with events:DeleteRule removes the rule that forwards GuardDuty findings, suppressing alerting. Alternatively, events:PutRule and events:PutTargets can modify the rule to point to a dead target or filter out findings. Required permissions are events:DeleteRule to remove the rule, or events:PutRule and events:PutTargets to modify it.",
+  "services": [
+    "GuardDuty",
+    "EventBridge"
+  ],
+  "permissions": [
+    "events:DeleteRule",
+    "events:PutRule",
+    "events:PutTargets"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict EventBridge rule management",
+    "Use SNS for findings",
+    "Audit rule changes"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

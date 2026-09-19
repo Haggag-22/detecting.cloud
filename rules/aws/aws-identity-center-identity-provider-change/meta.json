@@ -1,0 +1,21 @@
+{
+  "id": "det-161",
+  "title": "AWS Identity Center Identity Provider Change",
+  "description": "Detects a change in the AWS Identity Center (FKA AWS SSO) identity provider. A change in identity provider allows an attacker to establish persistent access or escalate privileges via user impersonation.",
+  "awsService": "IAM Identity Center",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM Identity Center",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Authorized changes to the AWS account's identity provider"
+  ],
+  "relatedAttackSlugs": []
+}

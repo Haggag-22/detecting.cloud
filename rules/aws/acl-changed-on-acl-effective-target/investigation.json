@@ -1,0 +1,5 @@
+[
+  "Verify the target bucket or object still honors ACLs and is not protected by `BucketOwnerEnforced` object ownership.",
+  "Inspect the exact grant scope to determine whether the effective change preserved or broadened access.",
+  "Check whether the bucket is legacy, exception-based, or especially sensitive."
+]

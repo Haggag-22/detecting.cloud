@@ -1,0 +1,12 @@
+title: Permissions Boundary Removed
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName:
+      - DeleteRolePermissionsBoundary
+      - DeleteUserPermissionsBoundary
+  condition: selection
+level: medium

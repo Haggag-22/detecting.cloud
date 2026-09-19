@@ -1,0 +1,98 @@
+{
+  "whyItMatters": "Override-based build launches are one of the most direct ways to weaponize CodeBuild. They can change commands, secret handling, and runtime behavior without altering the underlying project definition.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may inject a malicious buildspec or override runtime variables to exfiltrate secrets, run arbitrary commands, or pivot into broader cloud access.",
+    "realWorldUsage": "This is attractive because the override happens at execution time and can avoid more durable configuration changes.",
+    "whyItMatters": "The presence of an override materially changes the risk of a build launch and deserves separate detection from the generic baseline.",
+    "riskAndImpact": "If missed, defenders may overlook the exact moment a trusted CI/CD path was converted into arbitrary execution or secret exposure."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for CodeBuild"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.projectName",
+      "requestParameters.buildspecOverride",
+      "requestParameters.environmentVariablesOverride",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must preserve the override fields in StartBuild requests.",
+      "The environment should classify which projects or actors may legitimately use overrides.",
+      "Follow-on build-role activity should be available for correlation."
+    ],
+    "limitations": [
+      "Some teams legitimately use overrides for testing or dynamic build control.",
+      "CloudTrail may not fully capture the runtime impact of all override values.",
+      "The override event alone does not confirm successful malicious execution."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Override Authorization",
+      "description": "Determine whether the actor and project are allowed to use build overrides.",
+      "examples": [
+        "approved test pipeline",
+        "no override permissions"
+      ],
+      "falsePositiveReduction": "Separates expected engineering workflows from risky execution changes."
+    },
+    {
+      "dimension": "Project Secret Exposure",
+      "description": "Classify what the project can access during runtime.",
+      "examples": [
+        "deploy secrets",
+        "artifact signing keys"
+      ],
+      "falsePositiveReduction": "Raises urgency when overrides land on highly privileged projects."
+    },
+    {
+      "dimension": "Override Content Risk",
+      "description": "Inspect the override for outbound calls, secret handling, or arbitrary execution patterns.",
+      "examples": [
+        "curl to external host",
+        "sensitive env var overrides"
+      ],
+      "falsePositiveReduction": "Improves triage of genuinely dangerous overrides."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect `StartBuild` requests that include execution-changing overrides. It should treat `buildspecOverride` and `environmentVariablesOverride` as high-risk launch modifiers and then use project and actor context to determine urgency.",
+    "conditions": [
+      "eventSource equals codebuild.amazonaws.com",
+      "eventName equals StartBuild",
+      "requestParameters.buildspecOverride exists or requestParameters.environmentVariablesOverride exists"
+    ],
+    "tuningGuidance": "1. Keep the override presence checks exact. 2. Classify which projects and actors may legitimately use overrides. 3. Escalate strongly when the override lands on a sensitive project or the content is clearly execution-changing.",
+    "whenToFire": "Fire whenever StartBuild includes buildspec or environment-variable overrides."
+  },
+  "simulationCommand": "aws codebuild start-build --project-name target --buildspec-override file://override.yml",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with project and actor context",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is strongly preferred because override-backed builds can execute immediately.",
+    "considerations": [
+      "This is the dangerous-modifier branch of the CodeBuild family.",
+      "Override authorization and content-risk analysis are the main enrichments."
+    ]
+  }
+}

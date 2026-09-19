@@ -1,0 +1,24 @@
+{
+  "id": "az-089",
+  "title": "Azure Kubernetes Secret or Config Object Access",
+  "description": "Identifies when a Kubernetes account access a sensitive objects such as configmaps or secrets.",
+  "awsService": "AKS",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "AKS",
+    "impact",
+    "t1485",
+    "t1496",
+    "t1489"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Sensitive objects may be accessed by a system administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment. Sensitive objects accessed from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

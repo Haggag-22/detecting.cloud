@@ -1,0 +1,5 @@
+[
+  "Identify the SES enumeration event, exact follow-on abuse action, and operator identity linking both stages.",
+  "Verify whether the write or credential action was expected after the reconnaissance step.",
+  "Check for indicators of phishing setup, SES policy abuse, or identity compromise."
+]

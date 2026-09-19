@@ -1,0 +1,5 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.projectName, requestParameters.buildspecOverride, requestParameters.environmentVariablesOverride
+| filter eventSource = "codebuild.amazonaws.com"
+| filter eventName = "StartBuild"
+| filter ispresent(requestParameters.buildspecOverride) or ispresent(requestParameters.environmentVariablesOverride)
+| sort @timestamp desc

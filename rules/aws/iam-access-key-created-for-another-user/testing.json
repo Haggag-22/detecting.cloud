@@ -1,0 +1,5 @@
+[
+  "As user A, create an access key for user B.",
+  "Verify CloudTrail captures CreateAccessKey.",
+  "Run the detection to confirm it triggers on cross-user key creation."
+]

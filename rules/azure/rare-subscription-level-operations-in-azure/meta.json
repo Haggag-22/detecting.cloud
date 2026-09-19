@@ -1,0 +1,22 @@
+{
+  "id": "az-116",
+  "title": "Rare Subscription-level Operations In Azure",
+  "description": "Detects Azure Activity operations that harvest resource keys (Storage, Cosmos DB, Cognitive Services, Maps, Media listKeys) or write snapshots/NSGs. This is credential access, not burst resource deployment.",
+  "awsService": "Azure Activity",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Azure Activity",
+    "t1003",
+    "credential-access"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Valid change"
+  ],
+  "relatedAttackSlugs": []
+}

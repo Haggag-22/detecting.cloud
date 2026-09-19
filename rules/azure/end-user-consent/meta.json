@@ -1,0 +1,22 @@
+{
+  "id": "az-031",
+  "title": "End User Consent",
+  "description": "Detects when an end user consents to an application",
+  "awsService": "Entra ID Apps",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Low",
+  "tags": [
+    "AZURE",
+    "Entra ID Apps",
+    "credential-access",
+    "t1528"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,24 @@
+title: STS AssumeRole into Sensitive Role by Unexpected Principal
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: sts.amazonaws.com
+    eventName: AssumeRole
+  target_role:
+    requestParameters.roleArn|contains:
+      - 'Admin'
+      - 'Administrator'
+      - 'PowerUser'
+      - 'OrganizationAccountAccessRole'
+      - 'Security'
+  filter_known_admin:
+    userIdentity.arn|contains:
+      - '/role/Admin'
+      - '/role/Security'
+      - '/role/Platform'
+      - '/role/Infra'
+      - 'AWSReservedSSO_AdministratorAccess'
+  condition: selection and target_role and not filter_known_admin
+level: critical

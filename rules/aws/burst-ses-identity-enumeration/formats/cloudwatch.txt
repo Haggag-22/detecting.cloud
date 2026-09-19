@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.arn, eventName
+| filter eventSource = "ses.amazonaws.com"
+| filter eventName in ["ListIdentities", "GetIdentityVerificationAttributes"]
+| stats count(*) as cnt by userIdentity.arn, bin(5m)
+| filter cnt > 5
+| sort cnt desc

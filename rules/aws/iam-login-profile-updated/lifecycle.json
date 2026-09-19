@@ -1,0 +1,100 @@
+{
+  "whyItMatters": "Password-reset and password-update activity is foundational telemetry for detecting persistence, helpdesk abuse, and account recovery misuse against IAM users.",
+  "threatContext": {
+    "attackerBehavior": "An attacker or unauthorized operator may reset a user's console password to regain or establish access.",
+    "realWorldUsage": "UpdateLoginProfile is frequently seen in support and recovery workflows, but it is also a practical takeover mechanism when attackers already have enough IAM access.",
+    "whyItMatters": "This should remain a baseline rule because the event is important, even when it is not malicious by itself.",
+    "riskAndImpact": "If missed, a suspicious password update may only become visible later after a successful console login or other downstream abuse."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.userName",
+      "requestParameters.passwordResetRequired",
+      "sourceIPAddress",
+      "userAgent",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "The pipeline should preserve requestParameters.passwordResetRequired when present.",
+      "User inventory should indicate whether the target user is expected to have console access."
+    ],
+    "limitations": [
+      "The event alone does not distinguish self-service change from delegated reset unless you enrich the actor and target relationship.",
+      "Support workflows can generate legitimate events.",
+      "Without sign-in correlation this remains a baseline signal."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Self-Service vs Delegated Reset",
+      "description": "Determine whether the actor changed their own password or someone else's.",
+      "examples": [
+        "user resets own password",
+        "helpdesk resets employee password"
+      ],
+      "falsePositiveReduction": "Separates routine self-service from more sensitive delegated changes."
+    },
+    {
+      "dimension": "Target User Console Posture",
+      "description": "Classify whether the target user should have a console password at all.",
+      "examples": [
+        "human user",
+        "API-only user"
+      ],
+      "falsePositiveReduction": "Improves prioritization when the target's console capability is unexpected."
+    },
+    {
+      "dimension": "Follow-on Sign-In Activity",
+      "description": "Correlate later ConsoleLogin, MFA changes, and unusual login context.",
+      "examples": [
+        "ConsoleLogin within 1h",
+        "no MFA"
+      ],
+      "falsePositiveReduction": "Raises confidence when the reset becomes active access."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should stay as a broad baseline password-reset detector. It should alert on every successful UpdateLoginProfile, then rely on self-service context, target eligibility, and later sign-in behavior to determine urgency.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals UpdateLoginProfile",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep the event match broad. 2. Distinguish self-service from delegated resets. 3. Correlate with console login and MFA posture for escalation.",
+    "whenToFire": "Fire on every successful login-profile update for visibility, with higher priority when the actor-target relationship or target-user posture is unusual."
+  },
+  "simulationCommand": "aws iam update-login-profile --user-name TargetUser --password 'ExampleTempPassword123!' --password-reset-required",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium as raw visibility, low-medium with actor-target and sign-in enrichment",
+    "expectedVolume": "Low to moderate depending on support workflows",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time or short scheduled intervals both work because this is direct IAM telemetry.",
+    "considerations": [
+      "Keep this as the baseline companion to unauthorized-reset and reset-plus-login detections.",
+      "Do not over-severity the raw event without context."
+    ]
+  }
+}

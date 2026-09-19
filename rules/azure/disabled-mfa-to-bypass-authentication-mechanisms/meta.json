@@ -1,0 +1,24 @@
+{
+  "id": "az-094",
+  "title": "Disabled MFA to Bypass Authentication Mechanisms",
+  "description": "Detection for when multi factor authentication has been disabled, which might indicate a malicious activity to bypass authentication mechanisms.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "credential-access",
+    "persistence",
+    "defense-impairment",
+    "t1556"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Authorized modification by administrators"
+  ],
+  "relatedAttackSlugs": []
+}

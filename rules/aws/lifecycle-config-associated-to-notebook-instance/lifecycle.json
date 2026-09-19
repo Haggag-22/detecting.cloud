@@ -1,0 +1,98 @@
+{
+  "whyItMatters": "A lifecycle config becomes operationally significant once it is attached to a notebook. At that point, the startup script has a live execution path into a SageMaker environment.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may attach a malicious or modified lifecycle config to a notebook to prepare code execution when the notebook next starts.",
+    "realWorldUsage": "This is attractive because it converts a configuration artifact into a live startup mechanism without immediately running code.",
+    "whyItMatters": "Association is a stronger signal than lifecycle-config mutation alone because it shows the config is being put into position for execution.",
+    "riskAndImpact": "If missed, defenders may not realize that a risky lifecycle config has become active on a notebook environment."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for SageMaker",
+      "Notebook inventory and lifecycle-config mappings"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.notebookInstanceName",
+      "requestParameters.lifecycleConfigName",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CreateNotebookInstance and UpdateNotebookInstance events must be ingested.",
+      "The detector should evaluate whether lifecycleConfigName is present and non-empty.",
+      "Notebook start events should be available for later execution-path correlation."
+    ],
+    "limitations": [
+      "Association alone does not guarantee the notebook has started yet.",
+      "Some approved notebook provisioning workflows will legitimately attach lifecycle configs.",
+      "The notebook and config risk still require enrichment for prioritization."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Notebook Criticality",
+      "description": "Classify the notebook by environment, owner, and data sensitivity.",
+      "examples": [
+        "prod data-science notebook",
+        "ephemeral sandbox notebook"
+      ],
+      "falsePositiveReduction": "Raises urgency when risky configs are attached to important notebooks."
+    },
+    {
+      "dimension": "Lifecycle Config Reputation",
+      "description": "Determine whether the attached config is approved, expected, or newly introduced.",
+      "examples": [
+        "approved bootstrap config",
+        "unknown recently modified config"
+      ],
+      "falsePositiveReduction": "Separates known-good startup logic from suspicious attachment."
+    },
+    {
+      "dimension": "Execution Readiness",
+      "description": "Track whether the notebook is started or restarted soon after the association.",
+      "examples": [
+        "start within 5 minutes",
+        "attached but dormant"
+      ],
+      "falsePositiveReduction": "Improves confidence that the attached code is about to run."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect the operational attachment of a lifecycle config to a SageMaker notebook. It should match notebook create or update events only when `lifecycleConfigName` is set, because that is the point where startup logic becomes executable on the notebook.",
+    "conditions": [
+      "eventSource equals sagemaker.amazonaws.com",
+      "eventName equals CreateNotebookInstance or UpdateNotebookInstance",
+      "requestParameters.lifecycleConfigName exists and is not empty"
+    ],
+    "tuningGuidance": "1. Require an actual lifecycle-config attachment. 2. Resolve notebook criticality and config approval state. 3. Correlate with notebook start or post-start sensitive activity for higher-confidence detections.",
+    "whenToFire": "Fire when a lifecycle config is associated with a notebook instance, especially on sensitive notebooks or when the config is newly changed or unapproved."
+  },
+  "simulationCommand": "aws sagemaker update-notebook-instance --notebook-instance-name target --lifecycle-config-name demo-config",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium depending on notebook provisioning patterns",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because notebook start often follows shortly after association.",
+    "considerations": [
+      "This is the operational handoff rule for SageMaker lifecycle configs.",
+      "Notebook inventory and config approval state are key enrichments."
+    ]
+  }
+}

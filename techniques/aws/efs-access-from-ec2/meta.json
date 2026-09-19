@@ -1,0 +1,22 @@
+{
+  "id": "tech-efs-access-from-ec2",
+  "name": "EFS Access from EC2 (VPC)",
+  "shortName": "EFS from EC2",
+  "description": "An attacker with access to an EC2 instance in a VPC can mount EFS file systems that are accessible from that instance. They use elasticfilesystem:DescribeFileSystems and elasticfilesystem:DescribeMountTargets to discover EFS volumes. If the instance's security group allows NFS (port 2049) to the EFS mount targets, they mount the filesystem and access shared data. EFS access is controlled by security groups and IAM; the instance role may have EFS permissions. Required permissions include elasticfilesystem:DescribeFileSystems and network access to mount targets.",
+  "services": [
+    "EFS",
+    "EC2"
+  ],
+  "permissions": [
+    "elasticfilesystem:DescribeFileSystems",
+    "elasticfilesystem:DescribeMountTargets"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict EFS access via security groups",
+    "Use encryption",
+    "Audit EFS mount activity"
+  ],
+  "category": "lateral-movement",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "det-109",
+  "title": "SES Enumeration Followed by SES or Credential Abuse",
+  "description": "High-confidence recon-to-action detection for SES. This should correlate SES identity enumeration with later SES write activity or credential-related abuse from the same operator identity using ordered sequence, not loose co-occurrence.",
+  "awsService": "SES",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "SES",
+    "Reconnaissance",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate enumeration followed by expected SES changes"
+  ],
+  "relatedAttackSlugs": []
+}

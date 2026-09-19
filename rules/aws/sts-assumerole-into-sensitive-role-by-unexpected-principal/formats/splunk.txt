@@ -1,0 +1,4 @@
+index=aws sourcetype=aws:cloudtrail eventSource=sts.amazonaws.com eventName=AssumeRole
+| where like(requestParameters.roleArn, "%Admin%") OR like(requestParameters.roleArn, "%Administrator%") OR like(requestParameters.roleArn, "%PowerUser%") OR like(requestParameters.roleArn, "%OrganizationAccountAccessRole%") OR like(requestParameters.roleArn, "%Security%")
+| where NOT (like(userIdentity.arn, "%/role/Admin%") OR like(userIdentity.arn, "%/role/Security%") OR like(userIdentity.arn, "%/role/Platform%") OR like(userIdentity.arn, "%/role/Infra%") OR like(userIdentity.arn, "%AWSReservedSSO_AdministratorAccess%"))
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.roleArn, requestParameters.roleSessionName, sourceIPAddress

@@ -1,0 +1,25 @@
+{
+  "id": "det-067",
+  "title": "EC2 Launch with Instance Profile Outside Authorized Compute Provisioning Path",
+  "description": "Detects RunInstances with an attached instance profile when the launch actor is outside approved provisioning, platform engineering, or workload-deployment workflows. This should be driven by exact actor inventories and approved principal-to-profile mappings rather than name-based exclusions.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EC2",
+    "RunInstances",
+    "PassRole",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate deployment automation",
+    "CI/CD pipelines"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,22 @@
+{
+  "id": "gcp-002",
+  "title": "GCP Break-glass Container Workload Deployed",
+  "description": "Detects the deployment of workloads that are deployed by using the break-glass flag to override Binary Authorization controls.",
+  "awsService": "GKE",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "GKE",
+    "privilege-escalation",
+    "t1548"
+  ],
+  "logSources": [
+    "GCP Audit Logs"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

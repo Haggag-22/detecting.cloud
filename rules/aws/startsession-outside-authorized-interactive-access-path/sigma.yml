@@ -1,0 +1,10 @@
+title: StartSession Outside Authorized Interactive Access Path
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ssm.amazonaws.com
+    eventName: StartSession
+  condition: selection
+level: high

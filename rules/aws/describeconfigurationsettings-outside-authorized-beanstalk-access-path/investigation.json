@@ -1,0 +1,5 @@
+[
+  "Identify the actor, session issuer, and source IP behind the configuration read.",
+  "Verify whether this identity is explicitly approved to inspect Beanstalk configuration for the target environment.",
+  "Determine whether the read came from trusted deployment automation or an unexpected application or workload principal."
+]

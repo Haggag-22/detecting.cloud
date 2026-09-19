@@ -1,0 +1,100 @@
+{
+  "whyItMatters": "Serial console is too powerful and sensitive to be broadly accessible. When an unapproved identity uses it, the event is a strong sign of abuse, control-plane misuse, or ungoverned recovery access.",
+  "threatContext": {
+    "attackerBehavior": "An attacker operating through a compromised IAM identity or role may use serial console to bypass ordinary access controls and regain influence over a host.",
+    "realWorldUsage": "Serial console access is attractive in scenarios where the attacker wants deeper host access than normal remote administration provides.",
+    "whyItMatters": "Authorization context is more important than whether the actor's ARN contains operations-like words.",
+    "riskAndImpact": "If missed, unauthorized operators may gain powerful low-level host access under the guise of recovery operations."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2 Instance Connect",
+      "Authorized recovery and serial-console principal inventory",
+      "EC2 environment and workload ownership inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.instanceId",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "SendSerialConsoleSSHPublicKey events must be ingested with full userIdentity context.",
+      "The environment should maintain exact principals allowed to use serial console.",
+      "Actor-to-environment or actor-to-host scope should be resolvable."
+    ],
+    "limitations": [
+      "Without principal inventories this rule becomes a weak anomaly detector.",
+      "Emergency break-glass access needs to be modeled explicitly.",
+      "The event does not prove what the actor did once serial-console access was established."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized Recovery Actors",
+      "description": "Exact inventory of identities allowed to use serial console by environment or workload class.",
+      "examples": [
+        "SRE break-glass role",
+        "IR recovery role"
+      ],
+      "falsePositiveReduction": "Replaces brittle role-name allowlists."
+    },
+    {
+      "dimension": "Session Provenance",
+      "description": "Determine whether the actor arrived through an approved SSO, incident-response, or emergency workflow.",
+      "examples": [
+        "approved IR federation",
+        "unexplained app-role session"
+      ],
+      "falsePositiveReduction": "Improves trust assessment of the access path."
+    },
+    {
+      "dimension": "Target Scope",
+      "description": "Model which hosts or environments each recovery actor may access.",
+      "examples": [
+        "prod fleet only",
+        "sandbox only"
+      ],
+      "falsePositiveReduction": "Prevents broad allowlists from masking unauthorized target access."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect serial-console access outside approved recovery paths. It should match `SendSerialConsoleSSHPublicKey`, resolve the actor and session provenance, and then check whether that principal is explicitly allowed to use serial console on the target host or environment.",
+    "conditions": [
+      "eventSource equals ec2-instance-connect.amazonaws.com",
+      "eventName equals SendSerialConsoleSSHPublicKey",
+      "actor is not in the approved serial-console inventory or actor is outside approved target scope or request lacks approved workflow provenance"
+    ],
+    "tuningGuidance": "1. Use exact actor inventories. 2. Model actor-to-environment scope, not only global allowlists. 3. Treat break-glass access as a separate approved path with strong auditing.",
+    "whenToFire": "Fire when serial console is used by an identity outside approved recovery or incident-response workflows."
+  },
+  "simulationCommand": "aws ec2-instance-connect send-serial-console-ssh-public-key --instance-id i-0abc123 --serial-port 0 --ssh-public-key file://id_rsa.pub --profile dev-user",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with actor inventories and scope controls; high with role-name heuristics",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with actor and asset inventories",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because unauthorized serial-console access is immediately actionable.",
+    "considerations": [
+      "This is the actor-centric serial-console detector.",
+      "Principal inventory and scope modeling are the main dependencies."
+    ]
+  }
+}

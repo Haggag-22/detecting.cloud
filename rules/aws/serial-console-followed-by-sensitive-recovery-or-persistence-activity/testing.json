@@ -1,0 +1,5 @@
+[
+  "Use serial console on a test instance, then perform `UpdateLoginProfile`, `GetSecretValue`, or another modeled sensitive API within 15 minutes.",
+  "Verify both the serial-console event and later sensitive APIs appear in CloudTrail.",
+  "Run the detector and confirm it requires ordered correlation rather than simple grouped co-occurrence."
+]

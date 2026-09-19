@@ -1,0 +1,5 @@
+[
+  "As an identity outside the approved cluster-admin set, call `CreateAccessEntry` or `AssociateAccessPolicy` against a monitored test cluster.",
+  "Verify CloudTrail captures the actor, cluster, and target principal context.",
+  "Run the detector and confirm it uses explicit actor authorization and workflow provenance rather than role-name or `terraform` substring checks."
+]

@@ -1,0 +1,23 @@
+{
+  "slug": "passrole-ecs-escalation",
+  "title": "PassRole ECS Escalation",
+  "description": "An attacker with iam:PassRole and ecs:RunTask runs an ECS task with a privileged task role. The task uses a container image that the attacker controls (or one that allows credential extraction). When the task runs, it receives the task role's credentials via the container metadata endpoint. The attacker's code in the container exfiltrates these credentials (e.g., by sending them to an external server or writing to an S3 bucket the attacker controls). The attacker then uses the credentials for privilege escalation.",
+  "severity": "High",
+  "objective": "privilege-escalation",
+  "tags": [
+    "IAM",
+    "ECS",
+    "PassRole"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-passrole-ecs",
+      "context": "Run ECS task with privileged role"
+    },
+    {
+      "techniqueId": "tech-ecs-task-credential-theft",
+      "context": "Extract task role credentials"
+    }
+  ],
+  "cloudProvider": "aws"
+}

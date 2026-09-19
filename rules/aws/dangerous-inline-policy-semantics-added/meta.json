@@ -1,0 +1,22 @@
+{
+  "id": "det-032",
+  "title": "Dangerous Inline Policy Semantics Added",
+  "description": "Detects PutRolePolicy and PutUserPolicy events where the submitted inline policy grants broad administrative access, privilege-escalation primitives, or high-risk secret and credential access. This detection evaluates policy semantics rather than brittle string fragments.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "IAM",
+    "Inline Policy",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Admin creating broad policies for service accounts",
+    "Legitimate cross-account assume role setup"
+  ],
+  "relatedAttackSlugs": []
+}

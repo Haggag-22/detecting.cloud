@@ -1,0 +1,6 @@
+[
+  "Identify who added the inline policy and which principal was targeted.",
+  "Inspect the policy document for excessive permissions.",
+  "Verify if the actor is a known admin or automation.",
+  "Check for self-modification (actor modifying their own role/user)."
+]

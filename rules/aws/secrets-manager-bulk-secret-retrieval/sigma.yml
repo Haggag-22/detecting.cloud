@@ -1,0 +1,12 @@
+title: Secrets Manager Bulk Retrieval
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: secretsmanager.amazonaws.com
+    eventName: GetSecretValue
+  condition: selection
+  timeframe: 15m
+  count: "> 5 distinct secrets"
+level: high

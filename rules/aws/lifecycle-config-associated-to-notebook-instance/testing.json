@@ -1,0 +1,5 @@
+[
+  "Create or update a test notebook instance with a lifecycle config attached.",
+  "Verify CloudTrail records both the notebook name and lifecycle config name.",
+  "Run the detector and confirm it only fires when a lifecycle config is actually associated to a notebook instance."
+]

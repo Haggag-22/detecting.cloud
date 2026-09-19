@@ -1,0 +1,4 @@
+[
+  "aws organizations detach-policy --policy-id p-abcdef --target-id ou-root-xyz",
+  "aws organizations update-policy --policy-id p-abcdef --content file://weakened-scp.json"
+]

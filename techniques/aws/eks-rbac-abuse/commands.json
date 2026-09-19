@@ -1,0 +1,4 @@
+[
+  "kubectl create clusterrolebinding attacker-admin --clusterrole=cluster-admin --serviceaccount=default:attacker-sa",
+  "kubectl auth can-i --list (to enumerate permissions)"
+]

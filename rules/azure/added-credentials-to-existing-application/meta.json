@@ -1,0 +1,23 @@
+{
+  "id": "az-028",
+  "title": "Added Credentials to Existing Application",
+  "description": "Detects when a new credential is added to an existing application. Any additional credentials added outside of expected processes could be a malicious actor using those credentials.",
+  "awsService": "Entra ID Apps",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Apps",
+    "privilege-escalation",
+    "t1098 001",
+    "persistence"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "When credentials are added/removed as part of the normal working hours/workflows"
+  ],
+  "relatedAttackSlugs": []
+}

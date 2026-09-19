@@ -1,0 +1,26 @@
+title: AWS Software Discovery Via SSM Inventory
+id: a1b2c3d4-e5f6-4789-a012-3456789abc04
+status: experimental
+description: |
+    Detects use of AWS Systems Manager to enumerate installed software and inventory on cloud workloads, aligned to MITRE ATT&CK detection strategy DET0392 / AN1103 for Software Discovery. Use the UserAgent mutable element to distinguish automated/authorized console access from adversary scripting.
+references:
+    - https://attack.mitre.org/techniques/T1518/
+    - https://attack.mitre.org/detectionstrategies/DET0392/
+author: SOF-ELK AWS ATT&CK Coverage
+date: 2026-07-15
+tags:
+    - attack.discovery
+    - attack.t1518
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: ssm.amazonaws.com
+        eventName:
+            - ListInventoryEntries
+            - GetCommandInvocation
+    condition: selection
+falsepositives:
+    - Inventory, patch compliance, and configuration-management tooling querying SSM.
+level: low

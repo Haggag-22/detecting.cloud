@@ -1,0 +1,8 @@
+[
+  "Identify the IAM user or role that executed the action.",
+  "Verify whether the Lambda function creation was expected.",
+  "Inspect the IAM role that was passed in the requestParameters.role field.",
+  "Review recent STS AssumeRole activity related to the same identity.",
+  "Check whether the Lambda function has administrative permissions.",
+  "Review recent CloudTrail events from the same source IP."
+]

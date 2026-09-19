@@ -1,0 +1,10 @@
+title: IAM Role Created
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: CreateRole
+  condition: selection
+level: medium

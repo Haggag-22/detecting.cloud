@@ -1,0 +1,5 @@
+[
+  "Identify the actor, session issuer, and Beanstalk linkage behind the credential pivot.",
+  "Verify whether this principal is explicitly approved to create access keys or assume roles from a Beanstalk-derived context.",
+  "Determine whether the action came from a trusted deployment workflow or an unexpected application or environment role."
+]

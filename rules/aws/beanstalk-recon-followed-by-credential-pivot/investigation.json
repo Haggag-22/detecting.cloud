@@ -1,0 +1,5 @@
+[
+  "Identify the `DescribeConfigurationSettings` event and the later IAM or STS pivot actions within the correlation window.",
+  "Verify whether the same normalized actor performed the read and the later credential or privilege changes.",
+  "Assess whether the configuration read may have exposed credentials, secret references, or trust paths used in the later pivot."
+]

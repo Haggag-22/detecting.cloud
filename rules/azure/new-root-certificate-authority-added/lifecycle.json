@@ -1,0 +1,54 @@
+{
+  "whyItMatters": "Detects newly added root certificate authority to an AzureAD tenant to support certificate based authentication.",
+  "threatContext": {
+    "attackerBehavior": "Detects newly added root certificate authority to an AzureAD tenant to support certificate based authentication.",
+    "whyItMatters": "New Root Certificate Authority Added is a Entra ID control-plane or identity signal that defenders should investigate when it is unexpected.",
+    "riskAndImpact": "Unauthorized new root certificate authority added can enable persistence, privilege escalation, credential theft, or impact depending on the resource."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "Azure Audit Logs"
+    ],
+    "requiredFields": [
+      "eventTime",
+      "operationName",
+      "caller",
+      "status"
+    ],
+    "loggingRequirements": [
+      "Azure Audit Logs must be enabled for the tenant or project.",
+      "Retain raw request properties so the detection can be tuned to approved actors."
+    ],
+    "limitations": [
+      "Generated lifecycle — review threat research, enrichment, and testing before production.",
+      "Bare Sigma selections may fire on every matching event until customer inventory is supplied."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Approved actor",
+      "description": "Compare the caller to change-management and privileged-identity inventories.",
+      "examples": [
+        "break-glass admin",
+        "CI/CD service principal"
+      ],
+      "falsePositiveReduction": "Suppress known automation identities after review."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "Alert when telemetry matches the Sigma selection for New Root Certificate Authority Added.",
+    "conditions": [
+      "Detects newly added root certificate authority to an AzureAD tenant to support certificate based authentication."
+    ],
+    "whenToFire": "On each matching successful (or explicitly failed) control-plane event.",
+    "tuningGuidance": "Add approved-actor allowlists and sensitive-target inventories before production."
+  },
+  "simulationCommand": "Review the Sigma rule for az-019 and replay a matching azure audit event in a lab tenant.",
+  "quality": {
+    "signalQuality": 5,
+    "falsePositiveRate": "unknown until tuned",
+    "expectedVolume": "varies by tenant",
+    "productionReadiness": "experimental"
+  },
+  "generatedFromTemplate": true
+}

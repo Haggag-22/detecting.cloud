@@ -1,0 +1,100 @@
+{
+  "whyItMatters": "ACL changes are the feeder telemetry for the entire S3 ACL persistence family. Even where ACLs are legacy, a successful ACL mutation can enable persistence, exposure, or unauthorized sharing.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may change a bucket or object ACL to maintain access, broaden access to another principal, or stage later data theft.",
+    "realWorldUsage": "This remains relevant in environments that still use ACLs for compatibility, legacy applications, or exception paths.",
+    "whyItMatters": "The baseline event is essential because higher-confidence detections depend on seeing the raw ACL mutation before evaluating effectiveness, actor authorization, and recipient scope.",
+    "riskAndImpact": "If missed, defenders may not recognize the first control-plane step that enabled later S3 persistence or sharing abuse."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail data or management events for S3 ACL operations"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.bucketName",
+      "requestParameters.key",
+      "requestParameters.acl",
+      "requestParameters.AccessControlPolicy",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must ingest `PutBucketAcl` and `PutObjectAcl`.",
+      "The platform should preserve canned ACLs and structured grant details where available.",
+      "Bucket object-ownership state should be available for downstream effectiveness checks."
+    ],
+    "limitations": [
+      "The event alone does not prove the ACL was materially effective if ACLs are disabled.",
+      "Legacy workloads may still generate benign ACL changes.",
+      "The request format varies between canned ACLs and explicit access-control-policy structures."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "ACL Effectiveness",
+      "description": "Determine whether the target bucket still honors ACLs or uses `BucketOwnerEnforced` ownership.",
+      "examples": [
+        "ACLs enabled",
+        "BucketOwnerEnforced"
+      ],
+      "falsePositiveReduction": "Separates visible-but-ineffective ACL changes from materially risky ones."
+    },
+    {
+      "dimension": "Grant Scope",
+      "description": "Classify whether the ACL was private, cross-account, or broad/public.",
+      "examples": [
+        "private",
+        "cross-account grant",
+        "public-read"
+      ],
+      "falsePositiveReduction": "Improves triage and downstream routing."
+    },
+    {
+      "dimension": "Target Sensitivity",
+      "description": "Classify the target bucket or object by data sensitivity and exposure.",
+      "examples": [
+        "customer artifacts",
+        "public website assets"
+      ],
+      "falsePositiveReduction": "Prioritizes impactful ACL changes."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain a broad visibility rule for successful `PutBucketAcl` and `PutObjectAcl` events. It establishes the S3 ACL mutation baseline that effective-state, broad-grant, unauthorized-actor, and access-correlation detections build on.",
+    "conditions": [
+      "eventSource equals s3.amazonaws.com",
+      "eventName equals PutBucketAcl or PutObjectAcl",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep the baseline broad. 2. Add ACL-effectiveness and target context for triage. 3. Route broad-grant or unexpected-actor variants to higher-severity detectors.",
+    "whenToFire": "Fire on every successful bucket or object ACL change for visibility."
+  },
+  "simulationCommand": "aws s3api put-bucket-acl --bucket my-bucket --acl private",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium as baseline visibility, low-medium with ACL-effectiveness context",
+    "expectedVolume": "Low in modern environments",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because ACL changes can immediately expose or preserve access.",
+    "considerations": [
+      "This is the feeder rule for the S3 ACL persistence family.",
+      "ACL-effectiveness context is the main enrichment."
+    ]
+  }
+}

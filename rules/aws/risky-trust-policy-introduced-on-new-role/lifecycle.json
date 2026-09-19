@@ -1,0 +1,99 @@
+{
+  "whyItMatters": "Trust policy is the role's front door. A newly created role with overly broad, external, or weakly constrained trust can become immediate persistence or cross-account access infrastructure even before any permissions are attached.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may create a role trusted by an external account, an external root principal, or a broad AWS principal so they can assume it later from a controlled identity.",
+    "realWorldUsage": "Trust-based persistence is common because it fits legitimate AWS design patterns while still enabling durable access if the trust relationship is weak or unauthorized.",
+    "whyItMatters": "The strongest signal is in principal type and trust conditions, not whether the raw JSON string contains the word Principal.",
+    "riskAndImpact": "If missed, a seemingly ordinary new role can function as a covert backdoor that is assumed later from outside the expected operator set."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.roleName",
+      "requestParameters.assumeRolePolicyDocument",
+      "sourceIPAddress",
+      "userAgent",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must preserve the full trust policy document.",
+      "The detection pipeline should parse principals, actions, and conditions from the trust policy JSON.",
+      "Known legitimate service-trust and approved cross-account relationships should be available as enrichment."
+    ],
+    "limitations": [
+      "Raw substring matching is highly unreliable for trust policies.",
+      "Some legitimate cross-account roles do trust external accounts or roots for delegation patterns.",
+      "Without policy parsing you cannot accurately reason about ExternalId, principal type, or scope."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Trust Principal Classification",
+      "description": "Classify principals as service, same-account role, same-account root, external-account role, external-account root, federated, or wildcard.",
+      "examples": [
+        "ec2.amazonaws.com",
+        "arn:aws:iam::999999999999:root"
+      ],
+      "falsePositiveReduction": "Separates expected service trust from broad or external persistence paths."
+    },
+    {
+      "dimension": "Trust Condition Strength",
+      "description": "Evaluate whether external principals are constrained by ExternalId, source account, source ARN, or organization conditions.",
+      "examples": [
+        "missing ExternalId",
+        "sourceArn restricted"
+      ],
+      "falsePositiveReduction": "Distinguishes legitimate delegated trust from weak open trust."
+    },
+    {
+      "dimension": "Creator and Role Context",
+      "description": "Correlate whether the actor and workflow are approved for creating cross-account or service roles.",
+      "examples": [
+        "terraform platform role",
+        "manual developer session"
+      ],
+      "falsePositiveReduction": "Reduces noise from legitimate infrastructure provisioning."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should parse the new role's trust policy and score it for risky trust semantics. The highest-risk cases are external-account or root principals, broad AWS principals, and weak or missing constraints on federated or cross-account trust.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals CreateRole",
+      "parsed trust policy contains external-account, root, wildcard, or otherwise risky principals, or lacks required trust constraints for that trust type"
+    ],
+    "tuningGuidance": "1. Parse the JSON trust policy rather than text matching. 2. Maintain an allowlist of expected service principals and approved external trusts. 3. Escalate when the new role is assumed shortly after creation.",
+    "whenToFire": "Fire when a newly created role introduces trust semantics that are broader, more external, or less constrained than the environment normally permits."
+  },
+  "simulationCommand": "aws iam create-role --role-name BackdoorRole --assume-role-policy-document file://cross-account-root-trust.json",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with trust parsing and approved-trust inventory; high with raw substring matching",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda trust parsing",
+      "Athena with JSON extraction",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because suspicious trust may be used quickly after creation.",
+    "considerations": [
+      "Keep the raw trust policy document available for later review.",
+      "This detection pairs naturally with `det-064`."
+    ]
+  }
+}

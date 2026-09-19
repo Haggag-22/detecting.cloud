@@ -1,0 +1,27 @@
+{
+  "id": "tech-ssm-session",
+  "name": "SSM Session Manager Access",
+  "shortName": "SSM Session",
+  "description": "An attacker with ssm:StartSession can establish an interactive shell session to EC2 instances that have the SSM agent and are registered with Systems Manager. No SSH keys or open port 22 are required. The session runs through the SSM service. The attacker gains the same access as the instance's OS user (often ec2-user or Administrator). Instances must have the appropriate IAM instance profile and be in the SSM managed instance inventory. Required permission is ssm:StartSession.",
+  "services": [
+    "SSM",
+    "EC2"
+  ],
+  "permissions": [
+    "ssm:StartSession"
+  ],
+  "detectionIds": [
+    "det-075",
+    "det-076",
+    "det-077",
+    "det-078"
+  ],
+  "mitigations": [
+    "Restrict StartSession",
+    "Enable session logging",
+    "Use least-privilege instance profiles"
+  ],
+  "category": "lateral-movement",
+  "cloudProvider": "aws",
+  "detectionStrategy": "StartSession is visible in CloudTrail and useful as a lateral movement signal. The best detections add actor and target context and correlate the session with sensitive follow-on API activity, because CloudTrail does not expose shell commands executed inside the session."
+}

@@ -1,0 +1,98 @@
+{
+  "whyItMatters": "Deleting flow logs from sensitive network areas is much more dangerous than removing ordinary telemetry. These targets often cover crown-jewel traffic, egress paths, or identity infrastructure.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may selectively remove flow logs from high-value VPCs, subnets, or interfaces before network-based exfiltration or lateral movement.",
+    "realWorldUsage": "This approach is attractive because it reduces visibility precisely where defenders most need it.",
+    "whyItMatters": "The signal comes from the sensitivity of the covered network segment, not from string patterns embedded in identifiers.",
+    "riskAndImpact": "If missed, defenders may lose telemetry over the most important network paths in the environment just before follow-on abuse."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "Flow-log-to-resource inventory",
+      "VPC, subnet, and ENI sensitivity classification"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.flowLogIds",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "DeleteFlowLogs events must be ingested.",
+      "The environment should resolve flow-log IDs to the resources they cover.",
+      "Sensitive network classifications such as prod, egress, or security segments should be maintained in inventory."
+    ],
+    "limitations": [
+      "FlowLogIds alone are not sufficient without enrichment.",
+      "Some legitimate telemetry migrations may target sensitive environments and require workflow context.",
+      "The same API covers both low-value and high-value telemetry removal until enrichment is applied."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Target Network Sensitivity",
+      "description": "Resolve whether the deleted flow logs covered production, egress, identity, or security tooling segments.",
+      "examples": [
+        "prod egress VPC",
+        "security monitoring subnet"
+      ],
+      "falsePositiveReduction": "Raises confidence only when telemetry loss affects important network scopes."
+    },
+    {
+      "dimension": "Coverage Importance",
+      "description": "Determine what detections or controls relied on the removed flow logs.",
+      "examples": [
+        "egress monitoring",
+        "east-west traffic visibility"
+      ],
+      "falsePositiveReduction": "Improves prioritization of the impact of telemetry loss."
+    },
+    {
+      "dimension": "Actor-to-Target Scope",
+      "description": "Check whether the actor is allowed to manage flow logs for those sensitive resources.",
+      "examples": [
+        "prod network team only",
+        "developer outside prod scope"
+      ],
+      "falsePositiveReduction": "Combines target sensitivity with authorization scope."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect flow-log deletion against sensitive network telemetry targets. It should match `DeleteFlowLogs`, resolve the covered resources from inventory, classify their sensitivity, and then alert when the removed telemetry protected high-value network segments.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals DeleteFlowLogs",
+      "one or more deleted flow logs map to sensitive VPCs, subnets, or ENIs"
+    ],
+    "tuningGuidance": "1. Build reliable flow-log-to-resource mappings. 2. Classify sensitive network segments explicitly. 3. Escalate further when the actor is not approved for those targets or when suspicious activity follows soon after.",
+    "whenToFire": "Fire when deleted flow logs protect sensitive network infrastructure or telemetry coverage areas."
+  },
+  "simulationCommand": "aws ec2 delete-flow-logs --flow-log-ids fl-0abc123",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with target enrichment and workflow context",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with flow-log inventory joins",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because sensitive telemetry removal is immediately actionable.",
+    "considerations": [
+      "This is the target-centric flow-log deletion detector.",
+      "Flow-log inventory and sensitivity classification are the main dependencies."
+    ]
+  }
+}

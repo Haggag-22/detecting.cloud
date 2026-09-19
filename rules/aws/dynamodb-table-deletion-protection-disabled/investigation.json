@@ -1,0 +1,6 @@
+[
+  "Identify who disabled deletion protection.",
+  "Verify if this was part of table lifecycle management.",
+  "Assess risk of accidental table deletion.",
+  "Re-enable protection if unauthorized."
+]

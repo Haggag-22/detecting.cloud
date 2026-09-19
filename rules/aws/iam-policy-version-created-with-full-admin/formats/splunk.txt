@@ -1,0 +1,4 @@
+index=aws sourcetype=aws:cloudtrail eventName=CreatePolicyVersion
+| where requestParameters.setAsDefault=true
+| where like(requestParameters.policyDocument, "%\"Action\":\"*\"%") AND like(requestParameters.policyDocument, "%\"Resource\":\"*\"%")
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.policyArn, requestParameters.setAsDefault, sourceIPAddress

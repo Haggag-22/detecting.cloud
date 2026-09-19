@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventSource=organizations.amazonaws.com (eventName=DetachPolicy OR eventName=DeletePolicy OR eventName=UpdatePolicy)
+| table _time, userIdentity.type, userIdentity.arn, eventName, requestParameters.policyId, requestParameters.targetId, sourceIPAddress

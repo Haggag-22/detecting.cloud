@@ -1,0 +1,21 @@
+{
+  "id": "tech-gcp-workspace-role-destruction",
+  "name": "Google Workspace Role or Privilege Deleted",
+  "shortName": "Workspace Role Delete",
+  "description": "Custom admin roles in Workspace bundle privileges. Deleting a role or stripping its privileges can lock your own admins out while the attacker keeps a different role. It is impact against the identity team, not against mailboxes directly. Role edits should be as controlled as admin grants. If security's role disappeared, assume you are in an active incident.",
+  "services": [
+    "Google Workspace"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-015",
+    "gcp-016"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "gcp"
+}

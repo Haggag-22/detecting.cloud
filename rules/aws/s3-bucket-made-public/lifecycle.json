@@ -1,0 +1,122 @@
+{
+  "whyItMatters": "Changes to S3 Block Public Access are only high-value when they weaken effective protections or enable an already-public policy or ACL to take effect. The best version of this detection watches both DeletePublicAccessBlock and weakening PutPublicAccessBlock calls.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with s3:PutBucketPublicAccessBlock removes or weakens bucket-level Block Public Access settings so that public ACLs, public bucket policies, or cross-account access embedded in a public policy can become effective.",
+    "realWorldUsage": "Public exposure of S3 data often comes from configuration drift and automation mistakes, but the same control-plane changes are also useful to attackers because they quietly change who can access data without touching the objects themselves.",
+    "whyItMatters": "DeletePublicAccessBlock and weakening PutPublicAccessBlock are strong precursor events, but the true risk depends on effective state after the change: account-level settings may still protect the bucket, or an existing public policy may suddenly become enforceable.",
+    "riskAndImpact": "If effective protections are weakened and the bucket policy or ACLs allow external access, the bucket can become readable by the internet or by unauthorized AWS accounts with little additional attacker effort."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "awsRegion",
+      "recipientAccountId",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "sourceIPAddress",
+      "requestParameters.bucketName",
+      "requestParameters.PublicAccessBlockConfiguration.BlockPublicAcls",
+      "requestParameters.PublicAccessBlockConfiguration.IgnorePublicAcls",
+      "requestParameters.PublicAccessBlockConfiguration.BlockPublicPolicy",
+      "requestParameters.PublicAccessBlockConfiguration.RestrictPublicBuckets",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events for S3 must be enabled.",
+      "The detection should ingest both DeletePublicAccessBlock and PutPublicAccessBlock events.",
+      "To validate actual exposure, the workflow should enrich with GetPublicAccessBlock and GetBucketPolicyStatus."
+    ],
+    "limitations": [
+      "DeletePublicAccessBlock removes only the bucket-level setting; account-level settings may still protect the bucket.",
+      "A PutPublicAccessBlock event only shows the submitted configuration; to determine true weakening, compare it to the previous known state.",
+      "GetBucketPolicyStatus.IsPublic reflects policy-based public exposure, not ACL-only exposure."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Effective Exposure State",
+      "description": "Immediately after the control-plane change, evaluate whether the bucket is actually exposed by combining bucket-level PublicAccessBlock, account-level PublicAccessBlock, policy status, and ACL state.",
+      "examples": [
+        "GetPublicAccessBlock",
+        "account-level Block Public Access settings",
+        "GetBucketPolicyStatus.IsPublic"
+      ],
+      "falsePositiveReduction": "This avoids treating every guardrail change as a confirmed public bucket incident."
+    },
+    {
+      "dimension": "Previous Configuration And Drift Context",
+      "description": "Track the previous PublicAccessBlock values so the detector knows whether PutPublicAccessBlock truly weakened protections.",
+      "examples": [
+        "previous bucket-level PAB hash",
+        "last known BlockPublicPolicy=true to false transition",
+        "recent prior event history"
+      ],
+      "falsePositiveReduction": "A true weakening transition is much more important than a no-op or repeated deployment write."
+    },
+    {
+      "dimension": "Identity And Automation Context",
+      "description": "Determine whether the change came from a known website deployment, storage admin, Terraform pipeline, or an unusual human or assumed role session.",
+      "examples": [
+        "CloudFormation execution role",
+        "Terraform service role",
+        "admin SSO session"
+      ],
+      "falsePositiveReduction": "Known storage automation can be down-ranked unless exposure state also changed to public or external."
+    },
+    {
+      "dimension": "Bucket Intent And Criticality",
+      "description": "Classify whether the bucket is intended for public website hosting or content distribution versus internal backups, logs, or sensitive application data.",
+      "examples": [
+        "website-hosting bucket tag",
+        "bucket contains CloudTrail or backup data",
+        "data classification"
+      ],
+      "falsePositiveReduction": "Legitimate public-serving buckets should be handled differently from sensitive internal buckets."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should cover two related behaviors: complete removal of bucket-level Block Public Access through DeletePublicAccessBlock, and weakening of one or more bucket-level protections via PutPublicAccessBlock. The highest-fidelity implementation does not stop at the control-plane event; it validates whether protections were actually weakened relative to the previous state and whether the bucket is now effectively public or externally reachable.",
+    "conditions": [
+      "eventSource equals s3.amazonaws.com",
+      "eventName is DeletePublicAccessBlock or PutPublicAccessBlock",
+      "errorCode does not exist",
+      "for PutPublicAccessBlock: one or more guardrails are set to false, especially BlockPublicPolicy=false or RestrictPublicBuckets=false"
+    ],
+    "tuningGuidance": "1. Track previous bucket-level PublicAccessBlock values so weakening can be detected as a state transition. 2. Validate effective state with GetPublicAccessBlock plus account-level controls before escalating DeletePublicAccessBlock. 3. Use GetBucketPolicyStatus for policy-driven public exposure and ACL checks when ACL guardrails are weakened.",
+    "whenToFire": "Fire a medium-severity control-plane alert for every successful DeletePublicAccessBlock and for PutPublicAccessBlock requests that set relevant fields to false, but reserve critical alerts for buckets whose effective state becomes public or externally reachable after the change."
+  },
+  "simulationCommand": "tmp=$(mktemp) && cat > \"$tmp\" <<'EOF'\n{\n  \"Version\": \"2012-10-17\",\n  \"Statement\": [{\"Sid\":\"PublicRead\",\"Effect\":\"Allow\",\"Principal\":\"*\",\"Action\":[\"s3:GetObject\"],\"Resource\":[\"arn:aws:s3:::my-bucket/*\"]}]\n}\nEOF\naws s3api put-public-access-block --bucket my-bucket --public-access-block-configuration BlockPublicAcls=false,IgnorePublicAcls=false,BlockPublicPolicy=false,RestrictPublicBuckets=false && aws s3api put-bucket-policy --bucket my-bucket --policy \"file://$tmp\"",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium-Low after effective-state validation and website-hosting allowlists; Medium if alerting on raw control-plane changes alone",
+    "expectedVolume": "Low in most environments; usually sporadic administrative or automation-driven changes",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena over CloudTrail logs",
+      "CloudTrail Lake",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "EventBridge + Lambda with live S3 API enrichment"
+    ],
+    "scheduling": "Near-real-time is preferred because the rule benefits from immediate post-change state validation. Batch execution every 5-15 minutes also works if the workflow can query current bucket posture during enrichment.",
+    "considerations": [
+      "Do not rely on DeletePublicAccessBlock alone as proof of exposure.",
+      "Support both DeletePublicAccessBlock and PutPublicAccessBlock in the rule logic.",
+      "Use post-change API enrichment to compute effective state and avoid paging on non-exploitable guardrail churn."
+    ]
+  }
+}

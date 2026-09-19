@@ -1,0 +1,3 @@
+[
+  "aws bedrock create-agent --agent-name backdoor-agent --agent-resource-role-arn arn:aws:iam::ACCOUNT:role/AdminRole --foundation-model model-id"
+]

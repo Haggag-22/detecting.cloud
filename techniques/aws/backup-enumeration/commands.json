@@ -1,0 +1,4 @@
+[
+  "aws backup list-recovery-points-by-resource --resource-arn arn:aws:ec2:region::volume/vol-xxx",
+  "aws backup start-restore-job --recovery-point-arn arn:aws:backup:region:account:recovery-point:xxx --iam-role-arn arn:aws:iam::account:role/restore-role --metadata VolumeId=vol-target"
+]

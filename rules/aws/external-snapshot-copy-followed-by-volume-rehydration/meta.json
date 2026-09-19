@@ -1,0 +1,25 @@
+{
+  "id": "det-087",
+  "title": "External Snapshot Copy Followed by Volume Rehydration",
+  "description": "Detects a consumer-account storage theft workflow where an externally sourced or public snapshot is copied, restored into a volume, and then optionally attached. This should be modeled using explicit snapshot-to-volume lineage rather than actor-only time windows.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "EBS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "EC2",
+    "EBS",
+    "Snapshot",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate DR restore",
+    "Approved migration workflow"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,28 @@
+{
+  "id": "tech-cloudfront-origin-takeover",
+  "name": "CloudFront Orphaned Origin Takeover",
+  "shortName": "Origin Takeover",
+  "description": "When a CloudFront distribution uses an S3 bucket as its origin and that bucket is deleted, the distribution becomes orphaned. The origin domain (e.g., bucket.s3.amazonaws.com) may still resolve. An attacker creates a new S3 bucket with the same name. CloudFront will then serve content from the attacker's bucket to visitors of the distribution. The attacker can serve phishing pages, malware, or capture credentials. Required permission is s3:CreateBucket. The bucket name must be available (the original was deleted).",
+  "services": [
+    "CloudFront",
+    "S3"
+  ],
+  "permissions": [
+    "s3:CreateBucket"
+  ],
+  "detectionIds": [
+    "det-136",
+    "det-137",
+    "det-138",
+    "det-139",
+    "det-140"
+  ],
+  "mitigations": [
+    "Use custom domain origins",
+    "Reserve bucket names",
+    "Audit CloudFront distributions"
+  ],
+  "category": "initial-access",
+  "cloudProvider": "aws",
+  "detectionStrategy": "Orphaned-origin takeover is a multi-step exposure pattern, not a single API abuse event. The strongest detections focus on (1) bucket deletion while still referenced by CloudFront, (2) identifying orphaned CloudFront origins as a posture condition, and (3) detecting matching bucket recreation or behavior changes if visibility exists. Bucket-name reuse risk exists because deleted S3 bucket names can later be reused by other accounts."
+}

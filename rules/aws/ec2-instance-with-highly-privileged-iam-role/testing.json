@@ -1,0 +1,5 @@
+[
+  "Launch an EC2 instance with an IAM profile containing 'Admin'.",
+  "Verify CloudTrail captures RunInstances.",
+  "Run the detection to confirm the alert triggers."
+]

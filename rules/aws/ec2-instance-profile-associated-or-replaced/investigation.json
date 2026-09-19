@@ -1,0 +1,5 @@
+[
+  "Identify who associated or replaced the profile and on which instance.",
+  "Resolve the new profile to its backing role and compare it with the prior instance profile if one existed.",
+  "Verify whether the change was expected for that instance and lifecycle stage."
+]

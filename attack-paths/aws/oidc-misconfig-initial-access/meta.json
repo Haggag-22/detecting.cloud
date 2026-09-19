@@ -1,0 +1,24 @@
+{
+  "slug": "oidc-misconfig-initial-access",
+  "title": "OIDC Trust Misconfiguration Initial Access",
+  "description": "IAM roles can trust external OIDC identity providers such as GitHub or GitLab. If the trust policy is misconfigured (e.g., uses a wildcard or overly broad subject claim), an attacker can satisfy the trust conditions from an attacker-controlled repository or identity. The attacker forks a target repository, configures GitHub Actions to request OIDC tokens, and uses those tokens to assume the role via the AWS STS assume-role-with-web-identity API. This provides initial access without any stolen credentials or prior AWS access.",
+  "severity": "Critical",
+  "objective": "initial-access",
+  "tags": [
+    "IAM",
+    "OIDC",
+    "GitHub",
+    "Initial Access"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-oidc-trust-misconfig",
+      "context": "Fork repo or use attacker-controlled IdP to satisfy trust policy"
+    },
+    {
+      "techniqueId": "tech-assumerole-abuse",
+      "context": "Assume role via OIDC federation"
+    }
+  ],
+  "cloudProvider": "aws"
+}

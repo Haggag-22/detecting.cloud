@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ec2.amazonaws.com eventName=DescribeSnapshotAttribute requestParameters.attribute=createVolumePermission
+| table _time, userIdentity.arn, requestParameters.snapshotId, responseElements
+# Hunt: Run scheduled inventory over owned snapshots and evaluate createVolumePermission state.

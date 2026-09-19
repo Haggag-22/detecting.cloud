@@ -1,0 +1,5 @@
+[
+  "Disable deletion protection on a test DynamoDB table.",
+  "Verify CloudTrail captures UpdateTable.",
+  "Run the detection to confirm the alert triggers."
+]

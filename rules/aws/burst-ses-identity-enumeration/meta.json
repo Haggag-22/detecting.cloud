@@ -1,0 +1,22 @@
+{
+  "id": "det-107",
+  "title": "Burst SES Identity Enumeration",
+  "description": "Detects rapid or repeated SES identity enumeration. Reconnaissance often appears as a short-window burst of list and verification-attribute calls rather than a single isolated read.",
+  "awsService": "SES",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "SES",
+    "Reconnaissance",
+    "Burst"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate bulk verification",
+    "SES sync automation"
+  ],
+  "relatedAttackSlugs": []
+}

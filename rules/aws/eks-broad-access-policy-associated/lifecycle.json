@@ -1,0 +1,117 @@
+{
+  "whyItMatters": "Associating a broad EKS access policy to an access entry directly grants Kubernetes permissions to an IAM principal. This is a much more concrete access-weakening signal than vague anonymous-auth wording.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with eks:AssociateAccessPolicy can grant Kubernetes permissions to an IAM principal that already has an access entry. When the policy is broad, such as AmazonEKSClusterAdminPolicy, or when the scope is cluster, the change can create or expand administrative control over the entire cluster.",
+    "realWorldUsage": "This aligns with real cloud privilege-escalation behavior where attackers create durable administrative footholds after obtaining AWS credentials.",
+    "whyItMatters": "Unlike a generic configuration update, this event changes who can actually administer Kubernetes resources.",
+    "riskAndImpact": "If this goes undetected, an attacker can gain broad Kubernetes privileges, create backdoors, access secrets, deploy workloads, alter RBAC, and maintain long-term control of the cluster."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.arn",
+      "userIdentity.type",
+      "requestParameters.clusterName",
+      "requestParameters.principalArn",
+      "requestParameters.policyArn",
+      "requestParameters.accessScope.type",
+      "requestParameters.accessScope.namespaces",
+      "sourceIPAddress",
+      "eventTime"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must capture EKS management events.",
+      "Detection should match AssociateAccessPolicy events.",
+      "Optional follow-on validation can use EKS audit logs or AccessKubernetesApi events to observe effective use."
+    ],
+    "limitations": [
+      "This does not detect access granted only through Kubernetes RBAC objects without EKS access policies.",
+      "Some cluster-wide associations can be legitimate for platform engineering roles and bootstrap workflows.",
+      "Best fidelity comes from correlating this event with actor allowlists, target-principal context, or recent CreateAccessEntry activity."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Actor Context",
+      "description": "Determine whether the actor should ever manage EKS authorization.",
+      "examples": [
+        "platform-admin role",
+        "SSO team membership",
+        "automation principal"
+      ],
+      "falsePositiveReduction": "Greatly reduces noise by separating approved cluster admins from unexpected actors."
+    },
+    {
+      "dimension": "Target Principal Context",
+      "description": "Profile the IAM principal receiving access.",
+      "examples": [
+        "IAM user vs assumed role",
+        "application workload role",
+        "human vs service identity"
+      ],
+      "falsePositiveReduction": "Broad access granted to app roles or IAM users is usually more suspicious than grants to approved admin roles."
+    },
+    {
+      "dimension": "Policy and Scope Severity",
+      "description": "Rank the risk of the associated policy and its scope.",
+      "examples": [
+        "AmazonEKSClusterAdminPolicy",
+        "AmazonEKSAdminPolicy at cluster scope"
+      ],
+      "falsePositiveReduction": "Lets you prioritize truly dangerous grants and suppress narrower, expected namespace-scoped access."
+    },
+    {
+      "dimension": "Cluster Criticality",
+      "description": "Add the business importance and sensitivity of the affected cluster.",
+      "examples": [
+        "prod cluster",
+        "shared platform cluster",
+        "security tooling cluster"
+      ],
+      "falsePositiveReduction": "Namespace-scoped access on a dev cluster is not equivalent to cluster-wide admin on production."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect documented EKS authorization changes, not an ambiguous anonymous-auth concept. The most defensible match is AssociateAccessPolicy when the policy is clearly broad, the scope is cluster, or both.",
+    "conditions": [
+      "eventSource equals eks.amazonaws.com",
+      "eventName equals AssociateAccessPolicy",
+      "requestParameters.policyArn contains AmazonEKSClusterAdminPolicy or AmazonEKSAdminPolicy",
+      "requestParameters.accessScope.type equals cluster"
+    ],
+    "tuningGuidance": "1. Allowlist known platform automation and approved EKS admin roles. 2. Escalate when the target principal is an IAM user, a workload role, or a newly created role. 3. Correlate with CreateAccessEntry within 15 minutes for higher-confidence privilege-escalation detection.",
+    "whenToFire": "Fire on broad EKS access policy associations, especially cluster-scoped admin-like policies."
+  },
+  "simulationCommand": "aws eks associate-access-policy --cluster-name prod-cluster --principal-arn arn:aws:iam::123456789012:role/app-role --policy-arn arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy --access-scope type=cluster",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low to Medium (legitimate platform administration exists, but the event is intrinsically security-sensitive)",
+    "expectedVolume": "Low in most environments; usually sparse outside cluster bootstrap or access-management workflows",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena",
+      "CloudWatch Logs Insights",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Real-time is ideal because this is a direct authorization grant. Batch queries every 5 to 15 minutes are still workable.",
+    "considerations": [
+      "This overlaps conceptually with later EKS access-entry detections already in the repo.",
+      "Consider correlating with CreateAccessEntry and AccessKubernetesApi for stronger context."
+    ]
+  }
+}

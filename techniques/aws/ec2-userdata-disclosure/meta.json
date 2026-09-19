@@ -1,0 +1,21 @@
+{
+  "id": "tech-ec2-userdata-disclosure",
+  "name": "EC2 User Data Disclosure",
+  "shortName": "UserData Leak",
+  "description": "EC2 user data can contain secrets, database connection strings, or bootstrap scripts. An attacker with ec2:DescribeInstanceAttribute (with attribute userData) or ec2:DescribeInstances can retrieve the user data of instances. The user data may be base64-encoded. Attackers look for embedded credentials, API keys, or scripts that reveal sensitive configuration. Required permissions are ec2:DescribeInstanceAttribute or ec2:DescribeInstances. The attacker must be able to target specific instance IDs.",
+  "services": [
+    "EC2"
+  ],
+  "permissions": [
+    "ec2:DescribeInstanceAttribute",
+    "ec2:DescribeInstances"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Avoid secrets in user data",
+    "Use Secrets Manager",
+    "Restrict DescribeInstanceAttribute"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,5 @@
+[
+  "Delete or temporarily de-reference a lab S3 bucket that remains configured as a CloudFront origin.",
+  "Run the scheduled posture check that compares CloudFront origins against existing S3 buckets.",
+  "Verify the orphaned distribution is identified as exploitable posture state rather than a generic CloudFront read."
+]

@@ -1,0 +1,22 @@
+{
+  "id": "det-035",
+  "title": "Managed Policy Default Version Switched to More Permissive Version",
+  "description": "Detects SetDefaultPolicyVersion when the selected version materially expands permissions compared with the previous default version. This models privilege escalation and rollback-to-broader-access behavior rather than treating every default-version switch as suspicious.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "Policy Version",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate policy version updates",
+    "Terraform/CloudFormation policy management"
+  ],
+  "relatedAttackSlugs": []
+}

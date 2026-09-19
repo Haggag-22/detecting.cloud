@@ -1,0 +1,22 @@
+{
+  "id": "tech-az-guest-conversion",
+  "name": "Guest Invite and Guest-to-Member Conversion",
+  "shortName": "Guest Convert",
+  "description": "Guest users are people from outside the company who were invited into the tenant. Converting a guest to a member makes them look like an employee and often grants more access. Attackers also send invites from accounts that are not supposed to invite anyone. The invite is the foot in the door; conversion is the promotion. Unapproved inviters and guest-to-member changes on privileged groups deserve a hard look.",
+  "services": [
+    "Entra ID"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-018",
+    "az-057",
+    "az-058"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "azure"
+}

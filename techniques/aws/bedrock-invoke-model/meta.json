@@ -1,0 +1,20 @@
+{
+  "id": "tech-bedrock-invoke-model",
+  "name": "Bedrock InvokeModel Abuse",
+  "shortName": "Bedrock Invoke",
+  "description": "An attacker with bedrock:InvokeModel can send prompts to Bedrock foundation models. They may use prompt injection to extract training data, bypass guardrails, or cause the model to output sensitive information. The model's output could be used to exfiltrate data by encoding it in the response. The attacker could also abuse the API for data exfiltration by including sensitive context in prompts and having the model summarize or relay it. Required permission is bedrock:InvokeModel. Usage is billed to the account.",
+  "services": [
+    "Bedrock"
+  ],
+  "permissions": [
+    "bedrock:InvokeModel"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict InvokeModel",
+    "Monitor model usage",
+    "Use guardrails"
+  ],
+  "category": "exfiltration",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,5 @@
+[
+  "As an identity outside the approved SES or messaging set, call `ListIdentities` or `GetIdentityVerificationAttributes`.",
+  "Verify CloudTrail captures the actor context.",
+  "Run the detector and confirm it relies on explicit actor authorization instead of role-name text matching."
+]

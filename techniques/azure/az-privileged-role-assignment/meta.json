@@ -1,0 +1,26 @@
+{
+  "id": "tech-az-privileged-role-assignment",
+  "name": "Privileged Entra Role Assignment",
+  "shortName": "Entra Admin Role",
+  "description": "Entra roles such as Global Administrator, Privileged Role Administrator, and device admin can change the whole tenant. An attacker who adds themselves or a friend to those roles no longer needs the original phishing victim. Creating a new cloud-only admin user is the same idea with a cleaner audit trail for them. Role assignments into those groups should be rare, dual-controlled, and alerted in real time.",
+  "services": [
+    "Entra ID",
+    "Entra ID PIM"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-025",
+    "az-026",
+    "az-112",
+    "az-113",
+    "az-114",
+    "az-115"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "azure"
+}

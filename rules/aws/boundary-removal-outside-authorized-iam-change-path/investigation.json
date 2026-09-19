@@ -1,0 +1,5 @@
+[
+  "Identify the actor type and ARN.",
+  "Verify if this identity is authorized to manage IAM boundaries.",
+  "Check sessionContext.sessionIssuer.arn for assumed roles."
+]

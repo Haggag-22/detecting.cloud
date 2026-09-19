@@ -1,0 +1,23 @@
+{
+  "id": "gcp-023",
+  "title": "Google Cloud Service Account Disabled or Deleted",
+  "description": "Identifies when a service account is disabled or deleted in Google Cloud.",
+  "awsService": "GCP IAM",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "GCP IAM",
+    "impact",
+    "t1531"
+  ],
+  "logSources": [
+    "GCP Audit Logs"
+  ],
+  "falsePositives": [
+    "Service Account being disabled or deleted may be performed by a system administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Service Account disabled or deleted from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,11 @@
+title: DynamoDB Deletion Protection Disabled
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: dynamodb.amazonaws.com
+    eventName: UpdateTable
+    requestParameters.deletionProtectionEnabled: false
+  condition: selection
+level: medium

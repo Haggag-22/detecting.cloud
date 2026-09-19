@@ -1,0 +1,101 @@
+{
+  "whyItMatters": "Ad hoc task execution is a powerful workload activation mechanism. Even as a baseline, RunTask is important because it can introduce new task roles, execution paths, and attacker-controlled runtime behavior.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may use RunTask to execute short-lived code under ECS-managed infrastructure with access to a task role or execution role.",
+    "realWorldUsage": "RunTask is attractive because it can look operationally normal while still providing rapid workload execution and credential access.",
+    "whyItMatters": "The baseline event feeds stronger detections about high-risk task roles, runtime overrides, unexpected actors, and follow-on role use.",
+    "riskAndImpact": "If missed, a malicious ad hoc task can execute attacker-controlled code under powerful roles without a long-lived service being created."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for ECS",
+      "ECS task-definition inventory",
+      "IAM role inventory for taskRoleArn and executionRoleArn"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.cluster",
+      "requestParameters.taskDefinition",
+      "requestParameters.overrides",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail RunTask events must be enabled.",
+      "The platform should resolve the task definition's task role and execution role.",
+      "Overrides should be preserved so runtime role and command changes can be inspected."
+    ],
+    "limitations": [
+      "The raw RunTask event does not always carry complete resolved role context without consulting ECS task-definition inventory.",
+      "Many environments legitimately use ad hoc tasks for operations or batch work.",
+      "Without role resolution this remains baseline visibility only."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Resolved Task and Execution Roles",
+      "description": "Resolve the task definition to its taskRoleArn and executionRoleArn.",
+      "examples": [
+        "task role with Secrets Manager access",
+        "execution role only"
+      ],
+      "falsePositiveReduction": "Turns baseline task execution into actionable privilege context."
+    },
+    {
+      "dimension": "Runtime Override Context",
+      "description": "Inspect overrides for changed commands, environment variables, or task role changes.",
+      "examples": [
+        "custom command override",
+        "taskRoleArn override"
+      ],
+      "falsePositiveReduction": "Highlights ad hoc execution that differs from the task's normal operating profile."
+    },
+    {
+      "dimension": "Authorized Task Launcher Context",
+      "description": "Determine whether the actor, cluster, and task family align with approved automation or operational use.",
+      "examples": [
+        "scheduled platform task",
+        "manual developer run in prod"
+      ],
+      "falsePositiveReduction": "Separates ordinary operations from suspicious ad hoc workload launches."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain the baseline ECS task-activation rule. It alerts on every successful RunTask, then uses resolved task role, execution role, overrides, and actor context to determine whether the task launch deserves escalation.",
+    "conditions": [
+      "eventSource equals ecs.amazonaws.com",
+      "eventName equals RunTask",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep the match broad. 2. Resolve taskRoleArn and executionRoleArn from the task definition immediately. 3. Escalate on privileged roles, unusual overrides, or unexpected actors rather than the baseline event alone.",
+    "whenToFire": "Fire on every successful RunTask for visibility, with higher priority when the task activates strong roles or uses unusual runtime overrides."
+  },
+  "simulationCommand": "aws ecs run-task --cluster prod --task-definition backdoor-task:1",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium as raw visibility, low-medium with role and override enrichment",
+    "expectedVolume": "Environment-dependent",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because task-role activation can be used immediately.",
+    "considerations": [
+      "Use this as the feeder rule for stronger ECS task-role detections.",
+      "Task-definition and role resolution are the key enrichment dependencies."
+    ]
+  }
+}

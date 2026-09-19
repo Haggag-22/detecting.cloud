@@ -1,0 +1,100 @@
+{
+  "whyItMatters": "Creating a login profile turns an IAM user into a console-capable identity. In modern AWS environments that rely on SSO or federation, this can be a significant persistence or exposure event.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may create a console password for a dormant or API-only IAM user to establish durable interactive access.",
+    "realWorldUsage": "Console-password creation is a classic persistence technique in environments that still permit IAM users but do not expect routine console onboarding.",
+    "whyItMatters": "This is the baseline event that feeds stronger detections about unauthorized actors, non-human targets, and follow-on console login.",
+    "riskAndImpact": "If missed, a low-visibility IAM user can be converted into an interactive console identity with broad investigative blind spots if MFA and posture are weak."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.userName",
+      "sourceIPAddress",
+      "userAgent",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "The environment should know whether IAM console access is allowed by policy.",
+      "User identity inventory should classify human, service, dormant, and API-only users."
+    ],
+    "limitations": [
+      "The raw event does not reveal whether the target user is supposed to have console access.",
+      "In older IAM-user-centric environments this can still be a legitimate onboarding signal.",
+      "CloudTrail does not directly show whether MFA was configured afterward."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "User Eligibility for Console Access",
+      "description": "Classify whether the target user should ever have a console password.",
+      "examples": [
+        "human employee",
+        "API-only service user",
+        "dormant legacy IAM user"
+      ],
+      "falsePositiveReduction": "Separates expected onboarding from suspicious persistence."
+    },
+    {
+      "dimension": "Account IAM Posture",
+      "description": "Determine whether the environment prefers SSO or forbids IAM console users except break-glass cases.",
+      "examples": [
+        "SSO-only prod account",
+        "legacy IAM-user account"
+      ],
+      "falsePositiveReduction": "Prevents the same event from being treated identically across very different environments."
+    },
+    {
+      "dimension": "Follow-on Console Use",
+      "description": "Correlate later ConsoleLogin, MFA setup, or lack of MFA for the target user.",
+      "examples": [
+        "ConsoleLogin within 24h",
+        "no MFA configured"
+      ],
+      "falsePositiveReduction": "Raises priority when the new password is actively used."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should stay baseline-oriented. It alerts on every successful CreateLoginProfile, then uses user eligibility, account posture, and later console activity to decide whether the event is routine or suspicious.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals CreateLoginProfile",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Default severity should reflect the environment's IAM model. 2. Escalate for API-only, dormant, or non-console users. 3. Correlate with ConsoleLogin and MFA posture rather than relying on the create event alone.",
+    "whenToFire": "Fire on every successful login-profile creation for visibility, with higher priority when the target user should not normally receive console access."
+  },
+  "simulationCommand": "aws iam create-login-profile --user-name backdoor-user --password 'ExampleTempPassword123!' --password-reset-required",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Medium in IAM-user-heavy environments, low-medium where SSO is the norm",
+    "expectedVolume": "Low in modern environments",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because console password creation may be followed quickly by sign-in.",
+    "considerations": [
+      "This is the baseline companion to actor-centric and target-eligibility login-profile detections.",
+      "Use account posture to decide final severity."
+    ]
+  }
+}

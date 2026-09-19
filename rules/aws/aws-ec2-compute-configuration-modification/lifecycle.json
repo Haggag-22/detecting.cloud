@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects modification of EC2 compute configuration (ModifyImageAttribute, ModifyInstanceMetadataOptions, ModifyLaunchTemplate, ModifyInstanceAttribute) excluding startup-script (userData) changes which are covered separately, plus service-quota increase requests. Adversaries alter configurations to weaken security (e.g. disabling IMDSv2), share images, or raise quotas to launch more compute (e.g. for cryptomining). Aligned to MITRE ATT&CK DET0392-adjacent T1578.005 analytic AN1356 (RequestServiceQuotaIncrease).",
+  "threatContext": {
+    "attackerBehavior": "Detects modification of EC2 compute configuration (ModifyImageAttribute, ModifyInstanceMetadataOptions, ModifyLaunchTemplate, ModifyInstanceAttribute) excluding startup-script (userData) changes which are covered separately, plus service-quota increase requests. Adversaries alter configurations to weaken security (e.g. disabling IMDSv2), share images, or raise quotas to launch more compute (e.g. for cryptomining). Aligned to MITRE ATT&CK DET0392-adjacent T1578.005 analytic AN1356 (RequestServiceQuotaIncrease).",
+    "whyItMatters": "Detects modification of EC2 compute configuration (ModifyImageAttribute, ModifyInstanceMetadataOptions, ModifyLaunchTemplate, ModifyInstanceAttribute) excluding startup-script (userData) changes which are covered separately, plus service-quota increase requests. Adversaries alter configurations to weaken security (e.g. disabling IMDSv2), share images, or raise quotas to launch more compute (e.g. for cryptomining). Aligned to MITRE ATT&CK DET0392-adjacent T1578.005 analytic AN1356 (RequestServiceQuotaIncrease).",
+    "riskAndImpact": "Abuse related to EC2 can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects modification of EC2 compute configuration (ModifyImageAttribute, ModifyInstanceMetadataOptions, ModifyLaunchTemplate, ModifyInstanceAttribute) excluding startup-script (userData) changes which are covered separately, plus service-quota increase requests. Adversaries alter configurations to weaken security (e.g. disabling IMDSv2), share images, or raise quotas to launch more compute (e.g. for cryptomining). Aligned to MITRE ATT&CK DET0392-adjacent T1578.005 analytic AN1356 (RequestServiceQuotaIncrease).",
+    "whenToFire": "When CloudTrail shows activity matching this AWS EC2 Compute Configuration Modification detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

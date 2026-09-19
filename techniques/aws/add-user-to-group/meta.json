@@ -1,0 +1,26 @@
+{
+  "id": "tech-add-user-to-group",
+  "name": "IAM Add User to Group",
+  "shortName": "Add to Group",
+  "description": "An attacker with iam:AddUserToGroup can add a user (themselves or a backdoor user) to an IAM group that has elevated permissions. Group membership grants the user all permissions attached to the group's policies. If the attacker finds a group with broad access (e.g., AdminGroup), adding their user immediately escalates privileges. Required permission is iam:AddUserToGroup. The attacker must have a user to add and the group must exist.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:AddUserToGroup"
+  ],
+  "detectionIds": [
+    "det-056",
+    "det-057",
+    "det-058",
+    "det-059"
+  ],
+  "mitigations": [
+    "Restrict AddUserToGroup",
+    "Audit group membership",
+    "Use least-privilege groups"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws",
+  "detectionStrategy": "AddUserToGroup is dangerous because group membership instantly grants all permissions attached to the group. The best detections focus on privileged groups (Admin, PowerUser, break-glass), suspicious target users (backdoor patterns, self-addition), and follow-on privileged activity by the added user."
+}

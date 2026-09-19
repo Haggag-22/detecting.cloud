@@ -1,0 +1,5 @@
+[
+  "Associate a broad access policy to an access entry in a lab cluster.",
+  "Verify CloudTrail captures AssociateAccessPolicy.",
+  "Run the detection to confirm the alert triggers."
+]

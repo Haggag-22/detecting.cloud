@@ -1,0 +1,100 @@
+{
+  "whyItMatters": "This is the strongest ACL-persistence signal in the family: access granted through ACLs is actually used afterward by the recipient. That turns a risky configuration change into demonstrated exploitation or persistence.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may add an ACL grant for a recipient they control and then use that access path to read, list, or write to the bucket or object.",
+    "realWorldUsage": "This is attractive because the ACL change can quietly establish a secondary access path that becomes visible only when the grantee starts using it.",
+    "whyItMatters": "The highest-fidelity signal is the ordered chain from ACL grant to recipient access, not the grant or access in isolation.",
+    "riskAndImpact": "If missed, defenders may not recognize that a persistence or sharing path created by ACLs was actually exercised."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail for S3 ACL operations",
+      "AWS CloudTrail data or management events for S3 object and bucket access"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.accountId",
+      "requestParameters.bucketName",
+      "requestParameters.key",
+      "requestParameters.AccessControlPolicy"
+    ],
+    "loggingRequirements": [
+      "ACL mutation events and later S3 access events must be ingested into the same analytics environment.",
+      "The platform should resolve grantees from ACL policy structures and canned ACL semantics.",
+      "The engine must support ordered time-window correlation with grantee-to-actor linkage."
+    ],
+    "limitations": [
+      "Recipient linkage can be difficult when ACL grants are group-based or represented indirectly.",
+      "Bucket-only joins are too noisy and should not be used as the final decision point.",
+      "Legitimate cross-account sharing workflows can resemble the same sequence."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Resolved ACL Grantee",
+      "description": "Resolve the exact principal, account, or group that received access from the ACL change.",
+      "examples": [
+        "external AWS account",
+        "AllUsers group"
+      ],
+      "falsePositiveReduction": "Makes the later access linkage precise."
+    },
+    {
+      "dimension": "Access Actor Linkage",
+      "description": "Determine whether the later access came from the granted recipient or a principal within the granted account.",
+      "examples": [
+        "same account as grantee",
+        "different unrelated actor"
+      ],
+      "falsePositiveReduction": "Prevents bucket-only false positives."
+    },
+    {
+      "dimension": "Sharing Workflow Context",
+      "description": "Determine whether the grant-and-access sequence matches a known sharing or distribution process.",
+      "examples": [
+        "approved partner delivery",
+        "untracked external read"
+      ],
+      "falsePositiveReduction": "Separates legitimate sharing from suspicious persistence."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model an ACL grant-to-access chain: a bucket or object ACL is changed to grant access, and then the granted recipient uses that access soon afterward. It should require event order and resolved linkage between the ACL grantee and the later access actor.",
+    "conditions": [
+      "first eventSource equals s3.amazonaws.com and eventName equals PutBucketAcl or PutObjectAcl",
+      "ACL grant resolves to a principal, account, or broad group recipient",
+      "second event is GetObject, ListBucket, or PutObject by the granted recipient or linked recipient account",
+      "follow-on activity occurs within 1 hour"
+    ],
+    "tuningGuidance": "1. Require order. 2. Resolve grantees explicitly instead of joining on bucket alone. 3. Escalate strongly for external-account or public-style grants that are later exercised.",
+    "whenToFire": "Fire when an ACL grant is followed by S3 access from the granted principal or recipient account."
+  },
+  "simulationCommand": "aws s3api put-bucket-acl --bucket target --grant-read id=EXAMPLECANONICALID",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with resolved grantee linkage and sharing context",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with grantee joins",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is preferred because exercised ACL persistence is immediately actionable.",
+    "considerations": [
+      "This is the highest-fidelity S3 ACL detector in the family.",
+      "Resolved grantee linkage is the main implementation dependency."
+    ]
+  }
+}

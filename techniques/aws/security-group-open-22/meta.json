@@ -1,0 +1,22 @@
+{
+  "id": "tech-security-group-open-22",
+  "name": "Security Group Ingress Opened to Internet",
+  "shortName": "SG Internet Ingress",
+  "description": "An attacker with ec2:AuthorizeSecurityGroupIngress adds an ingress rule that allows traffic from 0.0.0.0/0 (any IPv4 address). This can expose SSH, RDP, databases, or application ports to the internet and enable follow-on access to instances that use the security group. Required permission is ec2:AuthorizeSecurityGroupIngress.",
+  "services": [
+    "EC2"
+  ],
+  "permissions": [
+    "ec2:AuthorizeSecurityGroupIngress"
+  ],
+  "detectionIds": [
+    "det-016"
+  ],
+  "mitigations": [
+    "Restrict security group changes",
+    "Use SSM instead of SSH",
+    "Monitor ingress rule changes"
+  ],
+  "category": "lateral-movement",
+  "cloudProvider": "aws"
+}

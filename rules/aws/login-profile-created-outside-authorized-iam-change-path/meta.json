@@ -1,0 +1,22 @@
+{
+  "id": "det-049",
+  "title": "Login Profile Created Outside Authorized IAM Change Path",
+  "description": "Detects console-password creation by actors outside the delegated IAM admin set. The rule should rely on authorized actor inventory, workflow provenance, and actor-to-target scope rather than ARN substring filters.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "Login Profile",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate DevOps or helpdesk roles",
+    "IAM admin users with expected access"
+  ],
+  "relatedAttackSlugs": []
+}

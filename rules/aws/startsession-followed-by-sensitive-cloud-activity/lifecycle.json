@@ -1,0 +1,100 @@
+{
+  "whyItMatters": "Interactive access followed by sensitive cloud activity is one of the clearest indicators that a session was operationally abused rather than used for routine maintenance.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may open an interactive Session Manager shell and then pivot into secrets access, role chaining, IAM changes, or snapshot creation shortly afterward.",
+    "realWorldUsage": "This sequence is a practical post-compromise pattern because SSM provides the hands-on keyboard access needed to inspect hosts, extract credentials, or trigger follow-on cloud actions.",
+    "whyItMatters": "CloudTrail does not show shell commands, so the strongest proxy is the sequence of interactive access followed by sensitive cloud APIs.",
+    "riskAndImpact": "If missed, defenders may see the session and the later API calls as unrelated events rather than a single intrusion chain."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for SSM",
+      "AWS CloudTrail management events for Secrets Manager, KMS, STS, IAM, EC2 and related services"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.target",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "StartSession and follow-on management events must be ingested in the same analytics environment.",
+      "Actor identity should be normalized across direct and assumed-role sessions.",
+      "Ordered short-window correlation must be available in the detection engine."
+    ],
+    "limitations": [
+      "CloudTrail cannot prove what happened inside the shell.",
+      "Simple counts grouped by ARN do not prove sequence.",
+      "Some legitimate admin sessions are followed by sensitive API activity, so target and actor context remain important."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Stable Actor Identity",
+      "description": "Normalize direct and assumed-role identities so the session actor can be matched to follow-on cloud activity.",
+      "examples": [
+        "IAM user",
+        "assumed platform role"
+      ],
+      "falsePositiveReduction": "Improves correlation fidelity across role hops."
+    },
+    {
+      "dimension": "Session Target Context",
+      "description": "Classify the host accessed by the session and its likely secrets or privilege exposure.",
+      "examples": [
+        "bastion",
+        "prod app host",
+        "build worker"
+      ],
+      "falsePositiveReduction": "Explains why later activity after the session is important."
+    },
+    {
+      "dimension": "Follow-On Activity Class",
+      "description": "Group later actions into secrets access, role chaining, IAM mutation, and snapshot or collection behavior.",
+      "examples": [
+        "GetSecretValue",
+        "AssumeRole",
+        "CreateSnapshot"
+      ],
+      "falsePositiveReduction": "Makes post-session abuse sequences clearer and easier to triage."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a short-window post-session sequence: an actor opens an SSM session and then performs sensitive cloud actions soon afterward. The detector should require ordered correlation and stable actor identity rather than matching either side independently.",
+    "conditions": [
+      "first eventSource equals ssm.amazonaws.com and eventName equals StartSession",
+      "second event is a sensitive cloud API by the same actor or normalized session identity",
+      "follow-on action occurs within 15 minutes"
+    ],
+    "tuningGuidance": "1. Require ordered sequence, not loose co-occurrence. 2. Normalize direct and assumed-role identities. 3. Escalate further when the target host is sensitive or the actor is unauthorized for interactive access.",
+    "whenToFire": "Fire when interactive Session Manager access is followed quickly by sensitive cloud activity from the same operator identity."
+  },
+  "simulationCommand": "aws ssm start-session --target i-0abc123 && aws secretsmanager get-secret-value --secret-id ExampleSecret",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium depending on admin workflows and actor-target context",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with ordered event windows",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Best in near-real-time because the session-to-abuse window is short and actionable.",
+    "considerations": [
+      "This is one of the strongest SSM abuse detections in the family.",
+      "Ordered correlation and stable identity normalization are critical."
+    ]
+  }
+}

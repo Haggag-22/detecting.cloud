@@ -1,0 +1,5 @@
+[
+  "Start a session to a test instance tagged or classified as production or otherwise sensitive.",
+  "Verify the detector can resolve the target's metadata from inventory.",
+  "Run the detection and confirm it depends on host classification rather than instance ID naming."
+]

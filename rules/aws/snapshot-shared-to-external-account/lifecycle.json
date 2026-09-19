@@ -1,0 +1,101 @@
+{
+  "whyItMatters": "Sharing a snapshot to another AWS account is a direct exposure control point. It creates a durable cross-account access path to disk data and is often one of the strongest storage-exfiltration signals available in control-plane telemetry.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may share a snapshot to an attacker-controlled or otherwise unauthorized account so it can be copied or restored elsewhere.",
+    "realWorldUsage": "Cross-account sharing is a realistic data theft method because it leverages native AWS workflows and can blend into legitimate DR or migration practices.",
+    "whyItMatters": "The important distinction is recipient-account exposure, not merely that snapshot permissions changed.",
+    "riskAndImpact": "If missed, a full copy of sensitive disk data can leave the account boundary under the cover of a routine permission update."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "Approved recipient-account inventory",
+      "Snapshot and volume ownership inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.snapshotId",
+      "requestParameters.createVolumePermission",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "ModifySnapshotAttribute events must be ingested with the full permission delta.",
+      "The environment should maintain allowlists of approved recipient accounts and organizations.",
+      "The detector should distinguish permission add from removal or benign attribute inspection."
+    ],
+    "limitations": [
+      "CloudTrail alone does not tell you whether the recipient account is organization-owned unless you enrich it.",
+      "Some legitimate DR or migration workflows do share snapshots externally.",
+      "Broad EventBridge matching on ModifySnapshotAttribute needs downstream payload filtering."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Recipient Account Ownership",
+      "description": "Determine whether added recipient accounts are self-owned, organization-owned, partner-owned, or truly external.",
+      "examples": [
+        "approved DR account",
+        "unmanaged external account"
+      ],
+      "falsePositiveReduction": "Separates business-approved sharing from likely exfiltration."
+    },
+    {
+      "dimension": "Permission Delta Intent",
+      "description": "Verify that the request added external access rather than removing or replacing existing permissions.",
+      "examples": [
+        "userIds added",
+        "no net exposure increase"
+      ],
+      "falsePositiveReduction": "Prevents unrelated permission updates from appearing as exfiltration."
+    },
+    {
+      "dimension": "Snapshot Sensitivity",
+      "description": "Resolve the snapshot back to the originating volume, workload, and data classification.",
+      "examples": [
+        "prod database snapshot",
+        "temporary build volume snapshot"
+      ],
+      "falsePositiveReduction": "Raises priority when the exposed snapshot contains sensitive data."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect the exact moment a snapshot is shared to another account. The strongest implementation parses `createVolumePermission.add.userIds`, compares recipient IDs to approved allowlists, and treats truly external recipients as critical exposure events.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals ModifySnapshotAttribute",
+      "permission delta adds one or more recipient account IDs",
+      "recipient accounts are not in the approved cross-account share inventory"
+    ],
+    "tuningGuidance": "1. Keep external-account sharing separate from public exposure. 2. Model approved DR and migration accounts explicitly. 3. Escalate further when the snapshot later gets copied or restored in the recipient account.",
+    "whenToFire": "Fire when a snapshot is shared to an unapproved external account, especially when the source snapshot backs a sensitive workload."
+  },
+  "simulationCommand": "aws ec2 modify-snapshot-attribute --snapshot-id snap-xxx --attribute createVolumePermission --operation-type add --user-ids 999999999999",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with recipient-account allowlists; medium without ownership enrichment",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with account inventory",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is strongly preferred because this is a direct exposure control point.",
+    "considerations": [
+      "Keep this distinct from the public-share detector.",
+      "Recipient-account ownership enrichment is the main dependency."
+    ]
+  }
+}

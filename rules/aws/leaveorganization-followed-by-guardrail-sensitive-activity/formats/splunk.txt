@@ -1,0 +1,10 @@
+index=aws sourcetype=aws:cloudtrail
+  ((eventSource=organizations.amazonaws.com AND eventName=LeaveOrganization) OR (eventName=PutUserPolicy OR eventName=AttachRolePolicy OR eventName=PutRolePolicy OR eventName=CreateAccessKey OR eventName=PutKeyPolicy OR eventName=UpdateTrail OR eventName=StopLogging))
+| eval acct=coalesce(recipientAccountId, userIdentity.accountId)
+| eval actor=coalesce(userIdentity.arn, userIdentity.accountId)
+| eval key=acct."##".actor
+| eval is_leave=if(eventSource="organizations.amazonaws.com" AND eventName="LeaveOrganization", 1, 0)
+| eval is_sensitive=if(eventName IN ("PutUserPolicy","AttachRolePolicy","PutRolePolicy","CreateAccessKey","PutKeyPolicy","UpdateTrail","StopLogging"), 1, 0)
+| transaction key maxspan=1h
+| where mvcount(mvfilter(is_leave=1))>0 AND mvcount(mvfilter(is_sensitive=1))>0
+| table _time, key, actor, eventName

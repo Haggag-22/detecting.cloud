@@ -1,0 +1,22 @@
+{
+  "id": "det-033",
+  "title": "Inline Policy Modification Outside Authorized IAM Change Path",
+  "description": "Detects inline IAM policy changes performed outside approved IAM administration workflows. The key signal is not actor naming, but whether identity, session provenance, and target ownership indicate the caller should be allowed to mutate IAM permissions.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "Inline Policy",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate DevOps or automation roles",
+    "IAM admin users with expected access"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,23 @@
+{
+  "id": "tech-dynamodb-export-exfil",
+  "name": "DynamoDB Export to S3",
+  "shortName": "DDB Export",
+  "description": "DynamoDB can export a full copy of a table to S3 as a backup. That same feature lets an attacker copy every item out of a production table without running a million GetItem calls. The export lands in a bucket they choose, which they can then download or share. The table itself still looks healthy, so this is theft rather than outage. Watch for exports to unexpected buckets or by identities that never run backups.",
+  "services": [
+    "DynamoDB",
+    "S3"
+  ],
+  "permissions": [
+    "dynamodb:ExportTableToPointInTime"
+  ],
+  "detectionIds": [
+    "det-023"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "exfiltration",
+  "cloudProvider": "aws"
+}

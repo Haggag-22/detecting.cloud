@@ -1,0 +1,8 @@
+fields @timestamp, eventSource, eventName, requestParameters.userName, userIdentity.arn, responseElements.ConsoleLogin
+| filter (eventSource = "iam.amazonaws.com" and eventName = "UpdateLoginProfile")
+  or (eventSource = "signin.amazonaws.com" and eventName = "ConsoleLogin" and responseElements.ConsoleLogin = "Success")
+| parse userIdentity.arn "*user/%{target_user}"
+| eval target_user=if(eventName="UpdateLoginProfile", requestParameters.userName, target_user)
+| stats count(*) as cnt, collect_list(eventName) as events by target_user
+| filter cnt > 1
+| sort cnt desc

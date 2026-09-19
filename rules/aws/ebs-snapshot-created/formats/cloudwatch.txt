@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.volumeId, requestParameters.description, sourceIPAddress
+| filter eventSource = "ec2.amazonaws.com"
+| filter eventName in ["CreateSnapshot", "CreateSnapshots"]
+| sort @timestamp desc

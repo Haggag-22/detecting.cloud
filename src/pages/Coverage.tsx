@@ -1,38 +1,26 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Layout } from "@/components/Layout";
-import { techniques, techniqueCategories, type TechniqueCategory } from "@/data/techniques";
-import { detections } from "@/data/detections";
+import { techniques, techniqueCategories, getTechniqueCloudProvider, type TechniqueCategory } from "@/data/techniques";
+import {
+  detections,
+  getDetectionsByService,
+  getDetectionCountsByCloudProvider,
+  isDetectionProvisional,
+} from "@/data/detections";
 import { attackPaths } from "@/data/attackPaths";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "react-router-dom";
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-} from "recharts";
-import {
   CheckCircle2, XCircle, AlertCircle, AlertTriangle, Filter, Search,
-  TrendingUp, BarChart3,
+  BarChart3, ChevronRight,
 } from "lucide-react";
 import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
-
-const categoryColors: Record<TechniqueCategory, string> = {
-  "initial-access": "bg-cyan-500/15 text-cyan-400",
-  "credential-access": "bg-purple-500/15 text-purple-400",
-  "privilege-escalation": "bg-red-500/15 text-red-400",
-  "persistence": "bg-orange-500/15 text-orange-400",
-  "lateral-movement": "bg-blue-500/15 text-blue-400",
-  "exfiltration": "bg-emerald-500/15 text-emerald-400",
-  "defense-evasion": "bg-amber-500/15 text-amber-400",
-};
-
-const categoryBarColors: Record<TechniqueCategory, string> = {
-  "initial-access": "hsl(187, 85%, 53%)",
-  "credential-access": "hsl(270, 70%, 65%)",
-  "privilege-escalation": "hsl(0, 84%, 60%)",
-  "persistence": "hsl(25, 95%, 53%)",
-  "lateral-movement": "hsl(210, 79%, 46%)",
-  "exfiltration": "hsl(160, 84%, 39%)",
-  "defense-evasion": "hsl(38, 92%, 50%)",
-};
+import { getServiceIconOrFallback } from "@/components/AwsIcons";
+import { CloudProviderTabs, parseCloudProviderId, type CloudProviderId } from "@/components/CloudProviderTabs";
+import { getServiceCardClassName } from "@/lib/serviceCardColors";
+import { CountBadge } from "@/components/CountBadge";
+import { cn } from "@/lib/utils";
+import { TECHNIQUE_CATEGORY_BADGE } from "@/lib/techniqueCategoryStyles";
 
 type CoverageStatus = "covered" | "partial" | "none";
 
@@ -46,101 +34,137 @@ function getCoverageStatus(detectionIds: string[]): CoverageStatus {
   return "covered";
 }
 
-const severityScore: Record<string, number> = { Critical: 4, High: 3, Medium: 2, Low: 1 };
-
-function getPriorityLabel(score: number): string {
-  if (score >= 9) return "Critical";
-  if (score >= 7) return "High";
-  if (score >= 4) return "Medium";
-  if (score >= 1) return "Low";
-  return "—";
+/** Technique service labels that map to a Detection Rules primary service */
+function techniqueMatchesService(techniqueServices: string[], detectionService: string): boolean {
+  const aliases =
+    detectionService === "Route 53"
+      ? ["Route 53", "Route53"]
+      : detectionService === "Secrets Manager"
+        ? ["Secrets Manager", "SecretsManager"]
+        : detectionService === "IAM"
+          ? ["IAM", "STS", "IAM Identity Center", "Directory Service", "SSO"]
+          : [detectionService];
+  return techniqueServices.some((s) => aliases.includes(s));
 }
 
 const CoveragePage = () => {
   const [categoryFilter, setCategoryFilter] = useState<TechniqueCategory | "all">("all");
   const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<"status" | "priority">("status");
+  const [serviceSearch, setServiceSearch] = useState("");
+  const [provider, setProvider] = useState<CloudProviderId>("all");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const matrixRef = useRef<HTMLDivElement>(null);
+
+  const coverageProvider = parseCloudProviderId(provider);
+
+  const providerCounts = getDetectionCountsByCloudProvider();
+  const detectionsByService = useMemo(
+    () => getDetectionsByService(coverageProvider === "all" ? "all" : coverageProvider),
+    [coverageProvider]
+  );
+
+  const scopedTechniques = useMemo(() => {
+    if (coverageProvider === "all") return techniques;
+    return techniques.filter((t) => getTechniqueCloudProvider(t) === coverageProvider);
+  }, [coverageProvider]);
 
   const analysis = useMemo(() => {
-    const categories = (Object.keys(techniqueCategories) as TechniqueCategory[]).map((cat) => {
-      const catTechs = techniques.filter((t) => t.category === cat);
-      const covered = catTechs.filter((t) => getCoverageStatus(t.detectionIds) === "covered").length;
-      const partial = catTechs.filter((t) => getCoverageStatus(t.detectionIds) === "partial").length;
-      const pct = catTechs.length > 0 ? Math.round(((covered + partial * 0.5) / catTechs.length) * 100) : 0;
+    // Same service categories as Detection Rules (primary awsService grouping)
+    const services = Object.entries(detectionsByService).map(([service, rules]) => {
+      const ruleIds = new Set(rules.map((r) => r.id));
+      const svcTechs = scopedTechniques.filter(
+        (t) =>
+          techniqueMatchesService(t.services, service) ||
+          t.detectionIds.some((id) => ruleIds.has(id))
+      );
+      const covered = svcTechs.filter((t) => getCoverageStatus(t.detectionIds) !== "none").length;
+      const total = svcTechs.length;
+      const pct = total > 0 ? Math.round((covered / total) * 100) : 0;
       return {
-        key: cat,
-        label: techniqueCategories[cat].label,
-        total: catTechs.length,
+        service,
+        ruleCount: rules.length,
         covered,
-        partial,
-        none: catTechs.length - covered - partial,
+        total,
         pct,
       };
     });
 
-    const allServices = Array.from(new Set(techniques.flatMap((t) => t.services))).sort();
-    const services = allServices.map((svc) => {
-      const svcTechs = techniques.filter((t) => t.services.includes(svc));
-      const covered = svcTechs.filter((t) => getCoverageStatus(t.detectionIds) !== "none").length;
-      return { service: svc, total: svcTechs.length, covered, pct: svcTechs.length > 0 ? Math.round((covered / svcTechs.length) * 100) : 0 };
-    });
-
-    const partialTechs = techniques
+    const partialTechs = scopedTechniques
       .filter((t) => getCoverageStatus(t.detectionIds) === "partial")
       .map((t) => {
         const matched = t.detectionIds.filter((id) => detections.some((d) => d.id === id)).length;
         return { ...t, matchedCount: matched, totalDetections: t.detectionIds.length };
       });
 
-    const totalTechs = techniques.length;
-    const totalCovered = techniques.filter((t) => getCoverageStatus(t.detectionIds) === "covered").length;
-    const totalPartial = techniques.filter((t) => getCoverageStatus(t.detectionIds) === "partial").length;
+    const totalTechs = scopedTechniques.length;
+    const totalCovered = scopedTechniques.filter((t) => getCoverageStatus(t.detectionIds) === "covered").length;
+    const totalPartial = scopedTechniques.filter((t) => getCoverageStatus(t.detectionIds) === "partial").length;
     const totalNone = totalTechs - totalCovered - totalPartial;
-    const overallPct = Math.round(((totalCovered + totalPartial * 0.5) / totalTechs) * 100);
+    const overallPct = totalTechs > 0 ? Math.round(((totalCovered + totalPartial * 0.5) / totalTechs) * 100) : 0;
 
-    return { categories, services, partialTechs, totalTechs, totalCovered, totalPartial, totalNone, overallPct };
-  }, []);
+    return { services, partialTechs, totalTechs, totalCovered, totalPartial, totalNone, overallPct };
+  }, [detectionsByService, scopedTechniques]);
 
   const techniquesWithMeta = useMemo(() => {
-    return techniques.map((t) => {
+    return scopedTechniques.map((t) => {
       const status = getCoverageStatus(t.detectionIds);
       const appearsIn = attackPaths.filter((ap) => ap.steps.some((s) => s.techniqueId === t.id));
       const pathCount = appearsIn.length;
-      const maxSeverity = appearsIn.reduce((max, ap) => Math.max(max, severityScore[ap.severity] || 0), 0);
-      const priorityScore = status === "none" ? maxSeverity * 2 + pathCount : 0;
-      const priorityLabel = status === "none" ? getPriorityLabel(priorityScore) : "—";
-      return { ...t, status, pathCount, priorityScore, priorityLabel };
+      const linked = t.detectionIds
+        .map((id) => detections.find((d) => d.id === id))
+        .filter((d): d is NonNullable<typeof d> => Boolean(d));
+      const provisional = linked.length > 0 && linked.every(isDetectionProvisional);
+      return { ...t, status, pathCount, provisional };
     });
-  }, [attackPaths]);
+  }, [attackPaths, scopedTechniques]);
 
   const filtered = techniquesWithMeta.filter((t) => {
     if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
-    if (serviceFilter !== "all" && !t.services.includes(serviceFilter)) return false;
+    if (serviceFilter !== "all") {
+      const rules = detectionsByService[serviceFilter] ?? detections.filter((d) => d.awsService === serviceFilter);
+      const ruleIds = new Set(rules.map((r) => r.id));
+      const matches =
+        techniqueMatchesService(t.services, serviceFilter) ||
+        t.detectionIds.some((id) => ruleIds.has(id));
+      if (!matches) return false;
+    }
     if (searchQuery && !t.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
 
   const sorted = useMemo(() => {
     const order = sortOrder === "desc" ? 1 : -1;
+    const statusOrder = { none: 0, partial: 1, covered: 2 };
     return [...filtered].sort((a, b) => {
-      if (sortBy === "status") {
-        const statusOrder = { none: 0, partial: 1, covered: 2 };
-        const diff = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
-        return diff * order;
-      }
-      if (sortBy === "priority") {
-        const diff = a.priorityScore - b.priorityScore;
-        return diff * order;
-      }
-      return 0;
+      const diff = (statusOrder[a.status] ?? 3) - (statusOrder[b.status] ?? 3);
+      return diff * order;
     });
-  }, [filtered, sortBy, sortOrder]);
+  }, [filtered, sortOrder]);
+
+  const serviceRows = useMemo(() => {
+    const q = serviceSearch.trim().toLowerCase();
+    return analysis.services.filter((svc) => !q || svc.service.toLowerCase().includes(q));
+  }, [analysis.services, serviceSearch]);
+
+  const selectProvider = (id: CloudProviderId) => {
+    setProvider(id);
+    setServiceFilter("all");
+    setServiceSearch("");
+  };
+
+  const selectService = (service: string) => {
+    setServiceFilter(service);
+    requestAnimationFrame(() => {
+      matrixRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  const emptyProviderLabel = coverageProvider === "all" ? null : coverageProvider.toUpperCase();
 
   return (
     <Layout>
-      <div className="container py-12">
+      <div className="container">
         <PageTitleWithIcon team="blue" icon={BarChart3}>
           Detection Coverage
         </PageTitleWithIcon>
@@ -181,50 +205,75 @@ const CoveragePage = () => {
           </div>
         </div>
 
-        {/* Coverage by Category Chart */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <div className="rounded-lg border border-border/50 bg-card p-6">
-            <h2 className="font-display text-lg font-semibold mb-4 flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-primary" /> Coverage by Category
-            </h2>
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={analysis.categories} layout="vertical" margin={{ left: 10, right: 20 }}>
-                <XAxis type="number" domain={[0, 100]} tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 11 }} tickFormatter={(v) => `${v}%`} />
-                <YAxis type="category" dataKey="label" width={130} tick={{ fill: "hsl(215, 20%, 55%)", fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: "hsl(215, 38%, 8%)", border: "1px solid hsl(215, 24%, 15%)", borderRadius: 8, fontSize: 12 }}
-                  labelStyle={{ color: "hsl(210, 40%, 94%)" }}
-                  formatter={(value: number) => [`${value}%`, "Coverage"]}
-                />
-                <Bar dataKey="pct" radius={[0, 4, 4, 0]}>
-                  {analysis.categories.map((entry) => (
-                    <Cell key={entry.key} fill={categoryBarColors[entry.key]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+        {/* Service coverage — same services as Detection Rules */}
+        <div className="mb-8">
+          <CloudProviderTabs
+            value={coverageProvider}
+            counts={providerCounts}
+            onChange={selectProvider}
+          />
+
+          <div className="relative w-full sm:max-w-md mb-6">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input
+              value={serviceSearch}
+              onChange={(e) => setServiceSearch(e.target.value)}
+              placeholder="Search services..."
+              className="w-full h-[42px] rounded-lg border border-border bg-card pl-10 pr-4 text-sm outline-none focus:border-primary/50 transition-colors"
+            />
           </div>
 
-          {/* Coverage by Service */}
-          <div className="rounded-lg border border-border/50 bg-card p-6">
-            <h2 className="font-display text-lg font-semibold mb-4">Coverage by AWS Service</h2>
-            <div className="space-y-3 max-h-[280px] overflow-y-auto">
-              {analysis.services.map((svc) => (
-                <div key={svc.service}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium">{svc.service}</span>
-                    <span className="text-xs text-muted-foreground">{svc.covered}/{svc.total} techniques</span>
-                  </div>
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all"
-                      style={{ width: `${svc.pct}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+          {serviceRows.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {serviceRows.map((svc) => {
+                const ServiceIcon = getServiceIconOrFallback(svc.service);
+                const active = serviceFilter === svc.service;
+                return (
+                  <button
+                    key={svc.service}
+                    type="button"
+                    onClick={() => selectService(svc.service)}
+                    className={cn(
+                      getServiceCardClassName({ active }),
+                      "px-4 py-3.5 text-left group flex items-center gap-3"
+                    )}
+                  >
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <ServiceIcon size={28} className="shrink-0" />
+                      <h3 className="font-display font-semibold text-base truncate group-hover:text-primary transition-colors">
+                        {svc.service}
+                      </h3>
+                    </div>
+                    <div className="flex flex-col items-end gap-0.5 shrink-0 text-xs text-muted-foreground">
+                      <span className="tabular-nums">
+                        {svc.ruleCount} {svc.ruleCount === 1 ? "rule" : "rules"}
+                      </span>
+                      {svc.total > 0 ? (
+                        <span className="tabular-nums">
+                          {svc.covered}/{svc.total} techniques
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground/50">—</span>
+                      )}
+                    </div>
+                    <CountBadge>{svc.total > 0 ? `${svc.pct}%` : svc.ruleCount}</CountBadge>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-foreground transition-colors" />
+                  </button>
+                );
+              })}
             </div>
-          </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border/50 bg-card/40 px-6 py-14 text-center">
+              <p className="text-2xl font-bold text-muted-foreground mb-1">0%</p>
+              <p className="text-sm text-muted-foreground">
+                {serviceSearch.trim()
+                  ? "No services match your search."
+                  : emptyProviderLabel
+                    ? `No ${emptyProviderLabel} detection services yet — 0% coverage.`
+                    : "No services match your search."}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Partial Coverage */}
@@ -251,7 +300,7 @@ const CoveragePage = () => {
         )}
 
         {/* Filters & Coverage Matrix */}
-        <div>
+        <div ref={matrixRef}>
           <h2 className="font-display text-lg font-semibold mb-4">Coverage Matrix</h2>
           <div className="flex flex-wrap gap-3 mb-6 items-center">
             <Filter className="h-4 w-4 text-muted-foreground" />
@@ -284,34 +333,25 @@ const CoveragePage = () => {
                 <option key={svc.service} value={svc.service}>{svc.service}</option>
               ))}
             </select>
-            <span className="text-xs text-muted-foreground ml-2">Sort by:</span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as "status" | "priority")}
-              className="rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary/50"
-            >
-              <option value="status">Status (Gap / Covered)</option>
-              <option value="priority">Priority</option>
-            </select>
+            <span className="text-xs text-muted-foreground ml-2">Sort by status:</span>
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}
               className="rounded-lg border border-border bg-card px-3 py-2 text-sm outline-none focus:border-primary/50"
             >
-              <option value="desc">Descending</option>
-              <option value="asc">Ascending</option>
+              <option value="desc">Gaps first</option>
+              <option value="asc">Covered first</option>
             </select>
           </div>
 
           <div className="rounded-lg border border-border/50 overflow-hidden">
-            <div className="grid grid-cols-[1fr_140px_120px_100px_110px_120px_100px] gap-x-6 gap-y-0 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted px-4 py-3 border-b border-border">
-              <span>Technique</span>
+            <div className="grid grid-cols-[1fr_140px_120px_100px_110px_120px] gap-x-6 gap-y-0 text-xs font-medium text-muted-foreground uppercase tracking-wider bg-muted px-4 py-3 border-b border-border">
+              <span>Attack Technique</span>
               <span>Category</span>
               <span>Services</span>
               <span>In Paths</span>
               <span>Detections</span>
               <span>Status</span>
-              <span>Priority</span>
             </div>
             <div className="divide-y divide-border/50">
               {sorted.map((tech) => {
@@ -323,10 +363,10 @@ const CoveragePage = () => {
                   <Link
                     key={tech.id}
                     to={`/attack-paths/technique/${tech.id}`}
-                    className="grid grid-cols-[1fr_140px_120px_100px_110px_120px_100px] gap-x-6 gap-y-0 px-4 py-3 hover:bg-muted/50 transition-colors items-center"
+                    className="grid grid-cols-[1fr_140px_120px_100px_110px_120px] gap-x-6 gap-y-0 px-4 py-3 hover:bg-muted/50 transition-colors items-center"
                   >
                     <span className="font-medium text-sm text-foreground">{tech.name}</span>
-                    <Badge className={`text-[10px] border-0 w-fit ${categoryColors[tech.category]}`}>
+                    <Badge className={`text-[10px] border-0 w-fit ${TECHNIQUE_CATEGORY_BADGE[tech.category]}`}>
                       {techniqueCategories[tech.category].label}
                     </Badge>
                     <span className="text-xs text-muted-foreground">{tech.services.join(", ")}</span>
@@ -336,7 +376,9 @@ const CoveragePage = () => {
                       {tech.status === "covered" && (
                         <>
                           <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                          <span className="text-xs text-emerald-400">Covered</span>
+                          <span className="text-xs text-emerald-400">
+                            {tech.provisional ? "Provisional" : "Covered"}
+                          </span>
                         </>
                       )}
                       {tech.status === "partial" && (
@@ -351,16 +393,6 @@ const CoveragePage = () => {
                           <span className="text-xs text-red-400">Gap</span>
                         </>
                       )}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {tech.priorityLabel !== "—" && (
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${
-                          tech.priorityLabel === "Critical" ? "bg-destructive" :
-                          tech.priorityLabel === "High" ? "bg-orange-400" :
-                          tech.priorityLabel === "Medium" ? "bg-yellow-400" : "bg-muted-foreground"
-                        }`} />
-                      )}
-                      <span className="text-xs text-muted-foreground">{tech.priorityLabel}</span>
                     </div>
                   </Link>
                 );

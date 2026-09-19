@@ -1,0 +1,28 @@
+{
+  "id": "det-001",
+  "title": "IAM PassRole Privilege Escalation (legacy Lambda path)",
+  "description": "Legacy rule. Lambda CreateFunction with a high-privilege role is covered by det-012. iam:PassRole is not a standalone CloudTrail event; do not treat this title as PassRole coverage. Prefer det-012.",
+  "awsService": "IAM",
+  "relatedServices": [
+    "Lambda",
+    "STS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "IAM",
+    "PassRole",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate DevOps automation creating Lambda functions with appropriate roles"
+  ],
+  "relatedAttackSlugs": [
+    "aws-passrole-abuse",
+    "iam-privilege-escalation",
+    "lambda-privilege-escalation"
+  ]
+}

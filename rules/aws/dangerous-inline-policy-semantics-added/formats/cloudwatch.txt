@@ -1,0 +1,5 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.roleName, requestParameters.userName
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName in ["PutRolePolicy", "PutUserPolicy"]
+| filter requestParameters.policyDocument like /"Action":"*"/ or requestParameters.policyDocument like /"Resource":"*"/ or requestParameters.policyDocument like /iam:*/ or requestParameters.policyDocument like /sts:AssumeRole/ or requestParameters.policyDocument like /iam:PassRole/
+| sort @timestamp desc

@@ -1,0 +1,20 @@
+{
+  "id": "tech-gcp-dlp-reidentification",
+  "name": "Cloud DLP Re-identification",
+  "shortName": "DLP Re-ID",
+  "description": "Cloud DLP can de-identify sensitive fields so analysts can work with safer copies. The same product can re-identify those fields if someone has the right job. An attacker who can re-identify is turning masked data back into real names, numbers, or secrets. That undoes the privacy control without stealing the original database. Re-identify jobs outside a documented privacy workflow are data exposure.",
+  "services": [
+    "Cloud DLP"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-005"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "gcp"
+}

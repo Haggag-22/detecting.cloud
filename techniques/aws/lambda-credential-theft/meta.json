@@ -1,0 +1,20 @@
+{
+  "id": "tech-lambda-credential-theft",
+  "name": "Lambda Credential Theft via SSRF",
+  "shortName": "Lambda Cred Theft",
+  "description": "A Lambda function vulnerable to SSRF can be triggered with input that causes it to make HTTP requests to the Instance Metadata Service (169.254.169.254). Lambda runs on EC2-like infrastructure and has IMDS access. The function fetches its execution role credentials and may return them in the response or log them. The attacker triggers the Lambda (e.g., via a webhook or API) with malicious input. No AWS permissions are required if the Lambda is publicly invokable; otherwise the attacker needs lambda:InvokeFunction.",
+  "services": [
+    "Lambda",
+    "EC2",
+    "IAM"
+  ],
+  "permissions": [],
+  "detectionIds": [],
+  "mitigations": [
+    "Fix SSRF in Lambda code",
+    "Use least-privilege roles",
+    "Restrict outbound Lambda access"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "aws"
+}

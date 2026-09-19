@@ -1,0 +1,5 @@
+[
+  "Delete a test flow log and then perform `ModifySnapshotAttribute`, `GetSecretValue`, or a modeled network-control change within 30 minutes.",
+  "Verify both the deletion and follow-on events appear in CloudTrail.",
+  "Run the detector and confirm it requires ordered correlation rather than simple same-actor event grouping."
+]

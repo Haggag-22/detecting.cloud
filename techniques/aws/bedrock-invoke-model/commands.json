@@ -1,0 +1,3 @@
+[
+  "aws bedrock-runtime invoke-model --model-id anthropic.claude-v2 --body '{\"prompt\":\"...\"}' output.json"
+]

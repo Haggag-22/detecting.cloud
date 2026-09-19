@@ -1,0 +1,4 @@
+[
+  "aws lambda update-function-code --function-name AgentLambda --zip-file fileb://malicious.zip",
+  "aws bedrock update-agent --agent-id xxx --agent-name hijacked-agent"
+]

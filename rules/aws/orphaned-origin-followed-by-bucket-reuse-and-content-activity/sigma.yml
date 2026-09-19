@@ -1,0 +1,14 @@
+title: Orphaned Origin Followed by Access Anomaly
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_create:
+    eventSource: s3.amazonaws.com
+    eventName: CreateBucket
+  selection_put:
+    eventSource: s3.amazonaws.com
+    eventName: PutObject
+  condition: selection_create
+level: critical
+# Full correlation requires bucket-name lineage to a known orphaned CloudFront origin plus ordered content activity.

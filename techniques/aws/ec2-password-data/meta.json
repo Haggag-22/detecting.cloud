@@ -1,0 +1,18 @@
+{
+  "id": "tech-ec2-password-data",
+  "name": "EC2 Get Password Data (Windows)",
+  "shortName": "Password Data",
+  "description": "Windows EC2 instances can have their initial administrator password retrieved via ec2:GetPasswordData. The password is encrypted with the key pair used to launch the instance. An attacker with ec2:GetPasswordData and the private key can decrypt the password and use it for RDP access. This works for instances launched with a key pair; the password is available a few minutes after boot. Required permissions are ec2:GetPasswordData. The attacker must have the private key file corresponding to the instance's key pair.",
+  "services": [
+    "EC2"
+  ],
+  "permissions": [
+    "ec2:GetPasswordData"
+  ],
+  "detectionIds": [
+    "det-203"
+  ],
+  "mitigations": [],
+  "category": "credential-access",
+  "cloudProvider": "aws"
+}

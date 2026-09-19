@@ -1,0 +1,22 @@
+{
+  "id": "det-204",
+  "title": "Cognito Identity Pool Credentials Retrieved",
+  "description": "Detects Cognito identity-pool credential issuance (GetCredentialsForIdentity / GetOpenIdToken) used to obtain AWS credentials from an identity pool, including unauthenticated pools.",
+  "awsService": "Cognito",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "Cognito",
+    "Control Plane"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Authorized platform automation"
+  ],
+  "relatedAttackSlugs": []
+}

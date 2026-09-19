@@ -1,0 +1,25 @@
+{
+  "id": "tech-federation-idp-backdoor",
+  "name": "Federation / SAML / IdP Backdoor",
+  "shortName": "IdP Backdoor",
+  "description": "Many companies log into AWS through a company identity provider: Identity Center, SAML, or Active Directory. If an attacker can change which identity provider is trusted, they can issue their own logins that AWS will accept, or lock employees out by pointing trust at a server they own. That foothold survives password resets because the attacker is no longer using a stolen IAM user. IdP and SAML changes belong in a tiny, monitored change path.",
+  "services": [
+    "IAM",
+    "IAM Identity Center",
+    "Directory Service"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-161",
+    "det-173",
+    "det-180",
+    "det-155"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,25 @@
+{
+  "id": "az-109",
+  "title": "Roles Activated Too Frequently",
+  "description": "Identifies when the same privilege role has multiple activations by the same user.",
+  "awsService": "Entra ID PIM",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID PIM",
+    "initial-access",
+    "stealth",
+    "t1078",
+    "persistence",
+    "privilege-escalation"
+  ],
+  "logSources": [
+    "Azure pim"
+  ],
+  "falsePositives": [
+    "Investigate where if active time period for a role is set too short."
+  ],
+  "relatedAttackSlugs": []
+}

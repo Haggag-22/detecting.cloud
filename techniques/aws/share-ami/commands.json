@@ -1,0 +1,3 @@
+[
+  "aws ec2 modify-image-attribute --image-id ami-xxx --launch-permission 'Add=[{UserId=999888777666}]'"
+]

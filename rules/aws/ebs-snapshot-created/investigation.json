@@ -1,0 +1,5 @@
+[
+  "Identify the actor, source volume, and whether the volume backs a sensitive system.",
+  "Verify if snapshot creation was authorized for this volume and actor.",
+  "Check for follow-on ModifySnapshotAttribute, CopySnapshot, or CreateVolume activity."
+]

@@ -1,0 +1,12 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "s3.amazonaws.com",
+  "importantFields": [
+    "eventSource",
+    "eventName",
+    "userIdentity.arn",
+    "requestParameters.bucketName",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"s3.amazonaws.com\",\n  \"eventName\": \"DeleteBucket\",\n  \"userIdentity\": {\n    \"type\": \"IAMUser\",\n    \"arn\": \"arn:aws:iam::123456789012:user/admin\"\n  },\n  \"requestParameters\": {\n    \"bucketName\": \"my-bucket\"\n  },\n  \"sourceIPAddress\": \"203.0.113.10\",\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

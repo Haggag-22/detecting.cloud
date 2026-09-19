@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.bucketName, requestParameters.key
+| filter eventSource = "s3.amazonaws.com"
+| filter eventName in ["PutBucketAcl", "PutObjectAcl"]
+| sort @timestamp desc

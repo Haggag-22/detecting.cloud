@@ -1,0 +1,22 @@
+{
+  "id": "az-101",
+  "title": "Azure New CloudShell Created",
+  "description": "Identifies when a new cloudshell is created inside of Azure portal.",
+  "awsService": "Azure Activity",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Azure Activity",
+    "execution",
+    "t1059"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "A new cloudshell may be created by a system administrator."
+  ],
+  "relatedAttackSlugs": []
+}

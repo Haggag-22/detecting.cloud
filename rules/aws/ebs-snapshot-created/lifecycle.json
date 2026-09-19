@@ -1,0 +1,99 @@
+{
+  "whyItMatters": "Snapshot creation is a foundational storage-loot signal. Even when legitimate, it is the first control-plane step in many later exfiltration or rehydration chains.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may create an EBS snapshot to capture disk contents for later sharing, copying, or offline restoration.",
+    "realWorldUsage": "Snapshotting is attractive because it looks like standard cloud administration while still creating a durable copy of a workload's data at the storage layer.",
+    "whyItMatters": "This baseline event feeds stronger detections about unauthorized actors, external sharing, and snapshot rehydration.",
+    "riskAndImpact": "If missed, defenders may not notice data collection at the volume layer until much later in the exfiltration chain."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "EBS and EC2 inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.volumeId",
+      "requestParameters.description",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CreateSnapshot and CreateSnapshots events must be ingested.",
+      "The environment should resolve volume ownership, attached instance, and data sensitivity.",
+      "Follow-on snapshot sharing and copy events should be available for later correlation."
+    ],
+    "limitations": [
+      "CreateSnapshots can involve multi-volume operations and may expose different request shapes than CreateSnapshot.",
+      "Raw snapshot creation alone does not prove exfiltration.",
+      "Backup and DLM workflows can generate high baseline volume in storage-heavy environments."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Volume Sensitivity",
+      "description": "Resolve the volume to the attached instance, application, and data class.",
+      "examples": [
+        "prod database volume",
+        "build-worker scratch disk"
+      ],
+      "falsePositiveReduction": "Helps distinguish routine backup from potential high-value collection."
+    },
+    {
+      "dimension": "Authorized Snapshot Actors",
+      "description": "Determine whether the actor is expected to create snapshots for this workload class.",
+      "examples": [
+        "backup automation role",
+        "manual app role"
+      ],
+      "falsePositiveReduction": "Separates standard backup activity from suspicious storage collection."
+    },
+    {
+      "dimension": "Follow-On Snapshot Chain",
+      "description": "Track whether the snapshot is later shared, copied, or rehydrated.",
+      "examples": [
+        "ModifySnapshotAttribute",
+        "CopySnapshot"
+      ],
+      "falsePositiveReduction": "Moves the signal from baseline visibility to likely exfiltration behavior."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain a baseline snapshot-creation rule. It alerts on every successful CreateSnapshot or CreateSnapshots event, then uses actor context, volume sensitivity, and later snapshot-handling behavior to determine risk.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals CreateSnapshot or CreateSnapshots",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep the event match broad. 2. Resolve the source volume and owning workload. 3. Escalate based on unauthorized actors or later sharing, copying, or rehydration activity.",
+    "whenToFire": "Fire on every successful snapshot creation for visibility, with higher priority when the source volume is sensitive or the actor is unusual."
+  },
+  "simulationCommand": "aws ec2 create-snapshot --volume-id vol-0abc123 --description 'manual backup'",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium as raw visibility, low-medium with actor and volume enrichment",
+    "expectedVolume": "Environment-dependent",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because snapshot creation may quickly lead to sharing or copying.",
+    "considerations": [
+      "Use this as the feeder rule for the higher-confidence snapshot-exfiltration detections that follow.",
+      "Volume inventory is the main enrichment dependency."
+    ]
+  }
+}

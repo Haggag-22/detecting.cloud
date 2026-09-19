@@ -1,0 +1,17 @@
+{
+  "source": [
+    "aws.eks"
+  ],
+  "detail-type": [
+    "AWS API Call via CloudTrail"
+  ],
+  "detail": {
+    "eventSource": [
+      "eks.amazonaws.com"
+    ],
+    "eventName": [
+      "CreateCluster",
+      "UpdateClusterConfig"
+    ]
+  }
+}

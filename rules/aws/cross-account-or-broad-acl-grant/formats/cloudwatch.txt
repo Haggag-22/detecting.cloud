@@ -1,0 +1,5 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.bucketName, requestParameters.key, requestParameters.acl, requestParameters.AccessControlPolicy
+| filter eventSource = "s3.amazonaws.com"
+| filter eventName in ["PutBucketAcl", "PutObjectAcl"]
+| filter requestParameters.acl like /public|authenticated/ or requestParameters.AccessControlPolicy like /Grant|Grantee/
+| sort @timestamp desc

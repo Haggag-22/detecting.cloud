@@ -1,0 +1,24 @@
+{
+  "id": "det-098",
+  "title": "EKS Access Policy Associated (visibility)",
+  "description": "Visibility baseline for any AssociateAccessPolicy call. Broad cluster-admin association is det-026. This rule is not mapped as coverage for EKS access-entry.",
+  "awsService": "EKS",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EKS",
+    "Access Policy",
+    "Visibility"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Authorized cluster admin association",
+    "Platform bootstrap"
+  ],
+  "relatedAttackSlugs": []
+}

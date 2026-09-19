@@ -1,0 +1,13 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "organizations.amazonaws.com",
+  "importantFields": [
+    "eventName",
+    "userIdentity.arn",
+    "userIdentity.type",
+    "sourceIPAddress",
+    "eventSource",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"cloudtrail.amazonaws.com\",\n  \"eventName\": \"ExampleEvent\",\n  \"userIdentity\": {\n    \"type\": \"IAMUser\",\n    \"arn\": \"arn:aws:iam::123456789012:user/example\"\n  },\n  \"sourceIPAddress\": \"203.0.113.10\",\n  \"eventTime\": \"2026-01-15T12:00:00Z\"\n}"
+}

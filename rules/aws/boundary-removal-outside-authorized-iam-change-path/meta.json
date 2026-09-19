@@ -1,0 +1,22 @@
+{
+  "id": "det-042",
+  "title": "Boundary Removal Outside Authorized IAM Change Path",
+  "description": "Detects permissions-boundary deletion performed outside approved IAM governance workflows. The key signal is authorized actor context, change provenance, and actor-to-target scope rather than simple substring filtering.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "Permissions Boundary",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate DevOps or automation roles",
+    "IAM admin users with expected access"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,6 @@
+[
+  "Identify who launched the instance and which IAM profile was used.",
+  "Inspect the instance profile for Admin or high-privilege policies.",
+  "Verify if the instance is a management host with legitimate elevated access.",
+  "Review IMDS configuration for credential theft risk."
+]

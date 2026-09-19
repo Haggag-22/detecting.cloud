@@ -1,0 +1,23 @@
+{
+  "id": "det-112",
+  "title": "Deletion of Sensitive Flow Logs",
+  "description": "Detects deletion of flow logs attached to sensitive VPCs, subnets, or network interfaces. This should depend on resolved asset classification and guardrail importance, not resource-name keyword heuristics.",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "EC2",
+    "VPC",
+    "Flow Logs",
+    "Sensitive Target"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Authorized cleanup of prod flow logs",
+    "Flow log migration"
+  ],
+  "relatedAttackSlugs": []
+}

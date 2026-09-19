@@ -1,0 +1,5 @@
+[
+  "Identify the actor, target instance, and source IP associated with the serial-console access event.",
+  "Verify whether serial console was enabled and approved for this host or environment.",
+  "Check for later recovery, credential, or persistence activity that might explain or elevate the access."
+]

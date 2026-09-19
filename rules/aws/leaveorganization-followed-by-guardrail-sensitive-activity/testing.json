@@ -1,0 +1,5 @@
+[
+  "Trigger a controlled `LeaveOrganization` lab event, then perform `CreateAccessKey`, `PutKeyPolicy`, or `StopLogging` within one hour.",
+  "Verify CloudTrail records both the leave attempt and follow-on actions with account context.",
+  "Run the detector and confirm it requires ordered account-linked correlation rather than simple event co-occurrence."
+]

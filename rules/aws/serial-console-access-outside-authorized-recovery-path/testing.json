@@ -1,0 +1,5 @@
+[
+  "As a non-approved identity, call `SendSerialConsoleSSHPublicKey` against a monitored test instance.",
+  "Verify CloudTrail captures the actor and session provenance fields needed for authorization checks.",
+  "Run the detector and confirm it uses explicit principal inventories instead of role-name text matching."
+]

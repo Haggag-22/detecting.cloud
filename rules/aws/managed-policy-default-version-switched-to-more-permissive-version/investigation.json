@@ -1,0 +1,6 @@
+[
+  "Identify who changed the policy default version.",
+  "Verify whether the selected version is more permissive than the previous default.",
+  "Check attachment blast radius for the affected policy.",
+  "Review policy version history for rollback or hidden activation indicators."
+]

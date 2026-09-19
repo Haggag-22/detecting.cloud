@@ -1,0 +1,16 @@
+{
+  "source": [
+    "aws.elasticbeanstalk"
+  ],
+  "detail-type": [
+    "AWS API Call via CloudTrail"
+  ],
+  "detail": {
+    "eventSource": [
+      "elasticbeanstalk.amazonaws.com"
+    ],
+    "eventName": [
+      "DescribeConfigurationSettings"
+    ]
+  }
+}

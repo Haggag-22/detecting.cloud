@@ -1,0 +1,2 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ec2-instance-connect.amazonaws.com eventName=SendSerialConsoleSSHPublicKey
+| table _time, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.instanceId, sourceIPAddress, userAgent

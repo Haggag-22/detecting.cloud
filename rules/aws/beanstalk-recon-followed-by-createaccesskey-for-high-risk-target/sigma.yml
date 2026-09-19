@@ -1,0 +1,14 @@
+title: CreateAccessKey for Suspicious Target After Beanstalk Access
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_beanstalk:
+    eventSource: elasticbeanstalk.amazonaws.com
+    eventName: DescribeConfigurationSettings
+  selection_createkey:
+    eventSource: iam.amazonaws.com
+    eventName: CreateAccessKey
+  condition: selection_beanstalk or selection_createkey
+level: critical
+# Full correlation requires ordered sequence plus target-user risk classification.

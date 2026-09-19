@@ -1,0 +1,19 @@
+{
+  "slug": "codebuild-github-runner-persistence",
+  "title": "CodeBuild GitHub Runner Persistence",
+  "description": "An attacker creates a CodeBuild project configured to act as a GitHub Actions runner. When the organization's GitHub repository runs workflows, the CodeBuild project executes the workflow jobs. The attacker modifies the workflow (if they have repo access) or creates a malicious workflow that exfiltrates credentials or performs other malicious actions. The CodeBuild service role's credentials are available during the build. This establishes persistence through the CI/CD pipeline.",
+  "severity": "High",
+  "objective": "persistence",
+  "tags": [
+    "CodeBuild",
+    "GitHub",
+    "Persistence"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-codebuild-github-runner",
+      "context": "Create CodeBuild project as GitHub runner"
+    }
+  ],
+  "cloudProvider": "aws"
+}

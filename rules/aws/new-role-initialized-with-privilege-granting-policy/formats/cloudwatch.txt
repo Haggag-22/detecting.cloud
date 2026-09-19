@@ -1,0 +1,6 @@
+fields @timestamp, eventSource, eventName, requestParameters.roleName, requestParameters.policyArn, requestParameters.policyDocument
+| filter eventSource = "iam.amazonaws.com"
+| filter eventName in ["CreateRole", "AttachRolePolicy", "PutRolePolicy"]
+| stats count(*) as cnt, collect_list(eventName) as events by requestParameters.roleName
+| filter cnt > 1
+| sort cnt desc

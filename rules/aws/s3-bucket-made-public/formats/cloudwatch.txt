@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, eventName, requestParameters.bucketName, sourceIPAddress
+| filter eventSource = "s3.amazonaws.com"
+| filter eventName = "DeletePublicAccessBlock" or (eventName = "PutPublicAccessBlock" and (requestParameters.PublicAccessBlockConfiguration.BlockPublicPolicy = false or requestParameters.PublicAccessBlockConfiguration.RestrictPublicBuckets = false or requestParameters.PublicAccessBlockConfiguration.BlockPublicAcls = false or requestParameters.PublicAccessBlockConfiguration.IgnorePublicAcls = false))
+| sort @timestamp desc

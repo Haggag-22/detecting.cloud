@@ -1,0 +1,20 @@
+{
+  "id": "tech-gcp-gke-break-glass",
+  "name": "GKE Binary Authorization Break-Glass",
+  "shortName": "GKE Break-Glass",
+  "description": "Binary Authorization is a check that only signed, approved images may run on GKE. Break-glass is the emergency bypass. An attacker who can deploy with break-glass runs unsigned images \u2014 miners, backdoors, anything \u2014 while the policy still looks enabled in the console. Legitimate break-glass is rare and should page the platform team. Unsigned deploys with the break-glass flag from a non-emergency identity are the incident.",
+  "services": [
+    "GKE"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-002"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "gcp"
+}

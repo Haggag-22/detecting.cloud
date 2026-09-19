@@ -1,0 +1,11 @@
+{
+  "primaryLogSource": "Azure pim",
+  "generatingService": "Entra ID PIM",
+  "importantFields": [
+    "operationName",
+    "caller",
+    "status",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventTime\": \"2026-01-15T12:00:00Z\",\n  \"operationName\": \"Roles Activation Doesn't Require MFA\",\n  \"caller\": \"azure-lab-user\",\n  \"status\": {\n    \"value\": \"Success\"\n  }\n}"
+}

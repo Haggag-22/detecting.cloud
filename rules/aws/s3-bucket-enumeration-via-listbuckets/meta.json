@@ -1,0 +1,21 @@
+{
+  "id": "det-194",
+  "title": "S3 Bucket Enumeration via ListBuckets",
+  "description": "Looks for potential enumeration of AWS buckets via ListBuckets.",
+  "awsService": "S3",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Low",
+  "tags": [
+    "S3",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Administrators listing buckets, it may be necessary to filter out users who commonly conduct this activity."
+  ],
+  "relatedAttackSlugs": []
+}

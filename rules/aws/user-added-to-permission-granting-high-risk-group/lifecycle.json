@@ -1,0 +1,99 @@
+{
+  "whyItMatters": "A group addition becomes much more important when the destination group grants effective permissions that enable privilege escalation, credential theft, or broad administrative control.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may add a user to a group that grants admin-equivalent or takeover-enabling permissions instead of attaching policies directly to the user.",
+    "realWorldUsage": "This is a practical escalation path in IAM-user-heavy environments because group grants can look like normal entitlement management while still delivering strong privileges.",
+    "whyItMatters": "The security value comes from the permissions the group grants, not from whether its name contains Admin.",
+    "riskAndImpact": "If missed, a user can silently inherit admin-like rights or other high-risk abilities and begin using them through console or API paths."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.groupName",
+      "requestParameters.userName",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "The platform must resolve attached managed and inline policies for the destination group.",
+      "Policy semantics should be classified into admin-equivalent, takeover-enabling, or low-risk buckets."
+    ],
+    "limitations": [
+      "Group names are not reliable indicators of privilege.",
+      "Custom privileged groups with neutral names are invisible to name-based logic.",
+      "Authorized onboarding automation can still generate true events that need context."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Effective Group Permissions",
+      "description": "Classify the group's attached policies by what they actually allow.",
+      "examples": [
+        "iam:*",
+        "sts:AssumeRole + iam:PassRole",
+        "secretsmanager:GetSecretValue + kms:Decrypt"
+      ],
+      "falsePositiveReduction": "Detects truly dangerous group grants even when group names are neutral."
+    },
+    {
+      "dimension": "Target User Sensitivity",
+      "description": "Determine whether the added user is dormant, non-human, newly created, or already privileged.",
+      "examples": [
+        "dormant IAM user",
+        "newly created admin user"
+      ],
+      "falsePositiveReduction": "Improves prioritization when the grant lands on unusual users."
+    },
+    {
+      "dimension": "Authorized Grant Context",
+      "description": "Correlate the actor with approved onboarding or identity lifecycle workflows.",
+      "examples": [
+        "identity provisioning pipeline",
+        "manual grant by unrelated user"
+      ],
+      "falsePositiveReduction": "Separates expected identity administration from suspicious privilege expansion."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should only be treated as high confidence when the destination group's effective permissions are genuinely dangerous. The right implementation resolves the group's managed and inline policies, classifies them semantically, and then scores the membership change.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals AddUserToGroup",
+      "destination group resolves to admin-equivalent or takeover-enabling permissions"
+    ],
+    "tuningGuidance": "1. Replace group-name logic with permission-aware classification. 2. Treat admin-equivalent, pass-role, assume-role, credential, and secrets access as separate risk classes. 3. Escalate when the target user is unusual or the actor context is suspicious.",
+    "whenToFire": "Fire when a user is added to a group whose effective permissions materially expand privilege or enable takeover behavior."
+  },
+  "simulationCommand": "aws iam add-user-to-group --group-name EngineeringOps --user-name compromised-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with permission-aware group classification; high with name-based group matching",
+    "expectedVolume": "Very low in environments with controlled IAM groups",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with group policy inventory",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is valuable because group grants can be used immediately.",
+    "considerations": [
+      "This is the permission-aware companion to the baseline group-addition rule.",
+      "Maintain a current group-policy inventory."
+    ]
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "det-022",
+  "title": "EBS Volume Not Encrypted",
+  "description": "Detects creation of unencrypted EBS volumes which violates security best practices.",
+  "awsService": "EBS",
+  "relatedServices": [
+    "KMS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EBS",
+    "Encryption",
+    "Compliance"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Development environments with relaxed encryption policies"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,5 @@
+[
+  "Push a serial-console key to a test instance that is classified as sensitive in inventory, such as a production bastion or identity-related host.",
+  "Verify CloudTrail records the target instance and actor context.",
+  "Run the detector and confirm it keys on asset classification rather than instance ID naming patterns."
+]

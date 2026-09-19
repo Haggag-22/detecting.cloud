@@ -1,0 +1,99 @@
+{
+  "whyItMatters": "This is the clearest Beanstalk credential-theft chain in the family: environment configuration is inspected and then the same operator quickly pivots into IAM or STS activity.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may read Beanstalk configuration settings to discover credentials, secret references, or privileged roles, then pivot into IAM or STS actions.",
+    "realWorldUsage": "This is practical because configuration reads can reveal the material needed to move from app-environment access into broader cloud control.",
+    "whyItMatters": "The strongest signal is the ordered shift from reconnaissance into credential or privilege pivot, not either side alone.",
+    "riskAndImpact": "If missed, defenders may not connect a seemingly harmless Beanstalk read with the pivot that followed it."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for Elastic Beanstalk",
+      "AWS CloudTrail management events for IAM and STS"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.applicationName",
+      "requestParameters.environmentName",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "DescribeConfigurationSettings and later IAM/STS events must be ingested into the same analytics environment.",
+      "Actor identity should be normalized across IAM users and assumed roles.",
+      "The detection engine must support ordered short-window correlation."
+    ],
+    "limitations": [
+      "Some legitimate admins may read configuration settings before performing expected changes.",
+      "Actor-only joins can still be noisy in heavily shared admin contexts.",
+      "The model is strongest when paired with environment and workflow context."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Stable Actor Identity",
+      "description": "Normalize actor identity across direct and assumed-role sessions so the recon actor can be matched to later pivot behavior.",
+      "examples": [
+        "IAM user",
+        "assumed app role"
+      ],
+      "falsePositiveReduction": "Improves recon-to-pivot correlation fidelity."
+    },
+    {
+      "dimension": "Environment Sensitivity",
+      "description": "Classify the Beanstalk environment by privilege exposure and business criticality.",
+      "examples": [
+        "prod application",
+        "internal admin environment"
+      ],
+      "falsePositiveReduction": "Raises urgency when sensitive environments are being mined for pivots."
+    },
+    {
+      "dimension": "Pivot Type",
+      "description": "Classify the later action as key creation, role assumption, or IAM permission mutation.",
+      "examples": [
+        "CreateAccessKey",
+        "AttachRolePolicy"
+      ],
+      "falsePositiveReduction": "Makes the credential-theft path easier to triage."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a Beanstalk recon-to-pivot chain: an actor reads configuration settings and then performs credential or privilege pivot actions soon afterward. It should require event order and stable actor identity.",
+    "conditions": [
+      "first eventSource equals elasticbeanstalk.amazonaws.com and eventName equals DescribeConfigurationSettings",
+      "second event is CreateAccessKey, AssumeRole, AttachUserPolicy, PutUserPolicy, or AttachRolePolicy by the same normalized actor identity",
+      "follow-on action occurs within 30 minutes"
+    ],
+    "tuningGuidance": "1. Require order. 2. Normalize actor identity across sessions. 3. Escalate further when the environment is sensitive or the pivot is unusually powerful for the actor.",
+    "whenToFire": "Fire when Beanstalk reconnaissance is followed quickly by a credential or privilege pivot from the same operator identity."
+  },
+  "simulationCommand": "aws elasticbeanstalk describe-configuration-settings --application-name my-app --environment-name prod",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with ordered correlation and environment context",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with ordered event windows",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is preferred because the recon-to-pivot window is short and actionable.",
+    "considerations": [
+      "This is the highest-fidelity Beanstalk credential-pivot detector in the batch.",
+      "Ordered correlation and stable actor identity are the main dependencies."
+    ]
+  }
+}

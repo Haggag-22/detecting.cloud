@@ -1,0 +1,5 @@
+[
+  "Resolve the task definition to its default taskRoleArn and executionRoleArn, then compare against any runtime override.",
+  "Inspect the resolved task role's effective permissions and trust relationship.",
+  "Verify whether this cluster, task family, and role combination is expected under approved operational workflows."
+]

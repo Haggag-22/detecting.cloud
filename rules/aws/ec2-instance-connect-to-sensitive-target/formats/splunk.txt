@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ec2-instance-connect.amazonaws.com eventName=SendSSHPublicKey
+| where like(requestParameters.instanceId, "%prod%") OR like(requestParameters.instanceId, "%Prod%") OR like(requestParameters.instanceId, "%production%") OR like(requestParameters.instanceId, "%dc%") OR like(requestParameters.instanceId, "%domain%") OR like(requestParameters.instanceId, "%bastion%") OR like(requestParameters.instanceId, "%secrets%") OR like(requestParameters.instanceId, "%breakglass%") OR like(requestParameters.instanceId, "%privileged%")
+| table _time, userIdentity.arn, requestParameters.instanceId, sourceIPAddress

@@ -1,0 +1,5 @@
+[
+  "Identify the exact `CreateAccessEntry` and `AssociateAccessPolicy` sequence for the same principal and cluster.",
+  "Verify whether both steps were part of an approved onboarding or administration workflow.",
+  "Check whether the associated policy grants broad or unexpected access and whether the actor was authorized to make both changes."
+]

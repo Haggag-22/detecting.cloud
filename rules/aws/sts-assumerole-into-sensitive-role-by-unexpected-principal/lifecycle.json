@@ -1,0 +1,118 @@
+{
+  "whyItMatters": "AssumeRole is the core temporary-credential primitive for AWS lateral movement. When a non-standard identity assumes a sensitive role, the attacker can pivot into a stronger permission boundary without creating a new principal.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with valid AWS credentials and permission to call sts:AssumeRole can pivot into another role if the target role's trust policy allows it. This is a common way to laterally move across accounts, elevate privileges, or transition from an exposed workload role into a more sensitive administrative role.",
+    "realWorldUsage": "AssumeRole abuse appears frequently in cloud intrusion investigations, especially in cross-account pivoting, trust-policy abuse, and post-compromise privilege escalation. Attackers often combine it with weak trust policies, recently modified roles, or compromised developer and CI identities.",
+    "whyItMatters": "Role assumption changes the effective permission set immediately and can make the attacker blend into normal AWS temporary-credential patterns if you only monitor long-lived IAM users.",
+    "riskAndImpact": "Undetected AssumeRole abuse can enable cross-account access, data theft, privilege escalation, persistence through trusted roles, and rapid expansion of attacker reach across production environments."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for STS)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "requestParameters.roleArn",
+      "requestParameters.roleSessionName",
+      "sourceIPAddress",
+      "recipientAccountId",
+      "eventTime"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must include STS activity",
+      "Retain sourceIPAddress and userIdentity fields for caller profiling",
+      "Capture recipientAccountId for cross-account analysis"
+    ],
+    "limitations": [
+      "AssumeRole is common in healthy AWS environments, so context is essential",
+      "Role-name heuristics alone are not enough without an authoritative sensitivity inventory",
+      "Federated or SSO-heavy environments require careful allowlisting to avoid analyst fatigue"
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Caller Identity Context",
+      "description": "Determine whether the caller is a human user, workload role, SSO role, CI pipeline, or break-glass account and whether that identity normally assumes sensitive roles.",
+      "examples": [
+        "SSO permission set",
+        "Workload role owner",
+        "CI runner tag",
+        "MFA context"
+      ],
+      "falsePositiveReduction": "Separates expected platform/admin assumptions from suspicious pivots by developer or application identities."
+    },
+    {
+      "dimension": "Target Role Sensitivity",
+      "description": "Classify the assumed role by attached policies, blast radius, account placement, and whether it is considered sensitive or break-glass.",
+      "examples": [
+        "Role attached to AdministratorAccess",
+        "Security incident role",
+        "Cross-account production role"
+      ],
+      "falsePositiveReduction": "Prioritizes truly dangerous assumptions instead of all role switches."
+    },
+    {
+      "dimension": "Trust Policy and Relationship Context",
+      "description": "Review whether the caller should be trusted by the target role and whether the trust relationship was changed recently.",
+      "examples": [
+        "Trust policy updated in last 24h",
+        "ExternalId required",
+        "PrincipalOrgID condition missing"
+      ],
+      "falsePositiveReduction": "Helps validate legitimate cross-account design while exposing weak or newly altered trust paths."
+    },
+    {
+      "dimension": "Network and Session Context",
+      "description": "Correlate source IP, geolocation, user agent, and session naming patterns to identify novel or suspicious assumptions.",
+      "examples": [
+        "New country for caller",
+        "CLI userAgent from workstation",
+        "Session name attacker-session",
+        "Outside business hours"
+      ],
+      "falsePositiveReduction": "Raises fidelity when the same API is executed from unusual environments or session patterns."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection focuses on AssumeRole events that target sensitive roles and are initiated by callers outside the expected admin or platform identity set. The engineering intent is not to alert on every AssumeRole call, which would be noisy in most AWS environments, but rather to identify higher-risk pivots into roles that materially change access. The initial rule uses role-name and caller-name heuristics so it can operate without a full asset inventory, but it is designed to be strengthened with role-sensitivity enrichment and trust-policy context. In production, treat this as a contextual lateral-movement detector rather than a generic STS audit rule.",
+    "conditions": [
+      "eventSource equals sts.amazonaws.com",
+      "eventName equals AssumeRole",
+      "requestParameters.roleArn indicates a sensitive target role (for example Admin, PowerUser, OrganizationAccountAccessRole, or Security)",
+      "userIdentity.arn is not in the approved admin, platform, or automation identity set"
+    ],
+    "tuningGuidance": "1. Replace role-name matching with a maintained inventory of sensitive roles. 2. Maintain explicit allowlists for SSO admin roles, incident-response roles, and approved cross-account automation. 3. Escalate severity when the trust policy changed recently, the source IP is unusual, or follow-on sensitive API calls occur in the assumed session.",
+    "whenToFire": "Fire when a sensitive role is assumed by a non-standard identity, especially from external workstations, unusual accounts, or unusual networks. In well-tuned environments this should be low-volume and worthy of analyst review because it indicates an important privilege transition."
+  },
+  "simulationCommand": "aws sts assume-role --role-arn arn:aws:iam::123456789012:role/AdminRole --role-session-name attacker-session",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Medium (requires environment-specific allowlists and sensitive-role inventory)",
+    "expectedVolume": "Low to moderate, depending on how broadly AssumeRole is used",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query)",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Batch: every 5-15 minutes; Real-time: EventBridge on AssumeRole",
+    "considerations": [
+      "Trust-policy context dramatically improves triage",
+      "Heuristic role-name matching should eventually be replaced by a sensitive-role inventory",
+      "Correlate with follow-on API usage from the assumed session for higher confidence"
+    ]
+  }
+}

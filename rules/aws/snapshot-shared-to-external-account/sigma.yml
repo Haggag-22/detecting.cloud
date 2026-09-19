@@ -1,0 +1,14 @@
+title: Snapshot Shared to External Account
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName: ModifySnapshotAttribute
+  add_userid:
+    requestParameters.createVolumePermission.add.items{}.userId|exists: true
+  add_userids:
+    requestParameters.createVolumePermission.add.userIds|exists: true
+  condition: selection and (add_userid or add_userids)
+level: critical

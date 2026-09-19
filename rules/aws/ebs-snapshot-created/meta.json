@@ -1,0 +1,26 @@
+{
+  "id": "det-079",
+  "title": "EBS Snapshot Created",
+  "description": "Baseline visibility whenever a snapshot is created from a volume. Snapshot creation is often legitimate, but it is still important loot-stage telemetry because it can precede sharing, copying, or volume rehydration.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "EBS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EC2",
+    "EBS",
+    "Snapshot",
+    "Credential Access"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate backup",
+    "DLM",
+    "Infra pipelines"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,19 @@
+{
+  "slug": "roles-anywhere-persistence",
+  "title": "Roles Anywhere Persistence",
+  "description": "IAM Roles Anywhere allows workloads outside of AWS (e.g., on-premises servers) to obtain temporary credentials using X.509 certificates. An attacker with rolesanywhere:CreateTrustAnchor and rolesanywhere:CreateProfile creates a trust anchor that trusts a certificate authority the attacker controls. They create a profile that maps the certificate to a privileged IAM role. The attacker then uses a certificate from their CA to assume the role from any infrastructure, establishing persistence that does not rely on IAM users or access keys.",
+  "severity": "High",
+  "objective": "persistence",
+  "tags": [
+    "IAM",
+    "Roles Anywhere",
+    "Persistence"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-roles-anywhere-persistence",
+      "context": "Create trust anchor and profile"
+    }
+  ],
+  "cloudProvider": "aws"
+}

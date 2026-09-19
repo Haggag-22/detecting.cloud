@@ -1,0 +1,3 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.keyId, requestParameters.pendingWindowInDays, responseElements.keyState, responseElements.deletionDate, sourceIPAddress
+| filter eventName = "ScheduleKeyDeletion"
+| sort @timestamp desc

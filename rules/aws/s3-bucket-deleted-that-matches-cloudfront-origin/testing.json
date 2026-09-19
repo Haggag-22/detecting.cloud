@@ -1,0 +1,5 @@
+[
+  "Delete a lab bucket that is still configured as a CloudFront origin.",
+  "Verify CloudTrail records the `DeleteBucket` event and your enrichment matches the bucket name to a CloudFront origin.",
+  "Run the detector and confirm it only escalates when the deleted bucket is still referenced by CloudFront."
+]

@@ -1,0 +1,5 @@
+[
+  "As an identity outside the approved CodeBuild starter set, call `StartBuild` on a monitored project.",
+  "Verify CloudTrail records the actor and project context.",
+  "Run the detector and confirm it relies on explicit authorization rather than CI-related role-name fragments."
+]

@@ -1,0 +1,25 @@
+{
+  "id": "az-019",
+  "title": "New Root Certificate Authority Added",
+  "description": "Detects newly added root certificate authority to an AzureAD tenant to support certificate based authentication.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "credential-access",
+    "persistence",
+    "privilege-escalation",
+    "defense-impairment",
+    "t1556"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventSource=s3.amazonaws.com (eventName=PutBucketAcl OR eventName=PutObjectAcl)
+| where like(requestParameters.acl, "%public%") OR like(requestParameters.acl, "%authenticated%") OR like(requestParameters.AccessControlPolicy, "%Grant%") OR like(requestParameters.AccessControlPolicy, "%Grantee%")
+| table _time, userIdentity.arn, eventName, requestParameters.bucketName, requestParameters.key, requestParameters.acl, requestParameters.AccessControlPolicy, sourceIPAddress

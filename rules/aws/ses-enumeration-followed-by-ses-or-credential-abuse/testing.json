@@ -1,0 +1,5 @@
+[
+  "Call `ListIdentities` or `GetIdentityVerificationAttributes`, then perform `PutIdentityPolicy`, `SetIdentityNotificationTopic`, `VerifyEmailIdentity`, or `CreateAccessKey` within 30 minutes.",
+  "Verify both the reconnaissance and follow-on abuse events appear in CloudTrail.",
+  "Run the detector and confirm it requires ordered sequence rather than simple grouping on actor names."
+]

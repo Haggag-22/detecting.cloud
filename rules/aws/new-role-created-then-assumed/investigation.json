@@ -1,0 +1,5 @@
+[
+  "Identify the role that was created and the exact role ARN later assumed.",
+  "Review whether the role had risky trust or privileged policies at creation time.",
+  "Verify if the assumer identity and timing were expected for this role."
+]

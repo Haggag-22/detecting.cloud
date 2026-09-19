@@ -1,0 +1,5 @@
+[
+  "Create an EBS volume with encrypted: false.",
+  "Verify CloudTrail captures CreateVolume.",
+  "Run the detection to confirm it triggers."
+]

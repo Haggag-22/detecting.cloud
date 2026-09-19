@@ -1,0 +1,98 @@
+{
+  "whyItMatters": "Creating a console password for an API-only, service, automation, or otherwise ineligible user is one of the clearest persistence and misuse signals in IAM-user-heavy environments.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may give interactive console access to a service account, dormant automation user, or backdoor-style IAM user that historically operated only with API credentials.",
+    "realWorldUsage": "This is a durable persistence pattern because the user may already exist and look operationally normal, while console access adds a new interaction path defenders may not expect.",
+    "whyItMatters": "The strongest signal is not the username text but whether the target user should ever have console access based on identity metadata and history.",
+    "riskAndImpact": "If missed, attackers can convert non-human or dormant identities into interactive footholds with access that may blend into existing IAM user activity."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.userName",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "The environment should maintain user classification metadata such as human vs service or API-only.",
+      "Historical console-access posture and MFA state should be available for the target user."
+    ],
+    "limitations": [
+      "Username patterns are not reliable user classification.",
+      "Some service or break-glass identities may legitimately receive console access during exceptions.",
+      "CloudTrail alone does not tell you whether the user historically lacked console access unless you enrich it."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "User Eligibility Classification",
+      "description": "Determine whether the target user is human, service, automation, dormant, break-glass, or API-only.",
+      "examples": [
+        "service bot",
+        "legacy API-only user",
+        "human employee"
+      ],
+      "falsePositiveReduction": "Avoids relying on fragile naming patterns."
+    },
+    {
+      "dimension": "Historical Console Posture",
+      "description": "Check whether the target user has ever had a login profile, ConsoleLogin history, or MFA devices.",
+      "examples": [
+        "first-ever console access",
+        "never used console before"
+      ],
+      "falsePositiveReduction": "Raises confidence when the event introduces a genuinely new access path."
+    },
+    {
+      "dimension": "Environment Policy",
+      "description": "Model whether the account permits console access for this user class.",
+      "examples": [
+        "no console access for service users",
+        "break-glass exceptions only"
+      ],
+      "falsePositiveReduction": "Lets the detector align with the organization's real IAM model."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should be a target-eligibility rule. Alert when CreateLoginProfile affects a user classified as non-human, API-only, or otherwise not expected to have console access, especially if the user had no prior console history.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals CreateLoginProfile",
+      "target user is classified as service, automation, API-only, dormant, or otherwise not expected to have console access"
+    ],
+    "tuningGuidance": "1. Use identity metadata and historical posture instead of username patterns. 2. Allow explicit break-glass exceptions. 3. Escalate when the user quickly performs ConsoleLogin or lacks MFA.",
+    "whenToFire": "Fire when console access is created for a user class that should not normally receive it, especially if this is the user's first console-capable state."
+  },
+  "simulationCommand": "aws iam create-login-profile --user-name svc-build-bot --password 'ExampleTempPassword123!' --password-reset-required",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with user classification and console-history enrichment; high with username heuristics alone",
+    "expectedVolume": "Very low in mature environments",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with identity inventory",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because the value comes from catching new interactive access paths quickly.",
+    "considerations": [
+      "This is the target-centric companion to the actor-centric login-profile creation rule.",
+      "User classification quality is the main dependency."
+    ]
+  }
+}

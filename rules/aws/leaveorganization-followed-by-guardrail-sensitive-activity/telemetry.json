@@ -1,0 +1,12 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "organizations.amazonaws.com",
+  "importantFields": [
+    "eventSource",
+    "eventName",
+    "userIdentity.arn",
+    "recipientAccountId",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"organizations.amazonaws.com\",\n  \"eventName\": \"LeaveOrganization\",\n  \"userIdentity\": {\n    \"type\": \"Root\",\n    \"accountId\": \"123456789012\"\n  },\n  \"recipientAccountId\": \"123456789012\",\n  \"sourceIPAddress\": \"203.0.113.10\",\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

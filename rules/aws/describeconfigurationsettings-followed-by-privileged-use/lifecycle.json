@@ -1,0 +1,99 @@
+{
+  "whyItMatters": "This is one of the clearest Beanstalk credential-theft sequences: environment configuration is read and privileged cloud activity follows soon after.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may inspect Beanstalk configuration to discover secrets, roles, or token material and then use that information to access secrets, assume roles, decrypt data, or create new credentials.",
+    "realWorldUsage": "This is attractive because it turns a read-only admin action into a direct privilege or data-access pivot.",
+    "whyItMatters": "The ordered transition from recon into privileged use is much stronger than either side alone.",
+    "riskAndImpact": "If missed, defenders may not realize that a configuration read directly enabled privileged cloud activity."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for Elastic Beanstalk",
+      "AWS CloudTrail management events for IAM, STS, Secrets Manager, and KMS"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.applicationName",
+      "requestParameters.environmentName",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "DescribeConfigurationSettings and privileged follow-on events must be ingested into the same analytics environment.",
+      "Actor identity should be normalized across direct and assumed-role sessions.",
+      "Derived identity or role activation context should be available where possible."
+    ],
+    "limitations": [
+      "Actor-only joins can miss role-activation pivots unless identity normalization is strong.",
+      "Some legitimate admin workflows may read configuration and then perform expected privileged actions.",
+      "The model depends on good local workflow understanding."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Stable Actor or Derived Identity",
+      "description": "Normalize the operator and any derived role path between recon and follow-on privileged use.",
+      "examples": [
+        "same IAM user",
+        "same user to assumed role"
+      ],
+      "falsePositiveReduction": "Improves recon-to-use correlation fidelity."
+    },
+    {
+      "dimension": "Environment Secret Exposure",
+      "description": "Assess whether the Beanstalk environment likely exposed secret references or privileged trust paths.",
+      "examples": [
+        "DB secret refs",
+        "deployment role ARN"
+      ],
+      "falsePositiveReduction": "Raises confidence that the recon enabled the later action."
+    },
+    {
+      "dimension": "Privileged Action Class",
+      "description": "Classify the later action as secrets access, role assumption, decrypt, or credential creation.",
+      "examples": [
+        "GetSecretValue",
+        "AssumeRole"
+      ],
+      "falsePositiveReduction": "Makes the post-recon abuse path easier to triage."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a Beanstalk recon-to-privileged-use chain: an actor reads configuration settings and then performs privileged cloud activity soon afterward. It should require event order and stable actor or derived identity linkage.",
+    "conditions": [
+      "first eventSource equals elasticbeanstalk.amazonaws.com and eventName equals DescribeConfigurationSettings",
+      "second event is CreateAccessKey, AssumeRole, GetSecretValue, or Decrypt by the same normalized actor or linked derived identity",
+      "follow-on activity occurs within 30 minutes"
+    ],
+    "tuningGuidance": "1. Require order. 2. Normalize actor and derived identities carefully. 3. Escalate further when the environment is sensitive or the privileged action is unusual for the actor.",
+    "whenToFire": "Fire when Beanstalk configuration reads are followed quickly by privileged cloud activity from the same operator context."
+  },
+  "simulationCommand": "aws elasticbeanstalk describe-configuration-settings --application-name my-app --environment-name prod && aws secretsmanager get-secret-value --secret-id ExampleSecret",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with ordered correlation and workflow context",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with ordered event windows",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is preferred because the recon-to-use window is short and actionable.",
+    "considerations": [
+      "This is the privileged-use branch of the Beanstalk recon family.",
+      "Identity normalization and environment exposure context are the main dependencies."
+    ]
+  }
+}

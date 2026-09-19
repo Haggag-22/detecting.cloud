@@ -1,0 +1,20 @@
+{
+  "id": "tech-gcp-workspace-access-level",
+  "name": "Workspace App Access Level Weakened",
+  "shortName": "BeyondCorp Weaken",
+  "description": "BeyondCorp and Workspace access levels decide which apps a user can open based on device and identity. Weakening a level is like loosening Conditional Access: more people, more devices, fewer checks. Attackers do this so a stolen laptop or an unmanaged phone can reach Gmail or Drive. Access-level edits should be owned by the identity team, not by a helpdesk role. A weaker level plus a later suspicious login is the one-two punch.",
+  "services": [
+    "Google Workspace"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-009"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "gcp"
+}

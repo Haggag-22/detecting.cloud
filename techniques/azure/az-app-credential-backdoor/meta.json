@@ -1,0 +1,27 @@
+{
+  "id": "tech-az-app-credential-backdoor",
+  "name": "Application Credential and Permission Backdoor",
+  "shortName": "App Backdoor",
+  "description": "Entra applications and their service principals can have passwords, certificates, owners, and Graph or Azure permissions. An attacker who adds a credential or an owner to an existing app can log in as that app forever, even after the human's password is reset. This is one of the most common Microsoft 365 persistence tricks because apps are easy to overlook. New credentials on high-privilege apps should page identity security.",
+  "services": [
+    "Entra ID Apps"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-027",
+    "az-028",
+    "az-029",
+    "az-033",
+    "az-034",
+    "az-035",
+    "az-036",
+    "az-038"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "persistence",
+  "cloudProvider": "azure"
+}

@@ -1,0 +1,23 @@
+{
+  "id": "det-126",
+  "title": "CodeBuild StartBuild Visibility",
+  "description": "Baseline visibility for CodeBuild execution requests. `StartBuild` is a sensitive launch point because it can run code under a build project's service role and secret access model.",
+  "awsService": "CodeBuild",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "CodeBuild",
+    "Credential Theft"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate CI/CD builds",
+    "Deployment pipelines"
+  ],
+  "relatedAttackSlugs": []
+}

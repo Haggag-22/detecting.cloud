@@ -1,0 +1,23 @@
+{
+  "id": "gcp-012",
+  "title": "Google Workspace Granted Domain API Access",
+  "description": "Detects when an API access service account is granted domain authority.",
+  "awsService": "Google Workspace",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "Google Workspace",
+    "privilege-escalation",
+    "persistence",
+    "t1098"
+  ],
+  "logSources": [
+    "Google Workspace Audit"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

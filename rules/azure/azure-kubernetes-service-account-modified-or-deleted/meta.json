@@ -1,0 +1,26 @@
+{
+  "id": "az-090",
+  "title": "Azure Kubernetes Service Account Modified or Deleted",
+  "description": "Identifies when a service account is modified or deleted.",
+  "awsService": "AKS",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "AKS",
+    "impact",
+    "t1531",
+    "t1485",
+    "t1496",
+    "t1489"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Service account being modified or deleted may be performed by a system administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Service account modified or deleted from unfamiliar users should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,7 @@
+fields @timestamp, eventSource, eventName, requestParameters.roleName, requestParameters.roleArn
+| filter (eventSource = "iam.amazonaws.com" and eventName = "CreateRole")
+  or (eventSource = "sts.amazonaws.com" and eventName = "AssumeRole")
+| eval role_key=coalesce(requestParameters.roleName, replace(requestParameters.roleArn, ".*role/", ""))
+| stats count(*) as cnt, collect_list(eventName) as events by role_key
+| filter cnt > 1
+| sort cnt desc

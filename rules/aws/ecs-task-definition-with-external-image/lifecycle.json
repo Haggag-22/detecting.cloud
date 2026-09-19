@@ -1,0 +1,116 @@
+{
+  "whyItMatters": "Registering a new ECS task definition can quietly introduce attacker-controlled code into an otherwise legitimate service. The production-grade signal is not merely non-ECR usage, but image sources that violate the organization's approved-registry and provenance model.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with ecs:RegisterTaskDefinition can create a new task definition revision that points a container to an image they control, a typosquatted repository, or an unreviewed public image.",
+    "realWorldUsage": "Cloud and software supply-chain intrusions regularly abuse container images, package registries, and mutable tags as an execution path.",
+    "whyItMatters": "CloudTrail shows who registered the task definition and which image strings were supplied, giving defenders a high-value point to catch untrusted workload code before or near deployment.",
+    "riskAndImpact": "If this goes undetected, the attacker can deploy code that steals task-role credentials, accesses secrets, pivots to other AWS services, or establishes durable persistence in production workloads."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for Amazon ECS)",
+      "Approved registry policy inventory",
+      "Optional image provenance metadata from CI/CD or ECR scanning"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "sourceIPAddress",
+      "requestParameters.family",
+      "requestParameters.containerDefinitions[].image",
+      "requestParameters.taskRoleArn",
+      "requestParameters.executionRoleArn"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled for ECS.",
+      "Maintain an approved-registry policy that understands allowed registry hosts, namespaces, and repositories.",
+      "If you want high-fidelity supply-chain decisions, ingest image-signing, attestation, or scan metadata from your registry or CI/CD pipeline."
+    ],
+    "limitations": [
+      "CloudTrail records the registration request, not whether the task definition was later deployed.",
+      "The image field is just a string; CloudTrail does not validate whether the image was signed, scanned, or actually pulled successfully.",
+      "A simple not-ECR filter is too weak because approved public registries and mirrors can be legitimate."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Registry Approval Context",
+      "description": "Classify each image reference against an approved-registry policy keyed by workload and environment.",
+      "examples": [
+        "private ECR only for prod",
+        "ghcr.io/company-approved namespace allowed in dev"
+      ],
+      "falsePositiveReduction": "Prevents the detector from treating all non-ECR images as equally suspicious."
+    },
+    {
+      "dimension": "Image Provenance and Integrity",
+      "description": "Add signing status, digest pinning, image age, scan verdicts, and attestation presence.",
+      "examples": [
+        "missing signature",
+        "mutable latest tag",
+        "no provenance attestation"
+      ],
+      "falsePositiveReduction": "Separates a known approved third-party image from an unreviewed or unsigned image reference."
+    },
+    {
+      "dimension": "Workload and Deployment Baseline",
+      "description": "Track which registries and repositories are normal for each task-definition family and ECS service.",
+      "examples": [
+        "first time family payments-api used any registry outside private ECR",
+        "registry newly introduced in production"
+      ],
+      "falsePositiveReduction": "Makes novelty meaningful by comparing the new image source to what the specific workload normally uses."
+    },
+    {
+      "dimension": "Identity and Role Sensitivity",
+      "description": "Enrich the caller and embedded task roles with ownership and effective privilege.",
+      "examples": [
+        "approved CI role",
+        "task role can access secretsmanager:GetSecretValue"
+      ],
+      "falsePositiveReduction": "Suppresses expected pipeline-driven revisions while escalating image-source changes that could expose high-value task roles."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should not page on every task definition that references an image outside private ECR. The production-grade pattern is to parse each container image into registry, namespace, repository, tag, and digest; compare that identity to an approved-registry policy for the workload; and then add supply-chain and workload-baseline context before deciding severity.",
+    "conditions": [
+      "eventSource equals ecs.amazonaws.com",
+      "eventName equals RegisterTaskDefinition",
+      "requestParameters.containerDefinitions contains at least one image reference",
+      "for at least one normalized container image, registry or namespace is not approved for the workload or environment"
+    ],
+    "tuningGuidance": "1. Maintain an explicit approved-registry inventory keyed by environment and workload. 2. Down-rank changes made by trusted CI/CD identities when the image also passes provenance checks. 3. Correlate RegisterTaskDefinition with UpdateService, CreateService, or RunTask.",
+    "whenToFire": "Fire when a task definition introduces an image source that is unapproved for that workload or violates the organization's image-trust policy, especially in production or when the embedded task role is sensitive."
+  },
+  "simulationCommand": "aws ecs register-task-definition --family payments-api --network-mode awsvpc --requires-compatibilities FARGATE --cpu 256 --memory 512 --execution-role-arn arn:aws:iam::123456789012:role/ecsTaskExecutionRole --task-role-arn arn:aws:iam::123456789012:role/payments-app-role --container-definitions '[{\"name\":\"app\",\"image\":\"ghcr.io/example-unapproved/nginx:latest\",\"essential\":true,\"portMappings\":[{\"containerPort\":8080,\"protocol\":\"tcp\"}]}]'",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "Medium-High with naive non-ECR logic; Low-Medium once approved-registry policy and provenance checks are in place",
+    "expectedVolume": "Low in tightly controlled production estates; moderate in mixed dev environments until registry policy is mature",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena over CloudTrail logs",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Elastic",
+      "Datadog"
+    ],
+    "scheduling": "Near-real-time is practical because RegisterTaskDefinition is a CloudTrail management event. Batch analytics every 5-15 minutes is also acceptable.",
+    "considerations": [
+      "Do not ship this as a simple not-ECR rule if the goal is a production alert.",
+      "Correlate with UpdateService, CreateService, or RunTask to understand whether the suspicious revision was actually activated."
+    ]
+  }
+}

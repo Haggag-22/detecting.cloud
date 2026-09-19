@@ -1,0 +1,116 @@
+{
+  "whyItMatters": "Disabling DynamoDB deletion protection removes a safety control that blocks destructive table deletion even when an actor already has IAM permission to delete the table.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with dynamodb:UpdateTable can disable deletion protection on a table before attempting DeleteTable or other disruptive changes.",
+    "realWorldUsage": "This pattern aligns with common attacker behavior where safety controls, logging, or retention settings are weakened before destructive or extortion-driven actions.",
+    "whyItMatters": "Most DynamoDB UpdateTable activity is operationally normal, but requestParameters.deletionProtectionEnabled=false is much rarer and more security-relevant.",
+    "riskAndImpact": "If this goes undetected, an attacker or mistaken admin can later delete a business-critical table, causing service outage, data loss, and recovery work."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.arn",
+      "userIdentity.type",
+      "requestParameters.tableName",
+      "requestParameters.deletionProtectionEnabled",
+      "sourceIPAddress",
+      "eventTime"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must be enabled for DynamoDB management events.",
+      "No CloudTrail data events are required.",
+      "Detection should only fire when requestParameters.deletionProtectionEnabled is explicitly present and false."
+    ],
+    "limitations": [
+      "This does not detect tables that were created without deletion protection.",
+      "It does not prove a subsequent delete occurred; correlate with DeleteTable for higher confidence.",
+      "Infrastructure-as-code workflows may legitimately disable protection in lower environments."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Identity Context",
+      "description": "Identify whether the actor is a platform admin, break-glass role, CI/CD role, or unexpected workload identity.",
+      "examples": [
+        "SSO owner metadata",
+        "IAM role path and team tag",
+        "session issuer ARN"
+      ],
+      "falsePositiveReduction": "Helps separate approved table admins from unusual actors modifying protection settings."
+    },
+    {
+      "dimension": "Table Criticality",
+      "description": "Add business and data sensitivity context for the affected table.",
+      "examples": [
+        "tags: prod, pci, customer-data",
+        "CMDB owner",
+        "application tier"
+      ],
+      "falsePositiveReduction": "Lets you downgrade low-risk dev tables and escalate production or regulated datasets."
+    },
+    {
+      "dimension": "Change Provenance",
+      "description": "Determine whether the change came from Terraform, CloudFormation, deployment automation, or a manual console/CLI session.",
+      "examples": [
+        "userAgent",
+        "principalId containing terraform",
+        "pipeline execution metadata"
+      ],
+      "falsePositiveReduction": "Known IaC change windows are much less suspicious than ad hoc admin changes."
+    },
+    {
+      "dimension": "Behavioral Baseline",
+      "description": "Compare the actor and table against prior protection-state changes.",
+      "examples": [
+        "first time actor touched this table",
+        "rare UpdateTable from this role",
+        "after-hours change"
+      ],
+      "falsePositiveReduction": "First-seen or off-hours changes by non-owners are stronger signals than routine maintenance."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should be concrete, not a generic UpdateTable baseline. The detection should match only when the event is a DynamoDB UpdateTable call and the request explicitly sets deletionProtectionEnabled to false.",
+    "conditions": [
+      "eventSource equals dynamodb.amazonaws.com",
+      "eventName equals UpdateTable",
+      "requestParameters.deletionProtectionEnabled exists",
+      "requestParameters.deletionProtectionEnabled equals false"
+    ],
+    "tuningGuidance": "1. Allowlist known platform automation that manages table lifecycle in non-production environments. 2. Escalate when the target table carries prod or customer tags. 3. Correlate with DeleteTable, backup deletion, or KMS key changes within a short time window.",
+    "whenToFire": "Fire on every explicit disablement of DynamoDB deletion protection. In mature environments this should be low volume."
+  },
+  "simulationCommand": "aws dynamodb update-table --table-name MyTable --no-deletion-protection-enabled",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low to Medium (mostly legitimate only during table lifecycle or IaC changes)",
+    "expectedVolume": "Very low in stable environments; usually sporadic and environment-dependent",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena",
+      "CloudWatch Logs Insights",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Real-time is practical with EventBridge on CloudTrail management events; batch SIEM/Athena queries every 5 to 15 minutes also work well.",
+    "considerations": [
+      "Management events are sufficient.",
+      "A state-change rule is usually more useful than a count-based anomaly here.",
+      "Correlating to later DeleteTable makes triage easier."
+    ]
+  }
+}

@@ -1,0 +1,101 @@
+{
+  "whyItMatters": "Attackers do not always need to add new permissions; often they can expose privileges that already exist by removing policies, boundaries, or restrictive controls that were previously limiting access.",
+  "threatContext": {
+    "attackerBehavior": "An attacker can increase effective permissions by deleting a policy, detaching a policy, or removing part of a principal's previous control set so latent allows become effective.",
+    "realWorldUsage": "Raw detach and delete activity is common in normal IAM lifecycle work, but it is also a common post-compromise path because removing controls can instantly expose access without attaching anything new.",
+    "whyItMatters": "A detach or delete event is only important if the removed control was actually restrictive or if follow-on activity shows permission expansion.",
+    "riskAndImpact": "If missed, attackers can unlock dormant access, bypass delegated-administration guardrails, or widen service access on active principals without obvious new permission grants."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "errorCode",
+      "userIdentity.arn",
+      "requestParameters.roleName",
+      "requestParameters.userName",
+      "requestParameters.policyArn",
+      "requestParameters.policyName",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must include DetachUserPolicy, DetachRolePolicy, DeleteUserPolicy, and DeleteRolePolicy.",
+      "Prior-state context is needed to know what policy was removed and whether it was restrictive.",
+      "Follow-on privileged API telemetry materially improves confidence."
+    ],
+    "limitations": [
+      "Detach and delete events often do not carry the full policy document, so enrichment is mandatory for high-fidelity conclusions.",
+      "This broad rule is better as baseline visibility than a standalone high-severity alert.",
+      "Without state or correlation, routine IAM lifecycle work can look suspicious."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Restrictive Control Classification",
+      "description": "Classify whether the removed policy functioned as a guardrail, explicit deny, or other restrictive control.",
+      "examples": [
+        "explicit deny policy",
+        "permissions boundary helper policy",
+        "narrow scoping control"
+      ],
+      "falsePositiveReduction": "Ensures the rule alerts on actual control reduction, not every detach or delete."
+    },
+    {
+      "dimension": "Target Principal and Governance Context",
+      "description": "Measure whether the affected user or role is privileged, production, delegated-admin managed, or expected to carry strict controls.",
+      "examples": [
+        "production CI role",
+        "delegated admin user",
+        "security automation role"
+      ],
+      "falsePositiveReduction": "Prioritizes control reductions on high-value principals."
+    },
+    {
+      "dimension": "Follow-on Privileged Activity",
+      "description": "Correlate the removal with AssumeRole, GetSecretValue, PassRole, or other privileged actions from the actor or target principal soon afterward.",
+      "examples": [
+        "policy detached then AssumeRole succeeds",
+        "control removed then secrets access begins"
+      ],
+      "falsePositiveReduction": "Distinguishes routine lifecycle operations from changes that plausibly increase effective permissions."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "Raw detach and delete activity is noisy because offboarding, role replacement, Terraform drift correction, and policy cleanup are common. This rule should stay baseline-oriented but be designed to feed higher-fidelity harmful-removal logic that uses prior-state evidence and follow-on privileged behavior.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals DetachUserPolicy, DetachRolePolicy, DeleteUserPolicy, or DeleteRolePolicy"
+    ],
+    "tuningGuidance": "1. Keep this as broad baseline visibility. 2. Use semantic policy classification and prior-state lookup to derive harmful-removal alerts. 3. Correlate with follow-on privileged API use before paging.",
+    "whenToFire": "Fire on every policy removal for visibility, but reserve high-priority triage for cases where prior-state evidence shows restrictive-control removal or follow-on activity confirms permission expansion."
+  },
+  "simulationCommand": "aws iam detach-user-policy --user-name TargetUser --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium-High raw, low-medium after state and follow-on correlation",
+    "expectedVolume": "Environment-dependent",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "SIEM correlation",
+      "Athena",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time baseline visibility or short scheduled analytics both work; higher-fidelity logic needs state and correlation.",
+    "considerations": [
+      "This is the broad baseline companion to the more semantic restrictive-control rule.",
+      "Detaches and deletes need prior-state enrichment to support strong conclusions."
+    ]
+  }
+}

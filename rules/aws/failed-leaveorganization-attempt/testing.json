@@ -1,0 +1,5 @@
+[
+  "Attempt `LeaveOrganization` in a controlled lab where SCPs or organization configuration deny the request.",
+  "Verify CloudTrail records the error context.",
+  "Run the detector and confirm it only fires on failed attempts."
+]

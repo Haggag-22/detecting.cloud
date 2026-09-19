@@ -1,0 +1,27 @@
+{
+  "id": "det-125",
+  "title": "DescribeConfigurationSettings Followed by Privileged Use",
+  "description": "High-confidence Beanstalk recon-to-privileged-use detection. This should correlate configuration reads with later privileged API activity using ordered sequence and stable identity rather than loose event aggregation.",
+  "awsService": "Elastic Beanstalk",
+  "relatedServices": [
+    "IAM",
+    "STS",
+    "Secrets Manager",
+    "S3",
+    "KMS"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "Elastic Beanstalk",
+    "Credential Theft",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate config read followed by expected API use"
+  ],
+  "relatedAttackSlugs": []
+}

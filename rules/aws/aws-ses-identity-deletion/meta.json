@@ -1,0 +1,21 @@
+{
+  "id": "det-177",
+  "title": "AWS SES Identity Deletion",
+  "description": "Detects an instance of an Amazon Simple Email Service (SES) identity being deleted via the \"DeleteIdentity\" event. This action could be performed by an adversary to remove traces of their activities after using the SES identity for malicious purposes, such as sending spam or phishing emails, aligning with defense evasion tactics.",
+  "awsService": "SES",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "SES",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate decommissioning of an SES identity by an administrator."
+  ],
+  "relatedAttackSlugs": []
+}

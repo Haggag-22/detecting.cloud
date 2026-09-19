@@ -1,0 +1,26 @@
+{
+  "slug": "guardduty-evasion-chain",
+  "title": "GuardDuty Evasion Chain",
+  "description": "An attacker with GuardDuty management permissions performs a series of actions to evade detection. They use guardduty:UpdateDetector to disable the detector or reduce its sensitivity. They add attacker IPs to trusted IP lists via guardduty:CreateIPSet and guardduty:UpdateIPSet so that activity from those IPs does not generate findings. They create or update filters via guardduty:CreateFilter and guardduty:UpdateFilter to suppress specific finding types. This chain blinds security monitoring to the attacker's subsequent activities.",
+  "severity": "High",
+  "objective": "defense-evasion",
+  "tags": [
+    "GuardDuty",
+    "Defense Evasion"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-guardduty-detector-evasion",
+      "context": "Modify or disable detector"
+    },
+    {
+      "techniqueId": "tech-guardduty-ip-trust-evasion",
+      "context": "Add attacker IPs to trusted list"
+    },
+    {
+      "techniqueId": "tech-guardduty-suppression",
+      "context": "Create filters to suppress findings"
+    }
+  ],
+  "cloudProvider": "aws"
+}

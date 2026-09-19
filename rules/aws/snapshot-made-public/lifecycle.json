@@ -1,0 +1,99 @@
+{
+  "whyItMatters": "Making a snapshot public is one of the strongest exposure control points in AWS storage. It creates open access beyond any specific account relationship and can immediately enable unauthorized copying or restoration.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may make a snapshot public to facilitate broad access, conceal which consumer account will retrieve it, or simply bypass account-to-account allowlisting.",
+    "realWorldUsage": "Public exposure is less common than cross-account sharing but is often more severe because it removes the need to know or control a specific recipient account.",
+    "whyItMatters": "This rule should be distinct from external-account sharing because public exposure is a sharper, higher-confidence state change.",
+    "riskAndImpact": "If missed, sensitive disk data may become globally accessible through a single control-plane permission update."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2",
+      "Snapshot inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.snapshotId",
+      "requestParameters.groupNames",
+      "requestParameters.createVolumePermission",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "ModifySnapshotAttribute events must preserve the permission delta that adds public access.",
+      "The detector should specifically evaluate additions of `all` rather than generic permission updates.",
+      "Snapshot ownership and data sensitivity should be resolvable from inventory."
+    ],
+    "limitations": [
+      "String matching over serialized permission blobs is brittle without payload-aware parsing.",
+      "Some legacy or collaboration workflows may intentionally expose snapshots publicly, though this should be rare.",
+      "Broad EventBridge matching needs downstream payload inspection to isolate public exposure."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Public Exposure Delta",
+      "description": "Verify that the request added `all` rather than removing or merely inspecting permissions.",
+      "examples": [
+        "groups added = all"
+      ],
+      "falsePositiveReduction": "Keeps the rule tied to actual public exposure."
+    },
+    {
+      "dimension": "Snapshot Sensitivity",
+      "description": "Resolve the snapshot back to the original workload and data class.",
+      "examples": [
+        "prod database snapshot",
+        "golden image snapshot"
+      ],
+      "falsePositiveReduction": "Raises urgency when the publicly exposed snapshot is high-value."
+    },
+    {
+      "dimension": "Containment Context",
+      "description": "Track whether public exposure is quickly reverted or followed by copy activity.",
+      "examples": [
+        "public for 2 minutes then reverted",
+        "copied shortly after exposure"
+      ],
+      "falsePositiveReduction": "Improves prioritization and remediation decisions."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect only the public-exposure branch of snapshot abuse. It should parse the permission delta on ModifySnapshotAttribute and fire when the request adds public access via `groups=[\"all\"]` or equivalent semantics.",
+    "conditions": [
+      "eventSource equals ec2.amazonaws.com",
+      "eventName equals ModifySnapshotAttribute",
+      "permission delta adds public access through group `all`"
+    ],
+    "tuningGuidance": "1. Keep public exposure separate from external-account sharing. 2. Parse permission additions rather than generic contains checks. 3. Escalate when the snapshot later gets copied or restored after public exposure.",
+    "whenToFire": "Fire when a snapshot is made public, especially when the source data is sensitive or the exposure is not immediately reverted."
+  },
+  "simulationCommand": "aws ec2 modify-snapshot-attribute --snapshot-id snap-xxx --attribute createVolumePermission --operation-type add --group-names all",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low in most environments because true public snapshot sharing is rare",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda payload parsing",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is essential because this is an immediate exposure control point.",
+    "considerations": [
+      "Keep this public-only; let `det-081` own external-account sharing.",
+      "Containment workflow should be immediate."
+    ]
+  }
+}

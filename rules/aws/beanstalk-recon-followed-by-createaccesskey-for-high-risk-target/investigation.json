@@ -1,0 +1,5 @@
+[
+  "Identify the Beanstalk reconnaissance event and the later `CreateAccessKey` call, including the target user receiving credentials.",
+  "Determine whether the target identity is privileged, dormant, break-glass, or otherwise high-risk for new access keys.",
+  "Assess whether the same actor likely extracted credentials or trust paths from the Beanstalk environment before creating the key."
+]

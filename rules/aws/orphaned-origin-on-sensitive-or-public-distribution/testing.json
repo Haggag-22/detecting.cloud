@@ -1,0 +1,5 @@
+[
+  "Run the orphaned-origin posture job and then filter the results to distributions with production or customer-facing aliases.",
+  "Verify the detector elevates those sensitive distributions above lower-value orphaned origins.",
+  "Confirm the prioritization uses distribution criticality rather than only alias text fragments."
+]

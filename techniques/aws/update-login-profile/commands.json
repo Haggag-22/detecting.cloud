@@ -1,0 +1,3 @@
+[
+  "aws iam update-login-profile --user-name TargetUser --password 'NewP@ssw0rd!'"
+]

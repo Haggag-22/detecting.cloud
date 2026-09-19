@@ -1,0 +1,5 @@
+[
+  "As a non-admin IAM user or assumed role, call PutRolePolicy.",
+  "Verify CloudTrail captures the event.",
+  "Run the detection to confirm it triggers on unexpected actors."
+]

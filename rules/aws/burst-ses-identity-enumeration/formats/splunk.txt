@@ -1,0 +1,6 @@
+index=aws sourcetype=aws:cloudtrail eventSource=ses.amazonaws.com (eventName=ListIdentities OR eventName=GetIdentityVerificationAttributes)
+| eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
+| bucket _time span=5m
+| stats count as cnt by actor, _time
+| where cnt > 5
+| table _time, actor, cnt

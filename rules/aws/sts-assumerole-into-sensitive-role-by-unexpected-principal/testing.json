@@ -1,0 +1,6 @@
+[
+  "Use a non-admin test principal that can call sts:AssumeRole on a sensitive role.",
+  "Run an AssumeRole command against the target role.",
+  "Verify the AssumeRole event appears in CloudTrail with the expected roleArn and roleSessionName.",
+  "Run the detection query to confirm the alert fires."
+]

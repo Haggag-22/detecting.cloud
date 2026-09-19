@@ -1,0 +1,21 @@
+{
+  "id": "det-184",
+  "title": "Console Login Success Without MFA",
+  "description": "Detects successful AWS console logins that were performed without Multi-Factor Authentication (MFA). This alert can be used to identify potential unauthorized access attempts, as logging in without MFA can indicate compromised credentials or misconfigured security settings.",
+  "awsService": "CloudTrail",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "CloudTrail",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Unlikely"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,26 @@
+{
+  "id": "az-056",
+  "title": "User Removed From Group With CA Policy Modification Access",
+  "description": "Monitor and alert on group membership removal of groups that have CA policy modification access",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "credential-access",
+    "persistence",
+    "defense-impairment",
+    "t1548",
+    "t1556"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "User removed from the group is approved"
+  ],
+  "relatedAttackSlugs": []
+}

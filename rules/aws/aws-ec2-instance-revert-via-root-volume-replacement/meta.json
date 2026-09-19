@@ -1,0 +1,21 @@
+{
+  "id": "det-148",
+  "title": "AWS EC2 Instance Revert Via Root Volume Replacement",
+  "description": "Detects reverting an EC2 instance to a prior state via root volume replacement or snapshot restore (CreateReplaceRootVolumeTask, RestoreSnapshotFromRecycleBin, RestoreSnapshotTier). Adversaries revert instances to undo defensive changes or hide activity (Revert Cloud Instance).",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EC2",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate rollback and recovery operations."
+  ],
+  "relatedAttackSlugs": []
+}

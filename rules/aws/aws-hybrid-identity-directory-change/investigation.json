@@ -1,0 +1,6 @@
+[
+  "Identify the IAM principal that performed the action.",
+  "Validate whether the action was expected for that identity and account.",
+  "Review surrounding CloudTrail activity from the same actor and source IP.",
+  "Assess blast radius and revoke or contain if the activity is unauthorized."
+]

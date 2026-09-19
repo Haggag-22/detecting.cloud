@@ -1,0 +1,6 @@
+[
+  "Identify who ran the command and on which instances.",
+  "Verify if this was automated patching or ops.",
+  "Inspect the document name and parameters.",
+  "Review for lateral movement indicators."
+]

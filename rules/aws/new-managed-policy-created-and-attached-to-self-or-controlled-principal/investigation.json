@@ -1,0 +1,6 @@
+[
+  "Identify the identity that created the managed policy and attached it.",
+  "Determine whether the attached target was the actor's own user, session role, or controlled principal.",
+  "Inspect the created policy document for wildcard or escalation permissions.",
+  "Check whether the actor or target used the new permissions immediately afterward."
+]

@@ -1,0 +1,5 @@
+[
+  "Resolve the target instance or managed node to its environment, owner, and sensitivity class.",
+  "Verify whether the session was authorized for that target class and actor.",
+  "Check whether the host is production, bastion, break-glass, directory, or secrets infrastructure."
+]

@@ -1,0 +1,33 @@
+{
+  "slug": "ec2-lateral-movement",
+  "title": "EC2 Lateral Movement & Escalation",
+  "description": "The attacker gains access to an EC2 instance (e.g., via compromised application or SSH) and retrieves the instance role credentials from the Instance Metadata Service. If the instance role has iam:PassRole and lambda:CreateFunction, the attacker can escalate by creating a Lambda function with a higher-privilege role. The Lambda is invoked with code that uses the escalated role to access S3 or other resources. The attacker exfiltrates data using the Lambda's permissions. This path demonstrates lateral movement from a low-privilege instance to broader data access through service chaining.",
+  "severity": "High",
+  "objective": "lateral-movement",
+  "tags": [
+    "EC2",
+    "IAM",
+    "Lambda",
+    "S3",
+    "Lateral Movement"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-imds-credential-theft",
+      "context": "Steal IAM credentials from the compromised EC2 instance"
+    },
+    {
+      "techniqueId": "tech-passrole-abuse",
+      "context": "Use stolen credentials to pass a higher-privilege role"
+    },
+    {
+      "techniqueId": "tech-lambda-code-execution",
+      "context": "Execute code via Lambda with the escalated role"
+    },
+    {
+      "techniqueId": "tech-s3-data-download",
+      "context": "Use Lambda's permissions to exfiltrate S3 data"
+    }
+  ],
+  "cloudProvider": "aws"
+}

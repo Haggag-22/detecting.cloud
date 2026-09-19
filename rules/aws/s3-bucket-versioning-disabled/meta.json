@@ -1,0 +1,21 @@
+{
+  "id": "det-195",
+  "title": "S3 Bucket Versioning Disabled",
+  "description": "Detects when S3 bucket versioning is disabled. Threat actors use this technique during AWS ransomware incidents prior to deleting S3 objects.",
+  "awsService": "S3",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "S3",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "AWS administrator legitimately disabling bucket versioning"
+  ],
+  "relatedAttackSlugs": []
+}

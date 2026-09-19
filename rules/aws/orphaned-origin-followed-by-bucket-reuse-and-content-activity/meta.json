@@ -1,0 +1,24 @@
+{
+  "id": "det-140",
+  "title": "Orphaned Origin Followed by Bucket Reuse and Content Activity",
+  "description": "High-confidence CloudFront orphaned-origin takeover chain. This should correlate orphaned-origin state or risky bucket-name reuse with later object writes or activation on the reclaimed bucket using ordered lineage.",
+  "awsService": "CloudFront",
+  "relatedServices": [
+    "S3"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "CloudFront",
+    "S3",
+    "Origin Takeover",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate bucket recreation and use"
+  ],
+  "relatedAttackSlugs": []
+}

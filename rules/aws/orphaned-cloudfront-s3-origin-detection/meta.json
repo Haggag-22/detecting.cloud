@@ -1,0 +1,26 @@
+{
+  "id": "det-137",
+  "title": "Orphaned CloudFront S3 Origin Detection",
+  "description": "Posture detection for CloudFront distributions whose configured S3 origin bucket no longer exists. This is the actual exploitable orphaned-origin state, not just the precursor deletion event.",
+  "awsService": "CloudFront",
+  "relatedServices": [
+    "S3"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "CloudFront",
+    "S3",
+    "Origin Takeover",
+    "Posture"
+  ],
+  "logSources": [
+    "AWS CloudTrail",
+    "CloudFront API"
+  ],
+  "falsePositives": [
+    "Custom domain origin",
+    "Non-S3 origin"
+  ],
+  "relatedAttackSlugs": []
+}

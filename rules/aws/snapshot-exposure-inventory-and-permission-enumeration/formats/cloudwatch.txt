@@ -1,0 +1,5 @@
+fields @timestamp, userIdentity.arn, requestParameters.snapshotId, responseElements
+| filter eventSource = "ec2.amazonaws.com"
+| filter eventName = "DescribeSnapshotAttribute"
+| filter requestParameters.attribute = "createVolumePermission"
+| sort @timestamp desc

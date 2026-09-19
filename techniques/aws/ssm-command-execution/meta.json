@@ -1,0 +1,25 @@
+{
+  "id": "tech-ssm-command-execution",
+  "name": "SSM Run Command Lateral Movement",
+  "shortName": "SSM RunCmd",
+  "description": "An attacker with ssm:SendCommand can execute arbitrary commands on EC2 instances that have the SSM agent installed and an appropriate IAM instance profile. This enables lateral movement without SSH keys or opening port 22. ssm:StartSession provides interactive shell access via Session Manager. Instances must be registered with SSM (in managed instance inventory). Required permissions are ssm:SendCommand for Run Command or ssm:StartSession for interactive sessions.",
+  "services": [
+    "SSM",
+    "EC2",
+    "IAM"
+  ],
+  "permissions": [
+    "ssm:SendCommand",
+    "ssm:StartSession"
+  ],
+  "detectionIds": [
+    "det-029"
+  ],
+  "mitigations": [
+    "Restrict ssm:SendCommand to specific document names",
+    "Use SSM Session Manager logging to S3/CloudWatch",
+    "Implement approval workflows for Run Command"
+  ],
+  "category": "lateral-movement",
+  "cloudProvider": "aws"
+}

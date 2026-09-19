@@ -1,0 +1,5 @@
+[
+  "Create or update a notebook lifecycle configuration in a test SageMaker environment.",
+  "Verify CloudTrail captures the lifecycle config name and actor context.",
+  "Run the baseline detection and confirm it records all lifecycle-config mutations without filtering on actor names."
+]

@@ -1,0 +1,99 @@
+{
+  "whyItMatters": "Serial console access is one of the highest-signal host-access events available in AWS because it reaches instances below the usual network path and is comparatively rare in many environments.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with sufficient permissions may use serial console access to recover or manipulate a host even when normal network paths are restricted or unavailable.",
+    "realWorldUsage": "Serial console is often reserved for incident response, recovery, or deep troubleshooting, which makes unexpected use highly significant.",
+    "whyItMatters": "The access event itself is valuable because it indicates intent to interact with a host at a lower level than ordinary SSH administration.",
+    "riskAndImpact": "If missed, defenders may overlook some of the most sensitive interactive host access in the environment."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2 Instance Connect",
+      "EC2 inventory and serial-console configuration context"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.instanceId",
+      "sourceIPAddress",
+      "userAgent"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must ingest SendSerialConsoleSSHPublicKey events.",
+      "The environment should know which accounts and instances permit serial console access.",
+      "Actor identity should be normalized across IAM users and assumed roles."
+    ],
+    "limitations": [
+      "The event shows key delivery, not the full set of actions taken through the serial session.",
+      "Some legitimate recovery operations may generate this event under stressful operational conditions.",
+      "Serial console availability depends on account and instance configuration."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Serial Console Eligibility",
+      "description": "Determine whether serial console is expected or enabled for the target environment.",
+      "examples": [
+        "approved recovery account",
+        "ordinary application account"
+      ],
+      "falsePositiveReduction": "Helps distinguish routine recovery from unexpected low-level access."
+    },
+    {
+      "dimension": "Target Criticality",
+      "description": "Resolve the target instance to workload sensitivity and business importance.",
+      "examples": [
+        "production bastion",
+        "domain services host"
+      ],
+      "falsePositiveReduction": "Prioritizes access to high-value systems."
+    },
+    {
+      "dimension": "Operator Context",
+      "description": "Understand whether the actor belongs to a recovery, SRE, or incident-response workflow.",
+      "examples": [
+        "IR break-glass role",
+        "unapproved app role"
+      ],
+      "falsePositiveReduction": "Improves triage around legitimate emergency usage."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should remain a broad visibility rule for every successful serial-console key push. It establishes the baseline that stronger unauthorized-actor, sensitive-target, and post-access correlation detections depend on.",
+    "conditions": [
+      "eventSource equals ec2-instance-connect.amazonaws.com",
+      "eventName equals SendSerialConsoleSSHPublicKey",
+      "errorCode is absent"
+    ],
+    "tuningGuidance": "1. Keep the event match broad. 2. Resolve target and operator context immediately. 3. Use separate detections for unauthorized actors, sensitive targets, and post-access behavior.",
+    "whenToFire": "Fire on every successful serial-console access event for visibility."
+  },
+  "simulationCommand": "aws ec2-instance-connect send-serial-console-ssh-public-key --instance-id i-0abc123 --serial-port 0 --ssh-public-key file://id_rsa.pub",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium because serial-console usage is often rare",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda",
+      "Athena",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because serial-console access is immediately actionable.",
+    "considerations": [
+      "This is the feeder rule for the stronger serial-console detections.",
+      "Account and instance configuration context are useful enrichments."
+    ]
+  }
+}

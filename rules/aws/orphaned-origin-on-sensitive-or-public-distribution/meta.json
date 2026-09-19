@@ -1,0 +1,25 @@
+{
+  "id": "det-138",
+  "title": "Orphaned Origin on Sensitive or Public Distribution",
+  "description": "Prioritizes orphaned CloudFront S3 origins that affect public, customer-facing, or otherwise high-value distributions. This is the severity-focused variant of the posture detector.",
+  "awsService": "CloudFront",
+  "relatedServices": [
+    "S3"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "CloudFront",
+    "S3",
+    "Origin Takeover",
+    "Sensitive Target"
+  ],
+  "logSources": [
+    "AWS CloudTrail",
+    "CloudFront API"
+  ],
+  "falsePositives": [
+    "Internal-only distribution"
+  ],
+  "relatedAttackSlugs": []
+}

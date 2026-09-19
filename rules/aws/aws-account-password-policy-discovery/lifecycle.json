@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects retrieval of the account password policy (GetAccountPasswordPolicy). Adversaries query the password policy to inform password guessing or spraying attacks.",
+  "threatContext": {
+    "attackerBehavior": "Detects retrieval of the account password policy (GetAccountPasswordPolicy). Adversaries query the password policy to inform password guessing or spraying attacks.",
+    "whyItMatters": "Detects retrieval of the account password policy (GetAccountPasswordPolicy). Adversaries query the password policy to inform password guessing or spraying attacks.",
+    "riskAndImpact": "Abuse related to IAM can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects retrieval of the account password policy (GetAccountPasswordPolicy). Adversaries query the password policy to inform password guessing or spraying attacks.",
+    "whenToFire": "When CloudTrail shows activity matching this AWS Account Password Policy Discovery detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

@@ -1,0 +1,5 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, eventName, requestParameters.functionName, requestParameters.role, sourceIPAddress
+| filter eventSource = "lambda.amazonaws.com"
+| filter eventName = "CreateFunction20150331"
+| filter requestParameters.role like /Admin|AdministratorAccess|PowerUser|OrganizationAccountAccessRole/
+| sort @timestamp desc

@@ -1,0 +1,25 @@
+{
+  "id": "az-014",
+  "title": "Certificate-Based Authentication Enabled",
+  "description": "Detects when certificate based authentication has been enabled in an Azure Active Directory tenant.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "credential-access",
+    "persistence",
+    "privilege-escalation",
+    "defense-impairment",
+    "t1556"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

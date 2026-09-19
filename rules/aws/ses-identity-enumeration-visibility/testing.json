@@ -1,0 +1,5 @@
+[
+  "Call `ListIdentities` or `GetIdentityVerificationAttributes` in a test SES environment.",
+  "Verify CloudTrail captures the request and actor context.",
+  "Run the baseline detector and confirm it records all SES identity-enumeration reads without name-based suppression."
+]

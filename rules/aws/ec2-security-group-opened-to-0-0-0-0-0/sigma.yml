@@ -1,0 +1,11 @@
+title: EC2 Security Group Opened to All
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName: AuthorizeSecurityGroupIngress
+    requestParameters.ipPermissions.items{}.ipRanges.items{}.cidrIp: '0.0.0.0/0'
+  condition: selection
+level: high

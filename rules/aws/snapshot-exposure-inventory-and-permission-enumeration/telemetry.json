@@ -1,0 +1,13 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "ec2.amazonaws.com",
+  "importantFields": [
+    "eventSource",
+    "eventName",
+    "requestParameters.snapshotId",
+    "requestParameters.attribute",
+    "responseElements",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"ec2.amazonaws.com\",\n  \"eventName\": \"DescribeSnapshotAttribute\",\n  \"userIdentity\": {\n    \"type\": \"IAMUser\",\n    \"arn\": \"arn:aws:iam::123456789012:user/admin\"\n  },\n  \"requestParameters\": {\n    \"snapshotId\": \"snap-xxx\",\n    \"attribute\": \"createVolumePermission\"\n  },\n  \"responseElements\": {\n    \"createVolumePermission\": {\n      \"groups\": [\n        \"all\"\n      ]\n    }\n  },\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

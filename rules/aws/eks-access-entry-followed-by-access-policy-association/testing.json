@@ -1,0 +1,5 @@
+[
+  "Create an access entry and then associate a policy to the same principal and cluster within 15 minutes.",
+  "Verify CloudTrail preserves the cluster and principal linkage across both events.",
+  "Run the detector and confirm it requires ordered sequence on exact principal-plus-cluster identity rather than loose same-actor grouping."
+]

@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { CountBadge } from "@/components/CountBadge";
+import { SEVERITY_OUTLINE_CLASS } from "@/lib/severityStyles";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select,
@@ -267,7 +269,7 @@ export default function CloudTrailAnalyzer() {
 
   return (
     <Layout>
-      <div className="container max-w-[1800px] py-10">
+      <div className="container max-w-[1800px]">
         <div className="mb-8">
           <PageTitleWithIcon team="blue" icon={FileJson}>
             CloudTrail Analyzer
@@ -321,7 +323,7 @@ export default function CloudTrailAnalyzer() {
                 </p>
               </CardHeader>
               <CardContent>
-                <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer border-muted-foreground/25 hover:border-muted-foreground/50 transition-colors">
+                <label className="flex flex-col items-center justify-center w-full h-32 border border-dashed rounded-lg cursor-pointer border-border/50 hover:border-primary/30 transition-colors">
                   <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                   <span className="text-sm text-muted-foreground">Click or drag `.json`, `.jsonl`, `.ndjson`, or `.csv` file</span>
                   <input
@@ -493,7 +495,7 @@ export default function CloudTrailAnalyzer() {
                             canExport={filteredEvents.length > 0}
                           />
                         </div>
-                        <div className="flex-1 min-h-0 rounded-lg border overflow-hidden">
+                        <div className="flex-1 min-h-0 rounded-lg border border-border/50 overflow-hidden">
                           {viewMode === "table" ? (
                             <EventsTable
                               events={filteredEvents}
@@ -601,9 +603,7 @@ function EventFilters({
               <Filter className="h-3.5 w-3.5" />
               Event Names
               {selectedEventNames.size > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                  {selectedEventNames.size}
-                </Badge>
+                <CountBadge className="ml-1">{selectedEventNames.size}</CountBadge>
               )}
             </Button>
           </PopoverTrigger>
@@ -638,9 +638,7 @@ function EventFilters({
               <Filter className="h-3.5 w-3.5" />
               Sources
               {selectedEventSources.size > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                  {selectedEventSources.size}
-                </Badge>
+                <CountBadge className="ml-1">{selectedEventSources.size}</CountBadge>
               )}
             </Button>
           </PopoverTrigger>
@@ -672,9 +670,7 @@ function EventFilters({
               <Filter className="h-3.5 w-3.5" />
               Regions
               {selectedRegions.size > 0 && (
-                <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">
-                  {selectedRegions.size}
-                </Badge>
+                <CountBadge className="ml-1">{selectedRegions.size}</CountBadge>
               )}
             </Button>
           </PopoverTrigger>
@@ -796,12 +792,7 @@ function EventFilters({
   );
 }
 
-const severityColors: Record<string, string> = {
-  Critical: "bg-red-500/20 text-red-400 border-red-500/30",
-  High: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-  Medium: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  Low: "bg-muted text-muted-foreground",
-};
+const severityColors = SEVERITY_OUTLINE_CLASS;
 
 function DetectionBadges({ results }: { results: DetectionResult[] }) {
   if (results.length === 0) return <span className="text-sm text-muted-foreground">No matches</span>;
@@ -837,7 +828,7 @@ function EventsTimeline({
   className?: string;
 }) {
   return (
-    <ScrollArea className={cn("w-full rounded-md border", className)}>
+    <ScrollArea className={cn("w-full rounded-md border border-border/50", className)}>
       <div className="p-5">
         {events.map((ev) => (
           <React.Fragment key={ev.event_id}>
@@ -941,7 +932,7 @@ function EventExpandedDetail({ event: ev, results }: { event: NormalizedCloudTra
           )}
           {attackPaths.length > 0 && (
             <>
-              <p className="text-xs font-semibold text-muted-foreground mt-2">Attack paths</p>
+              <p className="text-xs font-semibold text-muted-foreground mt-2">Attack chains</p>
               <div className="flex flex-wrap gap-1">
                 {attackPaths.map((p) => (
                   <Link key={p.slug} to={`/attack-paths?technique=${p.slug}`}>
@@ -990,7 +981,7 @@ function EventsTable({
   className?: string;
 }) {
   return (
-    <ScrollArea className={cn("w-full rounded-lg border", className)}>
+    <ScrollArea className={cn("w-full rounded-lg border border-border/50", className)}>
       <Table className="w-full min-w-[1200px] table-fixed">
         <colgroup>
           <col style={{ width: "3%" }} />

@@ -1,0 +1,23 @@
+{
+  "id": "det-173",
+  "title": "AWS SAML Provider Deletion Activity",
+  "description": "Detects the deletion of an AWS SAML provider, potentially indicating malicious intent to disrupt administrative or security team access. An attacker can remove the SAML provider for the information security team or a team of system administrators, to make it difficult for them to work and investigate at the time of the attack and after it.",
+  "awsService": "IAM",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "IAM",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Automated processes using tools like Terraform may trigger this alert.",
+    "Legitimate administrative actions by authorized system administrators could cause this alert. Verify the user identity, user agent, and hostname to ensure they are expected.",
+    "Deletions by unfamiliar users should be investigated. If the behavior is known and expected, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

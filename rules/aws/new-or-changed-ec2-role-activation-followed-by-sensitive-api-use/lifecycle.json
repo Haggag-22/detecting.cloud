@@ -1,0 +1,99 @@
+{
+  "whyItMatters": "Compute role activation becomes high confidence when the resulting workload identity quickly performs sensitive actions. This is the clearest signal that the attached role was not just configured but actively used.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may launch EC2 or attach a profile, retrieve credentials from IMDS, and then use the role to access secrets, assume other roles, or modify IAM.",
+    "realWorldUsage": "This is a common workload-role abuse chain because the compute event and the later API use are separated across different identities and telemetry perspectives.",
+    "whyItMatters": "The right correlation pivot is the workload role that becomes active, not merely the human who launched or changed the instance.",
+    "riskAndImpact": "If missed, privilege-bearing compute can move from setup to active cloud abuse before defenders connect the EC2 event to later API use."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail EC2 management events",
+      "AWS CloudTrail management events for STS, IAM, Secrets Manager, KMS, EC2 and related services",
+      "Instance-profile and role inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "requestParameters.iamInstanceProfile",
+      "requestParameters.roleArn",
+      "userIdentity.arn",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "The platform must resolve instance profiles to backing roles.",
+      "Role-use telemetry must retain workload-role identity in userIdentity fields.",
+      "Correlations should follow the workload role after activation rather than the launch actor."
+    ],
+    "limitations": [
+      "Joining on the original human launcher misses real abuse if the workload role later acts independently.",
+      "Some sensitive data-plane activity still depends on additional logging beyond management events.",
+      "Not every rapid follow-on action was necessarily enabled by the role change unless role capability is confirmed."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Resolved Workload Role",
+      "description": "Pivot the correlation to the role activated on EC2 rather than the original operator.",
+      "examples": [
+        "AdminRole assumed by instance profile"
+      ],
+      "falsePositiveReduction": "Matches how real post-launch abuse actually appears in telemetry."
+    },
+    {
+      "dimension": "Sensitive Use Class",
+      "description": "Classify later role activity as secrets access, IAM mutation, snapshotting, or cross-account role chaining.",
+      "examples": [
+        "GetSecretValue",
+        "AssumeRole",
+        "PutRolePolicy"
+      ],
+      "falsePositiveReduction": "Explains whether the activated role was abused in a meaningful way."
+    },
+    {
+      "dimension": "Activation Path",
+      "description": "Track whether the role was activated via launch or live profile replacement.",
+      "examples": [
+        "RunInstances",
+        "ReplaceIamInstanceProfileAssociation"
+      ],
+      "falsePositiveReduction": "Improves triage when existing hosts suddenly gain privileged roles."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a chain: compute role activation occurs through instance launch or profile change, then the resolved workload role performs sensitive API activity soon afterward. The detector should pivot to the workload role identity, not the original operator.",
+    "conditions": [
+      "first event is RunInstances with iamInstanceProfile or AssociateIamInstanceProfile or ReplaceIamInstanceProfileAssociation",
+      "instance profile resolves to a backing role",
+      "follow-on sensitive action is performed by that workload role within 15 minutes"
+    ],
+    "tuningGuidance": "1. Correlate on the resolved backing role. 2. Classify the follow-on action by impact. 3. Escalate when the activation path was live profile replacement or the role is unusually privileged.",
+    "whenToFire": "Fire when EC2 role activation is followed quickly by sensitive API use from the resulting workload role."
+  },
+  "simulationCommand": "aws ec2 run-instances --image-id ami-1234567890abcdef0 --instance-type t3.micro --iam-instance-profile Name=AdminProfile",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with resolved workload-role correlation",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with IAM inventory",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with short-lived state"
+    ],
+    "scheduling": "Best in near-real-time because the role activation and abuse window is short.",
+    "considerations": [
+      "The role pivot is the most important implementation detail.",
+      "This should sit above the baseline EC2 role-activation detectors."
+    ]
+  }
+}

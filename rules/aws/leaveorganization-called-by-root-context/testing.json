@@ -1,0 +1,5 @@
+[
+  "Invoke `LeaveOrganization` from a controlled root lab context in a test member account.",
+  "Verify CloudTrail records `userIdentity.type = Root`.",
+  "Run the detector and confirm it isolates root-context leave attempts."
+]

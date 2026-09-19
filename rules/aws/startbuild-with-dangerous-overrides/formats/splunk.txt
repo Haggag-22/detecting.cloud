@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventSource=codebuild.amazonaws.com eventName=StartBuild
+| where isnotnull(requestParameters.buildspecOverride) OR isnotnull(requestParameters.environmentVariablesOverride)
+| table _time, userIdentity.arn, eventName, requestParameters.projectName, requestParameters.buildspecOverride, requestParameters.environmentVariablesOverride, sourceIPAddress

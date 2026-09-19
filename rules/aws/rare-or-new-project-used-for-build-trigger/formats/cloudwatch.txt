@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, requestParameters.projectName, sourceIPAddress
+| filter eventSource = "codebuild.amazonaws.com"
+| filter eventName = "StartBuild"
+| sort @timestamp desc

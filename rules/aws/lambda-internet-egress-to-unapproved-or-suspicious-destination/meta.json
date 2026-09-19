@@ -1,0 +1,27 @@
+{
+  "id": "det-005",
+  "title": "Lambda Internet Egress to Unapproved or Suspicious Destination",
+  "description": "Identifies VPC-attached Lambda functions making outbound connections to external destinations that are unapproved, novel, or suspicious for that workload.",
+  "awsService": "Lambda",
+  "relatedServices": [
+    "EC2"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "Lambda",
+    "Persistence",
+    "Network"
+  ],
+  "logSources": [
+    "VPC Flow Logs",
+    "Lambda Logs"
+  ],
+  "falsePositives": [
+    "Lambda functions that legitimately call external APIs"
+  ],
+  "relatedAttackSlugs": [
+    "lambda-persistence",
+    "lambda-privilege-escalation"
+  ]
+}

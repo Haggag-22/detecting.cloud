@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.arn, eventName, eventSource, requestParameters.userName
+| filter (eventSource = "elasticbeanstalk.amazonaws.com" and eventName = "DescribeConfigurationSettings")
+  or (eventSource = "iam.amazonaws.com" and eventName = "CreateAccessKey")
+| stats count(*) as cnt, collect_list(eventName) as events by userIdentity.arn
+| filter cnt > 1
+| sort cnt desc

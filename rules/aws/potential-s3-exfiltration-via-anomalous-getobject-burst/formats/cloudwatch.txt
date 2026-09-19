@@ -1,0 +1,5 @@
+fields @timestamp, userIdentity.arn, requestParameters.bucketName, requestParameters.key, sourceIPAddress
+| filter eventName = "GetObject"
+| stats count(*) as downloads, count_distinct(requestParameters.key) as distinct_objects by bin(15m), userIdentity.arn, requestParameters.bucketName
+| filter downloads >= 25 and distinct_objects >= 25
+| sort downloads desc

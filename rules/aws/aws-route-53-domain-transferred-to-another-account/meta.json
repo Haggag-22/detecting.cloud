@@ -1,0 +1,21 @@
+{
+  "id": "det-170",
+  "title": "AWS Route 53 Domain Transferred to Another Account",
+  "description": "Detects when a request has been made to transfer a Route 53 domain to another AWS account.",
+  "awsService": "Route 53",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Low",
+  "tags": [
+    "Route 53",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "A domain may be transferred to another AWS account by a system or network administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment. Domain transfers from unfamiliar users or hosts should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

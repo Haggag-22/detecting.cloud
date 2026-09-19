@@ -1,0 +1,28 @@
+{
+  "id": "tech-s3-acl-persistence",
+  "name": "S3 ACL Persistence",
+  "shortName": "S3 ACL",
+  "description": "An attacker with s3:PutObjectAcl or s3:PutBucketAcl can set ACLs that grant them or their principal access to objects or the bucket. For example, they add an ACL grant that gives their account or user full control. Even if IAM policies are later modified to revoke access, the ACL grant may still allow access. Object ACLs (e.g., bucket-owner-full-control) can persist cross-account access. Required permissions are s3:PutObjectAcl for objects or s3:PutBucketAcl for the bucket. ACLs must be enabled (not BucketOwnerEnforced).",
+  "services": [
+    "S3"
+  ],
+  "permissions": [
+    "s3:PutObjectAcl",
+    "s3:PutBucketAcl"
+  ],
+  "detectionIds": [
+    "det-131",
+    "det-132",
+    "det-133",
+    "det-134",
+    "det-135"
+  ],
+  "mitigations": [
+    "Disable ACLs (Object Ownership: BucketOwnerEnforced)",
+    "Monitor ACL changes",
+    "Use bucket policies"
+  ],
+  "category": "persistence",
+  "cloudProvider": "aws",
+  "detectionStrategy": "S3 ACL persistence is a legacy but still dangerous access path. The best detections focus on successful ACL changes in ACL-enabled environments, especially cross-account or broad grants and subsequent access by the granted principal."
+}

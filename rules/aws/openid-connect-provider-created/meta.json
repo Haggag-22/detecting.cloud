@@ -1,0 +1,22 @@
+{
+  "id": "det-201",
+  "title": "IAM OpenID Connect Provider Created",
+  "description": "Detects iam:CreateOpenIDConnectProvider. A rogue OIDC IdP can be trusted by roles for AssumeRoleWithWebIdentity persistence.",
+  "awsService": "IAM",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "IAM",
+    "Control Plane"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Authorized platform automation"
+  ],
+  "relatedAttackSlugs": []
+}

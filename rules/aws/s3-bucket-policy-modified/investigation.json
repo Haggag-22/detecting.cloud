@@ -1,0 +1,6 @@
+[
+  "Identify who modified the bucket policy.",
+  "Inspect the new policy for public or cross-account access.",
+  "Verify if the change was from IaC (Terraform/CloudFormation).",
+  "Review recent S3 access from external principals."
+]

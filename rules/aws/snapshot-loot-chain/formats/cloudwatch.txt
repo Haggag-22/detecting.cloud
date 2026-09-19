@@ -1,0 +1,6 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.snapshotId, requestParameters.sourceSnapshotId
+| filter eventSource = "ec2.amazonaws.com"
+| filter eventName in ["CreateSnapshot", "CreateSnapshots", "ModifySnapshotAttribute", "CopySnapshot", "CreateVolume", "AttachVolume"]
+| stats count(*) as cnt, count_distinct(eventName) as distinct_events, collect_list(eventName) as events by userIdentity.arn
+| filter cnt >= 3 and distinct_events >= 3
+| sort cnt desc

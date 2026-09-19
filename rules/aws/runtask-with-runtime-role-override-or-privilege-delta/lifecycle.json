@@ -1,0 +1,101 @@
+{
+  "whyItMatters": "Runtime overrides are powerful because they can change what a task executes under without changing the task definition itself. The key risk is the privilege delta introduced by the override.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may override the task role at runtime to execute under a stronger identity than the service normally uses.",
+    "realWorldUsage": "This is a practical abuse path because runtime overrides can look like flexible orchestration while still activating materially different permissions.",
+    "whyItMatters": "The strongest signal is not that an override exists, but that it changes the effective role or increases available privilege.",
+    "riskAndImpact": "If missed, attackers can borrow the cover of an existing task family while swapping in a more powerful role only at execution time."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for ECS",
+      "ECS task-definition inventory",
+      "IAM role and policy inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.taskDefinition",
+      "requestParameters.overrides",
+      "requestParameters.cluster",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "RunTask overrides must be preserved as structured data where possible.",
+      "The platform should know the default taskRoleArn and executionRoleArn for the task definition.",
+      "The detector should compare default and overridden roles semantically."
+    ],
+    "limitations": [
+      "String searching for taskRoleArn in serialized JSON is unreliable.",
+      "Not every override changes privilege; some only alter commands or environment variables.",
+      "Some legitimate operations teams do use runtime overrides as part of approved workflows."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Default vs Overridden Role Comparison",
+      "description": "Compare the default task role and the runtime role for permission, trust, and scope differences.",
+      "examples": [
+        "AppTaskRole -> ProdOpsRole"
+      ],
+      "falsePositiveReduction": "Finds meaningful privilege changes instead of noisy override presence."
+    },
+    {
+      "dimension": "Override Type and Intent",
+      "description": "Distinguish role overrides from command, environment, or placement overrides.",
+      "examples": [
+        "taskRoleArn override",
+        "command override only"
+      ],
+      "falsePositiveReduction": "Prevents every override from becoming a high-severity alert."
+    },
+    {
+      "dimension": "Authorized Override Context",
+      "description": "Determine whether the actor and workflow are approved to override roles for this task family.",
+      "examples": [
+        "break-glass operations run",
+        "developer ad hoc prod override"
+      ],
+      "falsePositiveReduction": "Separates sanctioned exceptions from suspicious runtime role swaps."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should compare the task definition's default role with the final runtime role used by the task. The highest-value branch is when the runtime override changes the effective role and meaningfully increases task privilege or scope.",
+    "conditions": [
+      "eventSource equals ecs.amazonaws.com",
+      "eventName equals RunTask",
+      "runtime override changes the final task role or privilege level compared with the default task definition",
+      "override is not part of an approved override workflow"
+    ],
+    "tuningGuidance": "1. Parse overrides structurally, not as plain text. 2. Compare default and runtime roles semantically. 3. Escalate only when the override changes privilege or authorization scope.",
+    "whenToFire": "Fire when RunTask uses a runtime override that materially changes the effective task role or increases workload privilege."
+  },
+  "simulationCommand": "aws ecs run-task --cluster prod --task-definition my-task:1 --overrides '{\"taskRoleArn\":\"arn:aws:iam::123456789012:role/ProdOpsRole\"}'",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with override diff analysis; high when only checking for the literal taskRoleArn field",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with ECS inventory",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is useful because overridden task roles can be used immediately.",
+    "considerations": [
+      "This is the runtime-diff companion to `det-071`.",
+      "Default task-definition inventory is required."
+    ]
+  }
+}

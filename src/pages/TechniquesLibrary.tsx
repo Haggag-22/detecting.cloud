@@ -1,75 +1,54 @@
 import { Layout } from "@/components/Layout";
-import { techniques, techniqueCategories, type TechniqueCategory } from "@/data/techniques";
-import { Badge } from "@/components/ui/badge";
 import {
-  Crosshair, KeyRound, TrendingUp, Server, Wifi, Database, ShieldOff, Route, ChevronRight,
-} from "lucide-react";
+  techniques,
+  techniqueCategories,
+  getTechniqueCloudProvider,
+  getTechniqueCountsByCloudProvider,
+  type TechniqueCategory,
+} from "@/data/techniques";
+import { CountBadge } from "@/components/CountBadge";
+import { Route, ChevronRight } from "lucide-react";
 import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { Link, useSearchParams } from "react-router-dom";
-import { LucideIcon } from "lucide-react";
+import { CloudProviderTabs, parseCloudProviderId, type CloudProviderId } from "@/components/CloudProviderTabs";
+import { getServiceCardClassName } from "@/lib/serviceCardColors";
+import { cn } from "@/lib/utils";
+import {
+  TECHNIQUE_CATEGORY_ICON,
+  TECHNIQUE_CATEGORY_ICON_COLOR,
+} from "@/lib/techniqueCategoryStyles";
 
-const categoryIcon: Record<string, LucideIcon> = {
-  "initial-access": Crosshair,
-  "credential-access": KeyRound,
-  "privilege-escalation": TrendingUp,
-  "persistence": Server,
-  "lateral-movement": Wifi,
-  "exfiltration": Database,
-  "defense-evasion": ShieldOff,
-};
+function techniquesHref(provider: CloudProviderId, category?: TechniqueCategory) {
+  const params = new URLSearchParams();
+  if (provider !== "all") params.set("provider", provider);
+  if (category) params.set("category", category);
+  const query = params.toString();
+  return query ? `/techniques?${query}` : "/techniques";
+}
 
-const categoryIconColor: Record<string, string> = {
-  "initial-access": "text-cyan-400",
-  "credential-access": "text-purple-400",
-  "privilege-escalation": "text-red-400",
-  "persistence": "text-orange-400",
-  "lateral-movement": "text-blue-400",
-  "exfiltration": "text-emerald-400",
-  "defense-evasion": "text-amber-400",
-};
-
-const categoryColor: Record<string, string> = {
-  "initial-access": "bg-cyan-500/15 text-cyan-400",
-  "credential-access": "bg-purple-500/15 text-purple-400",
-  "privilege-escalation": "bg-red-500/15 text-red-400",
-  "persistence": "bg-orange-500/15 text-orange-400",
-  "lateral-movement": "bg-blue-500/15 text-blue-400",
-  "exfiltration": "bg-emerald-500/15 text-emerald-400",
-  "defense-evasion": "bg-amber-500/15 text-amber-400",
-};
-
-const categoryBorderHover: Record<string, string> = {
-  "initial-access": "hover:border-cyan-500/40",
-  "credential-access": "hover:border-purple-500/40",
-  "privilege-escalation": "hover:border-red-500/40",
-  "persistence": "hover:border-orange-500/40",
-  "lateral-movement": "hover:border-blue-500/40",
-  "exfiltration": "hover:border-emerald-500/40",
-  "defense-evasion": "hover:border-amber-500/40",
-};
+function providerLabel(id: CloudProviderId): string | null {
+  if (id === "all") return null;
+  return id.toUpperCase();
+}
 
 function TechniqueCard({ tech }: { tech: (typeof techniques)[number] }) {
-  const TechCatIcon = categoryIcon[tech.category];
+  const TechCatIcon = TECHNIQUE_CATEGORY_ICON[tech.category];
   return (
     <Link
       to={`/attack-paths/technique/${tech.id}`}
-      className="rounded-lg border border-border/50 bg-card p-4 hover:border-primary/30 transition-colors group"
+      className="flex flex-col h-full rounded-lg border border-border/50 bg-muted/20 p-4 hover:border-primary/30 transition-colors group"
     >
-      <div className="flex items-center gap-2 mb-1">
-        <Badge className={`text-[10px] border-0 uppercase tracking-wide flex items-center gap-1 ${categoryColor[tech.category] || "bg-muted text-muted-foreground"}`}>
-          {TechCatIcon && <TechCatIcon className={`h-3 w-3 ${categoryIconColor[tech.category] || ""}`} />}
-          {tech.category.replace(/-/g, " ")}
-        </Badge>
+      <div className="flex items-start gap-2.5 mb-2">
+        {TechCatIcon && (
+          <TechCatIcon className={`h-[18px] w-[18px] mt-0.5 shrink-0 ${TECHNIQUE_CATEGORY_ICON_COLOR[tech.category] || "text-muted-foreground"}`} />
+        )}
+        <h3 className="font-semibold text-sm leading-snug flex-1 min-w-0 group-hover:text-primary transition-colors">
+          {tech.name}
+        </h3>
       </div>
-      <h4 className="font-semibold text-sm mb-1 group-hover:text-primary transition-colors">{tech.name}</h4>
-      <p className="text-xs text-muted-foreground line-clamp-2">{tech.description}</p>
-      <div className="flex flex-wrap gap-1 mt-2">
-        {tech.services.map((svc) => (
-          <span key={svc} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
-            {svc}
-          </span>
-        ))}
-      </div>
+      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 flex-1">
+        {tech.description}
+      </p>
     </Link>
   );
 }
@@ -79,41 +58,77 @@ export default function TechniquesLibrary() {
   const categoryParam = searchParams.get("category") as TechniqueCategory | null;
   const activeCategory =
     categoryParam && categoryParam in techniqueCategories ? categoryParam : null;
+  const activeProvider = parseCloudProviderId(searchParams.get("provider"));
 
-  const categories = (Object.keys(techniqueCategories) as TechniqueCategory[]).filter(
-    (catKey) => techniques.some((t) => t.category === catKey),
+  const providerCounts = getTechniqueCountsByCloudProvider();
+  const scopedTechniques =
+    activeProvider === "all"
+      ? techniques
+      : techniques.filter((t) => getTechniqueCloudProvider(t) === activeProvider);
+
+  const categories = (Object.keys(techniqueCategories) as TechniqueCategory[]).filter((catKey) =>
+    scopedTechniques.some((t) => t.category === catKey),
   );
 
+  const setProvider = (id: CloudProviderId) => {
+    const next = new URLSearchParams(searchParams);
+    if (id === "all") next.delete("provider");
+    else next.set("provider", id);
+    next.delete("category");
+    setSearchParams(next);
+  };
+
   if (activeCategory) {
-    const catTechniques = techniques.filter((t) => t.category === activeCategory);
-    const CatIcon = categoryIcon[activeCategory];
+    const catTechniques = scopedTechniques.filter((t) => t.category === activeCategory);
+    const CatIcon = TECHNIQUE_CATEGORY_ICON[activeCategory];
+    const label = providerLabel(activeProvider);
 
     return (
       <Layout>
-        <div className="container py-12">
+        <div className="container">
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
-            <Link to="/techniques" className="hover:text-foreground transition-colors">
-              Techniques Library
+            <Link to={techniquesHref(activeProvider)} className="hover:text-foreground transition-colors">
+              Attack Techniques
             </Link>
             <ChevronRight className="h-3.5 w-3.5" />
+            {label && (
+              <>
+                <Link
+                  to={techniquesHref(activeProvider)}
+                  className="hover:text-foreground transition-colors"
+                >
+                  {label}
+                </Link>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </>
+            )}
             <span className="text-foreground">{techniqueCategories[activeCategory].label}</span>
           </div>
 
           <div className="flex items-center gap-3 mb-2">
-            {CatIcon && <CatIcon className={`h-8 w-8 shrink-0 ${categoryIconColor[activeCategory]}`} />}
+            {CatIcon && <CatIcon className={`h-8 w-8 shrink-0 ${TECHNIQUE_CATEGORY_ICON_COLOR[activeCategory]}`} />}
             <h1 className="font-display text-3xl font-bold tracking-tight">
               {techniqueCategories[activeCategory].label}
             </h1>
           </div>
           <p className="text-muted-foreground mb-8">
-            {catTechniques.length} {catTechniques.length === 1 ? "technique" : "techniques"} in this category.
+            {catTechniques.length} {catTechniques.length === 1 ? "technique" : "techniques"} in this category
+            {label ? ` · ${label}` : ""}.
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {catTechniques.map((tech) => (
-              <TechniqueCard key={tech.id} tech={tech} />
-            ))}
-          </div>
+          {catTechniques.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {catTechniques.map((tech) => (
+                <TechniqueCard key={tech.id} tech={tech} />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border/50 bg-card/40 px-6 py-14 text-center">
+              <p className="text-sm text-muted-foreground">
+                No {label ?? ""} techniques in this category.
+              </p>
+            </div>
+          )}
         </div>
       </Layout>
     );
@@ -121,48 +136,60 @@ export default function TechniquesLibrary() {
 
   return (
     <Layout>
-      <div className="container py-12">
+      <div className="container">
         <PageTitleWithIcon team="red" icon={Route}>
-          Techniques Library
+          Attack Techniques
         </PageTitleWithIcon>
-        <p className="text-muted-foreground mb-8">
-          Browse attack techniques by category. Select a category to explore individual techniques.
+        <p className="text-muted-foreground mb-6">
+          Attack techniques organized by cloud provider and category. Select a provider, then a category to
+          browse techniques.
         </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {categories.map((catKey) => {
-            const count = techniques.filter((t) => t.category === catKey).length;
-            const CatIcon = categoryIcon[catKey];
-            return (
-              <button
-                key={catKey}
-                type="button"
-                onClick={() => setSearchParams({ category: catKey })}
-                className={`rounded-lg border border-border/50 bg-card p-5 text-left transition-colors group ${categoryBorderHover[catKey] || "hover:border-primary/30"}`}
-              >
-                <div className="flex items-start gap-3">
-                  {CatIcon && (
-                    <CatIcon className={`h-6 w-6 shrink-0 mt-0.5 ${categoryIconColor[catKey] || "text-muted-foreground"}`} />
+        <CloudProviderTabs
+          value={activeProvider}
+          counts={providerCounts}
+          onChange={setProvider}
+        />
+
+        {categories.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {categories.map((catKey) => {
+              const count = scopedTechniques.filter((t) => t.category === catKey).length;
+              const CatIcon = TECHNIQUE_CATEGORY_ICON[catKey];
+              return (
+                <button
+                  key={catKey}
+                  type="button"
+                  onClick={() => setSearchParams({
+                    category: catKey,
+                    ...(activeProvider !== "all" ? { provider: activeProvider } : {}),
+                  })}
+                  className={cn(
+                    getServiceCardClassName(),
+                    "px-4 py-3.5 text-left group flex items-center gap-3"
                   )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <h2 className={`font-display font-semibold text-base group-hover:opacity-90 ${categoryIconColor[catKey] || ""}`}>
-                        {techniqueCategories[catKey].label}
-                      </h2>
-                      <Badge variant="outline" className="text-xs border-border text-muted-foreground shrink-0">
-                        {count}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {count} {count === 1 ? "technique" : "techniques"}
-                    </p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 mt-1 group-hover:text-foreground transition-colors" />
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                >
+                  {CatIcon && (
+                    <CatIcon className={`h-7 w-7 shrink-0 ${TECHNIQUE_CATEGORY_ICON_COLOR[catKey] || "text-muted-foreground"}`} />
+                  )}
+                  <h2 className="font-display font-semibold text-base truncate flex-1 min-w-0 group-hover:text-primary transition-colors">
+                    {techniqueCategories[catKey].label}
+                  </h2>
+                  <CountBadge>{count}</CountBadge>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 group-hover:text-foreground transition-colors" />
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border/50 bg-card/40 px-6 py-14 text-center">
+            <p className="text-sm text-muted-foreground">
+              {activeProvider === "all"
+                ? "No techniques yet."
+                : `No ${activeProvider.toUpperCase()} techniques yet. AWS techniques are available under the AWS tab.`}
+            </p>
+          </div>
+        )}
       </div>
     </Layout>
   );

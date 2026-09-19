@@ -128,8 +128,8 @@ export function SigmaRulePanel({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-border/60 overflow-hidden bg-card">
-        <div className="flex flex-col gap-3 border-b border-border/60 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="rounded-lg border border-border/50 overflow-hidden bg-card">
+        <div className="flex flex-col gap-3 border-b border-border/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
             <p className="text-sm font-medium text-foreground">Sigma rule</p>
             <p className="text-xs text-muted-foreground">YAML</p>
@@ -155,43 +155,41 @@ export function SigmaRulePanel({
               <Languages className="h-3.5 w-3.5" />
               Convert
             </Button>
+            <CopyDownloadButtons
+              code={sigma}
+              copiedId={copiedId}
+              setCopiedId={setCopiedId}
+              copyKey="sigma-primary"
+              onDownload={() => downloadFile(sigma, `${detectionId}.yml`)}
+              downloadLabel="Download .yml"
+            />
           </div>
         </div>
 
-        <CodeToolbar
-          code={sigma}
-          format="sigma"
-          copiedId={copiedId}
-          setCopiedId={setCopiedId}
-          copyKey="sigma-primary"
-          onDownload={() => downloadFile(sigma, `${detectionId}.yml`)}
-          downloadLabel="Download .yml"
-          embedded
-        />
+        <CodeBlock code={sigma} format="sigma" />
       </div>
 
       {converted && (
         <div className="space-y-2">
           {converted.supported && converted.query ? (
-            <div className="rounded-lg border border-border/60 overflow-hidden bg-card">
-              <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3">
+            <div className="rounded-lg border border-border/50 overflow-hidden bg-card">
+              <div className="flex items-center justify-between gap-3 border-b border-border/50 px-4 py-3">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-foreground">{converted.label}</p>
                   <p className="text-xs text-muted-foreground">{SOURCE_LABELS[converted.source]}</p>
                 </div>
+                <CopyDownloadButtons
+                  code={converted.query}
+                  copiedId={copiedId}
+                  setCopiedId={setCopiedId}
+                  copyKey={copyKey}
+                  onDownload={() =>
+                    downloadFile(converted.query, `${detectionId}.${converted.extension}`)
+                  }
+                  downloadLabel={`Download .${converted.extension}`}
+                />
               </div>
-              <CodeToolbar
-                code={converted.query}
-                format={converted.language}
-                copiedId={copiedId}
-                setCopiedId={setCopiedId}
-                copyKey={copyKey}
-                onDownload={() =>
-                  downloadFile(converted.query, `${detectionId}.${converted.extension}`)
-                }
-                downloadLabel={`Download .${converted.extension}`}
-                embedded
-              />
+              <CodeBlock code={converted.query} format={converted.language} />
             </div>
           ) : (
             <div className="rounded-lg border border-border/50 bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
@@ -200,7 +198,7 @@ export function SigmaRulePanel({
           )}
 
           {converted.warnings.length > 0 && converted.supported && (
-            <div className="rounded-md border border-border/40 bg-muted/15 px-3 py-2 space-y-1">
+            <div className="rounded-md border border-border/50 bg-muted/15 px-3 py-2 space-y-1">
               {converted.warnings.slice(0, 4).map((w, i) => (
                 <p key={i} className="text-xs text-muted-foreground flex items-start gap-1.5">
                   <AlertTriangle className="h-3 w-3 mt-0.5 text-severity-medium shrink-0" />
@@ -215,63 +213,62 @@ export function SigmaRulePanel({
   );
 }
 
-function CodeToolbar({
+function CopyDownloadButtons({
   code,
-  format,
   copiedId,
   setCopiedId,
   copyKey,
   onDownload,
   downloadLabel,
-  embedded = false,
 }: {
   code: string;
-  format: string;
   copiedId: string | null;
   setCopiedId: (id: string | null) => void;
   copyKey: string;
   onDownload?: () => void;
   downloadLabel?: string;
-  embedded?: boolean;
 }) {
   return (
-    <div className={embedded ? "" : "rounded-lg border border-border/60 overflow-hidden bg-card"}>
-      <div className="flex items-center justify-end gap-1 border-b border-border/40 bg-muted/40 px-3 py-1.5">
-        {onDownload && (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-            onClick={onDownload}
-          >
-            <Download className="h-3 w-3 mr-1" />
-            {downloadLabel ?? "Download"}
-          </Button>
-        )}
+    <div className="flex items-center gap-1 shrink-0">
+      {onDownload && (
         <Button
           variant="ghost"
           size="sm"
           className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            navigator.clipboard.writeText(code);
-            setCopiedId(copyKey);
-            setTimeout(() => setCopiedId(null), 2000);
-          }}
+          onClick={onDownload}
         >
-          {copiedId === copyKey ? (
-            <>
-              <Check className="h-3 w-3 mr-1" /> Copied
-            </>
-          ) : (
-            <>
-              <Copy className="h-3 w-3 mr-1" /> Copy
-            </>
-          )}
+          <Download className="h-3 w-3 mr-1" />
+          {downloadLabel ?? "Download"}
         </Button>
-      </div>
-      <pre className="max-h-[28rem] overflow-auto bg-muted/20 p-4 text-[13px] font-mono leading-relaxed">
-        <code>{highlightCode(code, format)}</code>
-      </pre>
+      )}
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
+        onClick={() => {
+          navigator.clipboard.writeText(code);
+          setCopiedId(copyKey);
+          setTimeout(() => setCopiedId(null), 2000);
+        }}
+      >
+        {copiedId === copyKey ? (
+          <>
+            <Check className="h-3 w-3 mr-1" /> Copied
+          </>
+        ) : (
+          <>
+            <Copy className="h-3 w-3 mr-1" /> Copy
+          </>
+        )}
+      </Button>
     </div>
+  );
+}
+
+function CodeBlock({ code, format }: { code: string; format: string }) {
+  return (
+    <pre className="max-h-[28rem] overflow-auto bg-muted/20 p-4 text-[13px] font-mono leading-relaxed">
+      <code>{highlightCode(code, format)}</code>
+    </pre>
   );
 }

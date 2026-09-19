@@ -1,0 +1,22 @@
+{
+  "id": "tech-imds-credential-theft",
+  "name": "EC2 IMDS Credential Theft",
+  "shortName": "IMDS Theft",
+  "description": "The EC2 Instance Metadata Service (IMDS) provides temporary IAM role credentials to any process running on the instance. An attacker with code execution on the instance (via RCE, SSRF, or compromised application) can query the metadata endpoint at http://169.254.169.254/latest/meta-data/iam/security-credentials/ to retrieve access keys, secret key, and session token. IMDSv1 uses a simple HTTP GET and is vulnerable to SSRF from web applications. No AWS permissions are required; the attacker only needs network access to the metadata endpoint from within the instance.",
+  "services": [
+    "EC2",
+    "IAM"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "det-015",
+    "det-189"
+  ],
+  "mitigations": [
+    "Enforce IMDSv2 (require token-based access)",
+    "Apply least-privilege IAM roles to EC2 instances",
+    "Use VPC endpoints to restrict metadata access"
+  ],
+  "category": "credential-access",
+  "cloudProvider": "aws"
+}

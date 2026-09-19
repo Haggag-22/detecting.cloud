@@ -1,0 +1,118 @@
+{
+  "whyItMatters": "Inline policy changes are a durable permission change on an existing principal. Even when legitimate, they are important to log and review because attackers commonly use inline policies for stealthy privilege expansion and persistence.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with iam:PutUserPolicy or iam:PutRolePolicy can add or overwrite permissions directly on an IAM user or role they want to strengthen.",
+    "realWorldUsage": "Inline policy abuse is a well-known IAM escalation path in AWS tradecraft because it does not require creating a new principal or changing trust relationships.",
+    "whyItMatters": "Most environments have relatively few identities that should modify inline policies. That makes this a strong baseline engineering signal, even though it is not high-confidence malicious activity by itself.",
+    "riskAndImpact": "If this activity is missed, an attacker can broaden access on an existing user or role, gain access to secrets or KMS material, assume additional roles, or establish durable persistence."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.principalId",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "requestParameters.userName",
+      "requestParameters.roleName",
+      "requestParameters.policyName",
+      "requestParameters.policyDocument",
+      "sourceIPAddress",
+      "eventTime",
+      "recipientAccountId"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled for IAM activity.",
+      "The pipeline must retain the full requestParameters.policyDocument field.",
+      "If policyDocument is escaped or compacted, downstream parsing must normalize it before analysis."
+    ],
+    "limitations": [
+      "This event alone does not prove malicious intent.",
+      "Broad admin and IaC workflows can generate true but expected events.",
+      "Some pipelines truncate or mishandle large inline policy documents."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Policy Content Risk",
+      "description": "Parse the inline document and score it for wildcard admin, high-risk IAM actions, sensitive data access, pass-role, and assume-role capability.",
+      "examples": [
+        "Action:* + Resource:*",
+        "iam:PassRole",
+        "sts:AssumeRole"
+      ],
+      "falsePositiveReduction": "Separates routine permission maintenance from materially dangerous privilege expansion."
+    },
+    {
+      "dimension": "Actor Trust and Change Channel",
+      "description": "Identify whether the caller is an approved IAM admin, break-glass identity, Terraform runner, or unexpected workload principal.",
+      "examples": [
+        "AWSReservedSSO_AdministratorAccess",
+        "terraform-prod-runner",
+        "app-instance-role"
+      ],
+      "falsePositiveReduction": "Expected IAM operators can be downgraded without suppressing visibility."
+    },
+    {
+      "dimension": "Target Principal Criticality",
+      "description": "Classify the affected user or role by environment, owner, sensitivity, and whether it is human, service, break-glass, or dormant.",
+      "examples": [
+        "production deploy role",
+        "legacy IAM user",
+        "security response role"
+      ],
+      "falsePositiveReduction": "Helps prioritize risky changes on sensitive or unexpected targets."
+    },
+    {
+      "dimension": "Behavioral Baseline",
+      "description": "Track who normally edits inline policies and whether this actor-target pair is common.",
+      "examples": [
+        "first-ever inline policy change by this principal",
+        "actor never modified this role before"
+      ],
+      "falsePositiveReduction": "Raises confidence for unusual IAM write patterns."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This should be treated as a baseline IAM change detector, not a standalone privilege-escalation verdict. Fire on every successful PutUserPolicy and PutRolePolicy, then use enrichment to score the event based on policy content, actor trust, and target criticality.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals PutUserPolicy or PutRolePolicy",
+      "errorCode is absent",
+      "requestParameters.userName or requestParameters.roleName is present"
+    ],
+    "tuningGuidance": "1. Keep this rule broad and baseline-oriented. 2. Do not hardcode severity escalation based only on the API call. 3. Add downstream scoring for dangerous policy content, unusual actor, and sensitive targets.",
+    "whenToFire": "Fire on every successful inline policy modification. High-priority triage should occur only after enrichment shows dangerous content, risky actor context, or unusual targets."
+  },
+  "simulationCommand": "aws iam put-role-policy --role-name TargetRole --policy-name TestInlinePolicy --policy-document file://inline-policy.json",
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium (expected IAM administration exists, but the event is still operationally important)",
+    "expectedVolume": "Org-dependent; usually low to moderate",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena",
+      "Splunk",
+      "CloudWatch Logs Insights",
+      "EventBridge + Lambda",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Batch every 5-15 minutes or real-time via EventBridge and streaming SIEM ingestion.",
+    "considerations": [
+      "This is a foundational rule that other IAM detections should build on.",
+      "Policy-document parsing quality matters more than API matching.",
+      "Keep severity moderate unless enrichment shows dangerous content or suspicious actor context."
+    ]
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "tech-access-key-creation",
+  "name": "Access Key Generation",
+  "shortName": "Access Keys",
+  "description": "An attacker with iam:CreateAccessKey can generate long-lived access keys for an IAM user they control or have compromised. Unlike temporary credentials from STS, access keys do not expire and provide persistent programmatic access. Attackers create keys on backdoor users to maintain access after the initial compromise is remediated. Required permission is iam:CreateAccessKey. The attacker must have access to the target user (e.g., created it or compromised it).",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:CreateAccessKey"
+  ],
+  "detectionIds": [
+    "det-010"
+  ],
+  "mitigations": [
+    "Monitor access key creation events",
+    "Enforce access key rotation policies",
+    "Use temporary credentials (STS) instead of long-lived keys"
+  ],
+  "category": "persistence",
+  "cloudProvider": "aws"
+}

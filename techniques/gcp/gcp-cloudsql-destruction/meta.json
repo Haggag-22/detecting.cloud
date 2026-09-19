@@ -1,0 +1,20 @@
+{
+  "id": "tech-gcp-cloudsql-destruction",
+  "name": "Cloud SQL Database Destruction",
+  "shortName": "Cloud SQL Destroy",
+  "description": "Cloud SQL is Google's managed database. Changing or deleting an instance takes the application\u2019s data with it, or weakens networking and backups so the next step is easier. Like RDS deletion in AWS, this is outage and possible data loss, not a quiet read. Snapshots help only if they still exist. Instance delete and 'authorized networks set to 0.0.0.0/0' are the two changes to treat as emergencies.",
+  "services": [
+    "Cloud SQL"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-025"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "gcp"
+}

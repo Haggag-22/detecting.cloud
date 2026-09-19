@@ -1,0 +1,21 @@
+title: Serial Console Access Followed by Suspicious Activity
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection_serial:
+    eventSource: ec2-instance-connect.amazonaws.com
+    eventName: SendSerialConsoleSSHPublicKey
+  selection_sensitive:
+    eventName:
+      - UpdateLoginProfile
+      - CreateLoginProfile
+      - StartSession
+      - PutUserPolicy
+      - AttachRolePolicy
+      - PutRolePolicy
+      - GetSecretValue
+      - CreateAccessKey
+  condition: selection_serial
+level: critical
+# Full correlation requires ordered sequence and stable actor identity across serial-console access and follow-on activity.

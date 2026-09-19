@@ -1,0 +1,100 @@
+{
+  "whyItMatters": "Attackers do not always need to add new permissions; often they can increase effective access by removing boundaries, deny statements, or restrictive controls that were previously limiting access.",
+  "threatContext": {
+    "attackerBehavior": "An attacker can increase effective permissions by deleting a permissions boundary, detaching a restrictive managed policy, deleting a restrictive inline policy, or reverting a control to a weaker version.",
+    "realWorldUsage": "Restrictive-control removal is a common IAM abuse technique because explicit deny and permissions boundaries can silently block actions even when allows are already present elsewhere.",
+    "whyItMatters": "A detach or delete event is only important if the removed control was actually restrictive. Likewise, a replacement is only dangerous if the new control state materially weakens the prior control state.",
+    "riskAndImpact": "If missed, attackers can unlock dormant access, bypass delegated-administration guardrails, or expose previously denied actions without attaching any obvious new policy."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.arn",
+      "userIdentity.type",
+      "requestParameters.roleName",
+      "requestParameters.userName",
+      "requestParameters.policyArn",
+      "requestParameters.policyName",
+      "requestParameters.versionId",
+      "sourceIPAddress",
+      "eventTime"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must include policy detach/delete plus boundary-removal and policy-version events if you want full weakening coverage.",
+      "The platform must preserve or be able to retrieve the content of removed, previous, and replacement policies.",
+      "A catalog of restrictive policies and boundaries should be built from parsed documents, not names."
+    ],
+    "limitations": [
+      "Detach and delete events often do not carry the full policy document, so enrichment is mandatory.",
+      "Name-based rules both miss dangerous custom controls and over-alert on harmless names.",
+      "If you keep the scope detach/delete-only, you will miss weakening-by-replacement patterns."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Restrictive Control Classification",
+      "description": "Classify removed or replaced policies as restrictive if they contain explicit Deny statements, tight conditions, or permissions-boundary semantics that cap effective permissions.",
+      "examples": [
+        "managed policy contains explicit Deny",
+        "boundary limits principal to approved services only"
+      ],
+      "falsePositiveReduction": "Ensures the rule alerts on actual control reduction, not every detach or delete."
+    },
+    {
+      "dimension": "Before/After Effective Constraint Diff",
+      "description": "Compare the prior restrictive control to the post-change state to see whether denies disappeared, conditions were loosened, or the boundary became broader.",
+      "examples": [
+        "DeleteRolePermissionsBoundary leaves no boundary",
+        "SetDefaultPolicyVersion removes Deny statement"
+      ],
+      "falsePositiveReduction": "Distinguishes meaningful weakening from no-op or equivalent policy refactors."
+    },
+    {
+      "dimension": "Target Principal and Governance Context",
+      "description": "Measure whether the affected user or role is privileged, production, delegated-admin managed, or expected to carry a boundary.",
+      "examples": [
+        "delegated user boundary removed",
+        "production CI role loses explicit deny policy"
+      ],
+      "falsePositiveReduction": "Prioritizes control reductions on high-value principals and suppresses low-impact maintenance."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "The rule should ask whether a restrictive control was actually reduced, not whether the policy name looked restrictive. The strongest implementation has three branches: boundary removed, restrictive policy removed, or restrictive policy or boundary weakened.",
+    "conditions": [
+      "branch A: eventName equals DeleteRolePermissionsBoundary or DeleteUserPermissionsBoundary",
+      "branch B: eventName equals DetachUserPolicy, DetachRolePolicy, DeleteUserPolicy, or DeleteRolePolicy and the removed policy is classified as restrictive",
+      "branch C: eventName equals SetDefaultPolicyVersion or equivalent replacement action and the new effective control state is weaker than the previous state"
+    ],
+    "tuningGuidance": "1. Keep boundary-removal visibility as a baseline, but reserve high-severity alerts for confirmed control reduction. 2. Reuse the same policy parser and version catalog used for policy-semantic detections. 3. Score full boundary deletion highest, semantic weakening next, and name-only hints lowest or not at all.",
+    "whenToFire": "Fire when a permissions boundary disappears, a semantically restrictive policy is removed, or a policy or boundary change measurably reduces effective restrictions on a principal."
+  },
+  "simulationCommand": "aws iam delete-role-permissions-boundary --role-name TargetRole",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with semantic control classification and before/after diffing; high with restrictive-name matching",
+    "expectedVolume": "Very low in mature environments with boundaries and guardrails; modest in accounts undergoing IAM redesign",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda with policy lookup and diffing",
+      "SIEM with enrichment tables",
+      "Athena only if policy content and prior-state snapshots are materialized in advance"
+    ],
+    "scheduling": "Real-time is preferred for boundary deletion; near-real-time scheduled analytics work for semantic weakening if prior-state materialization exists.",
+    "considerations": [
+      "If this rule stays detach/delete-only, harmful weakening remains partially uncovered.",
+      "This is the semantic high-fidelity companion to the broader removal baseline."
+    ]
+  }
+}

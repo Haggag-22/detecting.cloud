@@ -1,0 +1,98 @@
+{
+  "whyItMatters": "A lifecycle config only becomes dangerous when it is likely to execute. Notebook start shortly after config preparation is one of the clearest signals that startup code is being operationalized.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may modify or attach a lifecycle config and then quickly start the notebook to trigger execution of the injected startup logic.",
+    "realWorldUsage": "This is attractive because it turns a control-plane config change into actual code execution inside a managed ML environment.",
+    "whyItMatters": "The strongest signal is the ordered path from config preparation to notebook start, not the presence of either event independently.",
+    "riskAndImpact": "If missed, defenders may see lifecycle changes and notebook starts as unrelated operational noise instead of a single execution chain."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for SageMaker",
+      "Notebook-to-lifecycle-config mappings"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.notebookInstanceName",
+      "requestParameters.lifecycleConfigName",
+      "requestParameters.notebookInstanceLifecycleConfigName",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "Lifecycle-config changes, notebook association, and notebook start events must all be ingested.",
+      "The detector should carry notebook or lifecycle-config linkage across stages.",
+      "Notebook execution-role context should be available for downstream correlation."
+    ],
+    "limitations": [
+      "Actor-only joins are weaker than notebook or config linkage.",
+      "Notebook starts may be scheduled or expected in some pipelines.",
+      "Lifecycle-config create events without later association may be less meaningful."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Notebook and Config Linkage",
+      "description": "Track how a lifecycle-config mutation relates to a notebook that is later started.",
+      "examples": [
+        "malicious-config -> target notebook -> StartNotebookInstance"
+      ],
+      "falsePositiveReduction": "Prevents unrelated SageMaker events by the same actor from forming a false chain."
+    },
+    {
+      "dimension": "Execution Role Risk",
+      "description": "Resolve the notebook execution role and what privileges it has when the notebook starts.",
+      "examples": [
+        "access to secrets",
+        "broad S3 access"
+      ],
+      "falsePositiveReduction": "Raises confidence when the started notebook can materially impact the environment."
+    },
+    {
+      "dimension": "Operational Context",
+      "description": "Determine whether the start sequence matches expected notebook scheduling or maintenance workflows.",
+      "examples": [
+        "scheduled team notebook start",
+        "manual out-of-band start"
+      ],
+      "falsePositiveReduction": "Separates normal notebook operations from suspicious execution enablement."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model an execution-readiness chain in SageMaker: lifecycle-config creation, update, or notebook association is followed by notebook start for the same notebook or config lineage. It should require ordered sequence and object linkage wherever possible.",
+    "conditions": [
+      "first event is CreateNotebookInstanceLifecycleConfig, UpdateNotebookInstanceLifecycleConfig, or UpdateNotebookInstance with lifecycle-config context",
+      "second event is StartNotebookInstance for the same notebook or linked lifecycle-config path",
+      "start occurs within 30 minutes"
+    ],
+    "tuningGuidance": "1. Correlate on notebook or lifecycle-config linkage, not only actor. 2. Require order. 3. Escalate when the notebook execution role is powerful or the actor is unauthorized for SageMaker lifecycle management.",
+    "whenToFire": "Fire when SageMaker startup-code preparation is quickly followed by a notebook start that can execute the config."
+  },
+  "simulationCommand": "aws sagemaker update-notebook-instance --notebook-instance-name target --lifecycle-config-name demo-config && aws sagemaker start-notebook-instance --notebook-instance-name target",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with notebook linkage and operational context; medium with actor-only joins",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with ordered event windows",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is preferred because notebook execution may follow quickly after preparation.",
+    "considerations": [
+      "This is the execution-readiness rule for SageMaker lifecycle abuse.",
+      "Notebook or config linkage is the key implementation dependency."
+    ]
+  }
+}

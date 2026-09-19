@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventName=RunInstances
+| where like(requestParameters.iamInstanceProfile.arn, "%Admin%") OR like(requestParameters.iamInstanceProfile.arn, "%Administrator%") OR like(requestParameters.iamInstanceProfile.arn, "%PowerUser%") OR like(requestParameters.iamInstanceProfile.arn, "%Security%") OR like(requestParameters.iamInstanceProfile.arn, "%OrganizationAccountAccessRole%")
+| table _time, userIdentity.type, userIdentity.arn, requestParameters.instanceType, requestParameters.iamInstanceProfile.arn, requestParameters.subnetId, sourceIPAddress

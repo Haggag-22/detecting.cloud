@@ -1,0 +1,5 @@
+[
+  "Identify the target principal, its ownership, and the cluster receiving the access entry.",
+  "Verify whether this principal type is approved for Kubernetes access on that cluster.",
+  "Check whether a broad access policy was associated shortly afterward."
+]

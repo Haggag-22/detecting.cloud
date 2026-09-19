@@ -1,0 +1,10 @@
+title: Suspicious Policy Version Rollback
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: iam.amazonaws.com
+    eventName: SetDefaultPolicyVersion
+  condition: selection
+level: high

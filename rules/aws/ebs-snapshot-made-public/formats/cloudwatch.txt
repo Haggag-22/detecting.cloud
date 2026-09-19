@@ -1,0 +1,5 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, requestParameters.snapshotId, requestParameters.createVolumePermission, sourceIPAddress
+| filter eventSource = "ec2.amazonaws.com"
+| filter eventName = "ModifySnapshotAttribute"
+| filter requestParameters like /all/
+| sort @timestamp desc

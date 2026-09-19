@@ -1,10 +1,8 @@
-import React, { useState, useCallback } from "react";
+import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown, ChevronRight, ThumbsUp, AlertTriangle, ThumbsDown, Copy, Check, ExternalLink } from "lucide-react";
-import { renderCodeWithColoredKeys } from "@/lib/codeHighlight";
-import { QualityMetricsVisual } from "@/components/DetectionVisuals";
+import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
+import { CountBadge } from "@/components/CountBadge";
 import { SigmaRulePanel } from "@/components/SigmaRulePanel";
 import { Link } from "react-router-dom";
 import { techniqueCategories } from "@/data/techniques";
@@ -13,108 +11,32 @@ import type {
   DetectionLifecycle,
   ThreatContext,
   TelemetryValidation,
-  DataModeling,
   EnrichmentContext,
-  DetectionQuality,
-  CommunityConfidence,
-  DeploymentInfo,
-  DetectionLogicExplanation,
 } from "@/data/detections";
 
 function DetectionRuleSection({
   detection,
-  lifecycle,
   copiedId,
   setCopiedId,
 }: {
   detection: Detection;
-  lifecycle: DetectionLifecycle;
   copiedId: string | null;
   setCopiedId: (id: string | null) => void;
 }) {
-  const logic = lifecycle.logicExplanation;
   const sigma = detection.rules.sigma;
 
-  return (
-    <div className="space-y-5">
-      {sigma ? (
-        <SigmaRulePanel
-          sigma={sigma}
-          rules={detection.rules}
-          detectionId={detection.id}
-          copiedId={copiedId}
-          setCopiedId={setCopiedId}
-        />
-      ) : (
-        <p className="text-sm text-muted-foreground">No Sigma rule is available for this detection.</p>
-      )}
+  if (!sigma) {
+    return <p className="text-sm text-muted-foreground">No Sigma rule is available for this detection.</p>;
+  }
 
-      {logic && (
-        <div className="pt-4 border-t border-border/40">
-          <h3 className="text-sm font-medium mb-3 text-foreground">Detection Logic</h3>
-          <DetectionLogicTab logic={logic} copiedId={copiedId} setCopiedId={setCopiedId} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DetectionLogicTab({
-  logic,
-  copiedId,
-  setCopiedId,
-}: {
-  logic: DetectionLogicExplanation;
-  copiedId: string | null;
-  setCopiedId: (id: string | null) => void;
-}) {
-  const fullText = [
-    logic.humanReadable,
-    logic.conditions?.length ? "\n\nConditions:\n" + logic.conditions.map((c) => `• ${c}`).join("\n") : "",
-    logic.tuningGuidance ? `\n\nTuning:\n${logic.tuningGuidance}` : "",
-    logic.whenToFire ? `\n\nWhen to fire:\n${logic.whenToFire}` : "",
-  ].join("");
   return (
-    <div className="space-y-4 text-sm">
-      <p className="text-muted-foreground leading-relaxed">{logic.humanReadable}</p>
-      {logic.conditions && logic.conditions.length > 0 && (
-        <div>
-          <p className={sectionLabelClass}>Exact Conditions</p>
-          <ul className="list-disc list-inside text-muted-foreground space-y-1">
-            {logic.conditions.map((c, i) => (
-              <li key={i}>{c}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {logic.tuningGuidance && (
-        <div>
-          <p className={sectionLabelClass}>Tuning Guidance</p>
-          <p className="text-muted-foreground">{logic.tuningGuidance}</p>
-        </div>
-      )}
-      {logic.whenToFire && (
-        <div>
-          <p className={sectionLabelClass}>When to Fire</p>
-          <p className="text-muted-foreground">{logic.whenToFire}</p>
-        </div>
-      )}
-      <div className="pt-2">
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-xs"
-          onClick={() => {
-            navigator.clipboard.writeText(fullText);
-            setCopiedId("detection-logic");
-            setTimeout(() => setCopiedId(null), 2000);
-          }}
-        >
-          {copiedId === "detection-logic" ? <><Check className="h-3 w-3 mr-1" /> Copied</> : <><Copy className="h-3 w-3 mr-1" /> Copy</>}
-          Copy full explanation
-        </Button>
-      </div>
-    </div>
+    <SigmaRulePanel
+      sigma={sigma}
+      rules={detection.rules}
+      detectionId={detection.id}
+      copiedId={copiedId}
+      setCopiedId={setCopiedId}
+    />
   );
 }
 
@@ -135,19 +57,17 @@ function SectionCard({
   const header = (
     <span className="flex items-center gap-3 min-w-0">
       {phase != null && (
-        <span className="shrink-0 font-mono text-[11px] tabular-nums text-muted-foreground/80">
-          {String(phase).padStart(2, "0")}
-        </span>
+        <CountBadge size="md">{String(phase).padStart(2, "0")}</CountBadge>
       )}
-      <span className="truncate">{title}</span>
+      <span className="truncate text-foreground">{title}</span>
     </span>
   );
 
   if (!collapsible) {
     return (
       <div className="mb-4 rounded-lg border border-border/50 bg-card">
-        <div className="px-5 py-3.5 border-b border-border/40">
-          <h2 className="font-display text-base font-semibold tracking-tight">{header}</h2>
+        <div className="px-5 py-3.5 border-b border-border/50 bg-primary/10">
+          <h2 className="font-display text-base font-semibold tracking-tight text-foreground">{header}</h2>
         </div>
         <div className="px-5 py-4">{children}</div>
       </div>
@@ -158,16 +78,16 @@ function SectionCard({
     <Collapsible open={open} onOpenChange={setOpen} className="mb-4">
       <div className="rounded-lg border border-border/50 bg-card overflow-hidden">
         <CollapsibleTrigger
-          className={`w-full flex items-center gap-2.5 px-5 py-3.5 text-left hover:bg-muted/20 transition-colors ${
-            open ? "border-b border-border/40" : ""
+          className={`w-full flex items-center gap-2.5 px-5 py-3.5 text-left bg-primary/10 hover:bg-primary/15 transition-colors ${
+            open ? "border-b border-border/50" : ""
           }`}
         >
           {open ? (
-            <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <ChevronDown className="h-3.5 w-3.5 text-primary shrink-0" />
           ) : (
-            <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <ChevronRight className="h-3.5 w-3.5 text-primary shrink-0" />
           )}
-          <h2 className="font-display text-base font-semibold tracking-tight">{header}</h2>
+          <h2 className="font-display text-base font-semibold tracking-tight text-foreground">{header}</h2>
         </CollapsibleTrigger>
         <CollapsibleContent>
           <div className="px-5 py-4">{children}</div>
@@ -175,93 +95,6 @@ function SectionCard({
       </div>
     </Collapsible>
   );
-}
-
-function CodeBlockWithCopy({
-  content,
-  language,
-  copiedId,
-  setCopiedId,
-  copyKey,
-}: {
-  content: string;
-  language: string;
-  copiedId: string | null;
-  setCopiedId: (id: string | null) => void;
-  copyKey: string;
-}) {
-  const id = `copy-${copyKey}`;
-  return (
-    <div className="rounded-lg border border-border/60 overflow-hidden bg-card">
-      <div className="px-3 py-1.5 bg-muted/40 text-xs text-muted-foreground font-mono border-b border-border/40 flex items-center justify-between">
-        <span className="uppercase tracking-wide text-[11px]">{language}</span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs text-muted-foreground hover:text-foreground"
-          onClick={() => {
-            navigator.clipboard.writeText(content);
-            setCopiedId(id);
-            setTimeout(() => setCopiedId(null), 2000);
-          }}
-        >
-          {copiedId === id ? <><Check className="h-3 w-3 mr-1" /> Copied</> : <><Copy className="h-3 w-3 mr-1" /> Copy</>}
-        </Button>
-      </div>
-      <pre className="p-4 overflow-x-auto bg-muted/20 text-[13px] font-mono leading-relaxed">
-        {["json", "hcl", "yaml"].includes(language) ? renderCodeWithColoredKeys(content, language) : <code>{content}</code>}
-      </pre>
-    </div>
-  );
-}
-
-const COMMUNITY_VOTES_KEY = "detecting-cloud-community-votes";
-const COMMUNITY_VOTED_KEY = "detecting-cloud-community-voted";
-
-function getCommunityVotes(detectionId: string): CommunityConfidence {
-  try {
-    const stored = localStorage.getItem(COMMUNITY_VOTES_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored) as Record<string, CommunityConfidence>;
-      return parsed[detectionId] ?? { accurate: 0, needsTuning: 0, noisy: 0 };
-    }
-  } catch {
-    // ignore
-  }
-  return { accurate: 0, needsTuning: 0, noisy: 0 };
-}
-
-function hasUserVoted(detectionId: string): boolean {
-  try {
-    const stored = localStorage.getItem(COMMUNITY_VOTED_KEY);
-    if (stored) {
-      const parsed = JSON.parse(stored) as Record<string, boolean>;
-      return !!parsed[detectionId];
-    }
-  } catch {
-    // ignore
-  }
-  return false;
-}
-
-function setCommunityVote(detectionId: string, vote: "accurate" | "needsTuning" | "noisy") {
-  try {
-    // Save vote
-    const stored = localStorage.getItem(COMMUNITY_VOTES_KEY);
-    const parsed: Record<string, CommunityConfidence> = stored ? JSON.parse(stored) : {};
-    const current = parsed[detectionId] ?? { accurate: 0, needsTuning: 0, noisy: 0 };
-    current[vote] = (current[vote] ?? 0) + 1;
-    parsed[detectionId] = current;
-    localStorage.setItem(COMMUNITY_VOTES_KEY, JSON.stringify(parsed));
-
-    // Mark as voted
-    const votedStored = localStorage.getItem(COMMUNITY_VOTED_KEY);
-    const votedParsed: Record<string, boolean> = votedStored ? JSON.parse(votedStored) : {};
-    votedParsed[detectionId] = true;
-    localStorage.setItem(COMMUNITY_VOTED_KEY, JSON.stringify(votedParsed));
-  } catch {
-    // ignore
-  }
 }
 
 export function DetectionLifecycleSections({
@@ -281,21 +114,6 @@ export function DetectionLifecycleSections({
   coveredTechniques?: Array<{ id: string; name: string; description: string; category: string }>;
   relatedAttackPaths?: Array<{ slug: string; title: string; severity: string; description: string }>;
 }) {
-  const [communityVotes, setCommunityVotesState] = useState<CommunityConfidence>(() =>
-    getCommunityVotes(detection.id)
-  );
-  const [hasVoted, setHasVoted] = useState(() => hasUserVoted(detection.id));
-
-  const handleVote = useCallback(
-    (vote: "accurate" | "needsTuning" | "noisy") => {
-      if (hasVoted) return;
-      setCommunityVote(detection.id, vote);
-      setCommunityVotesState(getCommunityVotes(detection.id));
-      setHasVoted(true);
-    },
-    [detection.id, hasVoted]
-  );
-
   return (
     <>
       {/* 1. Detection Overview - not collapsible, rendered by parent */}
@@ -314,50 +132,25 @@ export function DetectionLifecycleSections({
         </SectionCard>
       )}
 
-      {/* Phase 3: Data Modeling & Normalization */}
-      {lifecycle.dataModeling && (
-        <SectionCard title="Data Modeling and Log Normalization" phase={3} collapsible defaultOpen>
-          <DataModelingSection modeling={lifecycle.dataModeling} copiedId={copiedId} setCopiedId={setCopiedId} />
-        </SectionCard>
-      )}
-
-      {/* Phase 4: Enrichment & Context */}
+      {/* Phase 3: Enrichment & Context */}
       {lifecycle.enrichment && lifecycle.enrichment.length > 0 && (
-        <SectionCard title="Enrichment and Context" phase={4} collapsible defaultOpen>
+        <SectionCard title="Enrichment and Context" phase={3} collapsible defaultOpen>
           <EnrichmentSection enrichment={lifecycle.enrichment} />
         </SectionCard>
       )}
 
-      {/* Phase 5: Detection Logic — Sigma canonical + converter */}
-      <SectionCard title="Writing the Detection Rule" phase={5} collapsible defaultOpen>
+      {/* Phase 4: Sigma rule + converter */}
+      <SectionCard title="Writing the Detection Rule" phase={4} collapsible defaultOpen>
         <DetectionRuleSection
           detection={detection}
-          lifecycle={lifecycle}
           copiedId={copiedId}
           setCopiedId={setCopiedId}
         />
       </SectionCard>
 
-      {/* Phase 6: Detection Testing */}
-      <SectionCard title="Testing the Detection" phase={6} collapsible defaultOpen>
+      {/* Phase 5: Detection Testing */}
+      <SectionCard title="Testing the Detection" phase={5} collapsible defaultOpen>
         <DetectionTestingSection detection={detection} simulationCommand={lifecycle.simulationCommand} />
-      </SectionCard>
-
-      {/* Phase 7: Deployment */}
-      {lifecycle.deployment && (
-        <SectionCard title="Deployment and CI/CD" phase={7} collapsible defaultOpen>
-          <DeploymentSection deployment={lifecycle.deployment} />
-        </SectionCard>
-      )}
-
-      {/* Detection Quality & Community */}
-      <SectionCard title="Detection Quality & Community" collapsible defaultOpen>
-        <DetectionQualitySection
-          quality={lifecycle.quality}
-          communityVotes={communityVotes}
-          onVote={handleVote}
-          hasVoted={hasVoted}
-        />
       </SectionCard>
 
       {/* Detection Coverage */}
@@ -444,53 +237,11 @@ function TelemetryValidationSection({ validation }: { validation: TelemetryValid
   );
 }
 
-function DataModelingSection({
-  modeling,
-  copiedId,
-  setCopiedId,
-}: {
-  modeling: DataModeling;
-  copiedId: string | null;
-  setCopiedId: (id: string | null) => void;
-}) {
-  return (
-    <div className="space-y-4">
-      <div>
-        <p className={`${sectionLabelClass} mb-2`}>Field Mappings (Raw → Normalized)</p>
-        <div className="rounded-lg border border-border overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="px-4 py-2 text-left font-medium">Raw Path</th>
-                <th className="px-4 py-2 text-left font-medium">Normalized Path</th>
-                <th className="px-4 py-2 text-left font-medium">Notes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {modeling.rawToNormalized.map((m, i) => (
-                <tr key={i} className="border-b border-border/50 last:border-0">
-                  <td className="px-4 py-2 font-mono text-xs">{m.rawPath}</td>
-                  <td className="px-4 py-2 font-mono text-xs">{m.normalizedPath}</td>
-                  <td className="px-4 py-2 text-muted-foreground text-xs">{m.notes ?? "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <div>
-        <p className={`${sectionLabelClass} mb-2`}>Example Normalized Event</p>
-        <CodeBlockWithCopy content={modeling.exampleNormalizedEvent} language="json" copiedId={copiedId} setCopiedId={setCopiedId} copyKey="normalized" />
-      </div>
-    </div>
-  );
-}
-
 function EnrichmentSection({ enrichment }: { enrichment: EnrichmentContext[] }) {
   return (
     <div className="space-y-4">
       {enrichment.map((e, i) => (
-        <div key={i} className="rounded-md border border-border/40 bg-muted/10 px-4 py-3 space-y-2">
+        <div key={i} className="rounded-md border border-border/50 bg-muted/10 px-4 py-3 space-y-2">
           <p className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{e.dimension}</p>
           <p className="text-sm text-muted-foreground">{e.description}</p>
           <ul className="list-disc list-inside text-xs text-muted-foreground space-y-1">
@@ -532,14 +283,14 @@ function DetectionTestingSection({
       <div>
         <p className={`${sectionLabelClass} mb-2`}>Simulation</p>
         <p className="text-muted-foreground mb-2">Use the following command to simulate the attack in a lab environment:</p>
-        <pre className="rounded-lg border border-border/60 bg-muted/20 p-4 font-mono text-[13px] overflow-x-auto leading-relaxed">
+        <pre className="rounded-lg border border-border/50 bg-muted/20 p-4 font-mono text-[13px] overflow-x-auto leading-relaxed">
           {simulationCommand ?? "Run the relevant API call or CLI command for this detection."}
         </pre>
       </div>
       {exampleEvent && (
         <div>
           <p className={`${sectionLabelClass} mb-2`}>Expected Log Output</p>
-          <pre className="rounded-lg border border-border/60 bg-muted/20 p-4 font-mono text-[13px] overflow-x-auto leading-relaxed">
+          <pre className="rounded-lg border border-border/50 bg-muted/20 p-4 font-mono text-[13px] overflow-x-auto leading-relaxed">
             {exampleEvent}
           </pre>
         </div>
@@ -552,37 +303,6 @@ function DetectionTestingSection({
           ))}
         </ol>
       </div>
-    </div>
-  );
-}
-
-function DeploymentSection({ deployment }: { deployment: DeploymentInfo }) {
-  return (
-    <div className="space-y-4 text-sm">
-      <div>
-        <p className={`${sectionLabelClass} mb-2`}>Where It Runs</p>
-        <ul className="list-disc list-inside text-muted-foreground space-y-1">
-          {deployment.whereItRuns.map((w, i) => (
-            <li key={i}>{w}</li>
-          ))}
-        </ul>
-      </div>
-      {deployment.scheduling && (
-        <div>
-          <p className={`${sectionLabelClass} mb-2`}>Scheduling</p>
-          <p className="text-muted-foreground">{deployment.scheduling}</p>
-        </div>
-      )}
-      {deployment.considerations && deployment.considerations.length > 0 && (
-        <div>
-          <p className={`${sectionLabelClass} mb-2`}>Practical Considerations</p>
-          <ul className="list-disc list-inside text-muted-foreground space-y-1">
-            {deployment.considerations.map((c, i) => (
-              <li key={i}>{c}</li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
@@ -625,7 +345,7 @@ function DetectionCoverageSection({
       )}
       {attackPaths.length > 0 && (
         <div>
-          <p className={`${sectionLabelClass} mb-2`}>Related Attack Paths</p>
+          <p className={`${sectionLabelClass} mb-2`}>Related Attack Chains</p>
           <div className="rounded-lg border border-border/50 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
@@ -667,41 +387,3 @@ function DetectionCoverageSection({
   );
 }
 
-function DetectionQualitySection({
-  quality,
-  communityVotes,
-  onVote,
-  hasVoted,
-}: {
-  quality?: DetectionQuality;
-  communityVotes: CommunityConfidence;
-  onVote: (vote: "accurate" | "needsTuning" | "noisy") => void;
-  hasVoted: boolean;
-}) {
-  return (
-    <div className="space-y-6">
-      {quality && <QualityMetricsVisual quality={quality} />}
-
-      <div>
-        <p className={`${sectionLabelClass} mb-3`}>Community Confidence</p>
-        {hasVoted && (
-          <p className="text-xs text-muted-foreground mb-2">Thanks for voting!</p>
-        )}
-        <div className="flex flex-wrap gap-4 items-center">
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("accurate")} disabled={hasVoted}>
-            <ThumbsUp className="h-3.5 w-3.5" />
-            Accurate ({communityVotes.accurate})
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("needsTuning")} disabled={hasVoted}>
-            <AlertTriangle className="h-3.5 w-3.5" />
-            Needs tuning ({communityVotes.needsTuning})
-          </Button>
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onVote("noisy")} disabled={hasVoted}>
-            <ThumbsDown className="h-3.5 w-3.5" />
-            Noisy ({communityVotes.noisy})
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}

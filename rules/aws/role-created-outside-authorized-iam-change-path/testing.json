@@ -1,0 +1,5 @@
+[
+  "As a role outside the approved IAM admin set, call CreateRole.",
+  "Verify CloudTrail captures actor and session context.",
+  "Run the detection and confirm it relies on authorization inventory rather than text-based admin matching."
+]

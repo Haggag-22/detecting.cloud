@@ -1,0 +1,22 @@
+{
+  "id": "det-168",
+  "title": "AWS Resource Activity In Unused Region",
+  "description": "Detects resource-creating activity in AWS regions outside the organization's normally-used set. Adversaries operate in unused/unsupported regions to evade monitoring. Tune the region filter to the regions your organization actively uses.",
+  "awsService": "EC2",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "EC2",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate expansion into a new region (update the filter list).",
+    "Global services and disaster-recovery testing."
+  ],
+  "relatedAttackSlugs": []
+}

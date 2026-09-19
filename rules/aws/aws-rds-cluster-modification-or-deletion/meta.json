@@ -1,0 +1,21 @@
+{
+  "id": "det-166",
+  "title": "AWS RDS Cluster Modification or Deletion",
+  "description": "Detects modification or deletion of an AWS RDS cluster via ModifyDBCluster or DeleteDBCluster. DeleteDBCluster can be used by an adversary to destroy data and disrupt availability, while ModifyDBCluster can alter the cluster configuration to weaken security or facilitate unauthorized access.",
+  "awsService": "RDS",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "RDS",
+    "CloudTrail",
+    "Imported"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Planned cluster maintenance, resizing, or decommissioning performed by an administrator."
+  ],
+  "relatedAttackSlugs": []
+}

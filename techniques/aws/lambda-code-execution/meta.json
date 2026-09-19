@@ -1,0 +1,26 @@
+{
+  "id": "tech-lambda-code-execution",
+  "name": "Lambda Function Code Execution",
+  "shortName": "Lambda Exec",
+  "description": "An attacker with lambda:CreateFunction and iam:PassRole can deploy a Lambda function that runs arbitrary code with the permissions of a passed IAM role. The attacker uploads malicious code (e.g., via inline zip or S3), assigns a high-privilege role, and invokes the function. The Lambda executes in AWS's environment with the role's credentials, allowing the attacker to perform any action the role permits, such as creating backdoor users or exfiltrating data. Required permissions are lambda:CreateFunction, lambda:InvokeFunction, and iam:PassRole for the execution role.",
+  "services": [
+    "Lambda",
+    "IAM"
+  ],
+  "permissions": [
+    "lambda:CreateFunction",
+    "lambda:InvokeFunction"
+  ],
+  "detectionIds": [
+    "det-005",
+    "det-012",
+    "det-205"
+  ],
+  "mitigations": [
+    "Restrict Lambda execution roles via permission boundaries",
+    "Limit PassRole to specific Lambda role ARNs",
+    "Audit Lambda functions and their associated roles"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

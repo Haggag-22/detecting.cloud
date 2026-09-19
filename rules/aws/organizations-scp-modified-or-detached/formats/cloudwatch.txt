@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, eventName, requestParameters.policyId, requestParameters.targetId, sourceIPAddress
+| filter eventSource = "organizations.amazonaws.com"
+| filter eventName in ["DetachPolicy", "DeletePolicy", "UpdatePolicy"]
+| sort @timestamp desc

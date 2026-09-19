@@ -1,0 +1,15 @@
+title: EBS Snapshot Made Public
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName: ModifySnapshotAttribute
+  public_group:
+    requestParameters.createVolumePermission.add.items{}.group: 'all'
+  public_group_legacy:
+    requestParameters.groupNames:
+      - all
+  condition: selection and (public_group or public_group_legacy)
+level: critical

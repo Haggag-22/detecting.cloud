@@ -1,0 +1,5 @@
+[
+  "Register an ECS task definition with an image from a non-approved registry.",
+  "Verify CloudTrail captures RegisterTaskDefinition.",
+  "Run the detection to confirm it triggers."
+]

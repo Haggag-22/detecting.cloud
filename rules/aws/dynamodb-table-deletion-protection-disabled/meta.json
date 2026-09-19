@@ -1,0 +1,21 @@
+{
+  "id": "det-024",
+  "title": "DynamoDB Table Deletion Protection Disabled",
+  "description": "Detects when deletion protection is removed from a DynamoDB table.",
+  "awsService": "DynamoDB",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "Medium",
+  "tags": [
+    "DynamoDB",
+    "Deletion Protection",
+    "Compliance"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Table lifecycle management in development"
+  ],
+  "relatedAttackSlugs": []
+}

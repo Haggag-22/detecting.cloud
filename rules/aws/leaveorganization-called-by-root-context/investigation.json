@@ -1,0 +1,5 @@
+[
+  "Confirm the request used root context and identify the member account involved.",
+  "Verify whether any approved account-migration or emergency governance workflow justified root use.",
+  "Check immediately for follow-on IAM, logging, or encryption-control changes after the root-initiated leave attempt."
+]

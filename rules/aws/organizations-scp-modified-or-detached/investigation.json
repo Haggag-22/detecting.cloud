@@ -1,0 +1,6 @@
+[
+  "Identify who modified or detached the SCP.",
+  "Assess impact on organization-wide guardrails.",
+  "Verify if this was planned governance change.",
+  "Restore SCP if unauthorized."
+]

@@ -1,0 +1,22 @@
+{
+  "id": "tech-passrole-agentcore",
+  "name": "Bedrock AgentCore Role Confusion",
+  "shortName": "AgentCore Role",
+  "description": "Bedrock agents use IAM roles for execution. An attacker with iam:PassRole and bedrock:CreateAgent (or bedrock:UpdateAgent) can create or modify an agent to use a privileged role. When the agent is invoked, it executes with that role's permissions. The attacker can configure the agent to use a Lambda function they control, which runs with the agent role and can exfiltrate credentials or perform privileged actions. Required permissions are iam:PassRole and bedrock:CreateAgent or bedrock:UpdateAgent.",
+  "services": [
+    "IAM",
+    "Bedrock"
+  ],
+  "permissions": [
+    "iam:PassRole",
+    "bedrock:CreateAgent"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict PassRole for Bedrock",
+    "Audit agent configurations",
+    "Use dedicated agent roles"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "aws"
+}

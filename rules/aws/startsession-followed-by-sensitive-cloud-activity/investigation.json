@@ -1,0 +1,5 @@
+[
+  "Identify the actor, session issuer, and target associated with the StartSession event.",
+  "Review the short-window sequence from interactive access to secrets access, role chaining, IAM mutation, or snapshoting behavior.",
+  "Determine whether the follow-on activity came from the same principal or a derived session path expected after the session."
+]

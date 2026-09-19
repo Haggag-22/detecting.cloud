@@ -1,0 +1,20 @@
+{
+  "id": "tech-az-device-management-change",
+  "name": "Azure Device or Configuration Deleted",
+  "shortName": "Device Config",
+  "description": "Entra and Intune devices are the laptops and phones allowed to access company apps. Deleting or altering a device record can drop a machine out of compliance, or hide a device the attacker enrolled. Configuration profiles that enforce disk encryption or PIN can also be removed. This is identity and endpoint control, not just inventory cleanup. Device deletion on executive or admin machines should be confirmed with the owner.",
+  "services": [
+    "Azure Activity"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "az-049"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "impact",
+  "cloudProvider": "azure"
+}

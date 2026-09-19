@@ -1,0 +1,24 @@
+{
+  "id": "tech-eventbridge-rule-persistence",
+  "name": "EventBridge Rule Persistence",
+  "shortName": "EventBridge Rule",
+  "description": "An attacker with events:PutRule and events:PutTargets creates an EventBridge rule that triggers on a schedule (e.g., rate(5 minutes)) or event pattern. The target is a Lambda function or other resource that runs attacker code. The rule executes automatically without further attacker action, establishing persistence. The attacker may need lambda:AddPermission to allow EventBridge to invoke the Lambda. Required permissions are events:PutRule and events:PutTargets.",
+  "services": [
+    "EventBridge",
+    "Lambda"
+  ],
+  "permissions": [
+    "events:PutRule",
+    "events:PutTargets"
+  ],
+  "detectionIds": [
+    "det-013"
+  ],
+  "mitigations": [
+    "Restrict PutRule/PutTargets",
+    "Audit EventBridge rules",
+    "Use least-privilege targets"
+  ],
+  "category": "persistence",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,100 @@
+{
+  "whyItMatters": "Serial-console access to sensitive hosts is one of the most severe interactive-access events in AWS. These systems often carry privileged trust, direct data access, or break-glass significance.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may target bastions, identity systems, secrets-facing hosts, or production infrastructure through serial console to bypass normal access controls and gain privileged influence.",
+    "realWorldUsage": "Sensitive hosts are natural targets because serial-console access can provide recovery-style control even when standard remote administration is constrained.",
+    "whyItMatters": "The signal comes from what the target is, not whether its identifier includes operational keywords.",
+    "riskAndImpact": "If missed, unauthorized low-level access to crown-jewel infrastructure can quickly lead to credential theft, persistence, or service disruption."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for EC2 Instance Connect",
+      "EC2 asset inventory and sensitivity classification"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.instanceId",
+      "sourceIPAddress",
+      "userAgent"
+    ],
+    "loggingRequirements": [
+      "Serial-console events must be ingested with target context.",
+      "The environment should maintain sensitivity or workload classification for EC2 instances.",
+      "Instance ownership and environment metadata should be available for enrichment."
+    ],
+    "limitations": [
+      "Without asset inventory the rule cannot reliably determine target sensitivity.",
+      "CloudTrail does not prove whether the serial session was used successfully afterward.",
+      "Some sensitive hosts may legitimately be accessed during controlled recovery events."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Target Sensitivity Classification",
+      "description": "Resolve whether the target is production, identity infrastructure, secrets-facing, or otherwise privileged.",
+      "examples": [
+        "production bastion",
+        "directory services host",
+        "break-glass recovery node"
+      ],
+      "falsePositiveReduction": "Replaces meaningless instance-ID keyword filters with real asset context."
+    },
+    {
+      "dimension": "Actor-to-Target Authorization",
+      "description": "Determine whether the actor is allowed to use serial console on that class of host.",
+      "examples": [
+        "IR team only",
+        "developer outside prod scope"
+      ],
+      "falsePositiveReduction": "Improves triage by combining target sensitivity with access scope."
+    },
+    {
+      "dimension": "Operational Context",
+      "description": "Correlate maintenance windows, incident-response workflows, and emergency procedures.",
+      "examples": [
+        "planned recovery",
+        "untracked out-of-band access"
+      ],
+      "falsePositiveReduction": "Reduces noise from legitimate emergency access."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect serial-console access to hosts classified as sensitive. The detector should resolve the target from inventory, determine its criticality, and alert when low-level interactive access is opened on that class of system.",
+    "conditions": [
+      "eventSource equals ec2-instance-connect.amazonaws.com",
+      "eventName equals SendSerialConsoleSSHPublicKey",
+      "target instance is classified as sensitive or privileged",
+      "optionally escalate further when actor is outside approved scope for that target class"
+    ],
+    "tuningGuidance": "1. Classify targets through asset inventory, not name substrings. 2. Pair target sensitivity with actor scope for prioritization. 3. Escalate strongly for production, identity, secrets, and break-glass infrastructure.",
+    "whenToFire": "Fire when serial console is used against a sensitive target, especially when the actor is not approved for that host class."
+  },
+  "simulationCommand": "aws ec2-instance-connect send-serial-console-ssh-public-key --instance-id i-0abc123 --serial-port 0 --ssh-public-key file://id_rsa.pub",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with accurate asset classification and scope modeling; high with instance-name heuristics",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with asset inventory joins",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because sensitive-host serial-console access is immediately actionable.",
+    "considerations": [
+      "This is the target-centric serial-console detector.",
+      "Asset classification is the main dependency."
+    ]
+  }
+}

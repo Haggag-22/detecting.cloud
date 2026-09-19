@@ -1,0 +1,26 @@
+{
+  "id": "tech-vpc-flow-logs-removal",
+  "name": "VPC Flow Logs Removal",
+  "shortName": "Flow Logs",
+  "description": "An attacker with ec2:DeleteFlowLogs deletes VPC flow log configurations. Flow logs capture network traffic (accepted/rejected) for VPCs, subnets, or ENIs. Deleting them evades network-based detection of malicious traffic (e.g., C2, data exfiltration). Required permission is ec2:DeleteFlowLogs. The attacker specifies the flow log ID. Flow logs may be in CloudWatch Logs or S3.",
+  "services": [
+    "EC2"
+  ],
+  "permissions": [
+    "ec2:DeleteFlowLogs"
+  ],
+  "detectionIds": [
+    "det-110",
+    "det-111",
+    "det-112",
+    "det-113"
+  ],
+  "mitigations": [
+    "Restrict DeleteFlowLogs",
+    "Use organization-level flow logs",
+    "Alert on flow log deletion"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws",
+  "detectionStrategy": "VPC Flow Logs deletion is a high-signal defense-evasion event because it removes network telemetry. The strongest detections combine DeleteFlowLogs with actor context, critical target context (prod VPCs, egress, security tooling), and suspicious follow-on changes indicating exfiltration or stealthy network operations."
+}

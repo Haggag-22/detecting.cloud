@@ -1,0 +1,13 @@
+{
+  "source": [
+    "aws.ec2"
+  ],
+  "detail-type": [
+    "VPC Flow Log"
+  ],
+  "detail": {
+    "action": [
+      "ACCEPT"
+    ]
+  }
+}

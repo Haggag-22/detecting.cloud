@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.type, userIdentity.arn, eventName, requestParameters.instanceId, requestParameters.metadataOptions.httpTokens, requestParameters.httpTokens, sourceIPAddress
+| filter eventSource = "ec2.amazonaws.com"
+| filter (eventName = "RunInstances" and requestParameters.metadataOptions.httpTokens = "optional") or (eventName = "ModifyInstanceMetadataOptions" and requestParameters.httpTokens = "optional")
+| sort @timestamp desc

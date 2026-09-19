@@ -1,0 +1,26 @@
+{
+  "id": "az-038",
+  "title": "Application URI Configuration Changes",
+  "description": "Detects when a configuration change is made to an applications URI. URIs for domain names that no longer exist (dangling URIs), not using HTTPS, wildcards at the end of the domain, URIs that are no unique to that app, or URIs that point to domains you do not control should be investigated.",
+  "awsService": "Entra ID Apps",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "High",
+  "tags": [
+    "AZURE",
+    "Entra ID Apps",
+    "initial-access",
+    "stealth",
+    "t1528",
+    "t1078 004",
+    "persistence",
+    "credential-access"
+  ],
+  "logSources": [
+    "Azure Audit Logs"
+  ],
+  "falsePositives": [
+    "When and administrator is making legitimate URI configuration changes to an application. This should be a planned event."
+  ],
+  "relatedAttackSlugs": []
+}

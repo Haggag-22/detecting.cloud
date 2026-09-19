@@ -1,0 +1,3 @@
+[
+  "aws s3api put-bucket-lifecycle-configuration --bucket cloudtrail-logs-bucket --lifecycle-configuration file://delete-rule.json"
+]

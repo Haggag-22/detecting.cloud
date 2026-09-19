@@ -1,0 +1,12 @@
+title: ACL Persistence by Unexpected Actor
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: s3.amazonaws.com
+    eventName:
+      - PutBucketAcl
+      - PutObjectAcl
+  condition: selection
+level: high

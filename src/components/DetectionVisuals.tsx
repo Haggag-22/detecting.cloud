@@ -1,8 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Badge } from "@/components/ui/badge";
-import { Shield, ShieldAlert, ShieldCheck, Activity, Zap } from "lucide-react";
-import type { DetectionQuality } from "@/data/detections";
+import { Shield, ShieldAlert, ShieldCheck, Activity } from "lucide-react";
 
 /** Animated severity gauge with arc visual */
 export function SeverityGauge({ severity }: { severity: string }) {
@@ -67,60 +65,6 @@ export function SeverityGauge({ severity }: { severity: string }) {
       >
         {severity}
       </motion.span>
-    </div>
-  );
-}
-
-/** MITRE ATT&CK kill chain timeline */
-/** Animated quality metrics cards — no readiness card */
-export function QualityMetricsVisual({ quality }: { quality: DetectionQuality }) {
-  const signalPercent = (quality.signalQuality / 10) * 100;
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      {/* Signal Quality - circular progress */}
-      <div className="rounded-lg border border-border/50 p-4 flex flex-col items-center gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">Signal Quality</p>
-        <div className="relative w-16 h-16">
-          <svg viewBox="0 0 40 40" className="w-full h-full -rotate-90">
-            <circle cx="20" cy="20" r="16" fill="none" stroke="hsl(var(--muted))" strokeWidth="3" />
-            <motion.circle
-              cx="20"
-              cy="20"
-              r="16"
-              fill="none"
-              stroke="hsl(var(--primary))"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeDasharray={100.5}
-              initial={{ strokeDashoffset: 100.5 }}
-              animate={{ strokeDashoffset: 100.5 * (1 - signalPercent / 100) }}
-              transition={{ duration: 1.2, ease: "easeOut", delay: 0.3 }}
-              style={{ filter: "drop-shadow(0 0 4px hsl(var(--primary) / 0.4))" }}
-            />
-          </svg>
-          <motion.span
-            className="absolute inset-0 flex items-center justify-center text-sm font-bold text-foreground"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.8 }}
-          >
-            {quality.signalQuality}
-          </motion.span>
-        </div>
-      </div>
-
-      {/* False Positive Rate */}
-      <div className="rounded-lg border border-border/50 p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-2">False Positive Rate</p>
-        <p className="font-medium text-sm text-foreground">{quality.falsePositiveRate}</p>
-      </div>
-
-      {/* Expected Volume */}
-      <div className="rounded-lg border border-border/50 p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-amber-400 mb-2">Expected Volume</p>
-        <p className="font-medium text-sm text-foreground">{quality.expectedVolume}</p>
-      </div>
     </div>
   );
 }

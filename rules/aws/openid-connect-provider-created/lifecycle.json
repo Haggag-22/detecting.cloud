@@ -1,0 +1,52 @@
+{
+  "whyItMatters": "Detects iam:CreateOpenIDConnectProvider. A rogue OIDC IdP can be trusted by roles for AssumeRoleWithWebIdentity persistence.",
+  "threatContext": {
+    "attackerBehavior": "Detects iam:CreateOpenIDConnectProvider. A rogue OIDC IdP can be trusted by roles for AssumeRoleWithWebIdentity persistence.",
+    "whyItMatters": "IAM OpenID Connect Provider Created is a high-signal control-plane action with no prior Sigma coverage in this catalog.",
+    "riskAndImpact": "If missed, the technique node stays dark and the attacker action is invisible."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.arn",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must log iam.amazonaws.com CreateOpenIDConnectProvider."
+    ],
+    "limitations": [
+      "Management events only; data-plane follow-on is out of scope for this rule."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Approved actor",
+      "description": "Compare the caller to identity and platform-admin inventories.",
+      "examples": [
+        "identity platform pipeline",
+        "break-glass admin"
+      ],
+      "falsePositiveReduction": "Suppress known IdP or CI roles after review."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "Fire on successful CreateOpenIDConnectProvider from iam.amazonaws.com.",
+    "conditions": [
+      "eventSource = iam.amazonaws.com",
+      "eventName = CreateOpenIDConnectProvider"
+    ],
+    "whenToFire": "On each matching successful CloudTrail event."
+  },
+  "simulationCommand": "aws iam create-open-id-connect-provider --url https://example.invalid --client-id-list sts.amazonaws.com --thumbprint-list 0000000000000000000000000000000000000000",
+  "quality": {
+    "signalQuality": 7,
+    "falsePositiveRate": "low-to-medium depending on platform automation",
+    "expectedVolume": "low",
+    "productionReadiness": "experimental"
+  }
+}

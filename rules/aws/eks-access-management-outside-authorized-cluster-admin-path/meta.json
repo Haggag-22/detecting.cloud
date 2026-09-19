@@ -1,0 +1,25 @@
+{
+  "id": "det-100",
+  "title": "EKS Access Management Outside Authorized Cluster Admin Path",
+  "description": "Detects EKS access-entry or access-policy changes performed by identities outside approved cluster-authorization workflows. This should rely on explicit actor authorization and automation provenance, not ARN or principalId substring allowlists.",
+  "awsService": "EKS",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EKS",
+    "Access Entry",
+    "Anomaly"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Known EKS administrators",
+    "Terraform/CloudFormation",
+    "Platform automation"
+  ],
+  "relatedAttackSlugs": []
+}

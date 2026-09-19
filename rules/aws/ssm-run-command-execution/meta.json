@@ -1,0 +1,25 @@
+{
+  "id": "det-029",
+  "title": "SSM Run Command Execution",
+  "description": "Detects use of SSM SendCommand to execute commands on EC2 instances, a common lateral movement technique.",
+  "awsService": "SSM",
+  "relatedServices": [
+    "EC2",
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "SSM",
+    "Lateral Movement",
+    "Command Execution"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Automated patching via SSM",
+    "Legitimate ops commands"
+  ],
+  "relatedAttackSlugs": []
+}

@@ -1,0 +1,16 @@
+{
+  "primaryLogSource": "AWS CloudTrail",
+  "generatingService": "ec2.amazonaws.com",
+  "importantFields": [
+    "eventSource",
+    "eventName",
+    "userIdentity.type",
+    "userIdentity.arn",
+    "requestParameters.metadataOptions.httpTokens",
+    "requestParameters.httpTokens",
+    "requestParameters.instanceId",
+    "sourceIPAddress",
+    "eventTime"
+  ],
+  "exampleEvent": "{\n  \"eventVersion\": \"1.08\",\n  \"eventSource\": \"ec2.amazonaws.com\",\n  \"eventName\": \"RunInstances\",\n  \"userIdentity\": {\n    \"type\": \"IAMUser\",\n    \"arn\": \"arn:aws:iam::123456789012:user/dev-user\"\n  },\n  \"requestParameters\": {\n    \"metadataOptions\": {\n      \"httpTokens\": \"optional\"\n    }\n  },\n  \"responseElements\": {\n    \"instancesSet\": {\n      \"items\": [\n        {\n          \"instanceId\": \"i-xxx\"\n        }\n      ]\n    }\n  },\n  \"sourceIPAddress\": \"203.0.113.10\",\n  \"eventTime\": \"2025-02-10T12:45:00Z\"\n}"
+}

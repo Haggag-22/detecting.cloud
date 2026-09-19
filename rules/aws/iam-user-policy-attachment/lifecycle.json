@@ -1,0 +1,127 @@
+{
+  "whyItMatters": "Direct policy attachment to an IAM user is a high-value identity change because it can grant durable privileges to a long-lived principal outside normal role- and group-based access patterns.",
+  "threatContext": {
+    "attackerBehavior": "An attacker with IAM write permissions can attach a managed policy to a user with AttachUserPolicy or embed an inline policy with PutUserPolicy. This is a common privilege-escalation and persistence path because the attacker can grant permissions directly to an existing user without creating a new role or changing trust relationships.",
+    "realWorldUsage": "Direct user policy grants are a well-known AWS privilege-escalation pattern in public IAM abuse research and red-team tradecraft. Attackers use them both for immediate escalation, such as attaching AdministratorAccess, and for stealthier persistence by attaching narrower customer-managed policies that still enable credential theft, AssumeRole chaining, or access to sensitive data stores.",
+    "whyItMatters": "Mature AWS environments usually prefer roles, groups, and federated access over direct user policy attachment. That means a sensitive policy being attached directly to a user is often uncommon enough to be high signal once approved admin and automation actors are allowlisted.",
+    "riskAndImpact": "If this activity goes undetected, an attacker can grant themselves or another user administrative control, create or rotate credentials, assume sensitive roles, access secrets and KMS-protected data, or disable security tooling."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.userName",
+      "userIdentity.principalId",
+      "requestParameters.userName",
+      "requestParameters.policyArn",
+      "requestParameters.policyName",
+      "requestParameters.policyDocument",
+      "sourceIPAddress",
+      "eventTime",
+      "recipientAccountId"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled for IAM API activity.",
+      "The log pipeline must retain full requestParameters content because AttachUserPolicy and PutUserPolicy use different fields.",
+      "A policy-sensitivity lookup is needed for customer-managed policy ARNs, because policyArn alone does not reveal whether the attached policy is dangerous.",
+      "For PutUserPolicy, downstream tooling must preserve or parse requestParameters.policyDocument instead of dropping or truncating the inline JSON."
+    ],
+    "limitations": [
+      "AttachUserPolicy only shows the policy ARN; it does not by itself prove the policy is sensitive unless you enrich against AWS managed policy names or customer-managed policy content.",
+      "PutUserPolicy can be harder to normalize because policyDocument may be escaped, compacted, or parsed differently across tools.",
+      "Legitimate onboarding, break-glass administration, Terraform, CloudFormation, and identity platform automation can generate true events that are operationally expected."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Policy Sensitivity Classification",
+      "description": "Classify the attached policy as high, medium, or low risk using managed-policy names and customer-managed policy analysis.",
+      "examples": [
+        "arn:aws:iam::aws:policy/AdministratorAccess",
+        "Customer-managed policy granting iam:PassRole and sts:AssumeRole",
+        "Inline policy granting secretsmanager:GetSecretValue and kms:Decrypt"
+      ],
+      "falsePositiveReduction": "Prevents alerting on every direct user policy change and focuses the rule on materially dangerous grants."
+    },
+    {
+      "dimension": "Actor Allowlist and Ownership Context",
+      "description": "Track which principals are approved to manage IAM users and which systems legitimately perform provisioning.",
+      "examples": [
+        "AWSReservedSSO_AdministratorAccess",
+        "terraform-prod-deployer",
+        "cloudformation-execution-role",
+        "identity-lifecycle-automation"
+      ],
+      "falsePositiveReduction": "Suppresses expected provisioning activity while preserving visibility for unexpected actors modifying users."
+    },
+    {
+      "dimension": "Target User Criticality",
+      "description": "Enrich the user receiving the policy with account type, environment, business owner, and whether the user is human, service, break-glass, or deprecated.",
+      "examples": [
+        "Dormant developer IAM user",
+        "Legacy service account in production",
+        "Break-glass responder user"
+      ],
+      "falsePositiveReduction": "Helps separate routine administration of known privileged users from suspicious privilege expansion onto unexpected identities."
+    },
+    {
+      "dimension": "Source and Session Context",
+      "description": "Use source IP, MFA state, session issuer, device posture, and geo context to understand whether the action came from expected administration channels.",
+      "examples": [
+        "Corporate VPN egress IP",
+        "Privileged admin workstation subnet",
+        "Assumed role from CI/CD account",
+        "Unusual geo or unmanaged host"
+      ],
+      "falsePositiveReduction": "Raises confidence when the actor is not only non-allowlisted but also operating from an unusual session or network context."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection should identify direct IAM user policy grants that are meaningfully dangerous, not every AttachUserPolicy or PutUserPolicy event. The strongest production pattern is to require both a user-targeted policy change and evidence that the attached managed policy or inline document is sensitive, then suppress or downgrade approved admin and automation actors. AttachUserPolicy needs enrichment because the ARN alone may represent either a benign or highly privileged policy; PutUserPolicy should inspect the inline document for wildcard admin or a curated set of high-risk actions.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals AttachUserPolicy or PutUserPolicy",
+      "requestParameters.userName is present",
+      "for AttachUserPolicy: requestParameters.policyArn maps to a sensitive managed or customer-managed policy",
+      "for PutUserPolicy: requestParameters.policyDocument grants wildcard admin or a curated set of high-risk actions",
+      "actor is not in an approved IAM administration or infrastructure automation allowlist"
+    ],
+    "tuningGuidance": "1. Maintain a policy sensitivity table instead of relying only on policy name substrings. 2. Allowlist approved IAM administrators, provisioning pipelines, Terraform, and CloudFormation by stable identity attributes such as ARN or principalId. 3. Prioritize alerts where the target user is dormant, recently created, non-admin, or outside the actor's normal ownership boundary.",
+    "whenToFire": "Fire when a user receives a sensitive managed policy or dangerous inline policy from an actor outside approved IAM administration workflows. In mature environments this should be low volume and high signal after actor allowlists and policy sensitivity enrichment are applied."
+  },
+  "simulationCommand": "aws iam attach-user-policy --user-name target-user --policy-arn arn:aws:iam::aws:policy/AdministratorAccess",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium-Low (mostly onboarding or approved IAM administration after actor allowlisting and policy sensitivity filtering)",
+    "expectedVolume": "Low in mature environments; higher in accounts that still use direct IAM users heavily",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "Athena (scheduled query)",
+      "Splunk",
+      "Panther",
+      "Chronicle",
+      "Datadog",
+      "CloudWatch Logs Insights",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Batch: every 5-15 minutes in Athena or SIEM pipelines; Real-time: EventBridge on AttachUserPolicy and PutUserPolicy with enrichment in Lambda or downstream SIEM.",
+    "considerations": [
+      "Managed-policy sensitivity classification is mandatory for high fidelity.",
+      "Inline policy parsing materially improves PutUserPolicy coverage.",
+      "Actor allowlists should be centrally managed and reused across IAM detections.",
+      "Prioritize direct-to-user grants over group or role changes because they often indicate weaker governance and stronger persistence value."
+    ]
+  }
+}

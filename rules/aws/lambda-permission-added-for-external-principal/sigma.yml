@@ -1,0 +1,12 @@
+title: Lambda Permission Added
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: lambda.amazonaws.com
+    eventName:
+      - AddPermission20150331
+      - AddPermission
+  condition: selection
+level: high

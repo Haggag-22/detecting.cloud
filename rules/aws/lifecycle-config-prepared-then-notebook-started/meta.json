@@ -1,0 +1,22 @@
+{
+  "id": "det-104",
+  "title": "Lifecycle Config Prepared Then Notebook Started",
+  "description": "High-confidence execution-readiness detection for SageMaker. This should correlate lifecycle-config mutation or notebook association with a later notebook start over the same notebook or attached config lineage, not just same-actor co-occurrence.",
+  "awsService": "SageMaker",
+  "relatedServices": [],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "SageMaker",
+    "Lifecycle Config",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate notebook start after config update",
+    "Scheduled start"
+  ],
+  "relatedAttackSlugs": []
+}

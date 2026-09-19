@@ -1,0 +1,28 @@
+{
+  "id": "tech-lambda-event-trigger",
+  "name": "Lambda Persistence via Event Triggers",
+  "shortName": "Lambda Trigger",
+  "description": "An attacker configures automated triggers so a backdoor Lambda function runs on a schedule or in response to events. Using events:PutRule and events:PutTargets, they create an EventBridge rule (e.g., rate(5 minutes)) that invokes the Lambda. Alternatively, lambda:CreateEventSourceMapping can attach S3, DynamoDB Streams, or other event sources. The Lambda executes periodically or on trigger without further attacker action. Required permissions include events:PutRule, events:PutTargets, and lambda:AddPermission (to allow EventBridge to invoke the Lambda).",
+  "services": [
+    "Lambda",
+    "CloudTrail",
+    "S3",
+    "DynamoDB"
+  ],
+  "permissions": [
+    "events:PutRule",
+    "events:PutTargets",
+    "lambda:CreateEventSourceMapping"
+  ],
+  "detectionIds": [
+    "det-005",
+    "det-013"
+  ],
+  "mitigations": [
+    "Restrict Lambda creation to specific roles",
+    "Use VPC-attached Lambda functions",
+    "Audit event source mappings regularly"
+  ],
+  "category": "persistence",
+  "cloudProvider": "aws"
+}

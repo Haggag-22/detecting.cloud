@@ -1,0 +1,5 @@
+[
+  "Reproduce Azure Firewall Rule Configuration Modified or Deleted in a lab azure tenant.",
+  "Confirm the matching audit/sign-in event is logged.",
+  "Run the Sigma rule against the event and confirm an alert."
+]

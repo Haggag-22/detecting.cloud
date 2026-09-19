@@ -1,0 +1,5 @@
+[
+  "Identify the override-backed build launch and the exact ordered sensitive actions that followed.",
+  "Determine whether the later activity was performed by the initiating actor, the build service role, or another derived execution identity.",
+  "Assess whether the override content plausibly enabled the observed secrets access, role assumption, or decryption."
+]

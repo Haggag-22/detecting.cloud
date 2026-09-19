@@ -1,0 +1,25 @@
+title: AWS SageMaker Notebook Lifecycle Configuration Change
+id: 707e5b7d-1fce-4880-a3c5-3e90097f4533
+status: experimental
+description: |
+    Detects creation or update of SageMaker notebook lifecycle configurations that can execute code at notebook startup.
+references:
+    - https://detecting.cloud/detection-engineering?rule=det-101
+author: Detecting.Cloud / SOF-ELK
+date: 2026-07-17
+tags:
+    - attack.persistence
+    - attack.t1525
+logsource:
+    product: aws
+    service: cloudtrail
+detection:
+    selection:
+        eventSource: sagemaker.amazonaws.com
+        eventName:
+            - CreateNotebookLifecycleConfig
+            - UpdateNotebookLifecycleConfig
+    condition: selection
+falsepositives:
+    - Legitimate administration, automation, or platform engineering activity.
+level: high

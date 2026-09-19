@@ -1,0 +1,5 @@
+[
+  "Modify snapshot attribute to add group 'all'.",
+  "Verify CloudTrail captures ModifySnapshotAttribute.",
+  "Run the detection to confirm the alert triggers."
+]

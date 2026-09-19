@@ -1,0 +1,5 @@
+[
+  "Run: aws cognito-identity get-credentials-for-identity --identity-id us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+  "Confirm CloudTrail captured the event.",
+  "Run the Sigma rule against the event."
+]

@@ -1,0 +1,18 @@
+{
+  "id": "tech-rogue-oidc-provider",
+  "name": "Rogue OIDC Identity Provider",
+  "shortName": "Rogue OIDC",
+  "description": "An attacker with iam:CreateOpenIDConnectProvider creates an OIDC identity provider that points to an attacker-controlled URL (e.g., https://attacker.com/.well-known/openid-configuration). If the attacker can also modify role trust policies (iam:UpdateAssumeRolePolicy), they add this provider as a trusted issuer. The attacker's IdP issues tokens that satisfy the trust policy. The attacker then assumes the role via sts:AssumeRoleWithWebIdentity. This creates persistence through a trusted identity source. Required permission is iam:CreateOpenIDConnectProvider; role modification may require additional permissions.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:CreateOpenIDConnectProvider"
+  ],
+  "detectionIds": [
+    "det-201"
+  ],
+  "mitigations": [],
+  "category": "persistence",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,14 @@
+title: Unexpected Actor Uses Beanstalk-Derived Privileges
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource:
+      - iam.amazonaws.com
+      - sts.amazonaws.com
+    eventName:
+      - CreateAccessKey
+      - AssumeRole
+  condition: selection
+level: high

@@ -1,0 +1,101 @@
+{
+  "whyItMatters": "Creating a new access key for a high-risk identity after Beanstalk reconnaissance is a strong persistence and credential-theft signal. It suggests environment-derived access was turned into durable IAM credentials.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may inspect Beanstalk configuration to discover credentials or trust paths and then create access keys for a privileged, dormant, or otherwise high-risk IAM user.",
+    "realWorldUsage": "This is attractive because it converts environment access into durable IAM persistence without immediately changing visible app infrastructure.",
+    "whyItMatters": "The target identity's risk matters more than whether its name contains obvious suspicious words.",
+    "riskAndImpact": "If missed, defenders may fail to notice the exact point where Beanstalk-derived access became durable IAM credentials on a valuable target identity."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail management events for Elastic Beanstalk",
+      "AWS CloudTrail management events for IAM",
+      "Identity risk classification inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.userName",
+      "requestParameters.applicationName",
+      "requestParameters.environmentName",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "DescribeConfigurationSettings and CreateAccessKey events must be ingested into the same analytics environment.",
+      "The platform should classify IAM users by privilege, dormancy, and break-glass or service-account posture.",
+      "The engine must support ordered short-window correlation."
+    ],
+    "limitations": [
+      "Username text alone is not reliable for target classification.",
+      "Some legitimate admins may read Beanstalk configuration and later create keys during approved operations.",
+      "The model depends on good target-user enrichment."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Target User Risk",
+      "description": "Classify whether the target user is privileged, dormant, break-glass, console-ineligible, or otherwise high-risk for new keys.",
+      "examples": [
+        "break-glass user",
+        "privileged dormant IAM user"
+      ],
+      "falsePositiveReduction": "Replaces brittle suspicious-username matching."
+    },
+    {
+      "dimension": "Stable Actor Identity",
+      "description": "Normalize the actor across the Beanstalk recon and later key-creation stages.",
+      "examples": [
+        "same assumed role session",
+        "same IAM user"
+      ],
+      "falsePositiveReduction": "Improves correlation fidelity."
+    },
+    {
+      "dimension": "Environment-to-Identity Linkage",
+      "description": "Assess whether the Beanstalk environment plausibly exposed credentials or trust paths relevant to the target IAM user.",
+      "examples": [
+        "env contained IAM admin secret reference",
+        "no plausible path"
+      ],
+      "falsePositiveReduction": "Raises confidence when the environment context explains the pivot."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should model a persistence-focused Beanstalk pivot: an actor reads environment configuration and then creates an access key for a high-risk IAM user. It should require event order and target-user risk classification, not simple username matching.",
+    "conditions": [
+      "first eventSource equals elasticbeanstalk.amazonaws.com and eventName equals DescribeConfigurationSettings",
+      "second eventSource equals iam.amazonaws.com and eventName equals CreateAccessKey",
+      "target IAM user is classified as high-risk",
+      "follow-on action occurs within 30 minutes"
+    ],
+    "tuningGuidance": "1. Classify target users through identity metadata, not names. 2. Require event order. 3. Escalate strongly when the target user is privileged, dormant, or outside expected key-creation workflows.",
+    "whenToFire": "Fire when Beanstalk reconnaissance is followed quickly by CreateAccessKey for a high-risk target user."
+  },
+  "simulationCommand": "aws elasticbeanstalk describe-configuration-settings --application-name my-app --environment-name prod && aws iam create-access-key --user-name demo-user",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with target-user classification and ordered correlation",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM correlation engines",
+      "Athena with identity-risk joins",
+      "Panther / Chronicle / Datadog",
+      "EventBridge + Lambda with temporary state"
+    ],
+    "scheduling": "Near-real-time is preferred because credential persistence becomes actionable immediately.",
+    "considerations": [
+      "This is the target-centric Beanstalk persistence detector.",
+      "Target-user risk classification is the main dependency."
+    ]
+  }
+}

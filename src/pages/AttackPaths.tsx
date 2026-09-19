@@ -1,7 +1,9 @@
-import { useState } from "react";
 import { Layout } from "@/components/Layout";
-import { attackPaths } from "@/data/attackPaths";
-import { getTechniqueById } from "@/data/techniques";
+import {
+  attackPaths,
+  getAttackPathCloudProvider,
+  getAttackPathCountsByCloudProvider,
+} from "@/data/attackPaths";
 import { Badge } from "@/components/ui/badge";
 import {
   ChevronRight, AlertTriangle, Link as LinkIcon, Network, Play, Crosshair,
@@ -9,21 +11,38 @@ import {
 import { PageTitleWithIcon } from "@/components/PageTitleWithIcon";
 import { useSearchParams, Link, Navigate } from "react-router-dom";
 import { AttackFlowChain } from "@/components/AttackFlowChain";
+import { CloudProviderTabs, parseCloudProviderId, type CloudProviderId } from "@/components/CloudProviderTabs";
+import { SeverityPill } from "@/components/SeverityPill";
 
-const severityColor: Record<string, string> = {
-  Critical: "bg-severity-critical/15 text-severity-critical",
-  High: "bg-severity-high/15 text-severity-high",
-  Medium: "bg-severity-medium/15 text-severity-medium",
-};
+import { SEVERITY_BADGE_CLASS } from "@/lib/severityStyles";
+
+const severityColor = SEVERITY_BADGE_CLASS;
+function providerLabel(id: CloudProviderId): string | null {
+  if (id === "all") return null;
+  return id.toUpperCase();
+}
 
 const AttackPathsPage = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const techniqueParam = searchParams.get("technique");
+  const activeProvider = parseCloudProviderId(searchParams.get("provider"));
 
   // Redirect old technique URLs to the new dedicated route
   if (techniqueParam?.startsWith("tech-")) {
     return <Navigate to={`/attack-paths/technique/${techniqueParam}`} replace />;
   }
+
+  const setProvider = (id: CloudProviderId) => {
+    const next = new URLSearchParams();
+    if (id !== "all") next.set("provider", id);
+    setSearchParams(next);
+  };
+
+  const scopedPaths =
+    activeProvider === "all"
+      ? attackPaths
+      : attackPaths.filter((ap) => getAttackPathCloudProvider(ap) === activeProvider);
+  const providerCounts = getAttackPathCountsByCloudProvider();
 
   // ─── Attack Path Detail View ───
   const activeAttackPath = techniqueParam
@@ -31,15 +50,29 @@ const AttackPathsPage = () => {
     : null;
 
   if (activeAttackPath) {
+    const label = providerLabel(getAttackPathCloudProvider(activeAttackPath));
+    const listHref =
+      getAttackPathCloudProvider(activeAttackPath) === "aws" && activeProvider === "all"
+        ? "/attack-paths"
+        : `/attack-paths?provider=${getAttackPathCloudProvider(activeAttackPath)}`;
+
     return (
       <Layout>
-        <div className="container py-12 max-w-4xl">
+        <div className="container max-w-4xl">
           {/* Breadcrumb */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
             <Link to="/attack-paths" className="hover:text-foreground transition-colors">
-              Attack Paths
+              Attack Chains
             </Link>
             <ChevronRight className="h-3.5 w-3.5" />
+            {label && (
+              <>
+                <Link to={listHref} className="hover:text-foreground transition-colors">
+                  {label}
+                </Link>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </>
+            )}
             <span className="text-foreground">{activeAttackPath.title}</span>
           </div>
 
@@ -72,7 +105,7 @@ const AttackPathsPage = () => {
                   className="inline-flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-medium text-primary hover:bg-primary/20 transition-colors"
                 >
                   <Play className="h-4 w-4" />
-                  Simulate this Attack Path
+                  Simulate this Attack Chain
                 </Link>
               </div>
             </div>
@@ -87,7 +120,7 @@ const AttackPathsPage = () => {
 
             {/* References */}
             {activeAttackPath.references && activeAttackPath.references.length > 0 && (
-              <div className="mt-6 rounded-lg border border-border p-6 bg-card">
+              <div className="mt-6 rounded-lg border border-border/50 p-6 bg-card">
                 <h3 className="flex items-center gap-2 font-semibold mb-4">
                   <LinkIcon className="h-4 w-4 text-primary" /> References
                 </h3>
@@ -117,53 +150,50 @@ const AttackPathsPage = () => {
   // ─── List View ───
   return (
     <Layout>
-      <div className="container py-12">
+      <div className="container">
         <PageTitleWithIcon team="red" icon={Crosshair}>
-          Attack Paths
+          Attack Chains
         </PageTitleWithIcon>
-        <p className="text-muted-foreground mb-8">
-          Realistic attacker chains in cloud environments. Each path is composed of reusable technique steps that can be explored individually.
+        <p className="text-muted-foreground mb-6">
+          Realistic attacker chains organized by cloud provider. Select a provider, then a chain to
+          explore its technique steps.
         </p>
 
-        {/* Attack Paths */}
-        <div className="mb-12">
-          <h2 className="text-xs uppercase tracking-wider text-muted-foreground font-medium mb-4">
-            Attack Chains
-          </h2>
+        <CloudProviderTabs
+          value={activeProvider}
+          counts={providerCounts}
+          onChange={setProvider}
+        />
+
+        {scopedPaths.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {attackPaths.map((ap) => (
+            {scopedPaths.map((ap) => (
               <Link
                 key={ap.slug}
                 to={`/attack-paths?technique=${ap.slug}`}
-                className="rounded-lg border border-border/50 bg-card p-5 hover:border-primary/30 transition-colors group"
+                className="flex flex-col h-full rounded-lg border border-border/50 bg-muted/20 p-4 hover:border-primary/30 transition-colors group"
               >
-                <div className="flex gap-2 mb-2">
-                  <Badge className={`text-xs border-0 ${severityColor[ap.severity]}`}>
-                    {ap.severity}
-                  </Badge>
+                <div className="flex items-start gap-2.5 mb-2">
+                  <h3 className="font-semibold text-sm leading-snug flex-1 min-w-0 group-hover:text-primary transition-colors">
+                    {ap.title}
+                  </h3>
+                  <SeverityPill severity={ap.severity} />
                 </div>
-                <h3 className="font-semibold text-sm mb-1 group-hover:text-primary transition-colors">{ap.title}</h3>
-                <p className="text-xs text-muted-foreground line-clamp-2 mb-3">{ap.description}</p>
-                {/* Mini flow preview */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {ap.steps.map((step, i) => {
-                    const tech = getTechniqueById(step.techniqueId);
-                    return (
-                      <span key={i} className="flex items-center gap-1.5">
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-mono">
-                          {tech?.name || "?"}
-                        </span>
-                        {i < ap.steps.length - 1 && (
-                          <ChevronRight className="h-3 w-3 text-muted-foreground/50" />
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
+                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2 flex-1">
+                  {ap.description}
+                </p>
               </Link>
             ))}
           </div>
-        </div>
+        ) : (
+          <div className="rounded-lg border border-dashed border-border/50 bg-card/40 px-6 py-14 text-center">
+            <p className="text-sm text-muted-foreground">
+              {activeProvider === "all"
+                ? "No attack chains yet."
+                : `No ${activeProvider.toUpperCase()} attack chains yet. AWS chains are available under the AWS tab.`}
+            </p>
+          </div>
+        )}
       </div>
     </Layout>
   );

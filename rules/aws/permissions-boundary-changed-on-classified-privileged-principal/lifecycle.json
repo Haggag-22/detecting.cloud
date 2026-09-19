@@ -1,0 +1,99 @@
+{
+  "whyItMatters": "Boundary changes on tier-0 or otherwise privileged identities deserve separate attention because even well-formed governance actions can have outsized blast radius on those principals.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may target a privileged user or role and alter its boundary to reduce controls or prepare future abuse.",
+    "realWorldUsage": "High-value IAM identities are frequent targets because small control changes on them can unlock access across production, incident response, or shared services paths.",
+    "whyItMatters": "The important signal is target criticality, not whether the role name contains admin-like text.",
+    "riskAndImpact": "If missed, a boundary change on a privileged principal can weaken defenses around the exact identities defenders rely on most."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.roleName",
+      "requestParameters.userName",
+      "requestParameters.permissionsBoundary",
+      "sourceIPAddress",
+      "errorCode"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "The environment should maintain a sensitive-principal inventory or identity criticality model.",
+      "Previous boundary state should be available for high-quality triage."
+    ],
+    "limitations": [
+      "Name matching is not a reliable way to identify privileged principals.",
+      "Not every change on a sensitive principal is malicious.",
+      "CloudTrail alone does not tell you whether the new boundary is weaker."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Principal Criticality",
+      "description": "Classify whether the target is break-glass, production deploy, admin-equivalent, shared-services, or incident-response related.",
+      "examples": [
+        "break-glass role",
+        "prod deploy role"
+      ],
+      "falsePositiveReduction": "Focuses the rule on identities where boundary changes have real blast radius."
+    },
+    {
+      "dimension": "Boundary Governance Mapping",
+      "description": "Compare the target class to its approved boundary set.",
+      "examples": [
+        "prod deploy role should use prod boundary",
+        "break-glass account should have no routine changes"
+      ],
+      "falsePositiveReduction": "Prevents expected platform maintenance on low-risk targets from looking like tier-0 abuse."
+    },
+    {
+      "dimension": "Authorized Operator Context",
+      "description": "Correlate the actor with approved governance operators and change windows.",
+      "examples": [
+        "platform-security-admin",
+        "approved maintenance window"
+      ],
+      "falsePositiveReduction": "Allows legitimate high-risk changes to be downgraded instead of ignored."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This detection is target-centric. It should trigger whenever a boundary change affects a classified sensitive principal, then use principal criticality, previous boundary state, and operator context to determine urgency.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals PutRolePermissionsBoundary or PutUserPermissionsBoundary",
+      "target principal is classified as privileged or otherwise sensitive"
+    ],
+    "tuningGuidance": "1. Use identity inventory and criticality tags, not role-name substrings. 2. Map approved boundaries by principal class. 3. Escalate when the new boundary is weaker or the actor is outside expected governance paths.",
+    "whenToFire": "Fire for any boundary change on a classified privileged principal, with highest urgency when the change weakens controls or occurs outside approved operator paths."
+  },
+  "simulationCommand": "aws iam put-role-permissions-boundary --role-name ProdDeployRole --permissions-boundary arn:aws:iam::123456789012:policy/ProdBoundary",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Low-Medium with principal classification and approved-boundary mapping",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with principal inventory",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real time is preferred because changes on privileged principals deserve immediate review.",
+    "considerations": [
+      "Principal criticality metadata is the core dependency for this rule.",
+      "Use this as a target-centric companion to the broader boundary-change detections."
+    ]
+  }
+}

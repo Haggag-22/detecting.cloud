@@ -1,0 +1,22 @@
+{
+  "id": "az-086",
+  "title": "Azure Kubernetes Pods Deleted",
+  "description": "Identifies the deletion of Azure Kubernetes Pods.",
+  "awsService": "AKS",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "AKS",
+    "impact"
+  ],
+  "logSources": [
+    "Azure Activity Logs"
+  ],
+  "falsePositives": [
+    "Pods may be deleted by a system administrator. Verify whether the user identity, user agent, and/or hostname should be making changes in your environment.",
+    "Pods deletions from unfamiliar users or hosts should be investigated. If known behavior is causing false positives, it can be exempted from the rule."
+  ],
+  "relatedAttackSlugs": []
+}

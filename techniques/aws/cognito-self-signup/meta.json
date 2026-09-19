@@ -1,0 +1,18 @@
+{
+  "id": "tech-cognito-self-signup",
+  "name": "Cognito User Pool Self-Signup",
+  "shortName": "Cognito SignUp",
+  "description": "When a Cognito User Pool has self-signup enabled (SignUp API allowed), anyone can create an account with a valid email and password. An attacker registers with a disposable or controlled email and gains access to the application protected by the User Pool. Depending on the app's authorization, they may access resources intended for legitimate users. No AWS credentials required; the attacker uses the application's signup flow or the Cognito SignUp API directly. This is a common misconfiguration for initial access.",
+  "services": [
+    "Cognito"
+  ],
+  "permissions": [],
+  "detectionIds": [],
+  "mitigations": [
+    "Disable self-signup",
+    "Use admin-only user creation",
+    "Implement invite flows"
+  ],
+  "category": "initial-access",
+  "cloudProvider": "aws"
+}

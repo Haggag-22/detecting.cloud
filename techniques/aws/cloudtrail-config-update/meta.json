@@ -1,0 +1,21 @@
+{
+  "id": "tech-cloudtrail-config-update",
+  "name": "CloudTrail Configuration Update",
+  "shortName": "CloudTrail Config",
+  "description": "An attacker with cloudtrail:UpdateTrail can modify a trail's configuration to evade logging. They may disable the trail (IsMultiRegionTrail=false and pointing to a different region), change the S3 bucket to one they control, or modify other settings. cloudtrail:PutEventSelectors can reduce which events are logged. Required permissions are cloudtrail:UpdateTrail and optionally cloudtrail:PutEventSelectors. This degrades or eliminates audit trail coverage.",
+  "services": [
+    "CloudTrail"
+  ],
+  "permissions": [
+    "cloudtrail:UpdateTrail",
+    "cloudtrail:PutEventSelectors"
+  ],
+  "detectionIds": [],
+  "mitigations": [
+    "Restrict CloudTrail updates",
+    "Use organization trail",
+    "Alert on trail changes"
+  ],
+  "category": "defense-evasion",
+  "cloudProvider": "aws"
+}

@@ -1,0 +1,21 @@
+{
+  "id": "gcp-015",
+  "title": "Google Workspace Role Modified or Deleted",
+  "description": "Detects when an a role is modified or deleted in Google Workspace.",
+  "awsService": "Google Workspace",
+  "relatedServices": [],
+  "cloudProvider": "gcp",
+  "severity": "Medium",
+  "tags": [
+    "GCP",
+    "Google Workspace",
+    "impact"
+  ],
+  "logSources": [
+    "Google Workspace Audit"
+  ],
+  "falsePositives": [
+    "Unknown"
+  ],
+  "relatedAttackSlugs": []
+}

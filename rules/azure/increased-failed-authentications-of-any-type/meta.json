@@ -1,0 +1,25 @@
+{
+  "id": "az-008",
+  "title": "Increased Failed Authentications Of Any Type",
+  "description": "Detects when sign-ins increased by 10% or greater.",
+  "awsService": "Entra ID",
+  "relatedServices": [],
+  "cloudProvider": "azure",
+  "severity": "Medium",
+  "tags": [
+    "AZURE",
+    "Entra ID",
+    "privilege-escalation",
+    "persistence",
+    "initial-access",
+    "stealth",
+    "t1078"
+  ],
+  "logSources": [
+    "Azure Sign-in Logs"
+  ],
+  "falsePositives": [
+    "Unlikely"
+  ],
+  "relatedAttackSlugs": []
+}

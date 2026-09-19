@@ -1,0 +1,5 @@
+[
+  "Identify the actor, session issuer, and any automation provenance behind the lifecycle-config or notebook-association change.",
+  "Verify whether this identity is explicitly approved to manage SageMaker startup logic in the target environment.",
+  "Determine whether the request came from a trusted ML platform workflow or from an unexpected principal."
+]

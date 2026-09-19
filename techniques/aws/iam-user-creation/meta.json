@@ -1,0 +1,24 @@
+{
+  "id": "tech-iam-user-creation",
+  "name": "Backdoor IAM User Creation",
+  "shortName": "Create User",
+  "description": "An attacker with iam:CreateUser and iam:PutUserPolicy (or iam:AttachUserPolicy) can create a new IAM user with a low-profile name (e.g., svc-cloudwatch-metrics) and attach administrative policies. This establishes persistent access that survives key rotation or remediation of the original compromise. The attacker later creates access keys for the backdoor user. Required permissions are iam:CreateUser and either iam:PutUserPolicy for inline policies or iam:AttachUserPolicy for managed policies.",
+  "services": [
+    "IAM"
+  ],
+  "permissions": [
+    "iam:CreateUser",
+    "iam:PutUserPolicy"
+  ],
+  "detectionIds": [
+    "det-004",
+    "det-010"
+  ],
+  "mitigations": [
+    "Use SCPs to restrict IAM user creation",
+    "Audit IAM users regularly",
+    "Implement alerting on any IAM changes"
+  ],
+  "category": "persistence",
+  "cloudProvider": "aws"
+}

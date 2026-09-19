@@ -1,0 +1,49 @@
+{
+  "whyItMatters": "Detects modification or deletion of an AWS RDS cluster via ModifyDBCluster or DeleteDBCluster. DeleteDBCluster can be used by an adversary to destroy data and disrupt availability, while ModifyDBCluster can alter the cluster configuration to weaken security or facilitate unauthorized access.",
+  "threatContext": {
+    "attackerBehavior": "Detects modification or deletion of an AWS RDS cluster via ModifyDBCluster or DeleteDBCluster. DeleteDBCluster can be used by an adversary to destroy data and disrupt availability, while ModifyDBCluster can alter the cluster configuration to weaken security or facilitate unauthorized access.",
+    "whyItMatters": "Detects modification or deletion of an AWS RDS cluster via ModifyDBCluster or DeleteDBCluster. DeleteDBCluster can be used by an adversary to destroy data and disrupt availability, while ModifyDBCluster can alter the cluster configuration to weaken security or facilitate unauthorized access.",
+    "riskAndImpact": "Abuse related to RDS can weaken detection coverage, enable persistence, or expand attacker access."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail"
+    ],
+    "requiredFields": [
+      "eventName",
+      "userIdentity.arn",
+      "eventSource",
+      "eventTime",
+      "sourceIPAddress"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events enabled for the relevant AWS APIs"
+    ],
+    "limitations": [
+      "May require environment-specific tuning to reduce operational false positives"
+    ]
+  },
+  "logicExplanation": {
+    "humanReadable": "Detects modification or deletion of an AWS RDS cluster via ModifyDBCluster or DeleteDBCluster. DeleteDBCluster can be used by an adversary to destroy data and disrupt availability, while ModifyDBCluster can alter the cluster configuration to weaken security or facilitate unauthorized access.",
+    "whenToFire": "When CloudTrail shows activity matching this AWS RDS Cluster Modification or Deletion detection."
+  },
+  "quality": {
+    "signalQuality": 6,
+    "falsePositiveRate": "Medium until tuned",
+    "expectedVolume": "Varies by environment",
+    "productionReadiness": "experimental"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "SIEM",
+      "Athena",
+      "EventBridge + Lambda"
+    ],
+    "scheduling": "Near-real-time preferred for high/critical severity"
+  }
+}

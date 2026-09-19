@@ -1,0 +1,103 @@
+{
+  "whyItMatters": "Permissions-boundary deletion by the wrong identity is a strong signal because boundary administration is normally limited to a small set of trusted IAM operators and automation paths.",
+  "threatContext": {
+    "attackerBehavior": "A developer role, workload role, EC2 instance profile, or misused human session may attempt to remove a boundary from a principal it should not govern.",
+    "realWorldUsage": "Unexpected-actor IAM control removal is common in post-compromise tradecraft because attackers often abuse existing overprivileged roles rather than obviously named admin identities.",
+    "whyItMatters": "The important question is not whether an ARN contains admin, but whether the caller, session, and workflow were allowed to perform this boundary change on that target.",
+    "riskAndImpact": "If missed, a compromised or out-of-scope identity can free privileged principals from delegated guardrails and enable follow-on abuse."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail (management events for IAM)"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "errorCode",
+      "userIdentity.type",
+      "userIdentity.arn",
+      "userIdentity.principalId",
+      "userIdentity.sessionContext.sessionIssuer.arn",
+      "userIdentity.invokedBy",
+      "sourceIPAddress",
+      "userAgent",
+      "requestParameters.roleName",
+      "requestParameters.userName"
+    ],
+    "loggingRequirements": [
+      "CloudTrail management events must be enabled.",
+      "The environment should maintain an authorized IAM-change actor inventory.",
+      "Target ownership and approved automation provenance should be available as enrichment."
+    ],
+    "limitations": [
+      "Without an authorized actor registry this becomes noisy baseline visibility.",
+      "Console and CI/CD sessions can look similar without workflow provenance.",
+      "CloudTrail alone does not determine target ownership scope."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Authorized IAM Change Actors",
+      "description": "Exact inventory of identities allowed to manage permissions boundaries.",
+      "examples": [
+        "platform-security-admin",
+        "terraform-iam-runner"
+      ],
+      "falsePositiveReduction": "Replaces evasive substring filtering with stable actor classification."
+    },
+    {
+      "dimension": "Approved Workflow Provenance",
+      "description": "Correlate userAgent, invokedBy, session tags, pipeline metadata, and maintenance windows.",
+      "examples": [
+        "CloudFormation execution role",
+        "approved emergency rollback"
+      ],
+      "falsePositiveReduction": "Separates sanctioned automation from suspicious manual or untracked changes."
+    },
+    {
+      "dimension": "Actor-to-Target Scope",
+      "description": "Determine whether the actor should be allowed to administer the affected principal.",
+      "examples": [
+        "same team platform role",
+        "cross-team workload role"
+      ],
+      "falsePositiveReduction": "Makes scope violations much higher signal."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule is actor-centric. It should alert when a boundary deletion occurs outside approved IAM governance paths, not when the caller simply lacks admin-like text in its ARN.",
+    "conditions": [
+      "eventSource equals iam.amazonaws.com",
+      "eventName equals DeleteRolePermissionsBoundary or DeleteUserPermissionsBoundary",
+      "actor is not in the approved boundary-manager inventory or request lacks approved workflow provenance, or actor is outside target ownership scope"
+    ],
+    "tuningGuidance": "1. Allowlist exact ARNs and principalIds. 2. Do not suppress approved actors entirely; downgrade them when workflow context exists. 3. Escalate when the target is sensitive or the removal is followed by privileged activity.",
+    "whenToFire": "Fire when boundary removal happens outside authorized IAM change paths, especially on privileged or production principals."
+  },
+  "simulationCommand": "aws iam delete-role-permissions-boundary --role-name TargetRole --profile dev-user",
+  "quality": {
+    "signalQuality": 8,
+    "falsePositiveRate": "Medium without actor inventory, low-medium with actor and workflow enrichment",
+    "expectedVolume": "Low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with lookup tables",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Best in real time or short scheduled windows because the signal depends on actor and workflow context.",
+    "considerations": [
+      "This is the actor-centric companion to baseline boundary deletion and semantic control-reduction detections.",
+      "Use exact actor inventory rather than text heuristics."
+    ]
+  }
+}

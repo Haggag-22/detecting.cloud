@@ -1,0 +1,6 @@
+[
+  "Identify the actor that changed the boundary.",
+  "Review the sequence: boundary change → privileged or sensitive action within 15 minutes.",
+  "Verify if the follow-on activity was expected.",
+  "Assess whether the boundary change enabled broader access."
+]

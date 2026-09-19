@@ -1,0 +1,11 @@
+title: CopySnapshot of External or Public Snapshot
+status: experimental
+logsource:
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: ec2.amazonaws.com
+    eventName: CopySnapshot
+  condition: selection
+level: high
+# High-confidence use requires source ownership, sharing state, and approved region/account context.

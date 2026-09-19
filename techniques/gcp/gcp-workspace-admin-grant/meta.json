@@ -1,0 +1,20 @@
+{
+  "id": "tech-gcp-workspace-admin-grant",
+  "name": "Google Workspace Admin Grant",
+  "shortName": "Workspace Admin",
+  "description": "Google Workspace super admin and other admin roles can change every mailbox, group, and security setting. Granting that role to an attacker-controlled user is the tenant takeover. They may use a quiet user that was created the same day. Password reset on the real admins often comes next. Admin-role grants should be dual-approved and alerted.",
+  "services": [
+    "Google Workspace"
+  ],
+  "permissions": [],
+  "detectionIds": [
+    "gcp-018"
+  ],
+  "mitigations": [
+    "Confirm the action was authorized",
+    "Revert unauthorized changes",
+    "Rotate credentials if the actor is compromised"
+  ],
+  "category": "privilege-escalation",
+  "cloudProvider": "gcp"
+}

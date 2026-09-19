@@ -1,0 +1,5 @@
+[
+  "Read Beanstalk configuration settings in a test environment, then call `CreateAccessKey` for a target user that is classified as high-risk in your identity model.",
+  "Verify both events appear in CloudTrail.",
+  "Run the detector and confirm it keys on target-user risk classification rather than username substrings like `admin` or `backdoor`."
+]

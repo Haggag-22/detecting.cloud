@@ -1,0 +1,8 @@
+index=aws sourcetype=aws:cloudtrail
+  ((eventSource=elasticbeanstalk.amazonaws.com AND eventName=DescribeConfigurationSettings) OR (eventName=CreateAccessKey OR eventName=AssumeRole OR eventName=AttachUserPolicy OR eventName=PutUserPolicy OR eventName=AttachRolePolicy))
+| eval actor=coalesce(userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn)
+| eval is_recon=if(eventSource="elasticbeanstalk.amazonaws.com" AND eventName="DescribeConfigurationSettings", 1, 0)
+| eval is_pivot=if(eventName IN ("CreateAccessKey","AssumeRole","AttachUserPolicy","PutUserPolicy","AttachRolePolicy"), 1, 0)
+| transaction actor maxspan=30m
+| where mvcount(mvfilter(is_recon=1))>0 AND mvcount(mvfilter(is_pivot=1))>0
+| table _time, actor, eventName, requestParameters.applicationName, requestParameters.environmentName

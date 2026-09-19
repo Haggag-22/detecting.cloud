@@ -1,0 +1,6 @@
+[
+  "Identify who scheduled the key deletion.",
+  "Verify if this was planned key rotation.",
+  "Assess impact on encrypted resources (S3, EBS).",
+  "Cancel deletion if unauthorized."
+]

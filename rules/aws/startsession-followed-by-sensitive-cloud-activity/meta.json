@@ -1,0 +1,27 @@
+{
+  "id": "det-078",
+  "title": "StartSession Followed by Sensitive Cloud Activity",
+  "description": "Correlates interactive Session Manager access with subsequent sensitive cloud activity by the same actor or derived session identity. This is a high-confidence post-compromise sequence when interactive access quickly turns into secrets access, role chaining, IAM mutation, or snapshot activity.",
+  "awsService": "SSM",
+  "relatedServices": [
+    "EC2",
+    "Secrets Manager",
+    "KMS",
+    "IAM",
+    "S3"
+  ],
+  "cloudProvider": "aws",
+  "severity": "Critical",
+  "tags": [
+    "SSM",
+    "Session Manager",
+    "Behavior Correlation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Legitimate admin session followed by expected API use"
+  ],
+  "relatedAttackSlugs": []
+}

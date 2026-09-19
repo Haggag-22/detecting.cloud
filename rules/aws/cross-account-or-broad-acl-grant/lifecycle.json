@@ -1,0 +1,101 @@
+{
+  "whyItMatters": "Broad and external ACL grants are the highest-risk ACL changes because they can immediately expose data or preserve access for another principal outside the normal policy path.",
+  "threatContext": {
+    "attackerBehavior": "An attacker may grant access to the `AllUsers` or `AuthenticatedUsers` groups, or to a separate AWS account they control, to preserve access or stage exfiltration.",
+    "realWorldUsage": "This is attractive in legacy ACL-enabled environments where exposure can be created quickly without editing bucket policy.",
+    "whyItMatters": "The grant scope is the real security signal: public, authenticated, or external-account exposure should be handled as a top-priority S3 event.",
+    "riskAndImpact": "If missed, defenders may fail to detect direct data exposure or external persistence introduced through ACLs."
+  },
+  "telemetryValidation": {
+    "requiredLogSources": [
+      "AWS CloudTrail for S3 ACL operations",
+      "Bucket ownership and ACL-effectiveness inventory"
+    ],
+    "requiredFields": [
+      "eventSource",
+      "eventName",
+      "eventTime",
+      "userIdentity.arn",
+      "requestParameters.bucketName",
+      "requestParameters.key",
+      "requestParameters.acl",
+      "requestParameters.AccessControlPolicy"
+    ],
+    "loggingRequirements": [
+      "CloudTrail must preserve canned ACLs and structured grant payloads where possible.",
+      "The environment should parse S3 grantee groups and canonical-user or account grants.",
+      "ACL-effectiveness context should be available to avoid over-alerting on disabled ACL targets."
+    ],
+    "limitations": [
+      "Structured grant details may be difficult to query directly depending on storage format.",
+      "Some legacy workflows may legitimately share data cross-account.",
+      "Canned ACL text alone does not capture every nuanced grantee relationship."
+    ]
+  },
+  "enrichment": [
+    {
+      "dimension": "Grant Scope",
+      "description": "Resolve whether the ACL created public, authenticated-user, or external-account access.",
+      "examples": [
+        "public",
+        "authenticated-users",
+        "external-account"
+      ],
+      "falsePositiveReduction": "Makes broad exposure explicit instead of inferring from raw text only."
+    },
+    {
+      "dimension": "Expected Sharing Inventory",
+      "description": "Determine whether the specific grantee or exposure class is approved for the target.",
+      "examples": [
+        "approved partner account",
+        "unexpected external account"
+      ],
+      "falsePositiveReduction": "Separates legitimate sharing from suspicious exposure."
+    },
+    {
+      "dimension": "Target Data Sensitivity",
+      "description": "Classify the exposed bucket or object by business sensitivity.",
+      "examples": [
+        "customer data",
+        "public website assets"
+      ],
+      "falsePositiveReduction": "Improves prioritization of risky ACL grants."
+    }
+  ],
+  "logicExplanation": {
+    "humanReadable": "This rule should detect ACL changes that create broad or external exposure. It should parse canned ACLs and structured grants to identify public, authenticated-user, or external-account access on ACL-effective targets.",
+    "conditions": [
+      "eventSource equals s3.amazonaws.com",
+      "eventName equals PutBucketAcl or PutObjectAcl",
+      "ACL result resolves to public, authenticated-users, or external-account access",
+      "target still honors ACLs where that context is available"
+    ],
+    "tuningGuidance": "1. Parse grant scope explicitly. 2. Maintain approved-sharing inventories for known partner accounts. 3. Escalate strongly for public exposure or sensitive data targets.",
+    "whenToFire": "Fire when an ACL change grants broad or external access to a bucket or object."
+  },
+  "simulationCommand": "aws s3api put-bucket-acl --bucket target --acl public-read",
+  "quality": {
+    "signalQuality": 9,
+    "falsePositiveRate": "Low-Medium with approved-sharing context",
+    "expectedVolume": "Very low",
+    "productionReadiness": "validated"
+  },
+  "communityConfidence": {
+    "accurate": 0,
+    "needsTuning": 0,
+    "noisy": 0
+  },
+  "deployment": {
+    "whereItRuns": [
+      "EventBridge + Lambda enrichment",
+      "Athena with ACL grant parsing",
+      "Splunk",
+      "Panther / Chronicle / Datadog"
+    ],
+    "scheduling": "Real-time is preferred because broad ACL grants can expose data immediately.",
+    "considerations": [
+      "This is the grant-scope branch of the S3 ACL family.",
+      "Grant parsing and approved-sharing inventories are the main dependencies."
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "slug": "get-federation-token-persistence",
+  "title": "GetFederationToken Persistence",
+  "description": "An attacker with sts:GetFederationToken can create federation tokens that are tied to the attacker's identity but have a configurable policy. Unlike AssumeRole, federation tokens are not revoked when the original access key is deleted or rotated. The attacker creates a federation token with broad permissions before their access key is rotated. They store the token credentials and use them for persistent access even after the organization believes they have removed the attacker's access by deleting keys.",
+  "severity": "High",
+  "objective": "persistence",
+  "tags": [
+    "STS",
+    "Federation Token",
+    "Persistence"
+  ],
+  "steps": [
+    {
+      "techniqueId": "tech-get-federation-token",
+      "context": "Create federation token before key deletion"
+    }
+  ],
+  "cloudProvider": "aws"
+}

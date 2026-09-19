@@ -1,0 +1,25 @@
+{
+  "id": "det-066",
+  "title": "RunInstances with Permission-Granting Instance Profile",
+  "description": "Detects EC2 launches where the attached instance profile resolves to a role with admin-equivalent, role-chaining, secrets-access, or otherwise high-risk permissions. This should be based on the backing role's effective permissions rather than profile-name patterns.",
+  "awsService": "EC2",
+  "relatedServices": [
+    "IAM"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "EC2",
+    "RunInstances",
+    "PassRole",
+    "Privilege Escalation"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Known baseline infrastructure roles",
+    "Approved launch pipelines"
+  ],
+  "relatedAttackSlugs": []
+}

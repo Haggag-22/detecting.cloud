@@ -1,0 +1,24 @@
+{
+  "id": "det-077",
+  "title": "StartSession to Classified Sensitive Target",
+  "description": "Detects Session Manager access to targets classified as production, identity infrastructure, bastion, break-glass, secrets-hosting, or otherwise sensitive systems. This should rely on resolved target metadata rather than instance ID naming conventions.",
+  "awsService": "SSM",
+  "relatedServices": [
+    "EC2"
+  ],
+  "cloudProvider": "aws",
+  "severity": "High",
+  "tags": [
+    "SSM",
+    "Session Manager",
+    "Sensitive Target"
+  ],
+  "logSources": [
+    "AWS CloudTrail"
+  ],
+  "falsePositives": [
+    "Authorized access to production instances",
+    "Break-glass procedures"
+  ],
+  "relatedAttackSlugs": []
+}

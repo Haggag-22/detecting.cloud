@@ -1,0 +1,3 @@
+index=aws sourcetype=aws:cloudtrail eventSource=eks.amazonaws.com (eventName=CreateAccessEntry OR eventName=AssociateAccessPolicy)
+| where NOT (like(userIdentity.arn, "%/role/Admin%") OR like(userIdentity.arn, "%/role/Platform%") OR like(userIdentity.arn, "%/role/EKS%") OR like(userIdentity.arn, "%/role/ClusterAdmin%") OR like(userIdentity.principalId, "%terraform%") OR like(userIdentity.principalId, "%cloudformation%"))
+| table _time, userIdentity.type, userIdentity.arn, userIdentity.sessionContext.sessionIssuer.arn, eventName, requestParameters.clusterName, requestParameters.principalArn, sourceIPAddress

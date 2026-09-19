@@ -1,0 +1,4 @@
+fields @timestamp, userIdentity.arn, eventName, requestParameters.notebookInstanceLifecycleConfigName, sourceIPAddress
+| filter eventSource = "sagemaker.amazonaws.com"
+| filter eventName in ["CreateNotebookInstanceLifecycleConfig", "UpdateNotebookInstanceLifecycleConfig"]
+| sort @timestamp desc

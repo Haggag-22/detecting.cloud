@@ -1,0 +1,5 @@
+[
+  "Apply `PutBucketAcl` or `PutObjectAcl` to a lab bucket with ACLs enabled.",
+  "Verify CloudTrail records a successful ACL change and your enrichment marks the target as ACL-effective.",
+  "Run the detector and confirm it excludes ineffective ACL requests where ownership controls disable ACL impact."
+]
