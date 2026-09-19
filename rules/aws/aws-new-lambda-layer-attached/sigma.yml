@@ -1,5 +1,4 @@
 title: AWS New Lambda Layer Attached
-id: b21d1f97-55cc-4871-a097-f53803037bf5
 status: experimental
 description: |
     Detects when a user attaches a Lambda layer to an existing AWS Lambda function. A malicious Lambda layer could execute arbitrary code in the context of the function's IAM role, potentially granting an adversary access to resources the function has access to. This activity could indicate privilege escalation or unauthorized modification of serverless functions.

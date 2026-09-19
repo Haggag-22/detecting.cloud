@@ -1,5 +1,4 @@
 title: AWS SAML Provider Deletion Activity
-id: ccd6a6c8-bb4e-4a91-9d2a-07e632819374
 status: experimental
 description: |
     Detects the deletion of an AWS SAML provider, potentially indicating malicious intent to disrupt administrative or security team access.

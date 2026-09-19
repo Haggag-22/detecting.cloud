@@ -1,5 +1,4 @@
 title: AWS Console Login From Unusual Location
-id: cb7778c0-717f-4273-a7de-593cfbc13ac0
 status: experimental
 description: |
     Detects successful AWS console logins that originate from countries or IP

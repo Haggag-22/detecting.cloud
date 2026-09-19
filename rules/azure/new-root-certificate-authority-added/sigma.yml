@@ -1,5 +1,4 @@
 title: New Root Certificate Authority Added
-id: 4bb80281-3756-4ec8-a88e-523c5a6fda9e
 status: test
 description: Detects newly added root certificate authority to an AzureAD tenant to support certificate based authentication.
 references:

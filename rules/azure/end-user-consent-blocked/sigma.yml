@@ -1,5 +1,4 @@
 title: End User Consent Blocked
-id: 7091372f-623c-4293-bc37-20c32b3492be
 status: test
 description: Detects when end user consent is blocked due to risk-based consent.
 references:

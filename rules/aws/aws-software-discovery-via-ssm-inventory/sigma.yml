@@ -1,5 +1,4 @@
 title: AWS Software Discovery Via SSM Inventory
-id: a1b2c3d4-e5f6-4789-a012-3456789abc04
 status: experimental
 description: |
     Detects use of AWS Systems Manager to enumerate installed software and inventory on cloud workloads, aligned to MITRE ATT&CK detection strategy DET0392 / AN1103 for Software Discovery. Use the UserAgent mutable element to distinguish automated/authorized console access from adversary scripting.

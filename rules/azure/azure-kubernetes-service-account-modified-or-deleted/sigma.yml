@@ -1,5 +1,4 @@
 title: Azure Kubernetes Service Account Modified or Deleted
-id: 12d027c3-b48c-4d9d-8bb6-a732200034b2
 status: test
 description: Identifies when a service account is modified or deleted.
 references:

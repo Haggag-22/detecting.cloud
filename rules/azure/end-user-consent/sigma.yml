@@ -1,5 +1,4 @@
 title: End User Consent
-id: 9b2cc4c4-2ad4-416d-8e8e-ee6aa6f5035a
 status: test
 description: Detects when an end user consents to an application
 references:

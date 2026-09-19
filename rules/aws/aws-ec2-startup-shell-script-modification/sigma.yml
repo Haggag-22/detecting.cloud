@@ -1,5 +1,4 @@
 title: AWS EC2 Startup Shell Script Modification
-id: 847e614c-d770-42ff-91b9-559e014ee44d
 status: experimental
 description: |
     Detects changes to the EC2 instance startup script (user data) via ModifyInstanceAttribute where requestParameters.attribute is userData. The startup script is executed as root/SYSTEM each time the instance boots, allowing adversaries to establish persistence and execute arbitrary commands. Companion to the EC2 compute configuration modification rule, which deliberately excludes userData changes.

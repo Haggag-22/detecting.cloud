@@ -1,5 +1,4 @@
 title: Azure Kubernetes Cluster Created or Deleted
-id: 9541f321-7cba-4b43-80fc-fbd1fb922808
 status: test
 description: Detects when a Azure Kubernetes Cluster is created or deleted.
 references:

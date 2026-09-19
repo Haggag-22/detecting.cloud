@@ -1,5 +1,4 @@
 title: Too Many Global Admins
-id: 7bbc309f-e2b1-4eb1-8369-131a367d67d3
 status: test
 description: Identifies an event where there are there are too many accounts assigned the Global Administrator role.
 references:

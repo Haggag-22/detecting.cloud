@@ -1,5 +1,4 @@
 title: Google Cloud Kubernetes RoleBinding
-id: 0322d9f2-289a-47c2-b5e1-b63c90901a3e
 status: test
 description: Detects the creation or patching of potential malicious RoleBinding. This includes RoleBindings and ClusterRoleBinding.
 references:

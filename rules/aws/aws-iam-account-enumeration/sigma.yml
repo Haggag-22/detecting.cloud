@@ -1,5 +1,4 @@
 title: AWS IAM Account Enumeration
-id: f304ee10-068b-475b-ab34-78eb7c04912d
 status: experimental
 description: |
     Detects broad IAM user/role/credential enumeration (ListUsers, ListRoles, GetAccountAuthorizationDetails, ListAccessKeys, GenerateCredentialReport). Adds general Cloud Account discovery (T1087.004) beyond the existing SigmaHQ rule which only flags GetCallerIdentity from the TruffleHog user agent.

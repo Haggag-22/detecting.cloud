@@ -1,5 +1,4 @@
 title: AWS Account Password Policy Discovery
-id: b138513c-3f18-4266-ad3e-e226c0cc1ae3
 status: experimental
 description: |
     Detects retrieval of the account password policy (GetAccountPasswordPolicy). Adversaries query the password policy to inform password guessing or spraying attacks.

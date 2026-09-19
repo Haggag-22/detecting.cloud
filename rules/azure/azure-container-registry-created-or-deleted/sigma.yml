@@ -1,5 +1,4 @@
 title: Azure Container Registry Created or Deleted
-id: 93e0ef48-37c8-49ed-a02c-038aab23628e
 status: test
 description: Detects when a Container Registry is created or deleted.
 references:

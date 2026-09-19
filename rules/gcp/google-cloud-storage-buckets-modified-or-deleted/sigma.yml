@@ -1,5 +1,4 @@
 title: Google Cloud Storage Buckets Modified or Deleted
-id: 4d9f2ee2-c903-48ab-b9c1-8c0f474913d0
 status: test
 description: Detects when storage bucket is modified or deleted in Google Cloud.
 references:

@@ -1,5 +1,4 @@
 title: AWS GuardDuty Detector Deleted Or Updated
-id: d2656e78-c069-4571-8220-9e0ab5913f19
 status: experimental
 description: |
     Detects successful deletion or disabling of an AWS GuardDuty detector, possibly by an attacker trying to avoid detection of its malicious activities.

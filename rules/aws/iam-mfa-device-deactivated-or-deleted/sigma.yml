@@ -1,5 +1,4 @@
 title: AWS IAM MFA Device Deactivation Or Deletion
-id: e25b3c14-d36b-47b1-bf20-dea756898cc4
 status: experimental
 description: |
     Detects deactivation or deletion of IAM MFA devices (DeactivateMFADevice, DeleteVirtualMFADevice). Adds Multi-Factor Authentication modification (T1556.006) coverage beyond the existing SigmaHQ SSO external-IdP change rule.

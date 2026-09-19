@@ -1,5 +1,4 @@
 title: Azure Subscription Permission Elevation Via AuditLogs
-id: ca9bf243-465e-494a-9e54-bf9fc239057d
 status: test
 description: |
     Detects when a user has been elevated to manage all Azure Subscriptions.

@@ -1,5 +1,4 @@
 title: AWS EC2 Disable EBS Encryption
-id: 16124c2d-e40b-4fcc-8f2c-5ab7870a2223
 status: stable
 description: |
   Identifies disabling of default Amazon Elastic Block Store (EBS) encryption in the current region.

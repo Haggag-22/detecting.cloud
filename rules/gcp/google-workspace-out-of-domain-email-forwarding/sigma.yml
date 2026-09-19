@@ -1,5 +1,4 @@
 title: Google Workspace Out Of Domain Email Forwarding
-id: 2a0bb2dd-eb5f-4517-8cb9-404f8ba764a5
 status: experimental
 description: Detects automatic email forwarding to external domains in Google Workspace, which may indicate data leakage or misuse.
 references:

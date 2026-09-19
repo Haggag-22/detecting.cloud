@@ -1,5 +1,4 @@
 title: Azure Kubernetes Secret or Config Object Access
-id: 7ee0b4aa-d8d4-4088-b661-20efdf41a04c
 status: test
 description: Identifies when a Kubernetes account access a sensitive objects such as configmaps or secrets.
 references:

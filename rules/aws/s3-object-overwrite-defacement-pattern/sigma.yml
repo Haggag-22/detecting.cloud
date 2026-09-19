@@ -1,5 +1,4 @@
 title: AWS S3 Object Overwrite Indicative Of Defacement
-id: 7da7f57b-f940-422b-a0f1-4ed676110311
 status: experimental
 description: |
     Detects writes to S3 objects (PutObject) which, when targeting public or website-enabled buckets,

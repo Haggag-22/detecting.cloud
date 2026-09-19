@@ -1,5 +1,4 @@
 title: Password Reset By User Account
-id: 340ee172-4b67-4fb4-832f-f961bdc1f3aa
 status: test
 description: Detect when a user has reset their password in Azure AD
 references:

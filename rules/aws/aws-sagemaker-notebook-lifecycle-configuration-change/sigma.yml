@@ -1,5 +1,4 @@
 title: AWS SageMaker Notebook Lifecycle Configuration Change
-id: 707e5b7d-1fce-4880-a3c5-3e90097f4533
 status: experimental
 description: |
     Detects creation or update of SageMaker notebook lifecycle configurations that can execute code at notebook startup.

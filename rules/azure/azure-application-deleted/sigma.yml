@@ -1,5 +1,4 @@
 title: Azure Application Deleted
-id: 410d2a41-1e6d-452f-85e5-abdd8257a823
 status: test
 description: Identifies when a application is deleted in Azure.
 references:

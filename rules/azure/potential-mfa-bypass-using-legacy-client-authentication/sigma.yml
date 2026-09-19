@@ -1,5 +1,4 @@
 title: Potential MFA Bypass Using Legacy Client Authentication
-id: 53bb4f7f-48a8-4475-ac30-5a82ddfdf6fc
 status: test
 description: Detects successful authentication from potential clients using legacy authentication via user agent strings. This could be a sign of MFA bypass using a password spray attack.
 references:

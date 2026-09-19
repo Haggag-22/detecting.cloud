@@ -1,5 +1,4 @@
 title: User Access Blocked by Azure Conditional Access
-id: 9a60e676-26ac-44c3-814b-0c2a8b977adf
 status: test
 description: |
     Detect access has been blocked by Conditional Access policies.

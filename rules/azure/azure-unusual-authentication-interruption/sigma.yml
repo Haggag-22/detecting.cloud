@@ -1,5 +1,4 @@
 title: Azure Unusual Authentication Interruption
-id: 8366030e-7216-476b-9927-271d79f13cf3
 status: test
 description: Detects when there is a interruption in the authentication process.
 references:

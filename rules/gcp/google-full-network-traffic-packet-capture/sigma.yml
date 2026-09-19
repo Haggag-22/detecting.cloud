@@ -1,5 +1,4 @@
 title: Google Full Network Traffic Packet Capture
-id: 980a7598-1e7f-4962-9372-2d754c930d0e
 status: test
 description: Identifies potential full network packet capture in gcp. This feature can potentially be abused to read sensitive data from unencrypted internal traffic.
 references:

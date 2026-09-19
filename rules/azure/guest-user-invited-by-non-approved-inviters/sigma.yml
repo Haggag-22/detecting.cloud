@@ -1,5 +1,4 @@
 title: Guest User Invited By Non Approved Inviters
-id: 0b4b72e3-4c53-4d5b-b198-2c58cfef39a9
 status: test
 description: Detects when a user that doesn't have permissions to invite a guest user attempts to invite one.
 references:

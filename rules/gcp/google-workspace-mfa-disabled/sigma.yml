@@ -1,5 +1,4 @@
 title: Google Workspace MFA Disabled
-id: 780601d1-6376-4f2a-884e-b8d45599f78c
 status: test
 description: Detects when multi-factor authentication (MFA) is disabled.
 references:

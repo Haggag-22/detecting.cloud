@@ -1,5 +1,4 @@
 title: AWS GuardDuty Important Change
-id: 6e61ee20-ce00-4f8d-8aee-bedd8216f7e3
 status: test
 description: Detects updates of the GuardDuty list of trusted IPs, perhaps to disable security alerts against malicious IPs.
 references:

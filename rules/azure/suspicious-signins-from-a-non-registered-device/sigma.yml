@@ -1,5 +1,4 @@
 title: Suspicious SignIns From A Non Registered Device
-id: 572b12d4-9062-11ed-a1eb-0242ac120002
 status: test
 description: Detects risky authentication from a non AD registered device without MFA being required.
 references:

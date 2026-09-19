@@ -1,5 +1,4 @@
 title: Use of Legacy Authentication Protocols
-id: 60f6535a-760f-42a9-be3f-c9a0a025906e
 status: test
 description: Alert on when legacy authentication has been used on an account
 references:

@@ -1,5 +1,4 @@
 title: Number Of Resource Creation Or Deployment Activities
-id: d2d901db-7a75-45a1-bc39-0cbf00812192
 status: test
 description: Number of VM creations or deployment activities occur in Azure via the azureactivity log.
 references:

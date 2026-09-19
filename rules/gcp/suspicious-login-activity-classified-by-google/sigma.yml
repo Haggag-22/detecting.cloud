@@ -1,5 +1,4 @@
 title: Suspicious Login Activity Classified By Google
-id: 38360161-76c4-4283-842e-efcf997dafc8
 status: experimental
 description: Detects Google Workspace login activity that's classified as suspicious by Google.
 references:

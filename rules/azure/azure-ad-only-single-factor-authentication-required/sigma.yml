@@ -1,5 +1,4 @@
 title: Azure AD Only Single Factor Authentication Required
-id: 28eea407-28d7-4e42-b0be-575d5ba60b2c
 status: test
 description: Detect when users are authenticating without MFA being required.
 references:

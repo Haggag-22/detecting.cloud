@@ -1,5 +1,4 @@
 title: Public AWS RDS Instance Restored From Snapshot
-id: 472055cb-4adf-4f72-9a30-3d93a76b72e6
 status: experimental
 description: |
     Detects when an AWS RDS database instance is restored from a snapshot and configured to be publicly accessible via RestoreDBInstanceFromDBSnapshot where responseElements.publiclyAccessible is true. Adversaries can abuse this to expose a copy of a database to the internet and exfiltrate its contents.

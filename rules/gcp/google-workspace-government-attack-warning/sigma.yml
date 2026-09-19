@@ -1,5 +1,4 @@
 title: Google Workspace Government Attack Warning
-id: eafe6f2b-cfec-4612-aec2-49563c33a087
 status: experimental
 description: Detects a login attempt in Google Workspace flagged as a potential attack by a government-backed threat actor
 references:

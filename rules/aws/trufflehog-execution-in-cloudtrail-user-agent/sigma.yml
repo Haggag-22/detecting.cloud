@@ -1,5 +1,4 @@
 title: PUA - AWS TruffleHog Execution
-id: a840e606-7c8c-4684-9bc1-eb6b6155127f
 status: experimental
 description: |
     Detects the execution of TruffleHog, a popular open-source tool used for scanning repositories for secrets and sensitive information, within an AWS environment.

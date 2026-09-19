@@ -1,5 +1,4 @@
 title: Suspicious Inbox Manipulation Rules
-id: ceb55fd0-726e-4656-bf4e-b585b7f7d572
 status: test
 description: Detects suspicious rules that delete or move messages or folders are set on a user's inbox.
 references:
