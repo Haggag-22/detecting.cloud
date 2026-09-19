@@ -24,10 +24,8 @@ scripts/
 * 2.*
 
 # Editor directories and files
-.vscode/*
+.vscode/
 .lovable
-!.vscode/extensions.json
-!.vscode/settings.json
 .idea
 .DS_Store
 *.suo
